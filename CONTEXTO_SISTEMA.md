@@ -119,6 +119,7 @@ Para garantizar que Google Earth funcione a máxima velocidad sin congelarse ni 
 | **24-10-2026** | Remoción de Top Header global (`Layout.jsx`). | Maximizar el espacio vertical útil de trabajo en pantalla y eliminar información redundante. |
 | **24-10-2026** | Creación del componente reutilizable `MetricCard` y `MetricGrid`. | Estandarizar medidores/KPIs en Personal, Sitios y Observaciones con diseño visual destacado (marca de agua, acentos y micro-interacciones). |
 | **24-10-2026** | Integración de `MetricCard` en Programación y adaptación compacta/responsive. | Reducción de tipografía a tamaño balanceado y adaptación fluida para tablet y celular (2 cols en tablet, 1-2 en móvil). |
+| **24-10-2026** | Reorganización de KPIs contextuales y rediseño de barra de controles en Programación. | KPIs de cabecera contextuales (Hoy muestra métricas de la jornada y Semana muestra consolidados), barra de navegación en blanco corporativo `#ffffff`, eliminación de textos redundantes y unificación de filtros por estado y selector de distribución. |
 
 ---
 

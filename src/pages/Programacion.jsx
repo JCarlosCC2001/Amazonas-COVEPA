@@ -3,7 +3,7 @@ import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2,
   MapPin, CheckCircle2, Clock, AlertCircle, List,
   CalendarDays, X, Search, Save, RefreshCw, Eye, ShieldCheck,
-  Check, AlertTriangle, Users, Edit3, User, FileSpreadsheet, Download
+  Check, AlertTriangle, Users, Edit3, User, FileSpreadsheet, Download, Send
 } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import {
@@ -419,39 +419,74 @@ export default function Programacion() {
 
   return (
     <div className="prog-container">
-      {/* ── MEDIDORES / KPIs REUTILIZABLES DE LA SEMANA ── */}
+      {/* ── MEDIDORES / KPIs OPERATIVOS CONTEXTUALES ── */}
       <MetricGrid columns={4}>
-        <MetricCard
-          icon={<CalendarDays size={20} />}
-          label="Jornadas Semana"
-          value={kpis.totalJornadas}
-          subtitle={`${kpis.totalSitiosProgramados} sitios`}
-          variant="navy"
-        />
-        <MetricCard
-          icon={<AlertCircle size={20} />}
-          label="Total Observaciones"
-          value={kpis.totalObs}
-          subtitle="en ruta"
-          variant="sky"
-        />
-        <MetricCard
-          icon={<CheckCircle2 size={20} />}
-          label="Subsanadas / Descartadas"
-          value={kpis.subsanadas + kpis.descartadas}
-          subtitle={`${kpis.subsanadas} sub · ${kpis.descartadas} desc`}
-          variant="emerald"
-        />
-        <MetricCard
-          icon={<ShieldCheck size={20} />}
-          label="Avance Semanal"
-          value={`${kpis.avancePct}%`}
-          subtitle={`${kpis.pendientes} pendientes`}
-          variant="amber"
-        />
+        {viewMode === 'today' ? (
+          <>
+            <MetricCard
+              icon={<Users size={20} />}
+              label="Cuadrillas en Campo"
+              value={todayStats.totalProgs}
+              subtitle={`${todayStats.totalPersonal} personal en ruta`}
+              variant="navy"
+            />
+            <MetricCard
+              icon={<MapPin size={20} />}
+              label="Sitios Programados"
+              value={todayStats.totalSitios}
+              subtitle={`${todayStats.totalObs} obs. registradas`}
+              variant="sky"
+            />
+            <MetricCard
+              icon={<CheckCircle2 size={20} />}
+              label="Obs. Resueltas Hoy"
+              value={`${todayStats.resueltas} / ${todayStats.totalObs}`}
+              subtitle={`${todayStats.validadas} val · ${todayStats.enviadas} env`}
+              variant="emerald"
+            />
+            <MetricCard
+              icon={<Clock size={20} />}
+              label="En Revisión"
+              value={todayStats.enRevision}
+              subtitle={`${todayStats.pendientes} pendientes`}
+              variant="amber"
+            />
+          </>
+        ) : (
+          <>
+            <MetricCard
+              icon={<CalendarDays size={20} />}
+              label="Jornadas Semana"
+              value={kpis.totalJornadas}
+              subtitle={`${kpis.totalSitiosProgramados} sitios`}
+              variant="navy"
+            />
+            <MetricCard
+              icon={<AlertCircle size={20} />}
+              label="Total Observaciones"
+              value={kpis.totalObs}
+              subtitle="en ruta semanal"
+              variant="sky"
+            />
+            <MetricCard
+              icon={<CheckCircle2 size={20} />}
+              label="Subsanadas / Descartadas"
+              value={kpis.subsanadas + kpis.descartadas}
+              subtitle={`${kpis.subsanadas} sub · ${kpis.descartadas} desc`}
+              variant="emerald"
+            />
+            <MetricCard
+              icon={<ShieldCheck size={20} />}
+              label="Avance Semanal"
+              value={`${kpis.avancePct}%`}
+              subtitle={`${kpis.pendientes} pendientes`}
+              variant="amber"
+            />
+          </>
+        )}
       </MetricGrid>
 
-      {/* ── BARRA SUPERIOR INTEGRADA (Navegación + Acciones) ── */}
+      {/* ── BARRA SUPERIOR INTEGRADA (Navegación de Fecha + Selector de Vista + Acción) ── */}
       <div className="prog-toolbar">
         {/* Izquierda: Selector de Día / Semana */}
         <div className="prog-nav-group">
@@ -467,30 +502,23 @@ export default function Programacion() {
           <div className="prog-nav-title">
             {viewMode === 'today' ? (
               <>
-                <Clock size={15} style={{ color: '#38bdf8', display: 'inline', marginRight: '6px' }} />
+                <Clock size={16} style={{ color: '#0284c7', display: 'inline', marginRight: '6px' }} />
                 <span style={{ textTransform: 'capitalize' }}>
                   {currentDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
                 {toLocalDateString(currentDate) === toLocalDateString(new Date()) && (
-                  <span style={{
-                    marginLeft: '8px',
-                    fontSize: '0.66rem',
-                    background: 'rgba(16, 185, 129, 0.2)',
-                    color: '#34d399',
-                    border: '1px solid rgba(16, 185, 129, 0.4)',
-                    padding: '0.1rem 0.45rem',
-                    borderRadius: '100px',
-                    fontWeight: 700
-                  }}>
+                  <span className="prog-badge-today">
                     HOY
                   </span>
                 )}
               </>
             ) : (
               <>
-                <CalendarDays size={15} style={{ color: '#818cf8', display: 'inline', marginRight: '6px' }} />
-                {weekDays[0].date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })} –{' '}
-                {weekDays[6].date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' })}
+                <CalendarDays size={16} style={{ color: '#003060', display: 'inline', marginRight: '6px' }} />
+                <span>
+                  {weekDays[0].date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })} –{' '}
+                  {weekDays[6].date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
               </>
             )}
           </div>
@@ -500,7 +528,7 @@ export default function Programacion() {
         </div>
 
         {/* Derecha: Toggle Hoy / Semana / Lista + Botón Nueva Programación */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
           <div className="prog-views-toggle">
             <button
               className={`prog-view-btn ${viewMode === 'today' ? 'active' : ''}`}
@@ -544,122 +572,86 @@ export default function Programacion() {
       {/* ── CONTENIDO PRINCIPAL: VISTA HOY ── */}
       {viewMode === 'today' && (
         <div className="prog-today-container">
-          {/* Barra de Seguimiento Operativo (Sin redundancia de fecha) */}
-          <div className="prog-today-hero" style={{ padding: '0.85rem 1.4rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.86rem', color: '#f1f5f9' }}>
-                <Users size={16} color="#38bdf8" />
-                <span><strong>{todayStats.totalProgs}</strong> cuadrillas</span>
-                <span style={{ color: 'var(--text-muted)' }}>•</span>
-                <span><strong>{todayStats.totalPersonal}</strong> en campo</span>
-                <span style={{ color: 'var(--text-muted)' }}>•</span>
-                <span><strong>{todayStats.totalSitios}</strong> sitios asignados</span>
-              </div>
-            </div>
-
-            {/* Pestañas de filtrado rápido por estado de observación */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {/* Barra de Filtros por Estado y Selector de Distribución */}
+          <div className="prog-today-filter-bar">
+            {/* Filtro interactivo por Estado de Observación */}
+            <div className="prog-filter-pills-group">
+              <span className="prog-filter-label">Estado:</span>
               <button
                 type="button"
+                className={`prog-filter-pill ${todayFilter === 'ALL' ? 'active' : ''}`}
                 onClick={() => setTodayFilter('ALL')}
-                style={{
-                  background: todayFilter === 'ALL' ? 'rgba(99, 102, 241, 0.25)' : 'rgba(0, 0, 0, 0.25)',
-                  border: `1px solid ${todayFilter === 'ALL' ? '#818cf8' : 'rgba(255, 255, 255, 0.1)'}`,
-                  color: todayFilter === 'ALL' ? '#fff' : 'var(--text-muted)',
-                  borderRadius: '6px',
-                  padding: '0.3rem 0.65rem',
-                  fontSize: '0.74rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem'
-                }}
               >
                 <span>Todas</span>
-                <span style={{ background: 'rgba(255,255,255,0.1)', padding: '0.05rem 0.35rem', borderRadius: '4px', fontSize: '0.68rem' }}>
-                  {todayStats.resueltas}/{todayStats.totalObs}
-                </span>
+                <span className="prog-pill-badge">{todayStats.resueltas}/{todayStats.totalObs}</span>
               </button>
 
               <button
                 type="button"
+                className={`prog-filter-pill pill-revision ${todayFilter === 'EN_REVISION' ? 'active' : ''}`}
                 onClick={() => setTodayFilter(todayFilter === 'EN_REVISION' ? 'ALL' : 'EN_REVISION')}
                 title="Filtrar cuadrillas con observaciones en revisión"
-                style={{
-                  background: todayFilter === 'EN_REVISION' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(56, 189, 248, 0.08)',
-                  border: `1px solid ${todayFilter === 'EN_REVISION' ? '#38bdf8' : 'rgba(56, 189, 248, 0.3)'}`,
-                  color: '#38bdf8',
-                  borderRadius: '6px',
-                  padding: '0.3rem 0.65rem',
-                  fontSize: '0.74rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem'
-                }}
               >
-                <span>🔍 En Revisión</span>
-                <span style={{ background: 'rgba(56, 189, 248, 0.2)', padding: '0.05rem 0.4rem', borderRadius: '100px', fontSize: '0.7rem', fontWeight: 700 }}>
-                  {todayStats.enRevision}
-                </span>
+                <Clock size={13} />
+                <span>En Revisión</span>
+                <span className="prog-pill-badge">{todayStats.enRevision}</span>
               </button>
 
               <button
                 type="button"
+                className={`prog-filter-pill pill-validado ${todayFilter === 'VALIDADO' ? 'active' : ''}`}
                 onClick={() => setTodayFilter(todayFilter === 'VALIDADO' ? 'ALL' : 'VALIDADO')}
-                title="Filtrar cuadrillas con observaciones validadas esperando a ser subidas"
-                style={{
-                  background: todayFilter === 'VALIDADO' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.08)',
-                  border: `1px solid ${todayFilter === 'VALIDADO' ? '#10b981' : 'rgba(16, 185, 129, 0.3)'}`,
-                  color: '#34d399',
-                  borderRadius: '6px',
-                  padding: '0.3rem 0.65rem',
-                  fontSize: '0.74rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem'
-                }}
+                title="Filtrar cuadrillas con observaciones validadas por subir"
               >
-                <span>✓ Validados (Por subir)</span>
-                <span style={{ background: 'rgba(16, 185, 129, 0.2)', padding: '0.05rem 0.4rem', borderRadius: '100px', fontSize: '0.7rem', fontWeight: 700 }}>
-                  {todayStats.validadas}
-                </span>
+                <CheckCircle2 size={13} />
+                <span>Validados (Por subir)</span>
+                <span className="prog-pill-badge">{todayStats.validadas}</span>
               </button>
 
               <button
                 type="button"
+                className={`prog-filter-pill pill-enviado ${todayFilter === 'ENVIADO' ? 'active' : ''}`}
                 onClick={() => setTodayFilter(todayFilter === 'ENVIADO' ? 'ALL' : 'ENVIADO')}
                 title="Filtrar cuadrillas con observaciones enviadas"
-                style={{
-                  background: todayFilter === 'ENVIADO' ? 'rgba(192, 132, 252, 0.25)' : 'rgba(192, 132, 252, 0.08)',
-                  border: `1px solid ${todayFilter === 'ENVIADO' ? '#c084fc' : 'rgba(192, 132, 252, 0.3)'}`,
-                  color: '#e9d5ff',
-                  borderRadius: '6px',
-                  padding: '0.3rem 0.65rem',
-                  fontSize: '0.74rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem'
-                }}
               >
-                <span>✉ Enviados</span>
-                <span style={{ background: 'rgba(192, 132, 252, 0.2)', padding: '0.05rem 0.4rem', borderRadius: '100px', fontSize: '0.7rem', fontWeight: 700 }}>
-                  {todayStats.enviadas}
-                </span>
+                <Send size={13} />
+                <span>Enviados</span>
+                <span className="prog-pill-badge">{todayStats.enviadas}</span>
               </button>
+            </div>
+
+            {/* Selector de Distribución: Por Técnicos vs Cuadrillas */}
+            <div className="prog-layout-switch">
+              <span className="prog-layout-label">Distribución:</span>
+              <div className="prog-layout-buttons">
+                <button
+                  type="button"
+                  className={`prog-layout-btn ${todayViewLayout === 'tecnicos' ? 'active' : ''}`}
+                  onClick={() => setTodayViewLayout('tecnicos')}
+                  title="Dividir la vista agrupada por cada técnico"
+                >
+                  <Users size={12} />
+                  <span>Por Técnicos</span>
+                </button>
+                <button
+                  type="button"
+                  className={`prog-layout-btn ${todayViewLayout === 'cuadrillas' ? 'active' : ''}`}
+                  onClick={() => setTodayViewLayout('cuadrillas')}
+                  title="Ver tarjetas individuales por programación"
+                >
+                  <List size={12} />
+                  <span>Cuadrillas</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Barra de Filtros por Técnico y selector de Modo de Vista */}
+          {/* Chips de filtro rápido por técnico (cuando hay cuadrillas en campo) */}
           {todayByTecnicos.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', margin: '0.15rem 0' }}>
-              {/* Chips de filtro rápido por técnico */}
+            <div className="tech-filter-bar-container">
+              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                Técnicos:
+              </span>
               <div className="tech-filter-chips-bar">
                 <button
                   type="button"
@@ -680,10 +672,10 @@ export default function Programacion() {
                       className={`tech-filter-pill ${isAct ? 'active' : ''}`}
                       onClick={() => setSelectedTechFilter(prev => prev === tecKey ? 'ALL' : tecKey)}
                     >
-                      <User size={12} color={isAct ? '#fff' : '#818cf8'} />
+                      <User size={12} color={isAct ? '#fff' : '#003060'} />
                       <span>{tGroup.tecnico.nombre_completo.split(' ').slice(0, 2).join(' ')}</span>
                       {tGroup.cuadrilla && (
-                        <span style={{ fontSize: '0.65rem', opacity: 0.85, color: isAct ? '#fff' : '#a5b4fc' }}>
+                        <span style={{ fontSize: '0.65rem', opacity: 0.85 }}>
                           ({tGroup.cuadrilla})
                         </span>
                       )}
@@ -691,52 +683,6 @@ export default function Programacion() {
                     </button>
                   )
                 })}
-              </div>
-
-              {/* Botón de alternar diseño: Por Técnicos vs Cuadrillas */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'rgba(0,0,0,0.3)', padding: '0.2rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <button
-                  type="button"
-                  onClick={() => setTodayViewLayout('tecnicos')}
-                  style={{
-                    background: todayViewLayout === 'tecnicos' ? 'rgba(99, 102, 241, 0.3)' : 'transparent',
-                    border: 'none',
-                    color: todayViewLayout === 'tecnicos' ? '#fff' : 'var(--text-muted)',
-                    borderRadius: '4px',
-                    padding: '0.25rem 0.6rem',
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                  title="Dividir la vista agrupada por cada técnico"
-                >
-                  <Users size={12} />
-                  <span>Por Técnicos</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTodayViewLayout('cuadrillas')}
-                  style={{
-                    background: todayViewLayout === 'cuadrillas' ? 'rgba(99, 102, 241, 0.3)' : 'transparent',
-                    border: 'none',
-                    color: todayViewLayout === 'cuadrillas' ? '#fff' : 'var(--text-muted)',
-                    borderRadius: '4px',
-                    padding: '0.25rem 0.6rem',
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                  title="Ver tarjetas individuales por programación"
-                >
-                  <List size={12} />
-                  <span>Cuadrillas</span>
-                </button>
               </div>
             </div>
           )}
@@ -747,26 +693,27 @@ export default function Programacion() {
               style={{
                 textAlign: 'center',
                 padding: '3rem 1.5rem',
-                background: 'rgba(17, 24, 39, 0.5)',
-                border: '1px dashed rgba(255, 255, 255, 0.1)',
+                background: '#ffffff',
+                border: '1px dashed #cbd5e1',
                 borderRadius: '12px',
+                boxShadow: 'var(--shadow-sm)',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: '0.8rem'
               }}
             >
-              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Clock size={24} color="#38bdf8" />
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Clock size={24} color="#003060" />
               </div>
-              <div style={{ fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#003060' }}>
                 {todayFilter !== 'ALL'
                   ? 'No hay cuadrillas con ese estado específico para esta fecha'
                   : 'No hay cuadrillas programadas para esta fecha'}
               </div>
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '400px' }}>
+              <div style={{ fontSize: '0.84rem', color: '#64748b', maxWidth: '440px', lineHeight: 1.5 }}>
                 {todayFilter !== 'ALL'
-                  ? 'Prueba seleccionando "Todas" para ver el total de las rutas del día.'
+                  ? 'Prueba seleccionando "Todas" para ver el total de las rutas y cuadrillas del día.'
                   : 'Organiza las salidas del personal y asigna los sitios a visitar para mantener el avance de observaciones al día.'}
               </div>
               {todayFilter !== 'ALL' ? (

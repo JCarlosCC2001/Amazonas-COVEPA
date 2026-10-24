@@ -67,7 +67,6 @@ export default function Programacion() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('today') // 'today' | 'week'
   const [todayFilter, setTodayFilter] = useState('ALL') // 'ALL' | 'EN_REVISION' | 'VALIDADO' | 'ENVIADO' | 'DESCARTADA'
-  const [selectedTechFilter, setSelectedTechFilter] = useState('ALL')
   const [loading, setLoading] = useState(true)
   const [programaciones, setProgramaciones] = useState([])
   const [tecnicos, setTecnicos] = useState([])
@@ -412,11 +411,6 @@ export default function Programacion() {
     })
   }, [filteredTodayProgs, sitiosStats])
 
-  const displayedTecnicos = useMemo(() => {
-    if (selectedTechFilter === 'ALL') return todayByTecnicos
-    return todayByTecnicos.filter(t => (t.tecnico.id === selectedTechFilter || t.tecnico.nombre_completo === selectedTechFilter))
-  }, [todayByTecnicos, selectedTechFilter])
-
   return (
     <div className="prog-container">
       {/* ── MEDIDORES / KPIs Y FILTROS INTERACTIVOS SUPERIORES ── */}
@@ -628,47 +622,6 @@ export default function Programacion() {
             </div>
           )}
 
-          {/* Chips de filtro rápido por técnico (cuando hay cuadrillas en campo) */}
-          {todayByTecnicos.length > 0 && (
-            <div className="tech-filter-bar-container">
-              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
-                Técnicos:
-              </span>
-              <div className="tech-filter-chips-bar">
-                <button
-                  type="button"
-                  className={`tech-filter-pill ${selectedTechFilter === 'ALL' ? 'active' : ''}`}
-                  onClick={() => setSelectedTechFilter('ALL')}
-                >
-                  <Users size={12} />
-                  <span>Todos los Técnicos</span>
-                  <span className="badge-chip">{todayByTecnicos.length}</span>
-                </button>
-                {todayByTecnicos.map(tGroup => {
-                  const tecKey = tGroup.tecnico.id || tGroup.tecnico.nombre_completo
-                  const isAct = selectedTechFilter === tecKey
-                  return (
-                    <button
-                      key={tecKey}
-                      type="button"
-                      className={`tech-filter-pill ${isAct ? 'active' : ''}`}
-                      onClick={() => setSelectedTechFilter(prev => prev === tecKey ? 'ALL' : tecKey)}
-                    >
-                      <User size={12} color={isAct ? '#fff' : '#003060'} />
-                      <span>{tGroup.tecnico.nombre_completo.split(' ').slice(0, 2).join(' ')}</span>
-                      {tGroup.cuadrilla && (
-                        <span style={{ fontSize: '0.65rem', opacity: 0.85 }}>
-                          ({tGroup.cuadrilla})
-                        </span>
-                      )}
-                      <span className="badge-chip">{tGroup.sitios.length} {tGroup.sitios.length === 1 ? 'sitio' : 'sitios'}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Tarjetas de cuadrillas programadas hoy */}
           {filteredTodayProgs.length === 0 ? (
             <div
@@ -723,7 +676,7 @@ export default function Programacion() {
           ) : (
             /* ── DISEÑO POR TÉCNICOS (SIEMPRE ACTIVO) ── */
             <div className="prog-tech-list-wrap">
-              {displayedTecnicos.map(tGroup => {
+              {todayByTecnicos.map(tGroup => {
                 const tec = tGroup.tecnico
                 const pDonePct = tGroup.totalObs > 0 ? (tGroup.resueltas / tGroup.totalObs) * 100 : 0
 

@@ -122,6 +122,7 @@ Para garantizar que Google Earth funcione a máxima velocidad sin congelarse ni 
 | **24-10-2026** | Reorganización de KPIs contextuales y rediseño de barra de controles en Programación. | KPIs de cabecera contextuales (Hoy muestra métricas de la jornada y Semana muestra consolidados), barra de navegación en blanco corporativo `#ffffff`, eliminación de textos redundantes y unificación de filtros por estado y selector de distribución. |
 | **24-10-2026** | Eliminación de barra secundaria redundante y conversión de medidores en filtros interactivos. | Los medidores superiores en Vista Hoy ahora representan directamente los estados operativos (Cuadrillas, En Revisión, Validados, Enviados, Descartadas) y funcionan como botones de filtrado interactivo (clic para filtrar / desfiltrar). Se eliminó por completo la segunda barra de estados y el selector de distribución se integró directamente a la barra principal. |
 | **24-10-2026** | Simplificación de vistas: sólo Hoy y Semana, distribución fija por técnicos. | Se eliminaron la Vista Lista y el modo Cuadrillas; la Vista Hoy queda permanentemente agrupada por técnicos y el conmutador temporal solo alterna entre 'Hoy' y 'Semana'. |
+| **24-10-2026** | Remoción de barra de chips de filtro por técnicos. | Se eliminó la franja horizontal con chips de técnicos ('TÉCNICOS: Todos los Técnicos...') para despejar la vista y mostrar directamente a todos los técnicos responsables programados. |
 
 ---
 

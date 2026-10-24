@@ -741,6 +741,24 @@ export default function Programacion() {
                             </span>
                           )}
                         </span>
+
+                        {tGroup.enRevision > 0 && (
+                          <span
+                            className="site-pill-badge badge-rev"
+                            title={`${tGroup.enRevision} observación(es) en revisión de este técnico`}
+                          >
+                            🔍 {tGroup.enRevision} rev.
+                          </span>
+                        )}
+                        {tGroup.validadas > 0 && (
+                          <span
+                            className="site-pill-badge badge-subir"
+                            title={`${tGroup.validadas} observación(es) validadas (listas por subir)`}
+                          >
+                            ✓ {tGroup.validadas} por subir
+                          </span>
+                        )}
+
                         <div className="prog-tech-mini-prog-track" title={`Avance: ${pDonePct.toFixed(0)}%`}>
                           <div
                             className="prog-tech-mini-prog-fill"
@@ -778,9 +796,36 @@ export default function Programacion() {
                             {siteItem.orden && (
                               <span className="site-pill-order">Ruta {siteItem.orden}</span>
                             )}
-                            <span className={`site-pill-count ${isComplete ? 'complete' : ''}`}>
+                            <span className={`site-pill-count ${isComplete ? 'complete' : ''}`} title="Observaciones resueltas">
                               {sDone}/{sStat.total}
                             </span>
+
+                            {/* Micro-insignias operativas visibles en el sitio */}
+                            {sStat.enRevision > 0 && (
+                              <span
+                                className="site-pill-badge badge-rev"
+                                title={`${sStat.enRevision} observación(es) en revisión`}
+                              >
+                                🔍 {sStat.enRevision}
+                              </span>
+                            )}
+                            {sStat.validadas > 0 && (
+                              <span
+                                className="site-pill-badge badge-subir"
+                                title={`${sStat.validadas} observación(es) listas por subir`}
+                              >
+                                ✓ {sStat.validadas} por subir
+                              </span>
+                            )}
+                            {sStat.enviadas > 0 && (
+                              <span
+                                className="site-pill-badge badge-env"
+                                title={`${sStat.enviadas} observación(es) enviadas a Covepa`}
+                              >
+                                ✉ {sStat.enviadas}
+                              </span>
+                            )}
+
                             <button
                               type="button"
                               className="site-pill-eye"

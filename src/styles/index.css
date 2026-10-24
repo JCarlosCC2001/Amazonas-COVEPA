@@ -5281,6 +5281,37 @@ body {
   background: rgba(0, 48, 96, 0.08);
 }
 
+/* Micro-insignias operativas para sitios y resumen técnico */
+.site-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.67rem;
+  font-weight: 700;
+  padding: 0.1rem 0.42rem;
+  border-radius: 4px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.site-pill-badge.badge-rev {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.site-pill-badge.badge-subir {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.site-pill-badge.badge-env {
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #d8b4fe;
+}
+
 /* Chips de técnicos en barra superior */
 .tech-filter-chips-bar {
   display: flex;

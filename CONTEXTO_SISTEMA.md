@@ -124,6 +124,7 @@ Para garantizar que Google Earth funcione a máxima velocidad sin congelarse ni 
 | **24-10-2026** | Simplificación de vistas: sólo Hoy y Semana, distribución fija por técnicos. | Se eliminaron la Vista Lista y el modo Cuadrillas; la Vista Hoy queda permanentemente agrupada por técnicos y el conmutador temporal solo alterna entre 'Hoy' y 'Semana'. |
 | **24-10-2026** | Remoción de barra de chips de filtro por técnicos. | Se eliminó la franja horizontal con chips de técnicos ('TÉCNICOS: Todos los Técnicos...') para despejar la vista y mostrar directamente a todos los técnicos responsables programados. |
 | **24-10-2026** | Rediseño compacto con scroll independiente para técnicos en Vista Hoy. | Se confinó el desplazamiento vertical al contenedor `.prog-tech-list-wrap` manteniendo fijos los KPIs superiores y la barra de fecha; se redujo la altura de cada fila de técnico de ~300px a ~80px eliminando textos redundantes ("Sin acompañante", etiquetas y sub-barras repetitivas) y convirtiendo los sitios asignados en pastillas compactas e interactivas que abren el modal de detalle al clic. |
+| **24-10-2026** | Micro-insignias operativas (En Revisión / Por Subir) en pastillas de sitios y resumen. | Se añadieron distintivos compactos con color y conteo directo (`🔍 X` en celeste para En Revisión y `✓ Y por subir` en verde) tanto en las pastillas individuales de cada sitio como en el resumen superior del técnico, permitiendo identificar al instante qué sitios requieren acción sin saturar el espacio vertical. |
 
 ---
 

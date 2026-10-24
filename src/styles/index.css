@@ -683,8 +683,285 @@ body {
 /* Cuerpo de página */
 .page-body {
   flex: 1;
-  padding: 2rem;
+  padding: 1.8rem 2rem;
   overflow-y: auto;
+}
+
+/* ============================================================
+   MEDIDORES / TARJETAS KPI REUTILIZABLES (METRIC CARD & GRID)
+   ============================================================ */
+.covepa-metric-grid {
+  display: grid;
+  gap: 1.1rem;
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+.covepa-metric-grid.cols-4 {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.covepa-metric-grid.cols-3 {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+.covepa-metric-grid.cols-2 {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.covepa-metric-card {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 48, 96, 0.05);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.covepa-metric-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(0, 48, 96, 0.1);
+}
+
+.covepa-metric-card.is-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+.covepa-metric-card.is-clickable:active {
+  transform: translateY(-1px);
+}
+
+.covepa-metric-card.is-active {
+  box-shadow: 0 0 0 2px var(--card-accent, #003060), 0 8px 20px rgba(0, 48, 96, 0.12);
+}
+
+/* Barra de acento superior */
+.metric-accent-bar {
+  height: 3.5px;
+  width: 100%;
+  background: var(--card-gradient, linear-gradient(90deg, #003060, #0284c7));
+  flex-shrink: 0;
+}
+
+/* Contenedor interior */
+.metric-card-inner {
+  position: relative;
+  z-index: 2;
+  padding: 1.15rem 1.35rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Caja de icono prominente */
+.metric-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--card-icon-bg, #e0f2fe);
+  border: 1px solid var(--card-icon-border, #bae6fd);
+  color: var(--card-icon-color, #003060);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 48, 96, 0.06);
+  transition: transform 0.25s ease;
+}
+.covepa-metric-card:hover .metric-icon-box {
+  transform: scale(1.06);
+}
+
+/* Columna de información */
+.metric-info-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.metric-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.metric-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #627d98;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric-badge-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  background: var(--card-badge-bg, #f0f6fc);
+  color: var(--card-badge-color, #003060);
+  border: 1px solid var(--card-badge-border, #d8e5f1);
+  white-space: nowrap;
+}
+
+.metric-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.metric-value {
+  font-size: 1.85rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--card-val-color, #003060);
+  letter-spacing: -0.02em;
+}
+
+.metric-sub-pill {
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 0.16rem 0.55rem;
+  border-radius: 6px;
+  background: var(--card-pill-bg, #f0f6fc);
+  color: var(--card-pill-color, #334e68);
+  border: 1px solid var(--card-pill-border, #d8e5f1);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Marca de agua decorativa de fondo */
+.metric-watermark {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  opacity: 0.045;
+  pointer-events: none;
+  z-index: 1;
+  color: var(--card-watermark-color, #003060);
+  transform: scale(3.2);
+  transform-origin: bottom right;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.covepa-metric-card:hover .metric-watermark {
+  opacity: 0.085;
+  transform: scale(3.5);
+}
+
+/* Loading skeleton */
+.metric-skeleton-pulse {
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+  background: #e2e8f0;
+  border-radius: 6px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* ── Variantes de Color ── */
+.variant-navy {
+  --card-gradient: linear-gradient(90deg, #003060 0%, #0284c7 100%);
+  --card-accent: #003060;
+  --card-icon-bg: #e0f2fe;
+  --card-icon-border: #bae6fd;
+  --card-icon-color: #003060;
+  --card-val-color: #003060;
+  --card-pill-bg: #f0f6fc;
+  --card-pill-color: #003060;
+  --card-pill-border: #d8e5f1;
+  --card-watermark-color: #003060;
+}
+.variant-navy:hover {
+  border-color: #003060;
+}
+
+.variant-sky {
+  --card-gradient: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
+  --card-accent: #0284c7;
+  --card-icon-bg: #e0f9fe;
+  --card-icon-border: #7dd3fc;
+  --card-icon-color: #0284c7;
+  --card-val-color: #0284c7;
+  --card-pill-bg: #f0f9ff;
+  --card-pill-color: #0369a1;
+  --card-pill-border: #bae6fd;
+  --card-watermark-color: #0284c7;
+}
+.variant-sky:hover {
+  border-color: #0284c7;
+}
+
+.variant-emerald {
+  --card-gradient: linear-gradient(90deg, #059669 0%, #34d399 100%);
+  --card-accent: #059669;
+  --card-icon-bg: #dcfce7;
+  --card-icon-border: #86efac;
+  --card-icon-color: #059669;
+  --card-val-color: #059669;
+  --card-pill-bg: #ecfdf5;
+  --card-pill-color: #166534;
+  --card-pill-border: #a7f3d0;
+  --card-watermark-color: #059669;
+}
+.variant-emerald:hover {
+  border-color: #059669;
+}
+
+.variant-amber {
+  --card-gradient: linear-gradient(90deg, #d97706 0%, #fbbf24 100%);
+  --card-accent: #d97706;
+  --card-icon-bg: #fef3c7;
+  --card-icon-border: #fcd34d;
+  --card-icon-color: #d97706;
+  --card-val-color: #d97706;
+  --card-pill-bg: #fffbeb;
+  --card-pill-color: #92400e;
+  --card-pill-border: #fde68a;
+  --card-watermark-color: #d97706;
+}
+.variant-amber:hover {
+  border-color: #d97706;
+}
+
+.variant-purple {
+  --card-gradient: linear-gradient(90deg, #7c3aed 0%, #c084fc 100%);
+  --card-accent: #7c3aed;
+  --card-icon-bg: #f3e8ff;
+  --card-icon-border: #d8b4fe;
+  --card-icon-color: #7c3aed;
+  --card-val-color: #7c3aed;
+  --card-pill-bg: #faf5ff;
+  --card-pill-color: #6b21a8;
+  --card-pill-border: #e9d5ff;
+  --card-watermark-color: #7c3aed;
+}
+.variant-purple:hover {
+  border-color: #7c3aed;
+}
+
+.variant-rose {
+  --card-gradient: linear-gradient(90deg, #e11d48 0%, #fb7185 100%);
+  --card-accent: #e11d48;
+  --card-icon-bg: #ffe4e6;
+  --card-icon-border: #fda4af;
+  --card-icon-color: #e11d48;
+  --card-val-color: #e11d48;
+  --card-pill-bg: #fff1f2;
+  --card-pill-color: #9f1239;
+  --card-pill-border: #fecdd3;
+  --card-watermark-color: #e11d48;
+}
+.variant-rose:hover {
+  border-color: #e11d48;
 }
 
 /* ============================================================

@@ -11,6 +11,7 @@ import {
   deletePersonal,
   updateCuadrillaAssignments
 } from '../services/personalService'
+import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 
 // Helper para parsear hasta 2 teléfonos y operadores estructurados
 function parsePhoneLines(telefono, operador) {
@@ -155,60 +156,45 @@ export default function Tecnicos() {
 
   return (
     <div className="personal-container">
-      {/* ── KPIs COMPACTOS DE PERSONAL (Medidores arriba) ── */}
-      <div className="prog-kpi-grid">
-        <div className="prog-kpi-item">
-          <div className="prog-kpi-icon" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>
-            <Users size={18} />
-          </div>
-          <div className="prog-kpi-info">
-            <span className="prog-kpi-label">Total Personal</span>
-            <div className="prog-kpi-val-row">
-              <span className="prog-kpi-val">{kpis.total}</span>
-              <span className="prog-kpi-sub">registrados</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="prog-kpi-item">
-          <div className="prog-kpi-icon" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
-            <Wrench size={18} />
-          </div>
-          <div className="prog-kpi-info">
-            <span className="prog-kpi-label">Técnicos (Cuadrillas Fijas)</span>
-            <div className="prog-kpi-val-row">
-              <span className="prog-kpi-val" style={{ color: '#38bdf8' }}>{kpis.tecnicos}</span>
-              <span className="prog-kpi-sub">cuadrillas 1–6</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="prog-kpi-item">
-          <div className="prog-kpi-icon" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
-            <Truck size={18} />
-          </div>
-          <div className="prog-kpi-info">
-            <span className="prog-kpi-label">Conductores</span>
-            <div className="prog-kpi-val-row">
-              <span className="prog-kpi-val" style={{ color: '#34d399' }}>{kpis.conductores}</span>
-              <span className="prog-kpi-sub">apoyo rotativo</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="prog-kpi-item">
-          <div className="prog-kpi-icon" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}>
-            <Shield size={18} />
-          </div>
-          <div className="prog-kpi-info">
-            <span className="prog-kpi-label">Supervisores</span>
-            <div className="prog-kpi-val-row">
-              <span className="prog-kpi-val" style={{ color: '#c084fc' }}>{kpis.supervisores}</span>
-              <span className="prog-kpi-sub">control de campo</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* ── MEDIDORES / KPIs REUTILIZABLES DE PERSONAL ── */}
+      <MetricGrid columns={4}>
+        <MetricCard
+          icon={<Users size={22} />}
+          label="Total Personal"
+          value={kpis.total}
+          subtitle="registrados"
+          variant="navy"
+          onClick={() => setFilterCargo('TODOS')}
+          active={filterCargo === 'TODOS'}
+        />
+        <MetricCard
+          icon={<Wrench size={22} />}
+          label="Técnicos (Cuadrillas)"
+          value={kpis.tecnicos}
+          subtitle="cuadrillas 1–6"
+          variant="sky"
+          onClick={() => setFilterCargo('TECNICO')}
+          active={filterCargo === 'TECNICO'}
+        />
+        <MetricCard
+          icon={<Truck size={22} />}
+          label="Conductores"
+          value={kpis.conductores}
+          subtitle="apoyo rotativo"
+          variant="emerald"
+          onClick={() => setFilterCargo('CONDUCTOR')}
+          active={filterCargo === 'CONDUCTOR'}
+        />
+        <MetricCard
+          icon={<Shield size={22} />}
+          label="Supervisores"
+          value={kpis.supervisores}
+          subtitle="control de campo"
+          variant="purple"
+          onClick={() => setFilterCargo('SUPERVISOR')}
+          active={filterCargo === 'SUPERVISOR'}
+        />
+      </MetricGrid>
 
       {/* ── BARRA SUPERIOR INTEGRADA (Buscador + Filtros + Acciones) ── */}
       <div className="prog-toolbar">

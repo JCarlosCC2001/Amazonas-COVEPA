@@ -117,9 +117,11 @@ Para garantizar que Google Earth funcione a máxima velocidad sin congelarse ni 
 | **24-10-2026** | Creación de `CONTEXTO_SISTEMA.md` y `AGENTS.md`. | Mantener alineación y memoria técnica permanente en el proyecto. |
 | **24-10-2026** | Rediseño integral UX/UI corporativo (blancos, celestes suaves y azul Covepa #003060). | Lograr una interfaz seria, profesional, amigable, intuitiva y de máximo contraste para supervisores y técnicos. |
 | **24-10-2026** | Remoción de Top Header global (`Layout.jsx`). | Maximizar el espacio vertical útil de trabajo en pantalla y eliminar información redundante. |
+| **24-10-2026** | Creación del componente reutilizable `MetricCard` y `MetricGrid`. | Estandarizar medidores/KPIs en Personal, Sitios y Observaciones con diseño visual destacado (marca de agua, acentos y micro-interacciones). |
 
 ---
 
 > [!IMPORTANT]
 > **Compromiso de Actualización:** Cada vez que se agregue o modifique un módulo, regla de visualización o endpoint, se debe actualizar este archivo y registrar el cambio en la tabla de historial superior.
+
 

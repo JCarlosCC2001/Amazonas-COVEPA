@@ -10,6 +10,7 @@ import {
   updateObservacionCovepa, exportObservacionesCSV,
   fetchResumenPorSitio, fetchObservacionesPorSitio
 } from '../services/observacionesService'
+import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 
 // ────────────────────────────────────────────────────────────
 // Helper de estilos para badges de estado COVEPA
@@ -460,58 +461,43 @@ export default function Observaciones() {
 
   return (
     <div className="obs-container">
-      {/* ── KPIs COVEPA (Medidores) ── */}
-      <div className="obs-kpi-grid">
-        <div className="obs-kpi-card">
-          <div className="obs-kpi-icon" style={{background:'rgba(99,102,241,0.15)',color:'#818cf8'}}>
-            <ClipboardList size={22}/>
-          </div>
-          <div className="obs-kpi-content">
-            <span className="obs-kpi-label">Total en filtro</span>
-            <span className="obs-kpi-value">{loadingKpis ? '—' : kpis.total.toLocaleString()}</span>
-            <span className="obs-kpi-sub">de 4,116 observaciones</span>
-          </div>
-        </div>
-
-        <div className="obs-kpi-card">
-          <div className="obs-kpi-icon" style={{background:'rgba(245,158,11,0.15)',color:'#fbbf24'}}>
-            <AlertTriangle size={22}/>
-          </div>
-          <div className="obs-kpi-content">
-            <span className="obs-kpi-label">Pendientes COVEPA</span>
-            <span className="obs-kpi-value" style={{color:'#fbbf24'}}>
-              {loadingKpis ? '—' : kpis.pendientes.toLocaleString()}
-            </span>
-            <span className="obs-kpi-sub">Por gestionar / subsanar</span>
-          </div>
-        </div>
-
-        <div className="obs-kpi-card">
-          <div className="obs-kpi-icon" style={{background:'rgba(16,185,129,0.15)',color:'#34d399'}}>
-            <Calendar size={22}/>
-          </div>
-          <div className="obs-kpi-content">
-            <span className="obs-kpi-label">Con Fecha Subsanación</span>
-            <span className="obs-kpi-value" style={{color:'#34d399'}}>
-              {loadingKpis ? '—' : kpis.subsanadas.toLocaleString()}
-            </span>
-            <span className="obs-kpi-sub">Fechas comprometidas</span>
-          </div>
-        </div>
-
-        <div className="obs-kpi-card">
-          <div className="obs-kpi-icon" style={{background:'rgba(107,114,128,0.15)',color:'#9ca3af'}}>
-            <CheckCircle2 size={22}/>
-          </div>
-          <div className="obs-kpi-content">
-            <span className="obs-kpi-label">Descartadas COVEPA</span>
-            <span className="obs-kpi-value" style={{color:'#9ca3af'}}>
-              {loadingKpis ? '—' : kpis.descartadas.toLocaleString()}
-            </span>
-            <span className="obs-kpi-sub">Cerradas sin acción</span>
-          </div>
-        </div>
-      </div>
+      {/* ── MEDIDORES / KPIs REUTILIZABLES COVEPA ── */}
+      <MetricGrid columns={4}>
+        <MetricCard
+          icon={<ClipboardList size={22} />}
+          label="Total en Filtro"
+          value={loadingKpis ? '—' : kpis.total.toLocaleString()}
+          subtitle="de 4,116 obs"
+          variant="navy"
+          onClick={() => setEstadoCovepa('')}
+          active={!estadoCovepa}
+        />
+        <MetricCard
+          icon={<AlertTriangle size={22} />}
+          label="Pendientes COVEPA"
+          value={loadingKpis ? '—' : kpis.pendientes.toLocaleString()}
+          subtitle="Por subsanar"
+          variant="amber"
+          onClick={() => setEstadoCovepa(prev => prev === 'Pendiente' ? '' : 'Pendiente')}
+          active={estadoCovepa === 'Pendiente'}
+        />
+        <MetricCard
+          icon={<Calendar size={22} />}
+          label="Con Fecha Subsanación"
+          value={loadingKpis ? '—' : kpis.subsanadas.toLocaleString()}
+          subtitle="Comprometidas"
+          variant="emerald"
+        />
+        <MetricCard
+          icon={<CheckCircle2 size={22} />}
+          label="Descartadas COVEPA"
+          value={loadingKpis ? '—' : kpis.descartadas.toLocaleString()}
+          subtitle="Cerradas sin acción"
+          variant="rose"
+          onClick={() => setEstadoCovepa(prev => prev === 'Descartado' ? '' : 'Descartado')}
+          active={estadoCovepa === 'Descartado'}
+        />
+      </MetricGrid>
 
       {/* ── Toolbar Filtros ── */}
       <div className="obs-toolbar">

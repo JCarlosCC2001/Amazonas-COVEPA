@@ -18,6 +18,7 @@ import {
   AlertCircle
 } from 'lucide-react'
 import { fetchSitios } from '../services/sitiosService'
+import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 
 export default function Sitios() {
   const [sitios, setSitios] = useState([])
@@ -107,54 +108,43 @@ export default function Sitios() {
 
   return (
     <div className="sitios-container">
-      {/* Header con métricas */}
-      <div className="sitios-stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon-wrap" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>
-            <Database size={22} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-label">Total Sitios Filtrados</span>
-            <span className="stat-value">{stats.total}</span>
-            <span className="stat-sub">
-              {soloAsignados ? '156 asignados al proyecto' : 'Catálogo completo (SELNET)'}
-            </span>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon-wrap" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
-            <MapPin size={22} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-label">Con Coordenadas GPS</span>
-            <span className="stat-value">{stats.conGps}</span>
-            <span className="stat-sub">Listos para exportación KMZ</span>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon-wrap" style={{ background: 'rgba(14, 165, 233, 0.15)', color: '#38bdf8' }}>
-            <Layers size={22} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-label">Sitios en ZONA 2</span>
-            <span className="stat-value">{stats.zona2}</span>
-            <span className="stat-sub">Grupos 1 y 2</span>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon-wrap" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24' }}>
-            <Radio size={22} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-label">Sitios en ZONA 7</span>
-            <span className="stat-value">{stats.zona7}</span>
-            <span className="stat-sub">Grupos 1 al 6</span>
-          </div>
-        </div>
-      </div>
+      {/* Medidores / Métricas de Sitios */}
+      <MetricGrid columns={4}>
+        <MetricCard
+          icon={<Database size={22} />}
+          label="Total Sitios Filtrados"
+          value={stats.total}
+          subtitle={soloAsignados ? '156 del proyecto' : 'Catálogo SELNET'}
+          variant="navy"
+          onClick={() => setSelectedZona('TODAS')}
+          active={selectedZona === 'TODAS'}
+        />
+        <MetricCard
+          icon={<MapPin size={22} />}
+          label="Con Coordenadas GPS"
+          value={stats.conGps}
+          subtitle="Listos para KMZ"
+          variant="emerald"
+        />
+        <MetricCard
+          icon={<Layers size={22} />}
+          label="Sitios en ZONA 2"
+          value={stats.zona2}
+          subtitle="Grupos 1 y 2"
+          variant="sky"
+          onClick={() => setSelectedZona(prev => prev === 'ZONA 2' ? 'TODAS' : 'ZONA 2')}
+          active={selectedZona === 'ZONA 2'}
+        />
+        <MetricCard
+          icon={<Radio size={22} />}
+          label="Sitios en ZONA 7"
+          value={stats.zona7}
+          subtitle="Grupos 1 al 6"
+          variant="amber"
+          onClick={() => setSelectedZona(prev => prev === 'ZONA 7' ? 'TODAS' : 'ZONA 7')}
+          active={selectedZona === 'ZONA 7'}
+        />
+      </MetricGrid>
 
       {/* Barra de Filtros y Búsqueda */}
       <div className="sitios-toolbar">

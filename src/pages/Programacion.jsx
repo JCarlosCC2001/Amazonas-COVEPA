@@ -860,7 +860,7 @@ export default function Programacion() {
 
                     return (
                       <div key={tec.id || tec.nombre_completo} className="prog-week-tech-card">
-                        {/* Cabecera del Técnico */}
+                        {/* Cabecera del Técnico: Solo Nombre y Cuadrilla */}
                         <div className="week-tech-header">
                           <div className="week-tech-avatar">
                             {getInitials(tec.nombre_completo)}
@@ -873,54 +873,25 @@ export default function Programacion() {
                               <span className="week-tech-badge">{tDay.cuadrilla}</span>
                             )}
                           </div>
-                          <span className="week-tech-count" title="Sitios programados">
-                            {tDay.sitios.length} {tDay.sitios.length === 1 ? 'sitio' : 'sitios'}
-                          </span>
                         </div>
 
-                        {/* Sitios asignados al técnico en este día */}
+                        {/* Sitios asignados: Solo Código de Sitio y Nombre/Localidad */}
                         <div className="week-tech-sites">
                           {tDay.sitios.map(sItem => {
-                            const sStat = sItem.stat
-                            const sDone = (sStat.validadas || 0) + (sStat.descartadas || 0) + (sStat.enviadas || 0)
-                            const isComplete = sDone === sStat.total && sStat.total > 0
                             const localidad = sitiosMap[sItem.id_sitio]?.localidad
 
                             return (
                               <div
                                 key={sItem.id_sitio}
-                                className={`week-site-pill ${isComplete ? 'is-complete' : ''}`}
+                                className="week-site-pill"
                                 onClick={() => setSelectedProgModal({ id_sitio: sItem.id_sitio, programacion: sItem.programacion, allSitios: sItem.allSitios })}
-                                title="Clic para ver observaciones"
+                                title="Clic para ver detalle y observaciones"
                               >
-                                <div className="week-site-top">
-                                  <MapPin size={11} className="week-site-pin" />
-                                  <span className="week-site-code">{sItem.id_sitio}</span>
-                                  {localidad && (
-                                    <span className="week-site-loc">· {localidad}</span>
-                                  )}
-                                </div>
-
-                                <div className="week-site-bottom">
-                                  <span className={`week-site-count-num ${isComplete ? 'complete' : ''}`}>
-                                    {sDone}/{sStat.total}
-                                  </span>
-                                  {sStat.enRevision > 0 && (
-                                    <span className="site-pill-badge badge-rev" title={`${sStat.enRevision} en revisión`}>
-                                      🔍 {sStat.enRevision}
-                                    </span>
-                                  )}
-                                  {sStat.validadas > 0 && (
-                                    <span className="site-pill-badge badge-subir" title={`${sStat.validadas} por subir`}>
-                                      ✓ {sStat.validadas}
-                                    </span>
-                                  )}
-                                  {sStat.descartadas > 0 && (
-                                    <span className="site-pill-badge badge-rech" title={`${sStat.descartadas} rechazadas`}>
-                                      ✕ {sStat.descartadas}
-                                    </span>
-                                  )}
-                                </div>
+                                <MapPin size={11} className="week-site-pin" />
+                                <span className="week-site-code">{sItem.id_sitio}</span>
+                                {localidad && (
+                                  <span className="week-site-loc">· {localidad}</span>
+                                )}
                               </div>
                             )
                           })}

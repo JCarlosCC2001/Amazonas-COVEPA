@@ -128,6 +128,7 @@ Para garantizar que Google Earth funcione a máxima velocidad sin congelarse ni 
 | **24-10-2026** | Tarjetas de sitios en 2 filas limpias (Fila 1: Código + Localidad; Fila 2: Resueltas, En Revisión, Por Subir y Rechazadas). | Se dividió la visualización de cada sitio en dos filas claras, eliminando el texto de ruta, el teléfono del técnico y el botón del ojo; toda la tarjeta actúa como botón interactivo para abrir el modal con el detalle completo. |
 | **24-10-2026** | Agrupación por técnicos en Vista Semana para ahorro de espacio. | En cada columna diaria de la semana, los sitios ahora se agrupan debajo del nombre de cada técnico programado con diseño compacto, scroll interno por columna y micro-insignias operativas (resueltas, en revisión, por subir y rechazadas). |
 | **24-10-2026** | Sidebar responsivo off-canvas (se oculta en pantallas reducidas <= 1024px y se despliega con botón flotante). | En pantallas reducidas o al encoger la ventana, el sidebar se oculta automáticamente hacia la izquierda liberando el 100% del ancho para el contenido; se despliega con un botón flotante con fondo oscuro y efecto blur, cerrándose automáticamente al hacer clic fuera o navegar. |
+| **24-10-2026** | Simplificación extrema en Vista Semana (solo lo básico: técnico, cuadrilla, código de sitio y localidad). | Se removieron los conteos de sitios, métricas de observaciones e insignias de rechazadas en la vista semanal, dejando exclusivamente el nombre del técnico, cuadrilla y pastillas limpias de código + localidad para máxima claridad y compacidad. |
 
 ---
 

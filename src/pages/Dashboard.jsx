@@ -61,7 +61,7 @@ function MultiSegmentRadialGauge({ segments = [], total = 0, size = 120, strokeW
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="rgba(255, 255, 255, 0.08)"
+          stroke="rgba(0, 48, 96, 0.08)"
           strokeWidth={strokeWidth}
         />
         {effectiveTotal > 0 && renderedSegments.map((seg, i) => {
@@ -87,7 +87,7 @@ function MultiSegmentRadialGauge({ segments = [], total = 0, size = 120, strokeW
         })}
       </svg>
       <div className="dash-gauge-content">
-        <span className="dash-gauge-value" style={{ color: '#f1f5f9' }}>{centerValue}</span>
+        <span className="dash-gauge-value" style={{ color: '#003060' }}>{centerValue}</span>
         {centerLabel && <span className="dash-gauge-label">{centerLabel}</span>}
         {centerSublabel && <span className="dash-gauge-sublabel">{centerSublabel}</span>}
       </div>
@@ -108,7 +108,7 @@ function SemicircleGauge({ percentage = 0, color = '#10b981', size = 160 }) {
         <path
           d="M 20 80 A 60 60 0 0 1 140 80"
           fill="none"
-          stroke="rgba(255, 255, 255, 0.1)"
+          stroke="rgba(0, 48, 96, 0.08)"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
         />

@@ -21,7 +21,7 @@ El sistema **Amazonas-COVEPA** es un ERP / Sistema Web de Gestión Operativa dis
 | Componente | Tecnología | Descripción |
 | :--- | :--- | :--- |
 | **Frontend** | React 19 + Vite 8 | Single Page Application (SPA), JavaScript modular, Zustand para estado, Lucide Icons. |
-| **Estilos** | Vanilla CSS Moderno | Dark mode profesional, glassmorphism, responsive para móviles y tablets de campo. |
+| **Estilos** | Vanilla CSS Moderno | Diseño corporativo profesional UX/UI: Paleta blanca y celestes suaves (`#f4f8fc` / `#edf4fb` / `#ffffff`) con azul corporativo principal `#003060` (COVEPA), bordes sutiles y micro-interacciones, optimizado para legibilidad diurna y nocturna en campo y oficina. |
 | **Base de Datos Propia** | Supabase (`byywikicdvmmmndhkooe`) | Tablas: `observaciones`, `personal` / `tecnicos`, `programacion_rutas`, asignaciones. |
 | **Base de Datos Externa** | Supabase SELNET (`iiwmqvnjjhaapyolaity`) | Catálogo maestro de 1,021 sitios para extraer coordenadas GPS, distritos y localidades. |
 | **Control de Versiones** | Git + GitHub | Repositorio: `https://github.com/JCarlosCC2001/Amazonas-COVEPA.git` (rama `main`). |
@@ -115,6 +115,7 @@ Para garantizar que Google Earth funcione a máxima velocidad sin congelarse ni 
 | **23-10-2026** | Incorporación de Nombre de Localidad al lado de los códigos de sitio. | Facilitar identificación geográfica inmediata a los técnicos y coordinadores. |
 | **24-10-2026** | Configuración para despliegue gratuito en Vercel (`vercel.json` y script). | Poner la plataforma en la nube accesible desde celulares y campo sin costo. |
 | **24-10-2026** | Creación de `CONTEXTO_SISTEMA.md` y `AGENTS.md`. | Mantener alineación y memoria técnica permanente en el proyecto. |
+| **24-10-2026** | Rediseño integral UX/UI corporativo (blancos, celestes suaves y azul Covepa #003060). | Lograr una interfaz seria, profesional, amigable, intuitiva y de máximo contraste para supervisores y técnicos. |
 
 ---
 

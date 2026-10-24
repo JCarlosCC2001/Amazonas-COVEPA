@@ -189,34 +189,35 @@ export default function KMZ() {
       
       {/* ── BANNER HERO PRINCIPAL ── */}
       <div style={{
-        background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
+        background: 'linear-gradient(135deg, #003060 0%, #004b8d 100%)',
+        border: '1px solid rgba(0, 48, 96, 0.2)',
         borderRadius: '16px',
-        padding: '1.6rem 2rem',
-        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.35)',
+        padding: '1.8rem 2rem',
+        boxShadow: '0 8px 24px rgba(0, 48, 96, 0.18)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '1rem'
+        gap: '1.2rem',
+        color: '#ffffff'
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.45rem' }}>
               <div style={{
-                background: 'rgba(99, 102, 241, 0.2)',
-                border: '1px solid rgba(99, 102, 241, 0.4)',
+                background: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
                 borderRadius: '10px',
                 padding: '0.5rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                <Globe size={24} color="#818cf8" />
+                <Globe size={24} color="#ffffff" />
               </div>
-              <h1 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
                 Descarga de Archivos KMZ y KML
               </h1>
             </div>
-            <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0, maxWidth: '780px' }}>
+            <p style={{ color: '#e0f2fe', fontSize: '0.9rem', margin: 0, maxWidth: '780px', lineHeight: 1.45 }}>
               Mapas satelitales con las <strong>4,116 observaciones georreferenciadas</strong>, coordenadas exactas de los 156 nodos y fichas técnicas completas listas para abrir en <strong>Google Earth (PC y Celular)</strong> o Google Drive.
             </p>
           </div>
@@ -229,58 +230,60 @@ export default function KMZ() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.6rem',
-              background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
-              color: '#ffffff',
-              border: '1px solid rgba(129, 140, 248, 0.4)',
+              background: '#ffffff',
+              color: '#003060',
+              border: 'none',
               borderRadius: '10px',
-              padding: '0.75rem 1.25rem',
-              fontSize: '0.86rem',
-              fontWeight: 700,
+              padding: '0.8rem 1.35rem',
+              fontSize: '0.88rem',
+              fontWeight: 800,
               cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(79, 70, 229, 0.35)',
+              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)',
               transition: 'all 0.2s ease'
             }}
           >
-            <FileArchive size={18} />
+            <FileArchive size={18} color="#003060" />
             <span>{downloadingId === 'zip-bundle' ? 'Descargando...' : 'Descargar los 7 KMZ (.ZIP)'}</span>
           </button>
         </div>
 
         {/* Badges de resumen */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', paddingTop: '0.4rem', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
-          <span style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '0.25rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <MapPin size={12} color="#818cf8" /> <strong>156</strong> Sitios Georreferenciados
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', paddingTop: '0.6rem', borderTop: '1px solid rgba(255, 255, 255, 0.15)' }}>
+          <span style={{ background: 'rgba(255, 255, 255, 0.12)', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.78rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+            <MapPin size={13} color="#7dd3fc" /> <strong>156</strong> Sitios Georreferenciados
           </span>
-          <span style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '0.25rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Layers size={12} color="#34d399" /> <strong>6</strong> Grupos Operativos
+          <span style={{ background: 'rgba(255, 255, 255, 0.12)', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.78rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+            <Layers size={13} color="#86efac" /> <strong>6</strong> Grupos Operativos
           </span>
-          <span style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '0.25rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Smartphone size={12} color="#38bdf8" /> Compatible con Celular (Offline)
+          <span style={{ background: 'rgba(255, 255, 255, 0.12)', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.78rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+            <Smartphone size={13} color="#bae6fd" /> Compatible con Celular (Offline)
           </span>
-          <span style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '0.25rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <ShieldCheck size={12} color="#fbbf24" /> Fichas y Acuerdos de Subsanación
+          <span style={{ background: 'rgba(255, 255, 255, 0.12)', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.78rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+            <ShieldCheck size={13} color="#fde047" /> Fichas y Acuerdos de Subsanación
           </span>
         </div>
       </div>
 
       {/* ── 0. TARJETA ENLACE EN TIEMPO REAL (NETWORKLINK) ── */}
       <div style={{
-        background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(15, 23, 42, 0.8) 100%)',
-        border: '1px solid rgba(14, 165, 233, 0.35)',
+        background: '#ffffff',
+        border: '1px solid #bae6fd',
+        borderLeft: '5px solid #0284c7',
         borderRadius: '14px',
-        padding: '1.3rem 1.6rem',
+        padding: '1.4rem 1.8rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
         gap: '1.2rem',
-        boxShadow: '0 8px 25px rgba(0, 0, 0, 0.25)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
         <div style={{ flex: 1, minWidth: '280px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.3rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
             <span style={{
-              background: '#0ea5e9',
-              color: '#ffffff',
+              background: '#e0f2fe',
+              color: '#0284c7',
+              border: '1px solid #bae6fd',
               fontSize: '0.72rem',
               fontWeight: 800,
               padding: '0.2rem 0.55rem',
@@ -293,25 +296,25 @@ export default function KMZ() {
               <Radio size={12} /> ENLACE EN VIVO (TIEMPO REAL)
             </span>
             <span style={{
-              background: 'rgba(16, 185, 129, 0.2)',
-              color: '#34d399',
+              background: '#dcfce7',
+              color: '#166534',
               fontSize: '0.7rem',
               fontWeight: 700,
               padding: '0.2rem 0.5rem',
               borderRadius: '6px',
-              border: '1px solid rgba(52, 211, 153, 0.3)'
+              border: '1px solid #86efac'
             }}>
               ● Auto-recarga cada 60s
             </span>
           </div>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#ffffff', margin: '0 0 0.3rem 0' }}>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#003060', margin: '0 0 0.35rem 0' }}>
             Amazonas COVEPA - Enlace de Red en Vivo (Google Earth PC)
           </h2>
-          <p style={{ color: '#cbd5e1', fontSize: '0.84rem', margin: '0 0 0.4rem 0', lineHeight: 1.4, maxWidth: '750px' }}>
+          <p style={{ color: '#334e68', fontSize: '0.85rem', margin: '0 0 0.45rem 0', lineHeight: 1.45, maxWidth: '750px' }}>
             <strong>Ábrelo una sola vez en Google Earth de tu oficina.</strong> Este archivo especial (NetworkLink) se queda permanentemente vinculado y <strong>actualiza automáticamente las 4,116 observaciones cada 60 segundos</strong>. Nunca más tendrás que volver a descargar ni arrastrar archivos a Google Earth.
           </p>
-          <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
-            Ideal para: <strong style={{ color: '#38bdf8' }}>Supervisores y Oficina</strong> · Formato: <strong style={{ color: '#e2e8f0' }}>.KML NetworkLink (2 KB)</strong>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            Ideal para: <strong style={{ color: '#003060' }}>Supervisores y Oficina</strong> · Formato: <strong style={{ color: '#0284c7' }}>.KML NetworkLink (2 KB)</strong>
           </div>
         </div>
 
@@ -324,15 +327,15 @@ export default function KMZ() {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.6rem',
-              background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+              background: '#0284c7',
               color: '#ffffff',
-              border: '1px solid rgba(56, 189, 248, 0.4)',
-              borderRadius: '10px',
+              border: 'none',
+              borderRadius: '8px',
               padding: '0.75rem 1.3rem',
               fontSize: '0.86rem',
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(14, 165, 233, 0.35)',
+              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)',
               transition: 'all 0.2s ease',
               whiteSpace: 'nowrap'
             }}
@@ -350,13 +353,13 @@ export default function KMZ() {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.6rem',
-              background: syncSuccess ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-              color: syncSuccess ? '#34d399' : '#e2e8f0',
-              border: `1px solid ${syncSuccess ? 'rgba(52, 211, 153, 0.5)' : 'rgba(255, 255, 255, 0.15)'}`,
-              borderRadius: '10px',
+              background: syncSuccess ? '#dcfce7' : '#f0f6fc',
+              color: syncSuccess ? '#166534' : '#003060',
+              border: `1px solid ${syncSuccess ? '#86efac' : '#d8e5f1'}`,
+              borderRadius: '8px',
               padding: '0.65rem 1.1rem',
               fontSize: '0.82rem',
-              fontWeight: 600,
+              fontWeight: 700,
               cursor: isSyncing ? 'not-allowed' : 'pointer',
               transition: 'all 0.2s ease',
               whiteSpace: 'nowrap'
@@ -370,8 +373,9 @@ export default function KMZ() {
 
       {/* ── 1. TARJETA DESTACADA: KMZ GENERAL (TODOS LOS GRUPOS) ── */}
       <div style={{
-        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(30, 41, 59, 0.7) 100%)',
-        border: '1px solid rgba(99, 102, 241, 0.35)',
+        background: '#ffffff',
+        border: '1px solid #d8e5f1',
+        borderLeft: '5px solid #003060',
         borderRadius: '14px',
         padding: '1.4rem 1.8rem',
         display: 'flex',
@@ -379,12 +383,12 @@ export default function KMZ() {
         justifyContent: 'space-between',
         flexWrap: 'wrap',
         gap: '1.2rem',
-        boxShadow: '0 8px 25px rgba(0, 0, 0, 0.25)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
         <div style={{ flex: 1, minWidth: '280px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.3rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
             <span style={{
-              background: '#4f46e5',
+              background: '#003060',
               color: '#ffffff',
               fontSize: '0.72rem',
               fontWeight: 800,
@@ -394,15 +398,15 @@ export default function KMZ() {
             }}>
               MAPA COMPLETO
             </span>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#003060', margin: 0 }}>
               {generalFile.title}
             </h2>
           </div>
-          <p style={{ color: '#cbd5e1', fontSize: '0.84rem', margin: '0 0 0.5rem 0', lineHeight: 1.4 }}>
+          <p style={{ color: '#334e68', fontSize: '0.85rem', margin: '0 0 0.5rem 0', lineHeight: 1.45 }}>
             {generalFile.description}
           </p>
           <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-            Zonas: <strong style={{ color: '#e2e8f0' }}>{generalFile.zonas}</strong> · Tamaño: <strong style={{ color: '#e2e8f0' }}>{generalFile.kmzSize}</strong>
+            Zonas: <strong style={{ color: '#003060' }}>{generalFile.zonas}</strong> · Tamaño: <strong style={{ color: '#003060' }}>{generalFile.kmzSize}</strong>
           </div>
         </div>
 
@@ -415,15 +419,15 @@ export default function KMZ() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.5rem',
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              background: '#059669',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
-              padding: '0.65rem 1.25rem',
+              padding: '0.7rem 1.3rem',
               fontSize: '0.84rem',
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+              boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
               transition: 'all 0.15s ease'
             }}
           >
@@ -438,13 +442,13 @@ export default function KMZ() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.4rem',
-              background: 'rgba(255, 255, 255, 0.05)',
-              color: '#94a3b8',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: '#f8fbfe',
+              color: '#334e68',
+              border: '1px solid #d8e5f1',
               borderRadius: '8px',
-              padding: '0.65rem 0.95rem',
+              padding: '0.7rem 1rem',
               fontSize: '0.82rem',
-              fontWeight: 600,
+              fontWeight: 700,
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
@@ -459,10 +463,10 @@ export default function KMZ() {
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
           <div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f1f5f9', margin: 0 }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#003060', margin: 0 }}>
               Archivos KMZ por Grupo Operativo (1 al 6)
             </h3>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
               Descarga individual por cuadrilla o zona asignada (archivos ultraligeros de 40 a 80 KB para celular)
             </p>
           </div>
@@ -477,47 +481,48 @@ export default function KMZ() {
             <div
               key={gf.id}
               style={{
-                background: 'rgba(30, 41, 59, 0.5)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                background: '#ffffff',
+                border: '1px solid #d8e5f1',
                 borderRadius: '12px',
-                padding: '1.1rem 1.3rem',
+                padding: '1.2rem 1.4rem',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                gap: '0.85rem',
+                gap: '0.9rem',
+                boxShadow: 'var(--shadow-sm)',
                 transition: 'all 0.2s ease'
               }}
             >
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Folder size={16} color="#818cf8" />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#003060', margin: 0, display: 'flex', alignItems: 'center', gap: '7px' }}>
+                    <Folder size={17} color="#0284c7" />
                     {gf.title}
                   </h4>
                   <span style={{
-                    background: `${gf.badgeColor}22`,
-                    border: `1px solid ${gf.badgeColor}55`,
-                    color: gf.badgeColor,
+                    background: '#e0f2fe',
+                    border: '1px solid #bae6fd',
+                    color: '#0284c7',
                     fontSize: '0.72rem',
                     fontWeight: 700,
-                    padding: '0.15rem 0.5rem',
+                    padding: '0.15rem 0.55rem',
                     borderRadius: '6px'
                   }}>
                     {gf.badge}
                   </span>
                 </div>
 
-                <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: 0, lineHeight: 1.4 }}>
+                <p style={{ color: '#475569', fontSize: '0.82rem', margin: 0, lineHeight: 1.45 }}>
                   {gf.description}
                 </p>
 
-                <div style={{ marginTop: '0.55rem', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  Zonas: <strong style={{ color: '#cbd5e1' }}>{gf.zonas}</strong> · Peso: <strong style={{ color: '#cbd5e1' }}>{gf.kmzSize}</strong>
+                <div style={{ marginTop: '0.6rem', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                  Zonas: <strong style={{ color: '#0f2438' }}>{gf.zonas}</strong> · Peso: <strong style={{ color: '#0f2438' }}>{gf.kmzSize}</strong>
                 </div>
               </div>
 
               {/* Botones de Descarga */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '0.65rem', borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #edf4fb' }}>
                 <button
                   type="button"
                   onClick={() => handleDownload(gf, 'kmz')}
@@ -526,19 +531,19 @@ export default function KMZ() {
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '0.4rem',
-                    background: 'rgba(99, 102, 241, 0.16)',
-                    border: '1px solid rgba(99, 102, 241, 0.35)',
-                    color: '#c7d2fe',
+                    gap: '0.45rem',
+                    background: '#003060',
+                    border: '1px solid #003060',
+                    color: '#ffffff',
                     borderRadius: '6px',
-                    padding: '0.5rem 0.8rem',
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
+                    padding: '0.55rem 0.85rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
                     cursor: 'pointer',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <Download size={14} color="#818cf8" />
+                  <Download size={14} color="#ffffff" />
                   <span>{downloadingId === `${gf.id}-kmz` ? 'Descargando...' : 'Descargar KMZ'}</span>
                 </button>
 
@@ -546,13 +551,13 @@ export default function KMZ() {
                   type="button"
                   onClick={() => handleDownload(gf, 'kml')}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    color: '#94a3b8',
+                    background: '#f8fbfe',
+                    border: '1px solid #d8e5f1',
+                    color: '#475569',
                     borderRadius: '6px',
-                    padding: '0.5rem 0.75rem',
-                    fontSize: '0.76rem',
-                    fontWeight: 600,
+                    padding: '0.55rem 0.8rem',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
                     cursor: 'pointer'
                   }}
                   title="Descargar versión KML"
@@ -567,39 +572,40 @@ export default function KMZ() {
 
       {/* ── 3. GUÍA INTERACTIVA: CÓMO USAR EN GOOGLE EARTH Y CELULAR ── */}
       <div style={{
-        background: 'rgba(15, 23, 42, 0.6)',
-        border: '1px solid rgba(255, 255, 255, 0.07)',
+        background: '#ffffff',
+        border: '1px solid #d8e5f1',
         borderRadius: '12px',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        boxShadow: 'var(--shadow-sm)'
       }}>
         <div
           onClick={() => setShowGuide(prev => !prev)}
           style={{
-            padding: '1rem 1.4rem',
+            padding: '1.1rem 1.4rem',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(255, 255, 255, 0.02)'
+            background: '#f8fbfe'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <HelpCircle size={18} color="#818cf8" />
-            <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f1f5f9' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <HelpCircle size={18} color="#003060" />
+            <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#003060' }}>
               Guía de Uso: ¿Cómo abrir estos archivos en Google Earth y en el Celular sin internet?
             </span>
           </div>
-          {showGuide ? <ChevronUp size={18} color="#94a3b8" /> : <ChevronDown size={18} color="#94a3b8" />}
+          {showGuide ? <ChevronUp size={18} color="#003060" /> : <ChevronDown size={18} color="#003060" />}
         </div>
 
         {showGuide && (
-          <div style={{ padding: '1.2rem 1.6rem', borderTop: '1px solid rgba(255, 255, 255, 0.06)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem' }}>
+          <div style={{ padding: '1.4rem 1.6rem', borderTop: '1px solid #edf4fb', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem' }}>
             
-            <div style={{ background: 'rgba(0, 0, 0, 0.25)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-              <h5 style={{ fontSize: '0.85rem', color: '#818cf8', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <div style={{ background: '#f8fbfe', padding: '1.1rem', borderRadius: '8px', border: '1px solid #d8e5f1' }}>
+              <h5 style={{ fontSize: '0.86rem', color: '#003060', fontWeight: 800, margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 💻 En Computadora (PC / Laptop)
               </h5>
-              <ol style={{ fontSize: '0.78rem', color: '#94a3b8', paddingLeft: '1.2rem', margin: 0, lineHeight: 1.5 }}>
+              <ol style={{ fontSize: '0.8rem', color: '#334e68', paddingLeft: '1.2rem', margin: 0, lineHeight: 1.55 }}>
                 <li>Descarga el archivo <strong>.KMZ</strong> deseado.</li>
                 <li>Haz doble clic sobre el archivo descargado.</li>
                 <li>Se abrirá automáticamente en <strong>Google Earth Pro</strong>.</li>
@@ -607,11 +613,11 @@ export default function KMZ() {
               </ol>
             </div>
 
-            <div style={{ background: 'rgba(0, 0, 0, 0.25)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-              <h5 style={{ fontSize: '0.85rem', color: '#34d399', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <div style={{ background: '#f8fbfe', padding: '1.1rem', borderRadius: '8px', border: '1px solid #d8e5f1' }}>
+              <h5 style={{ fontSize: '0.86rem', color: '#059669', fontWeight: 800, margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 ☁️ En Celular vía Google Drive
               </h5>
-              <ol style={{ fontSize: '0.78rem', color: '#94a3b8', paddingLeft: '1.2rem', margin: 0, lineHeight: 1.5 }}>
+              <ol style={{ fontSize: '0.8rem', color: '#334e68', paddingLeft: '1.2rem', margin: 0, lineHeight: 1.55 }}>
                 <li>Sube el archivo KMZ a tu carpeta compartida de Google Drive.</li>
                 <li>En el celular, abre la app <strong>Google Earth</strong>.</li>
                 <li>Toca en <strong>Proyectos ➔ Abrir ➔ Abrir desde Google Drive</strong>.</li>
@@ -619,11 +625,11 @@ export default function KMZ() {
               </ol>
             </div>
 
-            <div style={{ background: 'rgba(0, 0, 0, 0.25)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-              <h5 style={{ fontSize: '0.85rem', color: '#f59e0b', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <div style={{ background: '#f8fbfe', padding: '1.1rem', borderRadius: '8px', border: '1px solid #d8e5f1' }}>
+              <h5 style={{ fontSize: '0.86rem', color: '#d97706', fontWeight: 800, margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 🌲 En Campo Sin Internet (Offline)
               </h5>
-              <ol style={{ fontSize: '0.78rem', color: '#94a3b8', paddingLeft: '1.2rem', margin: 0, lineHeight: 1.5 }}>
+              <ol style={{ fontSize: '0.8rem', color: '#334e68', paddingLeft: '1.2rem', margin: 0, lineHeight: 1.55 }}>
                 <li>En la app de Google Drive del celular, toca los 3 puntos del archivo y activa <strong>"Permitir acceso sin conexión"</strong>.</li>
                 <li>También puedes abrir el KMZ directamente en apps como <strong>Organic Maps</strong> o <strong>Locus Map</strong>.</li>
                 <li>El GPS satelital del teléfono te guiará en ruta sin consumir datos.</li>

@@ -65,10 +65,9 @@ const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sáb
 
 export default function Programacion() {
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [viewMode, setViewMode] = useState('today') // 'today' | 'week' | 'list'
-  const [todayFilter, setTodayFilter] = useState('ALL') // 'ALL' | 'EN_REVISION' | 'VALIDADO' | 'ENVIADO'
+  const [viewMode, setViewMode] = useState('today') // 'today' | 'week'
+  const [todayFilter, setTodayFilter] = useState('ALL') // 'ALL' | 'EN_REVISION' | 'VALIDADO' | 'ENVIADO' | 'DESCARTADA'
   const [selectedTechFilter, setSelectedTechFilter] = useState('ALL')
-  const [todayViewLayout, setTodayViewLayout] = useState('tecnicos') // 'tecnicos' | 'cuadrillas'
   const [loading, setLoading] = useState(true)
   const [programaciones, setProgramaciones] = useState([])
   const [tecnicos, setTecnicos] = useState([])
@@ -550,31 +549,8 @@ export default function Programacion() {
           </button>
         </div>
 
-        {/* Derecha: Selector de Distribución (si es Hoy) + Toggle Hoy/Semana/Lista + Botón Nueva Programación */}
+        {/* Derecha: Toggle Hoy / Semana + Botón Nueva Programación */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-          {viewMode === 'today' && (
-            <div className="prog-layout-buttons">
-              <button
-                type="button"
-                className={`prog-layout-btn ${todayViewLayout === 'tecnicos' ? 'active' : ''}`}
-                onClick={() => setTodayViewLayout('tecnicos')}
-                title="Agrupar por cada técnico responsable"
-              >
-                <Users size={12} />
-                <span>Por Técnicos</span>
-              </button>
-              <button
-                type="button"
-                className={`prog-layout-btn ${todayViewLayout === 'cuadrillas' ? 'active' : ''}`}
-                onClick={() => setTodayViewLayout('cuadrillas')}
-                title="Ver tarjetas individuales por programación"
-              >
-                <List size={12} />
-                <span>Cuadrillas</span>
-              </button>
-            </div>
-          )}
-
           <div className="prog-views-toggle">
             <button
               className={`prog-view-btn ${viewMode === 'today' ? 'active' : ''}`}
@@ -592,13 +568,6 @@ export default function Programacion() {
             >
               <CalendarDays size={13} />
               Semana
-            </button>
-            <button
-              className={`prog-view-btn ${viewMode === 'list' ? 'active' : ''}`}
-              onClick={() => setViewMode('list')}
-            >
-              <List size={13} />
-              Lista
             </button>
           </div>
 
@@ -751,8 +720,8 @@ export default function Programacion() {
                 </button>
               )}
             </div>
-          ) : todayViewLayout === 'tecnicos' ? (
-            /* ── DISEÑO DIVIDIDO POR TÉCNICOS ── */
+          ) : (
+            /* ── DISEÑO POR TÉCNICOS (SIEMPRE ACTIVO) ── */
             <div className="prog-tech-list-wrap">
               {displayedTecnicos.map(tGroup => {
                 const tec = tGroup.tecnico
@@ -952,153 +921,6 @@ export default function Programacion() {
                 )
               })}
             </div>
-          ) : (
-            /* ── DISEÑO ANTERIOR POR CUADRILLAS ── */
-            <div className="prog-today-grid">
-              {filteredTodayProgs.map(prog => {
-                const team = prog.equipo && prog.equipo.length > 0 ? prog.equipo : [prog.personal || {}]
-                const sitios = prog.sitios || []
-
-                let pTotal = 0
-                let pVal = 0
-                let pRev = 0
-                let pDesc = 0
-                let pEnv = 0
-                sitios.forEach(s => {
-                  const stat = sitiosStats[s.id_sitio]
-                  if (stat) {
-                    pTotal += stat.total
-                    pVal += (stat.validadas || 0)
-                    pRev += (stat.enRevision || 0)
-                    pDesc += stat.descartadas
-                    pEnv += (stat.enviadas || 0)
-                  }
-                })
-                const pDone = pVal + pDesc + pEnv
-                const pDonePct = pTotal > 0 ? (pDone / pTotal) * 100 : 0
-                const siteNames = sitios.map(s => {
-                  const loc = sitiosMap[s.id_sitio]?.localidad || sitiosMap[s.id_sitio]?.nombre_nodo
-                  return loc ? `${s.id_sitio} (${loc})` : s.id_sitio
-                }).join(', ')
-
-                return (
-                  <div
-                    key={prog.id}
-                    className="prog-today-card"
-                    onClick={() => {
-                      const firstSite = sitios[0]?.id_sitio
-                      setSelectedProgModal({ id_sitio: firstSite, programacion: prog, allSitios: sitios })
-                    }}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {/* Header con Sitios y botón Ojito */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <MapPin size={15} color="#818cf8" />
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Sitio(s)</div>
-                          <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f1f5f9' }}>
-                            {siteNames || 'Sin sitio asignado'}
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        className="prog-card-icon-btn eye"
-                        title="Ver detalles y observaciones"
-                        onClick={e => {
-                          e.stopPropagation()
-                          const firstSite = sitios[0]?.id_sitio
-                          setSelectedProgModal({ id_sitio: firstSite, programacion: prog, allSitios: sitios })
-                        }}
-                      >
-                        <Eye size={15} />
-                      </button>
-                    </div>
-
-                    {/* Personal en ruta */}
-                    <div style={{ background: 'rgba(0, 0, 0, 0.25)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.04)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.45rem' }}>
-                        <Users size={12} color="#38bdf8" />
-                        <span>Personal en ruta:</span>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        {team.map((member, mIdx) => {
-                          const cClass = getCargoClass(member.cargo)
-                          const isTecnico = cClass === 'tecnico' || (member.cargo || '').includes('SUPERVISOR')
-                          return (
-                            <div key={member.id || mIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                                <div className={`person-avatar ${cClass}`} style={{ width: '22px', height: '22px', fontSize: '0.62rem' }}>
-                                  {getInitials(member.nombre_completo)}
-                                </div>
-                                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#f1f5f9' }}>
-                                  {member.nombre_completo || 'Sin nombre'}
-                                </span>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                <span className={`role-badge ${cClass}`} style={{ fontSize: '0.68rem', padding: '0.15rem 0.4rem' }}>
-                                  {member.cargo || 'PERSONAL'}
-                                </span>
-                                {isTecnico && member.cuadrilla ? (
-                                  <span className="prog-card-cuadrilla-badge" style={{ fontSize: '0.65rem' }}>
-                                    {member.cuadrilla}
-                                  </span>
-                                ) : (
-                                  <span className="prog-cuadrilla-badge-rotativo" style={{ fontSize: '0.65rem' }}>
-                                    Apoyo rotativo
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Métrica de observaciones: {pDone}/{pTotal} y badges de estado */}
-                    <div className="prog-card-metrics-box">
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}>
-                          <AlertCircle size={14} color="#818cf8" />
-                          <strong style={{ color: pDone === pTotal && pTotal > 0 ? '#10b981' : '#f1f5f9' }}>
-                            {pDone}/{pTotal}
-                          </strong>
-                        </div>
-
-                        {/* Badges de estados clave */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
-                          {pRev > 0 && (
-                            <span className="badge badge-blue" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>
-                              🔍 {pRev} En revisión
-                            </span>
-                          )}
-                          {pVal > 0 && (
-                            <span className="badge badge-green" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>
-                              ✓ {pVal} Por subir
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="prog-progress-bar-bg" style={{ marginTop: '0.35rem' }}>
-                        <div
-                          style={{
-                            width: `${pDonePct}%`,
-                            height: '100%',
-                            background: pDone === pTotal && pTotal > 0 ? '#10b981' : '#818cf8',
-                            borderRadius: '3px',
-                            transition: 'width 0.3s'
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
           )}
         </div>
       )}
@@ -1243,132 +1065,6 @@ export default function Programacion() {
               </div>
             )
           })}
-        </div>
-      )}
-
-      {/* ── CONTENIDO: VISTA LISTA ── */}
-      {viewMode === 'list' && (
-        <div className="table-container" style={{ marginTop: '0.5rem' }}>
-          <table className="erp-table">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Personal Asignado</th>
-                <th>Sitios Programados</th>
-                <th>Total Obs</th>
-                <th>Subsanadas</th>
-                <th>Descartadas</th>
-                <th>Pendientes</th>
-                <th>Avance</th>
-                <th style={{ textAlign: 'center' }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {programaciones.length === 0 ? (
-                <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
-                    No hay programaciones registradas para esta semana. Haz click en "+ Nueva Programación" para comenzar.
-                  </td>
-                </tr>
-              ) : (
-                programaciones.map(prog => {
-                  const team = prog.equipo && prog.equipo.length > 0 ? prog.equipo : [prog.personal || {}]
-                  const sitios = prog.sitios || []
-
-                  let tot = 0
-                  let sub = 0
-                  let desc = 0
-                  let pend = 0
-                  sitios.forEach(s => {
-                    const st = sitiosStats[s.id_sitio]
-                    if (st) {
-                      tot += st.total
-                      sub += st.subsanadas
-                      desc += st.descartadas
-                      pend += st.pendientes
-                    }
-                  })
-                  const pct = tot > 0 ? Math.round(((sub + desc) / tot) * 100) : 0
-
-                  return (
-                    <tr key={prog.id}>
-                      <td style={{ fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
-                        {prog.fecha}
-                      </td>
-                      <td>
-                        <div className="prog-team-list">
-                          {team.map((member, mIdx) => {
-                            const cClass = getCargoClass(member.cargo)
-                            const isTecnico = cClass === 'tecnico' || (member.cargo || '').includes('SUPERVISOR')
-                            return (
-                              <div key={member.id || mIdx} className="prog-team-member">
-                                <div className={`person-avatar ${cClass}`} style={{ width: '22px', height: '22px', fontSize: '0.62rem' }}>
-                                  {getInitials(member.nombre_completo)}
-                                </div>
-                                <span className="prog-team-member-name">{member.nombre_completo || 'Sin nombre'}</span>
-                                <span className={`role-badge ${cClass}`}>{member.cargo || 'PERSONAL'}</span>
-                                {isTecnico && member.cuadrilla ? (
-                                  <span className="prog-card-cuadrilla-badge">{member.cuadrilla}</span>
-                                ) : (
-                                  <span className="prog-cuadrilla-badge-rotativo">Apoyo rotativo</span>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
-                          {sitios.map(s => {
-                            const loc = sitiosMap[s.id_sitio]?.localidad || sitiosMap[s.id_sitio]?.nombre_nodo
-                            return (
-                              <button
-                                key={s.id || s.id_sitio}
-                                className="prog-site-pill"
-                                style={{ border: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                onClick={() => setSelectedProgModal({ id_sitio: s.id_sitio, programacion: prog, allSitios: sitios })}
-                                title={loc ? `${s.id_sitio} - ${loc}` : s.id_sitio}
-                              >
-                                <MapPin size={10} color="#818cf8" />
-                                <span style={{ fontWeight: 700 }}>{s.id_sitio}</span>
-                                {loc && (
-                                  <span style={{ color: '#93c5fd', fontWeight: 600, fontSize: '0.74rem' }}>
-                                    - {loc}
-                                  </span>
-                                )}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </td>
-                      <td style={{ fontWeight: 600 }}>{tot}</td>
-                      <td style={{ color: '#10b981', fontWeight: 600 }}>{sub}</td>
-                      <td style={{ color: '#64748b' }}>{desc}</td>
-                      <td style={{ color: '#ef4444', fontWeight: 600 }}>{pend}</td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <div className="prog-progress-bar-bg" style={{ width: '80px', height: '6px' }}>
-                            <div className="prog-progress-bar-fill-sub" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{pct}%</span>
-                        </div>
-                      </td>
-                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        <button
-                          className="prog-card-icon-btn eye"
-                          style={{ display: 'inline-flex' }}
-                          onClick={() => setSelectedProgModal({ id_sitio: sitios[0]?.id_sitio, programacion: prog, allSitios: sitios })}
-                          title="Ver detalles, observaciones y opciones"
-                        >
-                          <Eye size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
         </div>
       )}
 

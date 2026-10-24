@@ -696,6 +696,9 @@ body {
   width: 100%;
   margin-bottom: 1.25rem;
 }
+.covepa-metric-grid.cols-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
 .covepa-metric-grid.cols-4 {
   grid-template-columns: repeat(4, 1fr);
 }
@@ -970,7 +973,15 @@ body {
 }
 
 /* ── RESPONSIVE PARA TABLET Y CELULAR ── */
+@media (max-width: 1280px) {
+  .covepa-metric-grid.cols-5 {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+  }
+}
+
 @media (max-width: 1024px) {
+  .covepa-metric-grid.cols-5,
   .covepa-metric-grid.cols-4 {
     grid-template-columns: repeat(2, 1fr);
     gap: 0.75rem;
@@ -992,6 +1003,7 @@ body {
     gap: 0.6rem;
     margin-bottom: 1rem;
   }
+  .covepa-metric-grid.cols-5,
   .covepa-metric-grid.cols-4,
   .covepa-metric-grid.cols-3,
   .covepa-metric-grid.cols-2 {

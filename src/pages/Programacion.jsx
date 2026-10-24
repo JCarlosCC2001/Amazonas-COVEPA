@@ -318,6 +318,7 @@ export default function Programacion() {
         if (todayFilter === 'VALIDADO') return (stat.validadas || 0) > 0
         if (todayFilter === 'EN_REVISION') return (stat.enRevision || 0) > 0
         if (todayFilter === 'ENVIADO') return (stat.enviadas || 0) > 0
+        if (todayFilter === 'DESCARTADA') return (stat.descartadas || 0) > 0
         return true
       })
     })
@@ -419,37 +420,59 @@ export default function Programacion() {
 
   return (
     <div className="prog-container">
-      {/* ── MEDIDORES / KPIs OPERATIVOS CONTEXTUALES ── */}
-      <MetricGrid columns={4}>
+      {/* ── MEDIDORES / KPIs Y FILTROS INTERACTIVOS SUPERIORES ── */}
+      <MetricGrid columns={viewMode === 'today' ? 5 : 4}>
         {viewMode === 'today' ? (
           <>
             <MetricCard
               icon={<Users size={20} />}
               label="Cuadrillas en Campo"
               value={todayStats.totalProgs}
-              subtitle={`${todayStats.totalPersonal} personal en ruta`}
+              subtitle={`${todayStats.totalPersonal} personal · ${todayStats.totalSitios} sitios`}
               variant="navy"
-            />
-            <MetricCard
-              icon={<MapPin size={20} />}
-              label="Sitios Programados"
-              value={todayStats.totalSitios}
-              subtitle={`${todayStats.totalObs} obs. registradas`}
-              variant="sky"
-            />
-            <MetricCard
-              icon={<CheckCircle2 size={20} />}
-              label="Obs. Resueltas Hoy"
-              value={`${todayStats.resueltas} / ${todayStats.totalObs}`}
-              subtitle={`${todayStats.validadas} val · ${todayStats.enviadas} env`}
-              variant="emerald"
+              onClick={() => setTodayFilter('ALL')}
+              active={todayFilter === 'ALL'}
+              badge={todayFilter === 'ALL' ? 'Todas' : null}
             />
             <MetricCard
               icon={<Clock size={20} />}
               label="En Revisión"
               value={todayStats.enRevision}
-              subtitle={`${todayStats.pendientes} pendientes`}
-              variant="amber"
+              subtitle="pendientes por validar"
+              variant="sky"
+              onClick={() => setTodayFilter(prev => prev === 'EN_REVISION' ? 'ALL' : 'EN_REVISION')}
+              active={todayFilter === 'EN_REVISION'}
+              badge={todayFilter === 'EN_REVISION' ? 'Filtrando' : null}
+            />
+            <MetricCard
+              icon={<CheckCircle2 size={20} />}
+              label="Validados (Por Subir)"
+              value={todayStats.validadas}
+              subtitle="listos para cargar"
+              variant="emerald"
+              onClick={() => setTodayFilter(prev => prev === 'VALIDADO' ? 'ALL' : 'VALIDADO')}
+              active={todayFilter === 'VALIDADO'}
+              badge={todayFilter === 'VALIDADO' ? 'Filtrando' : null}
+            />
+            <MetricCard
+              icon={<Send size={20} />}
+              label="Enviados a Covepa"
+              value={todayStats.enviadas}
+              subtitle="cargados con éxito"
+              variant="purple"
+              onClick={() => setTodayFilter(prev => prev === 'ENVIADO' ? 'ALL' : 'ENVIADO')}
+              active={todayFilter === 'ENVIADO'}
+              badge={todayFilter === 'ENVIADO' ? 'Filtrando' : null}
+            />
+            <MetricCard
+              icon={<AlertTriangle size={20} />}
+              label="Descartadas / Rech."
+              value={todayStats.descartadas}
+              subtitle="desestimadas en campo"
+              variant="rose"
+              onClick={() => setTodayFilter(prev => prev === 'DESCARTADA' ? 'ALL' : 'DESCARTADA')}
+              active={todayFilter === 'DESCARTADA'}
+              badge={todayFilter === 'DESCARTADA' ? 'Filtrando' : null}
             />
           </>
         ) : (
@@ -486,7 +509,7 @@ export default function Programacion() {
         )}
       </MetricGrid>
 
-      {/* ── BARRA SUPERIOR INTEGRADA (Navegación de Fecha + Selector de Vista + Acción) ── */}
+      {/* ── BARRA SUPERIOR INTEGRADA (Navegación de Fecha + Distribución + Selector de Vista + Acción) ── */}
       <div className="prog-toolbar">
         {/* Izquierda: Selector de Día / Semana */}
         <div className="prog-nav-group">
@@ -527,8 +550,31 @@ export default function Programacion() {
           </button>
         </div>
 
-        {/* Derecha: Toggle Hoy / Semana / Lista + Botón Nueva Programación */}
+        {/* Derecha: Selector de Distribución (si es Hoy) + Toggle Hoy/Semana/Lista + Botón Nueva Programación */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          {viewMode === 'today' && (
+            <div className="prog-layout-buttons">
+              <button
+                type="button"
+                className={`prog-layout-btn ${todayViewLayout === 'tecnicos' ? 'active' : ''}`}
+                onClick={() => setTodayViewLayout('tecnicos')}
+                title="Agrupar por cada técnico responsable"
+              >
+                <Users size={12} />
+                <span>Por Técnicos</span>
+              </button>
+              <button
+                type="button"
+                className={`prog-layout-btn ${todayViewLayout === 'cuadrillas' ? 'active' : ''}`}
+                onClick={() => setTodayViewLayout('cuadrillas')}
+                title="Ver tarjetas individuales por programación"
+              >
+                <List size={12} />
+                <span>Cuadrillas</span>
+              </button>
+            </div>
+          )}
+
           <div className="prog-views-toggle">
             <button
               className={`prog-view-btn ${viewMode === 'today' ? 'active' : ''}`}
@@ -572,79 +618,46 @@ export default function Programacion() {
       {/* ── CONTENIDO PRINCIPAL: VISTA HOY ── */}
       {viewMode === 'today' && (
         <div className="prog-today-container">
-          {/* Barra de Filtros por Estado y Selector de Distribución */}
-          <div className="prog-today-filter-bar">
-            {/* Filtro interactivo por Estado de Observación */}
-            <div className="prog-filter-pills-group">
-              <span className="prog-filter-label">Estado:</span>
+          {/* Indicador de filtro activo si se seleccionó un medidor específico */}
+          {todayFilter !== 'ALL' && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.6rem',
+              background: '#f0f9ff',
+              border: '1px solid #bae6fd',
+              borderRadius: '8px',
+              padding: '0.45rem 1rem',
+              fontSize: '0.8rem',
+              color: '#0369a1'
+            }}>
+              <span>
+                Filtrando cuadrillas con observaciones en estado: <strong>{
+                  todayFilter === 'EN_REVISION' ? 'En Revisión' :
+                  todayFilter === 'VALIDADO' ? 'Validados (Por subir)' :
+                  todayFilter === 'ENVIADO' ? 'Enviados a Covepa' :
+                  'Descartadas / Rechazadas'
+                }</strong>
+              </span>
               <button
                 type="button"
-                className={`prog-filter-pill ${todayFilter === 'ALL' ? 'active' : ''}`}
                 onClick={() => setTodayFilter('ALL')}
+                style={{
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '5px',
+                  padding: '0.2rem 0.6rem',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
               >
-                <span>Todas</span>
-                <span className="prog-pill-badge">{todayStats.resueltas}/{todayStats.totalObs}</span>
-              </button>
-
-              <button
-                type="button"
-                className={`prog-filter-pill pill-revision ${todayFilter === 'EN_REVISION' ? 'active' : ''}`}
-                onClick={() => setTodayFilter(todayFilter === 'EN_REVISION' ? 'ALL' : 'EN_REVISION')}
-                title="Filtrar cuadrillas con observaciones en revisión"
-              >
-                <Clock size={13} />
-                <span>En Revisión</span>
-                <span className="prog-pill-badge">{todayStats.enRevision}</span>
-              </button>
-
-              <button
-                type="button"
-                className={`prog-filter-pill pill-validado ${todayFilter === 'VALIDADO' ? 'active' : ''}`}
-                onClick={() => setTodayFilter(todayFilter === 'VALIDADO' ? 'ALL' : 'VALIDADO')}
-                title="Filtrar cuadrillas con observaciones validadas por subir"
-              >
-                <CheckCircle2 size={13} />
-                <span>Validados (Por subir)</span>
-                <span className="prog-pill-badge">{todayStats.validadas}</span>
-              </button>
-
-              <button
-                type="button"
-                className={`prog-filter-pill pill-enviado ${todayFilter === 'ENVIADO' ? 'active' : ''}`}
-                onClick={() => setTodayFilter(todayFilter === 'ENVIADO' ? 'ALL' : 'ENVIADO')}
-                title="Filtrar cuadrillas con observaciones enviadas"
-              >
-                <Send size={13} />
-                <span>Enviados</span>
-                <span className="prog-pill-badge">{todayStats.enviadas}</span>
+                ✕ Mostrar Todas
               </button>
             </div>
-
-            {/* Selector de Distribución: Por Técnicos vs Cuadrillas */}
-            <div className="prog-layout-switch">
-              <span className="prog-layout-label">Distribución:</span>
-              <div className="prog-layout-buttons">
-                <button
-                  type="button"
-                  className={`prog-layout-btn ${todayViewLayout === 'tecnicos' ? 'active' : ''}`}
-                  onClick={() => setTodayViewLayout('tecnicos')}
-                  title="Dividir la vista agrupada por cada técnico"
-                >
-                  <Users size={12} />
-                  <span>Por Técnicos</span>
-                </button>
-                <button
-                  type="button"
-                  className={`prog-layout-btn ${todayViewLayout === 'cuadrillas' ? 'active' : ''}`}
-                  onClick={() => setTodayViewLayout('cuadrillas')}
-                  title="Ver tarjetas individuales por programación"
-                >
-                  <List size={12} />
-                  <span>Cuadrillas</span>
-                </button>
-              </div>
-            </div>
-          </div>
+          )}
 
           {/* Chips de filtro rápido por técnico (cuando hay cuadrillas en campo) */}
           {todayByTecnicos.length > 0 && (

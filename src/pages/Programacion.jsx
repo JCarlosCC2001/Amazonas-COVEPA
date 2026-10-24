@@ -19,6 +19,7 @@ import {
 import { updateObservacionCovepa } from '../services/observacionesService'
 import { ASIGNACIONES_BASE, getCachedSitiosAsignados } from '../services/sitiosService'
 import { useAuth } from '../hooks/useAuth'
+import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 
 // Helper para validar si un texto tiene contenido significativo
 function hasMeaningfulText(val) {
@@ -418,68 +419,37 @@ export default function Programacion() {
 
   return (
     <div className="prog-container">
-      {/* ── KPIs COMPACTOS DE LA SEMANA (Medidores arriba) ── */}
-      <div className="prog-kpi-grid">
-        <div className="prog-kpi-item">
-          <div className="prog-kpi-icon" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>
-            <CalendarDays size={18} />
-          </div>
-          <div className="prog-kpi-info">
-            <span className="prog-kpi-label">Jornadas Semana</span>
-            <div className="prog-kpi-val-row">
-              <span className="prog-kpi-val">{kpis.totalJornadas}</span>
-              <span className="prog-kpi-sub">({kpis.totalSitiosProgramados} sitios)</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="prog-kpi-item">
-          <div className="prog-kpi-icon" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
-            <AlertCircle size={18} />
-          </div>
-          <div className="prog-kpi-info">
-            <span className="prog-kpi-label">Total Observaciones</span>
-            <div className="prog-kpi-val-row">
-              <span className="prog-kpi-val">{kpis.totalObs}</span>
-              <span className="prog-kpi-sub">en ruta</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="prog-kpi-item">
-          <div className="prog-kpi-icon" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
-            <CheckCircle2 size={18} />
-          </div>
-          <div className="prog-kpi-info">
-            <span className="prog-kpi-label">Subsanadas / Descartadas</span>
-            <div className="prog-kpi-val-row">
-              <span className="prog-kpi-val" style={{ color: '#34d399' }}>
-                {kpis.subsanadas + kpis.descartadas}
-              </span>
-              <span className="prog-kpi-sub">
-                ({kpis.subsanadas} sub · {kpis.descartadas} desc)
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="prog-kpi-item">
-          <div className="prog-kpi-icon" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24' }}>
-            <ShieldCheck size={18} />
-          </div>
-          <div className="prog-kpi-info">
-            <span className="prog-kpi-label">Avance Semanal</span>
-            <div className="prog-kpi-val-row">
-              <span className="prog-kpi-val" style={{ color: '#818cf8' }}>
-                {kpis.avancePct}%
-              </span>
-              <span className="prog-kpi-sub">
-                ({kpis.pendientes} pendientes)
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* ── MEDIDORES / KPIs REUTILIZABLES DE LA SEMANA ── */}
+      <MetricGrid columns={4}>
+        <MetricCard
+          icon={<CalendarDays size={20} />}
+          label="Jornadas Semana"
+          value={kpis.totalJornadas}
+          subtitle={`${kpis.totalSitiosProgramados} sitios`}
+          variant="navy"
+        />
+        <MetricCard
+          icon={<AlertCircle size={20} />}
+          label="Total Observaciones"
+          value={kpis.totalObs}
+          subtitle="en ruta"
+          variant="sky"
+        />
+        <MetricCard
+          icon={<CheckCircle2 size={20} />}
+          label="Subsanadas / Descartadas"
+          value={kpis.subsanadas + kpis.descartadas}
+          subtitle={`${kpis.subsanadas} sub · ${kpis.descartadas} desc`}
+          variant="emerald"
+        />
+        <MetricCard
+          icon={<ShieldCheck size={20} />}
+          label="Avance Semanal"
+          value={`${kpis.avancePct}%`}
+          subtitle={`${kpis.pendientes} pendientes`}
+          variant="amber"
+        />
+      </MetricGrid>
 
       {/* ── BARRA SUPERIOR INTEGRADA (Navegación + Acciones) ── */}
       <div className="prog-toolbar">

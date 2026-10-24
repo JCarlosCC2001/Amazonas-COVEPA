@@ -118,10 +118,12 @@ Para garantizar que Google Earth funcione a máxima velocidad sin congelarse ni 
 | **24-10-2026** | Rediseño integral UX/UI corporativo (blancos, celestes suaves y azul Covepa #003060). | Lograr una interfaz seria, profesional, amigable, intuitiva y de máximo contraste para supervisores y técnicos. |
 | **24-10-2026** | Remoción de Top Header global (`Layout.jsx`). | Maximizar el espacio vertical útil de trabajo en pantalla y eliminar información redundante. |
 | **24-10-2026** | Creación del componente reutilizable `MetricCard` y `MetricGrid`. | Estandarizar medidores/KPIs en Personal, Sitios y Observaciones con diseño visual destacado (marca de agua, acentos y micro-interacciones). |
+| **24-10-2026** | Integración de `MetricCard` en Programación y adaptación compacta/responsive. | Reducción de tipografía a tamaño balanceado y adaptación fluida para tablet y celular (2 cols en tablet, 1-2 en móvil). |
 
 ---
 
 > [!IMPORTANT]
 > **Compromiso de Actualización:** Cada vez que se agregue o modifique un módulo, regla de visualización o endpoint, se debe actualizar este archivo y registrar el cambio en la tabla de historial superior.
+
 
 

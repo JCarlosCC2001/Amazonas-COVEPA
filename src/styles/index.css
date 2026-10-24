@@ -496,6 +496,14 @@ body {
 .mobile-sidebar-btn:active {
   transform: scale(0.94);
 }
+@media (max-width: 640px) {
+  .mobile-sidebar-btn {
+    bottom: 0.85rem;
+    left: 0.85rem;
+    width: 42px;
+    height: 42px;
+  }
+}
 
 /* Backdrop oscuro para móvil */
 .sidebar-backdrop {
@@ -789,11 +797,28 @@ body {
   50% { opacity: 0.7; transform: scale(1.2); }
 }
 
-/* Cuerpo de página */
+/* Cuerpo de página responsivo */
 .page-body {
   flex: 1;
-  padding: 1.8rem 2rem;
+  padding: 1.5rem 1.75rem;
   overflow-y: auto;
+  box-sizing: border-box;
+  width: 100%;
+}
+@media (max-width: 1024px) {
+  .page-body {
+    padding: 1rem 1.15rem;
+  }
+}
+@media (max-width: 768px) {
+  .page-body {
+    padding: 0.75rem 0.65rem;
+  }
+}
+@media (max-width: 480px) {
+  .page-body {
+    padding: 0.45rem 0.35rem;
+  }
 }
 
 /* ============================================================
@@ -1109,8 +1134,8 @@ body {
 
 @media (max-width: 640px) {
   .covepa-metric-grid {
-    gap: 0.6rem;
-    margin-bottom: 1rem;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
   }
   .covepa-metric-grid.cols-5,
   .covepa-metric-grid.cols-4,
@@ -1119,27 +1144,43 @@ body {
     grid-template-columns: repeat(2, 1fr);
   }
   .metric-card-inner {
-    padding: 0.65rem 0.75rem;
-    gap: 0.55rem;
+    padding: 0.55rem 0.65rem;
+    gap: 0.45rem;
   }
   .metric-icon-box {
-    width: 35px;
-    height: 35px;
+    width: 32px;
+    height: 32px;
     border-radius: 8px;
+    flex-shrink: 0;
   }
   .metric-icon-box svg {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
+  }
+  .metric-info-col {
+    gap: 0.1rem;
+    min-width: 0;
+  }
+  .metric-top-row {
+    gap: 0.25rem;
   }
   .metric-label {
-    font-size: 0.62rem;
+    font-size: 0.6rem;
+    letter-spacing: 0.02em;
+  }
+  .metric-value-row {
+    gap: 0.35rem;
+    align-items: baseline;
   }
   .metric-value {
     font-size: 1.2rem;
   }
   .metric-sub-pill {
-    font-size: 0.62rem;
-    padding: 0.08rem 0.32rem;
+    font-size: 0.58rem;
+    padding: 0.06rem 0.28rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .metric-watermark {
     display: none;
@@ -1147,19 +1188,38 @@ body {
 }
 
 @media (max-width: 440px) {
+  .covepa-metric-grid {
+    gap: 0.38rem;
+    margin-bottom: 0.65rem;
+  }
   .covepa-metric-grid.cols-5,
   .covepa-metric-grid.cols-4,
   .covepa-metric-grid.cols-3,
   .covepa-metric-grid.cols-2 {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
   .metric-card-inner {
-    padding: 0.65rem 0.85rem;
-  }
-  .metric-value-row {
-    justify-content: space-between;
-    flex-wrap: wrap;
+    padding: 0.48rem 0.52rem;
     gap: 0.35rem;
+  }
+  .metric-icon-box {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+  }
+  .metric-icon-box svg {
+    width: 13px;
+    height: 13px;
+  }
+  .metric-label {
+    font-size: 0.56rem;
+  }
+  .metric-value {
+    font-size: 1.12rem;
+  }
+  .metric-sub-pill {
+    font-size: 0.54rem;
+    padding: 0.04rem 0.22rem;
   }
 }
 
@@ -2372,8 +2432,8 @@ body {
   .prog-toolbar {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.75rem;
-    padding: 0.75rem 0.85rem;
+    gap: 0.65rem;
+    padding: 0.65rem 0.75rem;
   }
   .prog-nav-group {
     display: flex;
@@ -2388,15 +2448,15 @@ body {
     width: 100%;
     justify-content: center;
     text-align: center;
-    padding: 0.25rem 0;
-    font-size: 0.88rem;
+    padding: 0.2rem 0;
+    font-size: 0.86rem;
   }
   .prog-toolbar-actions {
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    gap: 0.5rem;
+    gap: 0.45rem;
   }
   .prog-views-toggle {
     flex: 1;
@@ -2411,6 +2471,32 @@ body {
     justify-content: center;
     padding: 0.48rem 0.65rem;
     font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .prog-toolbar {
+    padding: 0.48rem 0.52rem;
+    gap: 0.42rem;
+  }
+  .prog-nav-title {
+    font-size: 0.8rem;
+    padding: 0.1rem 0;
+  }
+  .prog-btn-nav {
+    padding: 0.32rem 0.5rem;
+    font-size: 0.74rem;
+  }
+  .prog-views-toggle {
+    padding: 2px;
+  }
+  .prog-view-btn {
+    padding: 0.36rem 0.48rem;
+    font-size: 0.73rem;
+  }
+  .prog-btn-create {
+    padding: 0.4rem 0.52rem;
+    font-size: 0.74rem;
   }
 }
 
@@ -2604,10 +2690,10 @@ body {
 }
 @media (max-width: 640px) {
   .prog-day-col {
-    min-width: 82vw;
-    max-width: 86vw;
-    min-height: 420px;
-    max-height: calc(100vh - 220px);
+    min-width: 88vw;
+    max-width: 92vw;
+    min-height: 400px;
+    max-height: calc(100vh - 200px);
   }
 }
 
@@ -5725,26 +5811,29 @@ body {
     padding-right: 0;
   }
   .prog-tech-compact-row {
-    padding: 0.65rem 0.75rem;
+    padding: 0.52rem 0.62rem;
+    border-radius: var(--radius-sm);
   }
   .prog-tech-main-bar {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.45rem;
+    gap: 0.4rem;
   }
   .prog-tech-person-info {
     width: 100%;
   }
   .prog-tech-name-text {
-    font-size: 0.88rem;
-    max-width: 180px;
+    font-size: 0.86rem;
+    flex: 1;
+    min-width: 0;
+    max-width: none;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .prog-tech-summary-pill {
     width: 100%;
     justify-content: space-between;
-    padding: 0.35rem 0.55rem;
+    padding: 0.3rem 0.48rem;
     font-size: 0.72rem;
     flex-wrap: wrap;
     box-sizing: border-box;
@@ -5754,9 +5843,12 @@ body {
     width: 100%;
     flex: 1 1 100%;
     box-sizing: border-box;
+    padding: 0.45rem 0.55rem;
   }
   .site-2row-loc {
-    max-width: 170px;
+    flex: 1;
+    min-width: 0;
+    max-width: none;
     overflow: hidden;
     text-overflow: ellipsis;
   }

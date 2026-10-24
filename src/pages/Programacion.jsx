@@ -674,198 +674,124 @@ export default function Programacion() {
               )}
             </div>
           ) : (
-            /* ── DISEÑO POR TÉCNICOS (SIEMPRE ACTIVO) ── */
+            /* ── DISEÑO POR TÉCNICOS (COMPACTO Y SCROLL INDEPENDIENTE) ── */
             <div className="prog-tech-list-wrap">
               {todayByTecnicos.map(tGroup => {
                 const tec = tGroup.tecnico
                 const pDonePct = tGroup.totalObs > 0 ? (tGroup.resueltas / tGroup.totalObs) * 100 : 0
 
                 return (
-                  <div key={tec.id || tec.nombre_completo} className="prog-tech-group-card">
-                    {/* Header del Técnico */}
-                    <div className="prog-tech-group-header">
-                      <div className="prog-tech-profile">
-                        <div className="prog-tech-avatar-box">
-                          <div className="person-avatar tecnico" style={{ width: '40px', height: '40px', fontSize: '0.95rem', fontWeight: 700 }}>
-                            {getInitials(tec.nombre_completo)}
-                          </div>
-                          <div className="prog-tech-status-dot" />
+                  <div key={tec.id || tec.nombre_completo} className="prog-tech-compact-row">
+                    {/* Fila superior: Perfil esencial del Técnico y Resumen */}
+                    <div className="prog-tech-main-bar">
+                      <div className="prog-tech-person-info">
+                        <div className="prog-tech-avatar-sm">
+                          {getInitials(tec.nombre_completo)}
                         </div>
-
-                        <div className="prog-tech-info-col">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                            <h3 className="prog-tech-name">{tec.nombre_completo || 'Técnico sin asignar'}</h3>
+                        <div className="prog-tech-details">
+                          <div className="prog-tech-title-line">
+                            <span className="prog-tech-name-text">{tec.nombre_completo || 'Técnico sin asignar'}</span>
                             {tGroup.cuadrilla ? (
                               <span className="prog-card-cuadrilla-badge">
                                 {tGroup.cuadrilla}
                               </span>
                             ) : (
                               <span className="prog-cuadrilla-badge-rotativo">
-                                Apoyo rotativo
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Acompañantes y teléfono */}
-                          <div className="prog-tech-crew-row">
-                            {tGroup.companions.length > 0 ? (
-                              tGroup.companions.map((comp, cIdx) => (
-                                <span key={comp.id || cIdx} className="prog-tech-companion-tag">
-                                  <span style={{ opacity: 0.65 }}>{comp.cargo ? `${comp.cargo}:` : 'Acompañante:'}</span>
-                                  <strong>{comp.nombre_completo}</strong>
-                                </span>
-                              ))
-                            ) : (
-                              <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                                Sin acompañante asignado
+                                Apoyo
                               </span>
                             )}
                             {tec.telefono && (
-                              <span className="prog-tech-phone">
+                              <a
+                                href={`tel:${tec.telefono}`}
+                                className="prog-tech-phone-tag"
+                                title="Llamar al técnico"
+                                onClick={e => e.stopPropagation()}
+                              >
                                 📞 {tec.telefono}
+                              </a>
+                            )}
+                            {tGroup.companions.length > 0 && (
+                              <span
+                                className="prog-tech-comp-pill"
+                                title={tGroup.companions.map(c => `${c.cargo ? `${c.cargo}: ` : ''}${c.nombre_completo}`).join(' · ')}
+                              >
+                                👥 {tGroup.companions.map(c => c.nombre_completo).join(' · ')}
                               </span>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      {/* Resumen de KPI del Técnico */}
-                      <div className="prog-tech-summary-box">
-                        <div className="prog-tech-kpi-item">
-                          <span className="prog-tech-kpi-val">{tGroup.sitios.length}</span>
-                          <span className="prog-tech-kpi-lbl">{tGroup.sitios.length === 1 ? 'sitio' : 'sitios'}</span>
-                        </div>
-                        <div className="prog-tech-kpi-divider" />
-                        <div className="prog-tech-kpi-item">
-                          <span className="prog-tech-kpi-val" style={{ color: tGroup.resueltas === tGroup.totalObs && tGroup.totalObs > 0 ? '#10b981' : '#f1f5f9' }}>
-                            {tGroup.resueltas}/{tGroup.totalObs}
-                          </span>
-                          <span className="prog-tech-kpi-lbl">resueltas</span>
-                        </div>
-                        <div className="prog-tech-badges-wrap">
-                          {tGroup.enRevision > 0 && (
-                            <span className="badge badge-blue" style={{ fontSize: '0.68rem', padding: '0.18rem 0.45rem' }}>
-                              🔍 {tGroup.enRevision} En revisión
+                      {/* Resumen numérico esencial del técnico */}
+                      <div className="prog-tech-summary-pill">
+                        <span className="prog-tech-sum-sites">
+                          <strong>{tGroup.sitios.length}</strong> {tGroup.sitios.length === 1 ? 'sitio' : 'sitios'}
+                        </span>
+                        <span className="prog-tech-sum-sep">•</span>
+                        <span
+                          className="prog-tech-sum-obs"
+                          style={{
+                            color: tGroup.resueltas === tGroup.totalObs && tGroup.totalObs > 0 ? '#059669' : '#003060'
+                          }}
+                        >
+                          <strong>{tGroup.resueltas}/{tGroup.totalObs}</strong> resueltas
+                          {tGroup.totalObs > 0 && (
+                            <span className="prog-tech-sum-pct">
+                              ({Math.round((tGroup.resueltas / tGroup.totalObs) * 100)}%)
                             </span>
                           )}
-                          {tGroup.validadas > 0 && (
-                            <span className="badge badge-green" style={{ fontSize: '0.68rem', padding: '0.18rem 0.45rem' }}>
-                              ✓ {tGroup.validadas} Por subir
-                            </span>
-                          )}
-                          {tGroup.enviadas > 0 && (
-                            <span className="badge" style={{ fontSize: '0.68rem', padding: '0.18rem 0.45rem', background: 'rgba(192, 132, 252, 0.18)', color: '#e9d5ff', border: '1px solid rgba(192, 132, 252, 0.35)' }}>
-                              ✉ {tGroup.enviadas} Enviadas
-                            </span>
-                          )}
+                        </span>
+                        <div className="prog-tech-mini-prog-track" title={`Avance: ${pDonePct.toFixed(0)}%`}>
+                          <div
+                            className="prog-tech-mini-prog-fill"
+                            style={{
+                              width: `${pDonePct}%`,
+                              background: tGroup.resueltas === tGroup.totalObs && tGroup.totalObs > 0 ? '#10b981' : '#0284c7'
+                            }}
+                          />
                         </div>
                       </div>
                     </div>
 
-                    {/* Barra de progreso global del técnico */}
-                    <div className="prog-tech-overall-progress">
-                      <div
-                        className="prog-tech-progress-fill"
-                        style={{
-                          width: `${pDonePct}%`,
-                          background: tGroup.resueltas === tGroup.totalObs && tGroup.totalObs > 0
-                            ? 'linear-gradient(90deg, #10b981, #34d399)'
-                            : 'linear-gradient(90deg, #6366f1, #818cf8)'
-                        }}
-                      />
-                    </div>
-
-                    {/* Sitios asignados al técnico */}
-                    <div className="prog-tech-sites-grid">
+                    {/* Fila inferior: Sitios asignados como pastillas compactas e interactivas */}
+                    <div className="prog-tech-sites-strip">
                       {tGroup.sitios.map(siteItem => {
                         const sStat = siteItem.stat
                         const sDone = (sStat.validadas || 0) + (sStat.descartadas || 0) + (sStat.enviadas || 0)
-                        const sPct = sStat.total > 0 ? (sDone / sStat.total) * 100 : 0
+                        const isComplete = sDone === sStat.total && sStat.total > 0
+                        const localidad = sitiosMap[siteItem.id_sitio]?.localidad
 
                         return (
                           <div
                             key={siteItem.id_sitio}
-                            className="prog-tech-site-item"
+                            className={`prog-site-compact-pill ${isComplete ? 'is-complete' : ''}`}
                             onClick={() => setSelectedProgModal({ id_sitio: siteItem.id_sitio, programacion: siteItem.programacion, allSitios: siteItem.allSitios })}
+                            title="Clic para ver detalle y observaciones en el modal"
                           >
-                            <div className="prog-site-item-top">
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                                <div className="prog-site-icon-box">
-                                  <MapPin size={14} color="#818cf8" />
-                                </div>
-                                <div style={{ minWidth: 0, flex: 1 }}>
-                                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.45rem', flexWrap: 'wrap' }}>
-                                    <span className="prog-site-code">{siteItem.id_sitio}</span>
-                                    {sitiosMap[siteItem.id_sitio]?.localidad && (
-                                      <span style={{ fontSize: '0.8rem', color: '#93c5fd', fontWeight: 600 }}>
-                                        · {sitiosMap[siteItem.id_sitio].localidad}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {siteItem.orden && (
-                                    <span className="prog-site-order-tag">Ruta {siteItem.orden}</span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <button
-                                type="button"
-                                className="prog-card-icon-btn eye"
-                                title="Ver detalles y observaciones"
-                                onClick={e => {
-                                  e.stopPropagation()
-                                  setSelectedProgModal({ id_sitio: siteItem.id_sitio, programacion: siteItem.programacion, allSitios: siteItem.allSitios })
-                                }}
-                              >
-                                <Eye size={14} />
-                              </button>
-                            </div>
-
-                            {/* Progreso del sitio */}
-                            <div className="prog-site-metrics">
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem' }}>
-                                <span style={{ color: '#94a3b8' }}>Observaciones:</span>
-                                <strong style={{ color: sDone === sStat.total && sStat.total > 0 ? '#10b981' : '#f1f5f9' }}>
-                                  {sDone}/{sStat.total}
-                                </strong>
-                              </div>
-
-                              <div className="prog-progress-bar-bg" style={{ marginTop: '0.3rem', height: '4px' }}>
-                                <div
-                                  style={{
-                                    width: `${sPct}%`,
-                                    height: '100%',
-                                    background: sDone === sStat.total && sStat.total > 0 ? '#10b981' : '#38bdf8',
-                                    borderRadius: '2px',
-                                    transition: 'width 0.3s'
-                                  }}
-                                />
-                              </div>
-
-                              {/* Badges de estado en el sitio */}
-                              <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
-                                {sStat.enRevision > 0 && (
-                                  <span className="badge badge-blue" style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem' }}>
-                                    🔍 {sStat.enRevision} En revisión
-                                  </span>
-                                )}
-                                {sStat.validadas > 0 && (
-                                  <span className="badge badge-green" style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem' }}>
-                                    ✓ {sStat.validadas} Por subir
-                                  </span>
-                                )}
-                                {sStat.enviadas > 0 && (
-                                  <span className="badge" style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem', background: 'rgba(192, 132, 252, 0.18)', color: '#e9d5ff', border: '1px solid rgba(192, 132, 252, 0.35)' }}>
-                                    ✉ {sStat.enviadas}
-                                  </span>
-                                )}
-                                {sStat.pendientes > 0 && (
-                                  <span className="badge" style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-                                    ● {sStat.pendientes} pend.
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                            <MapPin size={13} className="site-pill-pin" />
+                            <span className="site-pill-name">
+                              <strong>{siteItem.id_sitio}</strong>
+                              {localidad && (
+                                <span className="site-pill-loc"> · {localidad}</span>
+                              )}
+                            </span>
+                            {siteItem.orden && (
+                              <span className="site-pill-order">Ruta {siteItem.orden}</span>
+                            )}
+                            <span className={`site-pill-count ${isComplete ? 'complete' : ''}`}>
+                              {sDone}/{sStat.total}
+                            </span>
+                            <button
+                              type="button"
+                              className="site-pill-eye"
+                              title="Ver observaciones"
+                              onClick={e => {
+                                e.stopPropagation()
+                                setSelectedProgModal({ id_sitio: siteItem.id_sitio, programacion: siteItem.programacion, allSitios: siteItem.allSitios })
+                              }}
+                            >
+                              <Eye size={12} />
+                            </button>
                           </div>
                         )
                       })}

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
+import { X } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
 const NAV_ITEMS = [
@@ -83,7 +84,7 @@ const NAV_ITEMS = [
   },
 ]
 
-export default function Sidebar({ collapsed, setCollapsed }) {
+export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
 
@@ -92,8 +93,12 @@ export default function Sidebar({ collapsed, setCollapsed }) {
     navigate('/login')
   }
 
+  const handleNavClick = () => {
+    if (setMobileOpen) setMobileOpen(false)
+  }
+
   return (
-    <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
+    <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
       {/* Header del sidebar */}
       <div className="sidebar-header">
         <div className="sidebar-brand">
@@ -110,13 +115,26 @@ export default function Sidebar({ collapsed, setCollapsed }) {
               </defs>
             </svg>
           </div>
-          {!collapsed && (
+          {(!collapsed || mobileOpen) && (
             <div className="sidebar-brand-text">
               <span className="sidebar-brand-name">COVEPA</span>
               <span className="sidebar-brand-sub">Observaciones</span>
             </div>
           )}
         </div>
+
+        {/* Botón de cerrar en móvil */}
+        <button
+          type="button"
+          className="sidebar-mobile-close"
+          onClick={() => setMobileOpen && setMobileOpen(false)}
+          aria-label="Cerrar menú"
+          title="Cerrar menú"
+        >
+          <X size={20} />
+        </button>
+
+        {/* Botón de colapsar en escritorio */}
         <button
           className="sidebar-toggle"
           onClick={() => setCollapsed(!collapsed)}
@@ -140,21 +158,22 @@ export default function Sidebar({ collapsed, setCollapsed }) {
             className={({ isActive }) =>
               `sidebar-nav-item ${isActive ? 'active' : ''}`
             }
-            title={collapsed ? item.label : undefined}
+            onClick={handleNavClick}
+            title={collapsed && !mobileOpen ? item.label : undefined}
           >
             <span className="nav-icon">{item.icon}</span>
-            {!collapsed && <span className="nav-label">{item.label}</span>}
+            {(!collapsed || mobileOpen) && <span className="nav-label">{item.label}</span>}
           </NavLink>
         ))}
       </nav>
 
       {/* Footer del sidebar */}
       <div className="sidebar-footer">
-        <div className={`sidebar-user ${collapsed ? 'sidebar-user-collapsed' : ''}`}>
+        <div className={`sidebar-user ${collapsed && !mobileOpen ? 'sidebar-user-collapsed' : ''}`}>
           <div className="user-avatar">
             {user?.email?.[0]?.toUpperCase() || 'U'}
           </div>
-          {!collapsed && (
+          {(!collapsed || mobileOpen) && (
             <div className="user-info">
               <span className="user-email">{user?.email}</span>
               <span className="user-role">Administrador</span>
@@ -171,7 +190,7 @@ export default function Sidebar({ collapsed, setCollapsed }) {
             <polyline points="16 17 21 12 16 7" />
             <line x1="21" y1="12" x2="9" y2="12" />
           </svg>
-          {!collapsed && <span>Salir</span>}
+          {(!collapsed || mobileOpen) && <span>Salir</span>}
         </button>
       </div>
     </aside>

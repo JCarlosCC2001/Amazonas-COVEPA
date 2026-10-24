@@ -2559,6 +2559,13 @@ body {
   box-shadow: 0 2px 8px rgba(0, 48, 96, 0.2);
 }
 
+/* Contenedor envolvente de la vista Semana */
+.prog-week-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
 /* Calendario Grid Semana (Desktop: 7 columnas; Tablet y Mobile: scroll horizontal continuo snap) */
 .prog-week-grid {
   display: grid;

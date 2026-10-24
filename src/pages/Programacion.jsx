@@ -66,7 +66,7 @@ const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sáb
 export default function Programacion() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('today') // 'today' | 'week'
-  const [todayFilter, setTodayFilter] = useState('ALL') // 'ALL' | 'EN_REVISION' | 'VALIDADO' | 'ENVIADO' | 'DESCARTADA'
+  const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL' | 'EN_REVISION' | 'VALIDADO' | 'ENVIADO' | 'DESCARTADA'
   const [loading, setLoading] = useState(true)
   const [programaciones, setProgramaciones] = useState([])
   const [tecnicos, setTecnicos] = useState([])
@@ -215,42 +215,41 @@ export default function Programacion() {
     }
   }
 
-  // Medidores / KPIs de la semana
-  const kpis = useMemo(() => {
-    let totalJornadas = programaciones.length
-    let totalSitiosProgramados = 0
+  // Medidores / Estadísticas de la semana (por estados operativos de observaciones en sitios de la semana)
+  const weekStats = useMemo(() => {
     let totalObs = 0
-    let subsanadas = 0
-    let descartadas = 0
+    let validadas = 0
+    let enRevision = 0
     let enviadas = 0
+    let descartadas = 0
     let pendientes = 0
+    const weekSitesSet = new Set()
 
     programaciones.forEach(p => {
       ;(p.sitios || []).forEach(s => {
-        totalSitiosProgramados++
-        const stat = sitiosStats[s.id_sitio]
-        if (stat) {
-          totalObs += stat.total
-          subsanadas += stat.subsanadas
-          descartadas += stat.descartadas
-          enviadas += (stat.enviadas || 0)
-          pendientes += stat.pendientes
+        if (s.id_sitio && !weekSitesSet.has(s.id_sitio)) {
+          weekSitesSet.add(s.id_sitio)
+          const stat = sitiosStats[s.id_sitio]
+          if (stat) {
+            totalObs += (stat.total || 0)
+            validadas += (stat.validadas || 0)
+            enRevision += (stat.enRevision || 0)
+            enviadas += (stat.enviadas || 0)
+            descartadas += (stat.descartadas || 0) + (stat.rechazadas || 0)
+            pendientes += (stat.pendientes || 0)
+          }
         }
       })
     })
 
-    const levantadas = subsanadas + descartadas + enviadas
-    const avancePct = totalObs > 0 ? Math.round((levantadas / totalObs) * 100) : 0
-
     return {
-      totalJornadas,
-      totalSitiosProgramados,
       totalObs,
-      subsanadas,
-      descartadas,
+      validadas,
+      enRevision,
       enviadas,
+      descartadas,
       pendientes,
-      avancePct
+      totalSitios: weekSitesSet.size
     }
   }, [programaciones, sitiosStats])
 
@@ -275,16 +274,18 @@ export default function Programacion() {
         if (m.id || m.nombre_completo) totalPersonal++
       })
       ;(p.sitios || []).forEach(s => {
-        if (s.id_sitio) sitiosSet.add(s.id_sitio)
-        const stat = sitiosStats[s.id_sitio]
-        if (stat) {
-          totalObs += stat.total
-          validadas += (stat.validadas || 0)
-          enRevision += (stat.enRevision || 0)
-          enviadas += (stat.enviadas || 0)
-          descartadas += (stat.descartadas || 0)
-          pendientes += (stat.pendientes || 0)
-          resueltas += (stat.validadas || stat.subsanadas || 0) + (stat.descartadas || 0) + (stat.enviadas || 0)
+        if (s.id_sitio && !sitiosSet.has(s.id_sitio)) {
+          sitiosSet.add(s.id_sitio)
+          const stat = sitiosStats[s.id_sitio]
+          if (stat) {
+            totalObs += (stat.total || 0)
+            validadas += (stat.validadas || 0)
+            enRevision += (stat.enRevision || 0)
+            enviadas += (stat.enviadas || 0)
+            descartadas += (stat.descartadas || 0) + (stat.rechazadas || 0)
+            pendientes += (stat.pendientes || 0)
+            resueltas += (stat.validadas || stat.subsanadas || 0) + (stat.descartadas || 0) + (stat.rechazadas || 0) + (stat.enviadas || 0)
+          }
         }
       })
     })
@@ -305,22 +306,28 @@ export default function Programacion() {
     }
   }, [programaciones, sitiosStats, currentDate])
 
-  // Filtrado de cuadrillas de hoy según el estado seleccionado
-  const filteredTodayProgs = useMemo(() => {
-    if (todayFilter === 'ALL') return todayStats.progs
-    return todayStats.progs.filter(prog => {
+  // Helper para filtrar cualquier lista de programaciones por estado de observación
+  const filterProgsByStatus = useCallback((progsList) => {
+    if (!progsList) return []
+    if (statusFilter === 'ALL') return progsList
+    return progsList.filter(prog => {
       const sitios = prog.sitios || []
       return sitios.some(s => {
         const stat = sitiosStats[s.id_sitio]
         if (!stat) return false
-        if (todayFilter === 'VALIDADO') return (stat.validadas || 0) > 0
-        if (todayFilter === 'EN_REVISION') return (stat.enRevision || 0) > 0
-        if (todayFilter === 'ENVIADO') return (stat.enviadas || 0) > 0
-        if (todayFilter === 'DESCARTADA') return (stat.descartadas || 0) > 0
+        if (statusFilter === 'VALIDADO') return (stat.validadas || 0) > 0
+        if (statusFilter === 'EN_REVISION') return (stat.enRevision || 0) > 0
+        if (statusFilter === 'ENVIADO') return (stat.enviadas || 0) > 0
+        if (statusFilter === 'DESCARTADA') return ((stat.descartadas || 0) + (stat.rechazadas || 0)) > 0
         return true
       })
     })
-  }, [todayStats.progs, todayFilter, sitiosStats])
+  }, [statusFilter, sitiosStats])
+
+  // Filtrado de cuadrillas de hoy según el estado seleccionado
+  const filteredTodayProgs = useMemo(() => {
+    return filterProgsByStatus(todayStats.progs)
+  }, [todayStats.progs, filterProgsByStatus])
 
   // Función para agrupar cualquier lista de programaciones por técnico
   const groupProgsByTecnico = useCallback((list, statsMap = {}) => {
@@ -418,92 +425,47 @@ export default function Programacion() {
   return (
     <div className="prog-container">
       {/* ── MEDIDORES / KPIs Y FILTROS INTERACTIVOS SUPERIORES ── */}
-      <MetricGrid columns={viewMode === 'today' ? 5 : 4}>
-        {viewMode === 'today' ? (
-          <>
-            <MetricCard
-              icon={<Users size={20} />}
-              label="Cuadrillas en Campo"
-              value={todayStats.totalProgs}
-              subtitle={`${todayStats.totalPersonal} personal · ${todayStats.totalSitios} sitios`}
-              variant="navy"
-              onClick={() => setTodayFilter('ALL')}
-              active={todayFilter === 'ALL'}
-              badge={todayFilter === 'ALL' ? 'Todas' : null}
-            />
-            <MetricCard
-              icon={<Clock size={20} />}
-              label="En Revisión"
-              value={todayStats.enRevision}
-              subtitle="pendientes por validar"
-              variant="sky"
-              onClick={() => setTodayFilter(prev => prev === 'EN_REVISION' ? 'ALL' : 'EN_REVISION')}
-              active={todayFilter === 'EN_REVISION'}
-              badge={todayFilter === 'EN_REVISION' ? 'Filtrando' : null}
-            />
-            <MetricCard
-              icon={<CheckCircle2 size={20} />}
-              label="Validados (Por Subir)"
-              value={todayStats.validadas}
-              subtitle="listos para cargar"
-              variant="emerald"
-              onClick={() => setTodayFilter(prev => prev === 'VALIDADO' ? 'ALL' : 'VALIDADO')}
-              active={todayFilter === 'VALIDADO'}
-              badge={todayFilter === 'VALIDADO' ? 'Filtrando' : null}
-            />
-            <MetricCard
-              icon={<Send size={20} />}
-              label="Enviados a Covepa"
-              value={todayStats.enviadas}
-              subtitle="cargados con éxito"
-              variant="purple"
-              onClick={() => setTodayFilter(prev => prev === 'ENVIADO' ? 'ALL' : 'ENVIADO')}
-              active={todayFilter === 'ENVIADO'}
-              badge={todayFilter === 'ENVIADO' ? 'Filtrando' : null}
-            />
-            <MetricCard
-              icon={<AlertTriangle size={20} />}
-              label="Descartadas / Rech."
-              value={todayStats.descartadas}
-              subtitle="desestimadas en campo"
-              variant="rose"
-              onClick={() => setTodayFilter(prev => prev === 'DESCARTADA' ? 'ALL' : 'DESCARTADA')}
-              active={todayFilter === 'DESCARTADA'}
-              badge={todayFilter === 'DESCARTADA' ? 'Filtrando' : null}
-            />
-          </>
-        ) : (
-          <>
-            <MetricCard
-              icon={<CalendarDays size={20} />}
-              label="Jornadas Semana"
-              value={kpis.totalJornadas}
-              subtitle={`${kpis.totalSitiosProgramados} sitios`}
-              variant="navy"
-            />
-            <MetricCard
-              icon={<AlertCircle size={20} />}
-              label="Total Observaciones"
-              value={kpis.totalObs}
-              subtitle="en ruta semanal"
-              variant="sky"
-            />
-            <MetricCard
-              icon={<CheckCircle2 size={20} />}
-              label="Subsanadas / Descartadas"
-              value={kpis.subsanadas + kpis.descartadas}
-              subtitle={`${kpis.subsanadas} sub · ${kpis.descartadas} desc`}
-              variant="emerald"
-            />
-            <MetricCard
-              icon={<ShieldCheck size={20} />}
-              label="Avance Semanal"
-              value={`${kpis.avancePct}%`}
-              subtitle={`${kpis.pendientes} pendientes`}
-              variant="amber"
-            />
-          </>
-        )}
+      <MetricGrid columns={4}>
+        <MetricCard
+          icon={<Clock size={20} />}
+          label="En Revisión"
+          value={viewMode === 'today' ? todayStats.enRevision : weekStats.enRevision}
+          subtitle={viewMode === 'today' ? 'pendientes por validar' : 'en la semana'}
+          variant="sky"
+          onClick={() => setStatusFilter(prev => prev === 'EN_REVISION' ? 'ALL' : 'EN_REVISION')}
+          active={statusFilter === 'EN_REVISION'}
+          badge={statusFilter === 'EN_REVISION' ? 'Filtrando' : null}
+        />
+        <MetricCard
+          icon={<CheckCircle2 size={20} />}
+          label="Validados (Por Subir)"
+          value={viewMode === 'today' ? todayStats.validadas : weekStats.validadas}
+          subtitle={viewMode === 'today' ? 'listos para cargar' : 'en la semana'}
+          variant="emerald"
+          onClick={() => setStatusFilter(prev => prev === 'VALIDADO' ? 'ALL' : 'VALIDADO')}
+          active={statusFilter === 'VALIDADO'}
+          badge={statusFilter === 'VALIDADO' ? 'Filtrando' : null}
+        />
+        <MetricCard
+          icon={<Send size={20} />}
+          label="Enviados por COVEPA"
+          value={viewMode === 'today' ? todayStats.enviadas : weekStats.enviadas}
+          subtitle={viewMode === 'today' ? 'cargados con éxito' : 'en la semana'}
+          variant="purple"
+          onClick={() => setStatusFilter(prev => prev === 'ENVIADO' ? 'ALL' : 'ENVIADO')}
+          active={statusFilter === 'ENVIADO'}
+          badge={statusFilter === 'ENVIADO' ? 'Filtrando' : null}
+        />
+        <MetricCard
+          icon={<AlertTriangle size={20} />}
+          label="Descartadas / Rech."
+          value={viewMode === 'today' ? todayStats.descartadas : weekStats.descartadas}
+          subtitle={viewMode === 'today' ? 'desestimadas en campo' : 'en la semana'}
+          variant="rose"
+          onClick={() => setStatusFilter(prev => prev === 'DESCARTADA' ? 'ALL' : 'DESCARTADA')}
+          active={statusFilter === 'DESCARTADA'}
+          badge={statusFilter === 'DESCARTADA' ? 'Filtrando' : null}
+        />
       </MetricGrid>
 
       {/* ── BARRA SUPERIOR INTEGRADA (Navegación de Fecha + Distribución + Selector de Vista + Acción) ── */}
@@ -588,20 +550,20 @@ export default function Programacion() {
       {viewMode === 'today' && (
         <div className="prog-today-container">
           {/* Indicador de filtro activo si se seleccionó un medidor específico */}
-          {todayFilter !== 'ALL' && (
+          {statusFilter !== 'ALL' && (
             <div className="prog-filter-notice-banner">
               <span>
                 Filtrando cuadrillas con observaciones en estado: <strong>{
-                  todayFilter === 'EN_REVISION' ? 'En Revisión' :
-                  todayFilter === 'VALIDADO' ? 'Validados (Por subir)' :
-                  todayFilter === 'ENVIADO' ? 'Enviados a Covepa' :
+                  statusFilter === 'EN_REVISION' ? 'En Revisión' :
+                  statusFilter === 'VALIDADO' ? 'Validados (Por subir)' :
+                  statusFilter === 'ENVIADO' ? 'Enviados por COVEPA' :
                   'Descartadas / Rechazadas'
                 }</strong>
               </span>
               <button
                 type="button"
                 className="prog-filter-notice-btn"
-                onClick={() => setTodayFilter('ALL')}
+                onClick={() => setStatusFilter('ALL')}
               >
                 ✕ Mostrar Todas
               </button>
@@ -628,19 +590,19 @@ export default function Programacion() {
                 <Clock size={24} color="#003060" />
               </div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: '#003060' }}>
-                {todayFilter !== 'ALL'
+                {statusFilter !== 'ALL'
                   ? 'No hay cuadrillas con ese estado específico para esta fecha'
                   : 'No hay cuadrillas programadas para esta fecha'}
               </div>
               <div style={{ fontSize: '0.84rem', color: '#64748b', maxWidth: '440px', lineHeight: 1.5 }}>
-                {todayFilter !== 'ALL'
+                {statusFilter !== 'ALL'
                   ? 'Prueba seleccionando "Todas" para ver el total de las rutas y cuadrillas del día.'
                   : 'Organiza las salidas del personal y asigna los sitios a visitar para mantener el avance de observaciones al día.'}
               </div>
-              {todayFilter !== 'ALL' ? (
+              {statusFilter !== 'ALL' ? (
                 <button
                   className="prog-btn-create"
-                  onClick={() => setTodayFilter('ALL')}
+                  onClick={() => setStatusFilter('ALL')}
                   style={{ marginTop: '0.5rem' }}
                 >
                   Ver Todas las Cuadrillas
@@ -824,80 +786,104 @@ export default function Programacion() {
 
       {/* ── CONTENIDO PRINCIPAL: VISTA SEMANA ── */}
       {viewMode === 'week' && (
-        <div className="prog-week-grid">
-          {weekDays.map(day => {
-            const dayProgs = programaciones.filter(p => p.fecha === day.dateStr)
-            const dayTecnicos = groupProgsByTecnico(dayProgs, sitiosStats)
+        <div className="prog-week-wrap">
+          {/* Indicador de filtro activo si se seleccionó un medidor específico en la semana */}
+          {statusFilter !== 'ALL' && (
+            <div className="prog-filter-notice-banner" style={{ marginBottom: '0.85rem' }}>
+              <span>
+                Filtrando cuadrillas con observaciones en estado: <strong>{
+                  statusFilter === 'EN_REVISION' ? 'En Revisión' :
+                  statusFilter === 'VALIDADO' ? 'Validados (Por subir)' :
+                  statusFilter === 'ENVIADO' ? 'Enviados por COVEPA' :
+                  'Descartadas / Rechazadas'
+                }</strong>
+              </span>
+              <button
+                type="button"
+                className="prog-filter-notice-btn"
+                onClick={() => setStatusFilter('ALL')}
+              >
+                ✕ Mostrar Todas
+              </button>
+            </div>
+          )}
 
-            return (
-              <div key={day.dateStr} className={`prog-day-col ${day.isToday ? 'is-today' : ''}`}>
-                <div className="prog-day-header">
-                  <span className="prog-day-name">{day.dayName}</span>
-                  <span className="prog-day-number">{day.dayNum}</span>
-                </div>
+          <div className="prog-week-grid">
+            {weekDays.map(day => {
+              const dayProgs = programaciones.filter(p => p.fecha === day.dateStr)
+              const filteredDayProgs = filterProgsByStatus(dayProgs)
+              const dayTecnicos = groupProgsByTecnico(filteredDayProgs, sitiosStats)
 
-                <div className="prog-day-body">
-                  {dayTecnicos.map(tDay => {
-                    const tec = tDay.tecnico
+              return (
+                <div key={day.dateStr} className={`prog-day-col ${day.isToday ? 'is-today' : ''}`}>
+                  <div className="prog-day-header">
+                    <span className="prog-day-name">{day.dayName}</span>
+                    <span className="prog-day-number">{day.dayNum}</span>
+                  </div>
 
-                    return (
-                      <div key={tec.id || tec.nombre_completo} className="prog-week-tech-card">
-                        {/* Cabecera del Técnico: Solo Nombre y Cuadrilla */}
-                        <div className="week-tech-header">
-                          <div className="week-tech-avatar">
-                            {getInitials(tec.nombre_completo)}
+                  <div className="prog-day-body">
+                    {dayTecnicos.map(tDay => {
+                      const tec = tDay.tecnico
+
+                      return (
+                        <div key={tec.id || tec.nombre_completo} className="prog-week-tech-card">
+                          {/* Cabecera del Técnico: Solo Nombre y Cuadrilla */}
+                          <div className="week-tech-header">
+                            <div className="week-tech-avatar">
+                              {getInitials(tec.nombre_completo)}
+                            </div>
+                            <div className="week-tech-info">
+                              <span className="week-tech-name" title={tec.nombre_completo}>
+                                {tec.nombre_completo || 'Sin asignar'}
+                              </span>
+                              {tDay.cuadrilla && (
+                                <span className="week-tech-badge">{tDay.cuadrilla}</span>
+                              )}
+                            </div>
                           </div>
-                          <div className="week-tech-info">
-                            <span className="week-tech-name" title={tec.nombre_completo}>
-                              {tec.nombre_completo || 'Sin asignar'}
-                            </span>
-                            {tDay.cuadrilla && (
-                              <span className="week-tech-badge">{tDay.cuadrilla}</span>
-                            )}
+
+                          {/* Sitios asignados: Solo Código de Sitio y Nombre/Localidad */}
+                          <div className="week-tech-sites">
+                            {tDay.sitios.map(sItem => {
+                              const localidad = sitiosMap[sItem.id_sitio]?.localidad
+
+                              return (
+                                <div
+                                  key={sItem.id_sitio}
+                                  className="week-site-pill"
+                                  onClick={() => setSelectedProgModal({ id_sitio: sItem.id_sitio, programacion: sItem.programacion, allSitios: sItem.allSitios })}
+                                  title="Clic para ver detalle y observaciones"
+                                >
+                                  <MapPin size={11} className="week-site-pin" />
+                                  <span className="week-site-code">{sItem.id_sitio}</span>
+                                  {localidad && (
+                                    <span className="week-site-loc">· {localidad}</span>
+                                  )}
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
+                      )
+                    })}
 
-                        {/* Sitios asignados: Solo Código de Sitio y Nombre/Localidad */}
-                        <div className="week-tech-sites">
-                          {tDay.sitios.map(sItem => {
-                            const localidad = sitiosMap[sItem.id_sitio]?.localidad
-
-                            return (
-                              <div
-                                key={sItem.id_sitio}
-                                className="week-site-pill"
-                                onClick={() => setSelectedProgModal({ id_sitio: sItem.id_sitio, programacion: sItem.programacion, allSitios: sItem.allSitios })}
-                                title="Clic para ver detalle y observaciones"
-                              >
-                                <MapPin size={11} className="week-site-pin" />
-                                <span className="week-site-code">{sItem.id_sitio}</span>
-                                {localidad && (
-                                  <span className="week-site-loc">· {localidad}</span>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })}
-
-                  {/* Botón para programar directamente en este día */}
-                  <div
-                    className="prog-empty-slot"
-                    onClick={() => {
-                      setModalNewDate(day.dateStr)
-                      setModalNewOpen(true)
-                    }}
-                    title="Programar una nueva cuadrilla en este día"
-                  >
-                    <Plus size={13} />
-                    <span>Programar</span>
+                    {/* Botón para programar directamente en este día */}
+                    <div
+                      className="prog-empty-slot"
+                      onClick={() => {
+                        setModalNewDate(day.dateStr)
+                        setModalNewOpen(true)
+                      }}
+                      title="Programar una nueva cuadrilla en este día"
+                    >
+                      <Plus size={13} />
+                      <span>Programar</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       )}
 

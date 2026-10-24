@@ -1912,32 +1912,32 @@ function ModalDetallesProgramacion({
             </div>
           </div>
 
-          {/* Acciones de la programación: Editar, Eliminar y Cerrar */}
+          {/* Acciones de la programación: Siempre iconos compactos (Editar, Eliminar y Cerrar) */}
           <div className="prog-details-modal-actions">
             {onEditProg && (
               <button
                 type="button"
-                className="prog-details-action-btn edit"
+                className="prog-details-icon-action-btn edit"
                 title="Editar esta programación"
+                aria-label="Editar"
                 onClick={() => {
                   handleCloseWithAutoSave()
                   onEditProg(prog)
                 }}
               >
-                <Edit3 size={13} />
-                <span>Editar</span>
+                <Edit3 size={15} />
               </button>
             )}
 
             {onDeleteProg && (
               <button
                 type="button"
-                className="prog-details-action-btn delete"
+                className="prog-details-icon-action-btn delete"
                 title="Eliminar esta programación"
+                aria-label="Eliminar"
                 onClick={() => onDeleteProg(prog?.id)}
               >
-                <Trash2 size={13} />
-                <span>Eliminar</span>
+                <Trash2 size={15} />
               </button>
             )}
 
@@ -1948,7 +1948,7 @@ function ModalDetallesProgramacion({
               title="Cerrar ventana y guardar cambios (Esc)"
               aria-label="Cerrar"
             >
-              <X size={18} />
+              <X size={17} />
             </button>
           </div>
         </div>

@@ -322,9 +322,8 @@ export default function Programacion() {
     })
   }, [todayStats.progs, todayFilter, sitiosStats])
 
-  // Agrupación de programaciones de hoy por técnico
-  const todayByTecnicos = useMemo(() => {
-    const list = filteredTodayProgs
+  // Función para agrupar cualquier lista de programaciones por técnico
+  const groupProgsByTecnico = useCallback((list, statsMap = {}) => {
     const map = new Map()
 
     list.forEach(prog => {
@@ -377,7 +376,7 @@ export default function Programacion() {
       ;(prog.sitios || []).forEach(s => {
         if (s.id_sitio && !group.sitiosSet.has(s.id_sitio)) {
           group.sitiosSet.add(s.id_sitio)
-          const stat = sitiosStats[s.id_sitio] || {
+          const stat = statsMap[s.id_sitio] || {
             total: 0,
             validadas: 0,
             enRevision: 0,
@@ -409,7 +408,12 @@ export default function Programacion() {
       if (a.cuadrilla && b.cuadrilla) return a.cuadrilla.localeCompare(b.cuadrilla)
       return (a.tecnico.nombre_completo || '').localeCompare(b.tecnico.nombre_completo || '')
     })
-  }, [filteredTodayProgs, sitiosStats])
+  }, [])
+
+  // Agrupación de programaciones de hoy por técnico
+  const todayByTecnicos = useMemo(() => {
+    return groupProgsByTecnico(filteredTodayProgs, sitiosStats)
+  }, [filteredTodayProgs, sitiosStats, groupProgsByTecnico])
 
   return (
     <div className="prog-container">
@@ -841,6 +845,7 @@ export default function Programacion() {
         <div className="prog-week-grid">
           {weekDays.map(day => {
             const dayProgs = programaciones.filter(p => p.fecha === day.dateStr)
+            const dayTecnicos = groupProgsByTecnico(dayProgs, sitiosStats)
 
             return (
               <div key={day.dateStr} className={`prog-day-col ${day.isToday ? 'is-today' : ''}`}>
@@ -850,112 +855,75 @@ export default function Programacion() {
                 </div>
 
                 <div className="prog-day-body">
-                  {dayProgs.map(prog => {
-                    const team = prog.equipo && prog.equipo.length > 0 ? prog.equipo : [prog.personal || {}]
-                    const sitios = prog.sitios || []
-
-                    // Métricas combinadas de esta programación
-                    let pTotal = 0
-                    let pVal = 0
-                    let pRev = 0
-                    let pDesc = 0
-                    let pEnv = 0
-                    sitios.forEach(s => {
-                      const stat = sitiosStats[s.id_sitio]
-                      if (stat) {
-                        pTotal += stat.total
-                        pVal += (stat.validadas || 0)
-                        pRev += (stat.enRevision || 0)
-                        pDesc += stat.descartadas
-                        pEnv += (stat.enviadas || 0)
-                      }
-                    })
-                    const pDone = pVal + pDesc + pEnv
-                    const pDonePct = pTotal > 0 ? (pDone / pTotal) * 100 : 0
-
-                    const siteNames = sitios.map(s => {
-                      const loc = sitiosMap[s.id_sitio]?.localidad || sitiosMap[s.id_sitio]?.nombre_nodo
-                      return loc ? `${s.id_sitio} (${loc})` : s.id_sitio
-                    }).join(', ')
+                  {dayTecnicos.map(tDay => {
+                    const tec = tDay.tecnico
 
                     return (
-                      <div
-                        key={prog.id}
-                        className="prog-card"
-                        onClick={() => {
-                          const firstSite = sitios[0]?.id_sitio
-                          setSelectedProgModal({ id_sitio: firstSite, programacion: prog, allSitios: sitios })
-                        }}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        {/* 1. ID de Sitio y Ojito en la esquina superior derecha */}
-                        <div className="prog-card-header">
-                          <div className="prog-card-sites-header" title={siteNames || 'Sin sitio asignado'}>
-                            <MapPin size={13} color="#818cf8" />
-                            <span className="prog-card-site-code">
-                              {siteNames || 'Sin sitio asignado'}
+                      <div key={tec.id || tec.nombre_completo} className="prog-week-tech-card">
+                        {/* Cabecera del Técnico */}
+                        <div className="week-tech-header">
+                          <div className="week-tech-avatar">
+                            {getInitials(tec.nombre_completo)}
+                          </div>
+                          <div className="week-tech-info">
+                            <span className="week-tech-name" title={tec.nombre_completo}>
+                              {tec.nombre_completo || 'Sin asignar'}
                             </span>
+                            {tDay.cuadrilla && (
+                              <span className="week-tech-badge">{tDay.cuadrilla}</span>
+                            )}
                           </div>
-                          <button
-                            type="button"
-                            className="prog-card-icon-btn eye"
-                            title="Ver detalles y observaciones"
-                            onClick={e => {
-                              e.stopPropagation()
-                              const firstSite = sitios[0]?.id_sitio
-                              setSelectedProgModal({ id_sitio: firstSite, programacion: prog, allSitios: sitios })
-                            }}
-                          >
-                            <Eye size={14} />
-                          </button>
+                          <span className="week-tech-count" title="Sitios programados">
+                            {tDay.sitios.length} {tDay.sitios.length === 1 ? 'sitio' : 'sitios'}
+                          </span>
                         </div>
 
-                        {/* 2. Nombres del personal que están yendo */}
-                        <div className="prog-card-staff-section">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.68rem', color: '#94a3b8' }}>
-                            <Users size={11} color="#38bdf8" />
-                            <span>Personal en ruta:</span>
-                          </div>
-                          <div className="prog-card-staff-names">
-                            {team.map(m => m.nombre_completo).filter(Boolean).join(' · ') || 'Sin personal asignado'}
-                          </div>
-                        </div>
+                        {/* Sitios asignados al técnico en este día */}
+                        <div className="week-tech-sites">
+                          {tDay.sitios.map(sItem => {
+                            const sStat = sItem.stat
+                            const sDone = (sStat.validadas || 0) + (sStat.descartadas || 0) + (sStat.enviadas || 0)
+                            const isComplete = sDone === sStat.total && sStat.total > 0
+                            const localidad = sitiosMap[sItem.id_sitio]?.localidad
 
-                        {/* 3. Solo cantidad resuelta (validadas + descartadas + enviadas) / total */}
-                        <div className="prog-card-metrics-box">
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.35rem', flexWrap: 'wrap' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem' }}>
-                              <AlertCircle size={13} color="#818cf8" />
-                              <strong style={{ color: pDone === pTotal && pTotal > 0 ? '#10b981' : '#f1f5f9' }}>
-                                {pDone}/{pTotal}
-                              </strong>
-                            </div>
+                            return (
+                              <div
+                                key={sItem.id_sitio}
+                                className={`week-site-pill ${isComplete ? 'is-complete' : ''}`}
+                                onClick={() => setSelectedProgModal({ id_sitio: sItem.id_sitio, programacion: sItem.programacion, allSitios: sItem.allSitios })}
+                                title="Clic para ver observaciones"
+                              >
+                                <div className="week-site-top">
+                                  <MapPin size={11} className="week-site-pin" />
+                                  <span className="week-site-code">{sItem.id_sitio}</span>
+                                  {localidad && (
+                                    <span className="week-site-loc">· {localidad}</span>
+                                  )}
+                                </div>
 
-                            {/* Mini badges si hay validados o en revisión */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
-                              {pRev > 0 && (
-                                <span className="badge badge-blue" style={{ fontSize: '0.64rem', padding: '0.1rem 0.35rem', fontWeight: 600 }} title="En revisión">
-                                  🔍 {pRev} En revisión
-                                </span>
-                              )}
-                              {pVal > 0 && (
-                                <span className="badge badge-green" style={{ fontSize: '0.64rem', padding: '0.1rem 0.35rem', fontWeight: 600 }} title="Validados (por subir)">
-                                  ✓ {pVal} Por subir
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="prog-progress-bar-bg" style={{ marginTop: '0.3rem' }}>
-                            <div
-                              style={{
-                                width: `${pDonePct}%`,
-                                height: '100%',
-                                background: pDone === pTotal && pTotal > 0 ? '#10b981' : '#818cf8',
-                                borderRadius: '3px',
-                                transition: 'width 0.3s'
-                              }}
-                            />
-                          </div>
+                                <div className="week-site-bottom">
+                                  <span className={`week-site-count-num ${isComplete ? 'complete' : ''}`}>
+                                    {sDone}/{sStat.total}
+                                  </span>
+                                  {sStat.enRevision > 0 && (
+                                    <span className="site-pill-badge badge-rev" title={`${sStat.enRevision} en revisión`}>
+                                      🔍 {sStat.enRevision}
+                                    </span>
+                                  )}
+                                  {sStat.validadas > 0 && (
+                                    <span className="site-pill-badge badge-subir" title={`${sStat.validadas} por subir`}>
+                                      ✓ {sStat.validadas}
+                                    </span>
+                                  )}
+                                  {sStat.descartadas > 0 && (
+                                    <span className="site-pill-badge badge-rech" title={`${sStat.descartadas} rechazadas`}>
+                                      ✕ {sStat.descartadas}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )
@@ -968,9 +936,10 @@ export default function Programacion() {
                       setModalNewDate(day.dateStr)
                       setModalNewOpen(true)
                     }}
+                    title="Programar una nueva cuadrilla en este día"
                   >
-                    <Plus size={14} />
-                    <span>Programar cuadrilla</span>
+                    <Plus size={13} />
+                    <span>Programar</span>
                   </div>
                 </div>
               </div>

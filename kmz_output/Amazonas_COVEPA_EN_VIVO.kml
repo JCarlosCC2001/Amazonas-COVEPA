@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>📡 Amazonas COVEPA - En Vivo (Tiempo Real)</name>
+    <open>1</open>
+    <description><![CDATA[
+      <h3>Amazonas COVEPA - Enlace en Tiempo Real</h3>
+      <p>Este archivo se sincroniza automáticamente con el sistema.<br/>
+      <b>Frecuencia de refresco:</b> Cada 60 segundos y al abrir Google Earth.<br/>
+      No necesitas volver a importar el archivo a Google Earth cuando haya cambios.</p>
+    ]]></description>
+    <NetworkLink>
+      <name>General - Todas las Observaciones (Auto-actualizable)</name>
+      <open>1</open>
+      <flyToView>0</flyToView>
+      <Link>
+        <href>http://localhost:5173/kmz/Amazonas_COVEPA_GENERAL_Todas_Observaciones.kmz</href>
+        <refreshMode>onInterval</refreshMode>
+        <refreshInterval>60</refreshInterval>
+        <viewRefreshMode>never</viewRefreshMode>
+      </Link>
+    </NetworkLink>
+  </Document>
+</kml>

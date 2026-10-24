@@ -1,0 +1,338 @@
+import { supabase } from '../lib/supabase'
+import { supabaseExt } from '../lib/supabaseExt'
+
+// Cache en memoria de catálogo de sitios para no saturar la BD externa
+let cachedSitiosCatalog = null
+
+async function getSitiosCatalogMap() {
+  if (cachedSitiosCatalog) return cachedSitiosCatalog
+
+  const map = {}
+  try {
+    const { data, error } = await supabaseExt
+      .from('sitios')
+      .select('id_site, nombre_nodo, localidad, distrito, provincia')
+
+    if (!error && data) {
+      data.forEach(s => {
+        map[s.id_site] = {
+          nombre_nodo: s.nombre_nodo,
+          localidad: s.localidad,
+          distrito: s.distrito,
+          provincia: s.provincia
+        }
+      })
+    }
+  } catch (err) {
+    console.warn('Advertencia al consultar catálogo de sitios externos:', err.message)
+  }
+
+  cachedSitiosCatalog = map
+  return map
+}
+
+/**
+ * Obtiene el resumen global del proyecto (conteos exactos en paralelo)
+ */
+export async function getGlobalMetrics() {
+  try {
+    const [totalRes, valRes, revRes, descRes, envRes, rechRes] = await Promise.all([
+      supabase.from('observaciones').select('*', { count: 'exact', head: true }),
+      supabase
+        .from('observaciones')
+        .select('*', { count: 'exact', head: true })
+        .or('estado_covepa.eq.Validado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Enviado,estado_covepa.neq.Rechazado)'),
+      supabase
+        .from('observaciones')
+        .select('*', { count: 'exact', head: true })
+        .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión'),
+      supabase
+        .from('observaciones')
+        .select('*', { count: 'exact', head: true })
+        .eq('estado_covepa', 'Descartado'),
+      supabase
+        .from('observaciones')
+        .select('*', { count: 'exact', head: true })
+        .eq('estado_covepa', 'Enviado'),
+      supabase
+        .from('observaciones')
+        .select('*', { count: 'exact', head: true })
+        .eq('estado_covepa', 'Rechazado')
+    ])
+
+    const total = totalRes.count || 0
+    const validadas = valRes.count || 0
+    const enRevision = revRes.count || 0
+    const descartadas = descRes.count || 0
+    const enviadas = envRes.count || 0
+    const rechazadas = rechRes.count || 0
+    const resueltas = validadas + descartadas + enviadas
+    const pendientes = Math.max(0, total - (resueltas + enRevision + rechazadas))
+    const porcentajeGlobal = total > 0 ? ((resueltas / total) * 100).toFixed(1) : '0.0'
+
+    return {
+      total,
+      validadas,
+      enRevision,
+      descartadas,
+      enviadas,
+      rechazadas,
+      resueltas,
+      pendientes,
+      porcentajeGlobal: parseFloat(porcentajeGlobal)
+    }
+  } catch (err) {
+    console.error('Error obteniendo métricas globales:', err)
+    return {
+      total: 0,
+      validadas: 0,
+      enRevision: 0,
+      descartadas: 0,
+      enviadas: 0,
+      rechazadas: 0,
+      resueltas: 0,
+      pendientes: 0,
+      porcentajeGlobal: 0
+    }
+  }
+}
+
+function getTodayDateStr() {
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+/**
+ * Obtiene todo lo avanzado en una fecha específica (por defecto hoy)
+ * Cruza con técnicos asignados a la jornada, observaciones en revisión y catálogo de sitios
+ */
+export async function getAvancePorFecha(fechaStr) {
+  try {
+    const startIso = `${fechaStr}T00:00:00`
+    const endIso = `${fechaStr}T23:59:59`
+    const isToday = fechaStr === getTodayDateStr()
+
+    // 1. Obtener programaciones de la jornada para mapear técnicos y sitios del día
+    const { data: rawProgs, error: progErr } = await supabase
+      .from('programaciones')
+      .select(`
+        id,
+        fecha,
+        personal:id_tecnico (
+          id,
+          nombre_completo,
+          cargo,
+          cuadrilla
+        ),
+        asignaciones_personal:programacion_personal (
+          personal:id_personal (
+            id,
+            nombre_completo,
+            cargo,
+            cuadrilla
+          )
+        ),
+        programacion_sitios (
+          id_sitio
+        )
+      `)
+      .eq('fecha', fechaStr)
+
+    if (progErr) console.warn('Advertencia cargando programaciones:', progErr.message)
+
+    // Extraer lista de sitios programados en la fecha
+    const programmedSiteIds = []
+    ;(rawProgs || []).forEach(p => {
+      ;(p.programacion_sitios || []).forEach(s => {
+        if (s.id_sitio && !programmedSiteIds.includes(s.id_sitio)) {
+          programmedSiteIds.push(s.id_sitio)
+        }
+      })
+    })
+
+    // Mapa: id_sitio -> Técnico / Cuadrilla asignada en la fecha
+    const siteTechMap = {}
+    ;(rawProgs || []).forEach(p => {
+      const members = []
+      if (p.personal?.nombre_completo) {
+        members.push({
+          nombre: p.personal.nombre_completo,
+          cuadrilla: p.personal.cuadrilla,
+          cargo: p.personal.cargo
+        })
+      }
+      if (Array.isArray(p.asignaciones_personal)) {
+        p.asignaciones_personal.forEach(ap => {
+          if (ap.personal?.nombre_completo && !members.some(m => m.nombre === ap.personal.nombre_completo)) {
+            members.push({
+              nombre: ap.personal.nombre_completo,
+              cuadrilla: ap.personal.cuadrilla,
+              cargo: ap.personal.cargo
+            })
+          }
+        })
+      }
+
+      const mainTech = members[0] || { nombre: 'Técnico en ruta', cuadrilla: null }
+      const allNames = members.map(m => m.nombre).join(', ')
+
+      ;(p.programacion_sitios || []).forEach(s => {
+        if (s.id_sitio) {
+          siteTechMap[s.id_sitio] = {
+            nombre: mainTech.nombre,
+            cuadrilla: mainTech.cuadrilla,
+            equipoCompleto: allNames
+          }
+        }
+      })
+    })
+
+    // 2. Obtener observaciones con fecha de revisión en ese día
+    const { data: rawObsFecha, error: obsErr } = await supabase
+      .from('observaciones')
+      .select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, detalle, subsistema, protocolo')
+      .gte('fecha_subsanacion', startIso)
+      .lte('fecha_subsanacion', endIso)
+      .order('fecha_subsanacion', { ascending: false })
+
+    if (obsErr) throw obsErr
+
+    // 3. Obtener observaciones en estado 'En Revision' (que no tienen fecha_subsanacion)
+    // Para la fecha de hoy se traen todas las que están en revisión activa en el sistema.
+    // Para otras fechas, las que pertenezcan a los sitios programados en esa fecha.
+    let revisionQuery = supabase
+      .from('observaciones')
+      .select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, detalle, subsistema, protocolo')
+      .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión')
+
+    if (!isToday) {
+      if (programmedSiteIds.length > 0) {
+        revisionQuery = revisionQuery.in('id_sitio', programmedSiteIds)
+      } else {
+        revisionQuery = null
+      }
+    }
+
+    const { data: rawObsRevision } = revisionQuery ? await revisionQuery : { data: [] }
+
+    // Consolidar observaciones evitando duplicados
+    const obsMap = new Map()
+    ;(rawObsFecha || []).forEach(o => obsMap.set(o.id_obs, o))
+    ;(rawObsRevision || []).forEach(o => {
+      if (!obsMap.has(o.id_obs)) {
+        obsMap.set(o.id_obs, o)
+      }
+    })
+    const obsList = Array.from(obsMap.values())
+
+    // 4. Si hay sitios en revisión no mapeados en la programación de hoy, buscar técnico en su última programación
+    const missingSites = Array.from(new Set(obsList.map(o => o.id_sitio))).filter(id => !siteTechMap[id])
+    if (missingSites.length > 0) {
+      try {
+        const { data: pastProgs } = await supabase
+          .from('programaciones')
+          .select(`
+            fecha,
+            personal:id_tecnico ( nombre_completo, cargo, cuadrilla ),
+            asignaciones_personal:programacion_personal (
+              personal:id_personal ( nombre_completo, cargo, cuadrilla )
+            ),
+            programacion_sitios!inner ( id_sitio )
+          `)
+          .in('programacion_sitios.id_sitio', missingSites)
+          .order('fecha', { ascending: false })
+
+        ;(pastProgs || []).forEach(p => {
+          const pSites = p.programacion_sitios || []
+          const techName = p.personal?.nombre_completo || p.asignaciones_personal?.[0]?.personal?.nombre_completo || 'Técnico de Cuadrilla'
+          const techCuad = p.personal?.cuadrilla || p.asignaciones_personal?.[0]?.personal?.cuadrilla || null
+          pSites.forEach(s => {
+            if (s.id_sitio && !siteTechMap[s.id_sitio]) {
+              siteTechMap[s.id_sitio] = {
+                nombre: techName,
+                cuadrilla: techCuad,
+                equipoCompleto: techName
+              }
+            }
+          })
+        })
+      } catch (pastErr) {
+        console.warn('Advertencia buscando técnicos de programaciones anteriores:', pastErr.message)
+      }
+    }
+
+    // 5. Catálogo de sitios (para código de lugar y localidad)
+    const sitiosMap = await getSitiosCatalogMap()
+
+    // 6. Mapear observaciones con los datos completos
+    const rows = obsList.map(o => {
+      const siteId = o.id_sitio || ''
+      const parts = siteId.split('-')
+      const codigoLugar = parts.length >= 2 ? `${parts[0]}-${parts[1]}` : siteId
+      const siteInfo = sitiosMap[siteId] || {}
+      const localidad = siteInfo.localidad || siteInfo.nombre_nodo || ''
+
+      // Técnico asignado
+      const techInfo = siteTechMap[siteId]
+      const nombreTecnico = techInfo ? techInfo.nombre : (o.revisor || 'Técnico de Cuadrilla')
+      const cuadrillaTecnico = techInfo?.cuadrilla || null
+
+      // Normalizar estado
+      const rawSt = (o.estado_covepa || '').trim()
+      let estadoNormalizado = 'Validado'
+      if (rawSt === 'Descartado') estadoNormalizado = 'Descartado'
+      else if (rawSt === 'En Revision' || rawSt === 'En Revisión') estadoNormalizado = 'En Revisión'
+      else if (rawSt === 'Enviado') estadoNormalizado = 'Enviado'
+      else if (rawSt === 'Rechazado') estadoNormalizado = 'Rechazado'
+      else if (rawSt === 'Pendiente') estadoNormalizado = 'Pendiente'
+      else if (rawSt === 'Validado') estadoNormalizado = 'Validado'
+      else if (o.fecha_subsanacion) estadoNormalizado = 'Validado'
+
+      const isEnRevision = estadoNormalizado === 'En Revisión'
+
+      return {
+        id_obs: o.id_obs,
+        id_sitio: siteId,
+        codigo_lugar: codigoLugar,
+        localidad: localidad,
+        tecnico: nombreTecnico,
+        cuadrilla: cuadrillaTecnico,
+        estado: estadoNormalizado,
+        revisor: isEnRevision ? (o.revisor || 'En proceso') : (o.revisor || 'Sin revisor'),
+        fecha_subsanacion: isEnRevision ? (o.fecha_subsanacion || 'Pendiente') : o.fecha_subsanacion,
+        detalle: o.detalle,
+        subsistema: o.subsistema,
+        protocolo: o.protocolo
+      }
+    })
+
+    // Métricas del día
+    const revisionRows = rows.filter(r => r.estado === 'En Revisión')
+    const sitiosEnRevision = Array.from(new Set(revisionRows.map(r => r.id_sitio)))
+
+    const statsDia = {
+      total: rows.length,
+      validadas: rows.filter(r => r.estado === 'Validado').length,
+      enRevision: revisionRows.length,
+      sitiosEnRevision: sitiosEnRevision,
+      totalSitiosEnRevision: sitiosEnRevision.length,
+      enviadas: rows.filter(r => r.estado === 'Enviado').length,
+      descartadas: rows.filter(r => r.estado === 'Descartado').length,
+      rechazadas: rows.filter(r => r.estado === 'Rechazado').length,
+      sitiosUnicos: new Set(rows.map(r => r.id_sitio)).size,
+      tecnicosUnicos: new Set(rows.map(r => r.tecnico).filter(t => t && t !== 'Técnico de Cuadrilla')).size
+    }
+
+    return {
+      rows,
+      stats: statsDia,
+      programacionesDelDia: (rawProgs || []).length
+    }
+  } catch (err) {
+    console.error('Error en getAvancePorFecha:', err)
+    throw err
+  }
+}

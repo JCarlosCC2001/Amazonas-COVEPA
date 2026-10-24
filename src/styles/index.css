@@ -807,17 +807,17 @@ body {
 }
 @media (max-width: 1024px) {
   .page-body {
-    padding: 1rem 1.15rem;
+    padding: 1rem 1.25rem;
   }
 }
 @media (max-width: 768px) {
   .page-body {
-    padding: 0.75rem 0.65rem;
+    padding: 0.85rem 1rem 4rem 1rem;
   }
 }
 @media (max-width: 480px) {
   .page-body {
-    padding: 0.45rem 0.35rem;
+    padding: 0.75rem 0.85rem 4.5rem 0.85rem;
   }
 }
 
@@ -1134,8 +1134,8 @@ body {
 
 @media (max-width: 640px) {
   .covepa-metric-grid {
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
+    gap: 0.65rem;
+    margin-bottom: 0.95rem;
   }
   .covepa-metric-grid.cols-5,
   .covepa-metric-grid.cols-4,
@@ -1144,40 +1144,41 @@ body {
     grid-template-columns: repeat(2, 1fr);
   }
   .metric-card-inner {
-    padding: 0.55rem 0.65rem;
-    gap: 0.45rem;
+    padding: 0.7rem 0.8rem;
+    gap: 0.5rem;
   }
   .metric-icon-box {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
     flex-shrink: 0;
   }
   .metric-icon-box svg {
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
   }
   .metric-info-col {
-    gap: 0.1rem;
+    gap: 0.18rem;
     min-width: 0;
   }
   .metric-top-row {
-    gap: 0.25rem;
+    gap: 0.35rem;
   }
   .metric-label {
-    font-size: 0.6rem;
+    font-size: 0.66rem;
     letter-spacing: 0.02em;
+    font-weight: 700;
   }
   .metric-value-row {
-    gap: 0.35rem;
+    gap: 0.4rem;
     align-items: baseline;
   }
   .metric-value {
-    font-size: 1.2rem;
+    font-size: 1.3rem;
   }
   .metric-sub-pill {
-    font-size: 0.58rem;
-    padding: 0.06rem 0.28rem;
+    font-size: 0.64rem;
+    padding: 0.08rem 0.38rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1189,8 +1190,8 @@ body {
 
 @media (max-width: 440px) {
   .covepa-metric-grid {
-    gap: 0.38rem;
-    margin-bottom: 0.65rem;
+    gap: 0.55rem;
+    margin-bottom: 0.85rem;
   }
   .covepa-metric-grid.cols-5,
   .covepa-metric-grid.cols-4,
@@ -1199,27 +1200,28 @@ body {
     grid-template-columns: repeat(2, 1fr);
   }
   .metric-card-inner {
-    padding: 0.48rem 0.52rem;
-    gap: 0.35rem;
+    padding: 0.62rem 0.68rem;
+    gap: 0.45rem;
   }
   .metric-icon-box {
-    width: 28px;
-    height: 28px;
-    border-radius: 7px;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
   }
   .metric-icon-box svg {
-    width: 13px;
-    height: 13px;
+    width: 15px;
+    height: 15px;
   }
   .metric-label {
-    font-size: 0.56rem;
+    font-size: 0.62rem;
+    font-weight: 700;
   }
   .metric-value {
-    font-size: 1.12rem;
+    font-size: 1.22rem;
   }
   .metric-sub-pill {
-    font-size: 0.54rem;
-    padding: 0.04rem 0.22rem;
+    font-size: 0.6rem;
+    padding: 0.06rem 0.32rem;
   }
 }
 
@@ -2469,34 +2471,35 @@ body {
   .prog-btn-create {
     flex: 1.1;
     justify-content: center;
-    padding: 0.48rem 0.65rem;
+    padding: 0.52rem 0.8rem;
     font-size: 0.78rem;
   }
 }
 
 @media (max-width: 480px) {
   .prog-toolbar {
-    padding: 0.48rem 0.52rem;
-    gap: 0.42rem;
+    padding: 0.65rem 0.75rem;
+    gap: 0.55rem;
+    border-radius: 12px;
   }
   .prog-nav-title {
-    font-size: 0.8rem;
-    padding: 0.1rem 0;
+    font-size: 0.84rem;
+    padding: 0.15rem 0;
   }
   .prog-btn-nav {
-    padding: 0.32rem 0.5rem;
-    font-size: 0.74rem;
+    padding: 0.38rem 0.6rem;
+    font-size: 0.76rem;
   }
   .prog-views-toggle {
-    padding: 2px;
+    padding: 3px;
   }
   .prog-view-btn {
-    padding: 0.36rem 0.48rem;
-    font-size: 0.73rem;
+    padding: 0.42rem 0.6rem;
+    font-size: 0.76rem;
   }
   .prog-btn-create {
-    padding: 0.4rem 0.52rem;
-    font-size: 0.74rem;
+    padding: 0.48rem 0.75rem;
+    font-size: 0.76rem;
   }
 }
 
@@ -5803,19 +5806,19 @@ body {
     padding-right: 0;
   }
   .prog-tech-compact-row {
-    padding: 0.52rem 0.62rem;
-    border-radius: var(--radius-sm);
+    padding: 0.65rem 0.75rem;
+    border-radius: 10px;
   }
   .prog-tech-main-bar {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.4rem;
+    gap: 0.45rem;
   }
   .prog-tech-person-info {
     width: 100%;
   }
   .prog-tech-name-text {
-    font-size: 0.86rem;
+    font-size: 0.88rem;
     flex: 1;
     min-width: 0;
     max-width: none;
@@ -5825,8 +5828,8 @@ body {
   .prog-tech-summary-pill {
     width: 100%;
     justify-content: space-between;
-    padding: 0.3rem 0.48rem;
-    font-size: 0.72rem;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.74rem;
     flex-wrap: wrap;
     box-sizing: border-box;
   }
@@ -5835,7 +5838,8 @@ body {
     width: 100%;
     flex: 1 1 100%;
     box-sizing: border-box;
-    padding: 0.45rem 0.55rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 8px;
   }
   .site-2row-loc {
     flex: 1;

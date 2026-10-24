@@ -510,19 +510,21 @@ export default function Programacion() {
       <div className="prog-toolbar">
         {/* Izquierda: Selector de Día / Semana */}
         <div className="prog-nav-group">
-          <button className="prog-btn-nav" onClick={prevPeriod} title={viewMode === 'today' ? 'Día anterior' : 'Semana anterior'}>
-            <ChevronLeft size={16} />
-          </button>
-          <button className="prog-btn-nav" onClick={goToToday} title="Ir a hoy">
-            Hoy
-          </button>
-          <button className="prog-btn-nav" onClick={nextPeriod} title={viewMode === 'today' ? 'Día siguiente' : 'Semana siguiente'}>
-            <ChevronRight size={16} />
-          </button>
+          <div className="prog-nav-btns-cluster">
+            <button className="prog-btn-nav" onClick={prevPeriod} title={viewMode === 'today' ? 'Día anterior' : 'Semana anterior'}>
+              <ChevronLeft size={16} />
+            </button>
+            <button className="prog-btn-nav" onClick={goToToday} title="Ir a hoy">
+              Hoy
+            </button>
+            <button className="prog-btn-nav" onClick={nextPeriod} title={viewMode === 'today' ? 'Día siguiente' : 'Semana siguiente'}>
+              <ChevronRight size={16} />
+            </button>
+          </div>
           <div className="prog-nav-title">
             {viewMode === 'today' ? (
               <>
-                <Clock size={16} style={{ color: '#0284c7', display: 'inline', marginRight: '6px' }} />
+                <Clock size={16} style={{ color: '#0284c7', display: 'inline', marginRight: '6px', flexShrink: 0 }} />
                 <span style={{ textTransform: 'capitalize' }}>
                   {currentDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
@@ -534,7 +536,7 @@ export default function Programacion() {
               </>
             ) : (
               <>
-                <CalendarDays size={16} style={{ color: '#003060', display: 'inline', marginRight: '6px' }} />
+                <CalendarDays size={16} style={{ color: '#003060', display: 'inline', marginRight: '6px', flexShrink: 0 }} />
                 <span>
                   {weekDays[0].date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })} –{' '}
                   {weekDays[6].date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -542,13 +544,13 @@ export default function Programacion() {
               </>
             )}
           </div>
-          <button className="prog-btn-nav" onClick={fetchWeekData} title="Refrescar datos">
+          <button className="prog-btn-nav prog-btn-refresh" onClick={fetchWeekData} title="Refrescar datos">
             <RefreshCw size={13} className={loading ? 'spin' : ''} />
           </button>
         </div>
 
         {/* Derecha: Toggle Hoy / Semana + Botón Nueva Programación */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+        <div className="prog-toolbar-actions">
           <div className="prog-views-toggle">
             <button
               className={`prog-view-btn ${viewMode === 'today' ? 'active' : ''}`}
@@ -587,18 +589,7 @@ export default function Programacion() {
         <div className="prog-today-container">
           {/* Indicador de filtro activo si se seleccionó un medidor específico */}
           {todayFilter !== 'ALL' && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.6rem',
-              background: '#f0f9ff',
-              border: '1px solid #bae6fd',
-              borderRadius: '8px',
-              padding: '0.45rem 1rem',
-              fontSize: '0.8rem',
-              color: '#0369a1'
-            }}>
+            <div className="prog-filter-notice-banner">
               <span>
                 Filtrando cuadrillas con observaciones en estado: <strong>{
                   todayFilter === 'EN_REVISION' ? 'En Revisión' :
@@ -609,17 +600,8 @@ export default function Programacion() {
               </span>
               <button
                 type="button"
+                className="prog-filter-notice-btn"
                 onClick={() => setTodayFilter('ALL')}
-                style={{
-                  background: '#0284c7',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '5px',
-                  padding: '0.2rem 0.6rem',
-                  fontSize: '0.74rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
               >
                 ✕ Mostrar Todas
               </button>
@@ -1896,8 +1878,8 @@ function ModalDetallesProgramacion({
       <div className="prog-details-modal" onClick={e => e.stopPropagation()}>
         {/* Cabecera de la ventana centrada */}
         <div className="prog-details-modal-header">
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+          <div className="prog-details-header-main">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>
                 📅 {prog?.fecha}
               </span>
@@ -1923,7 +1905,7 @@ function ModalDetallesProgramacion({
 
             {/* Pestañas para cambiar de sitio si la programación tiene más de un sitio */}
             {allSitios.length > 1 && (
-              <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+              <div className="prog-site-tabs-bar">
                 {allSitios.map(s => {
                   const sId = s.id_sitio || s
                   const isActive = sId === currentSitioId
@@ -1932,26 +1914,14 @@ function ModalDetallesProgramacion({
                     <button
                       key={sId}
                       type="button"
+                      className={`prog-site-tab-btn ${isActive ? 'active' : ''}`}
                       onClick={() => setCurrentSitioId(sId)}
-                      style={{
-                        background: isActive ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.04)',
-                        border: `1px solid ${isActive ? 'rgba(99, 102, 241, 0.5)' : 'rgba(255, 255, 255, 0.08)'}`,
-                        color: isActive ? '#a5b4fc' : '#94a3b8',
-                        padding: '0.25rem 0.65rem',
-                        borderRadius: '6px',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem'
-                      }}
                       title={loc ? `${sId} - ${loc}` : sId}
                     >
                       <MapPin size={11} color={isActive ? '#818cf8' : '#94a3b8'} />
                       <span>{sId}</span>
                       {loc && (
-                        <span style={{ opacity: 0.85, fontWeight: 500, fontSize: '0.72rem' }}>
+                        <span className="tab-loc-text">
                           · {loc}
                         </span>
                       )}
@@ -1961,26 +1931,26 @@ function ModalDetallesProgramacion({
               </div>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <h2 style={{ fontSize: '1.3rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <MapPin size={20} color="#818cf8" />
+            <div className="prog-details-site-title-row">
+              <h2 className="prog-details-site-title">
+                <MapPin size={20} color="#818cf8" style={{ flexShrink: 0 }} />
                 <span>{currentSitioId}</span>
                 {siteInfo.localidad && (
-                  <span style={{ fontSize: '1.05rem', color: '#60a5fa', fontWeight: 600 }}>
+                  <span className="prog-details-site-loc">
                     - {siteInfo.localidad}
                   </span>
                 )}
               </h2>
               {siteInfo.grupo && (
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                <span className="prog-details-site-group">
                   ({siteInfo.grupo} · {siteInfo.zona}{siteInfo.distrito ? ` · ${siteInfo.distrito}` : ''})
                 </span>
               )}
             </div>
 
             {/* Personal en ruta */}
-            <div style={{ marginTop: '0.5rem' }}>
-              <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#818cf8', fontWeight: 700, marginBottom: '0.25rem' }}>
+            <div className="prog-details-team-box">
+              <div className="team-box-title">
                 Personal en ruta:
               </div>
               <div className="prog-team-list">
@@ -2043,32 +2013,17 @@ function ModalDetallesProgramacion({
         </div>
 
         {/* Resumen de contadores del sitio convertidos en botones de filtro interactivo */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-          gap: '0.5rem',
-          padding: '0.65rem 1.4rem',
-          background: 'rgba(0,0,0,0.25)',
-          borderBottom: '1px solid var(--border-color)'
-        }}>
+        <div className="prog-modal-stats-bar">
           {/* Todas */}
           <button
             type="button"
+            className={`prog-modal-stat-btn ${filtroModal === 'ALL' ? 'active' : ''}`}
             onClick={() => setFiltroModal('ALL')}
-            style={{
-              background: filtroModal === 'ALL' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.02)',
-              border: `1px solid ${filtroModal === 'ALL' ? '#818cf8' : 'rgba(255, 255, 255, 0.06)'}`,
-              borderRadius: '8px',
-              padding: '0.45rem',
-              cursor: 'pointer',
-              textAlign: 'center',
-              transition: 'all 0.15s ease'
-            }}
           >
-            <div style={{ fontSize: '0.68rem', color: filtroModal === 'ALL' ? '#a5b4fc' : 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+            <div className="stat-btn-label">
               Total
             </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: filtroModal === 'ALL' ? '#fff' : 'var(--text-main)' }}>
+            <div className="stat-btn-val">
               {stats.tot}
             </div>
           </button>
@@ -2076,22 +2031,14 @@ function ModalDetallesProgramacion({
           {/* Validadas (Por subir) */}
           <button
             type="button"
+            className={`prog-modal-stat-btn stat-validado ${filtroModal === 'Validado' ? 'active' : ''}`}
             onClick={() => setFiltroModal(filtroModal === 'Validado' ? 'ALL' : 'Validado')}
             title="Ver únicamente observaciones validadas en campo esperando ser subidas"
-            style={{
-              background: filtroModal === 'Validado' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.05)',
-              border: `1px solid ${filtroModal === 'Validado' ? '#10b981' : 'rgba(16, 185, 129, 0.2)'}`,
-              borderRadius: '8px',
-              padding: '0.45rem',
-              cursor: 'pointer',
-              textAlign: 'center',
-              transition: 'all 0.15s ease'
-            }}
           >
-            <div style={{ fontSize: '0.66rem', color: '#34d399', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+            <div className="stat-btn-label text-validado">
               ✓ Por Subir
             </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#10b981' }}>
+            <div className="stat-btn-val text-validado">
               {stats.validadas}
             </div>
           </button>
@@ -2099,22 +2046,14 @@ function ModalDetallesProgramacion({
           {/* En Revisión */}
           <button
             type="button"
+            className={`prog-modal-stat-btn stat-revision ${filtroModal === 'En Revision' ? 'active' : ''}`}
             onClick={() => setFiltroModal(filtroModal === 'En Revision' ? 'ALL' : 'En Revision')}
             title="Ver observaciones que están actualmente en proceso de revisión"
-            style={{
-              background: filtroModal === 'En Revision' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(56, 189, 248, 0.05)',
-              border: `1px solid ${filtroModal === 'En Revision' ? '#38bdf8' : 'rgba(56, 189, 248, 0.2)'}`,
-              borderRadius: '8px',
-              padding: '0.45rem',
-              cursor: 'pointer',
-              textAlign: 'center',
-              transition: 'all 0.15s ease'
-            }}
           >
-            <div style={{ fontSize: '0.66rem', color: '#38bdf8', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+            <div className="stat-btn-label text-revision">
               🔍 En Revisión
             </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#38bdf8' }}>
+            <div className="stat-btn-val text-revision">
               {stats.enRevision}
             </div>
           </button>
@@ -2122,21 +2061,13 @@ function ModalDetallesProgramacion({
           {/* Pendientes */}
           <button
             type="button"
+            className={`prog-modal-stat-btn stat-pendiente ${filtroModal === 'Pendiente' ? 'active' : ''}`}
             onClick={() => setFiltroModal(filtroModal === 'Pendiente' ? 'ALL' : 'Pendiente')}
-            style={{
-              background: filtroModal === 'Pendiente' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.05)',
-              border: `1px solid ${filtroModal === 'Pendiente' ? '#f59e0b' : 'rgba(245, 158, 11, 0.2)'}`,
-              borderRadius: '8px',
-              padding: '0.45rem',
-              cursor: 'pointer',
-              textAlign: 'center',
-              transition: 'all 0.15s ease'
-            }}
           >
-            <div style={{ fontSize: '0.66rem', color: '#fbbf24', textTransform: 'uppercase', fontWeight: 700 }}>
+            <div className="stat-btn-label text-pendiente">
               Pendientes
             </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f59e0b' }}>
+            <div className="stat-btn-val text-pendiente">
               {stats.pendientes}
             </div>
           </button>
@@ -2144,21 +2075,13 @@ function ModalDetallesProgramacion({
           {/* Descartadas */}
           <button
             type="button"
+            className={`prog-modal-stat-btn stat-descartado ${filtroModal === 'Descartado' ? 'active' : ''}`}
             onClick={() => setFiltroModal(filtroModal === 'Descartado' ? 'ALL' : 'Descartado')}
-            style={{
-              background: filtroModal === 'Descartado' ? 'rgba(148, 163, 184, 0.25)' : 'rgba(148, 163, 184, 0.05)',
-              border: `1px solid ${filtroModal === 'Descartado' ? '#94a3b8' : 'rgba(148, 163, 184, 0.2)'}`,
-              borderRadius: '8px',
-              padding: '0.45rem',
-              cursor: 'pointer',
-              textAlign: 'center',
-              transition: 'all 0.15s ease'
-            }}
           >
-            <div style={{ fontSize: '0.66rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+            <div className="stat-btn-label text-descartado">
               Descartadas
             </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#94a3b8' }}>
+            <div className="stat-btn-val text-descartado">
               {stats.descartadas}
             </div>
           </button>
@@ -2166,21 +2089,13 @@ function ModalDetallesProgramacion({
           {/* Enviadas (Si hay o si se quiere ver) */}
           <button
             type="button"
+            className={`prog-modal-stat-btn stat-enviado ${filtroModal === 'Enviado' ? 'active' : ''}`}
             onClick={() => setFiltroModal(filtroModal === 'Enviado' ? 'ALL' : 'Enviado')}
-            style={{
-              background: filtroModal === 'Enviado' ? 'rgba(192, 132, 252, 0.25)' : 'rgba(192, 132, 252, 0.05)',
-              border: `1px solid ${filtroModal === 'Enviado' ? '#c084fc' : 'rgba(192, 132, 252, 0.2)'}`,
-              borderRadius: '8px',
-              padding: '0.45rem',
-              cursor: 'pointer',
-              textAlign: 'center',
-              transition: 'all 0.15s ease'
-            }}
           >
-            <div style={{ fontSize: '0.66rem', color: '#c084fc', textTransform: 'uppercase', fontWeight: 700 }}>
+            <div className="stat-btn-label text-enviado">
               ✉ Enviadas
             </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#c084fc' }}>
+            <div className="stat-btn-val text-enviado">
               {stats.enviadas}
             </div>
           </button>
@@ -2189,21 +2104,13 @@ function ModalDetallesProgramacion({
           {stats.rechazadas > 0 && (
             <button
               type="button"
+              className={`prog-modal-stat-btn stat-rechazado ${filtroModal === 'Rechazado' ? 'active' : ''}`}
               onClick={() => setFiltroModal(filtroModal === 'Rechazado' ? 'ALL' : 'Rechazado')}
-              style={{
-                background: filtroModal === 'Rechazado' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.05)',
-                border: `1px solid ${filtroModal === 'Rechazado' ? '#ef4444' : 'rgba(239, 68, 68, 0.2)'}`,
-                borderRadius: '8px',
-                padding: '0.45rem',
-                cursor: 'pointer',
-                textAlign: 'center',
-                transition: 'all 0.15s ease'
-              }}
             >
-              <div style={{ fontSize: '0.66rem', color: '#ef4444', textTransform: 'uppercase', fontWeight: 700 }}>
+              <div className="stat-btn-label text-rechazado">
                 Rechazadas
               </div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#ef4444' }}>
+              <div className="stat-btn-val text-rechazado">
                 {stats.rechazadas}
               </div>
             </button>
@@ -2211,17 +2118,8 @@ function ModalDetallesProgramacion({
         </div>
 
         {/* Barra de herramientas: Buscador interactivo y Botón de Descarga Excel (.xlsx) */}
-        <div style={{
-          padding: '0.65rem 1.4rem',
-          background: 'rgba(0, 0, 0, 0.18)',
-          borderBottom: '1px solid var(--border-color)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '0.75rem',
-          flexWrap: 'wrap'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: '240px', maxWidth: '480px' }}>
+        <div className="prog-modal-search-bar">
+          <div className="prog-modal-search-box-wrap">
             <div style={{ position: 'relative', width: '100%' }}>
               <Search
                 size={15}
@@ -2236,22 +2134,10 @@ function ModalDetallesProgramacion({
               />
               <input
                 type="text"
+                className="prog-modal-search-input"
                 value={searchObs}
                 onChange={(e) => setSearchObs(e.target.value)}
                 placeholder="Buscar por código de observación (ej. OBS-1234)..."
-                style={{
-                  width: '100%',
-                  padding: '0.45rem 2rem 0.45rem 2.2rem',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '6px',
-                  color: '#f1f5f9',
-                  fontSize: '0.82rem',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#818cf8'}
-                onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
               />
               {searchObs && (
                 <button
@@ -2378,44 +2264,25 @@ function ModalDetallesProgramacion({
               return (
                 <div
                   key={obs.id_obs}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    border: '1px solid rgba(255, 255, 255, 0.07)',
-                    borderRadius: '8px',
-                    padding: '0.9rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.55rem',
-                    transition: 'border-color 0.2s'
-                  }}
+                  className="prog-obs-card-item"
                 >
                   {/* 1. Código y Selector de Estado en la parte superior derecha */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>
+                  <div className="prog-obs-card-header">
+                    <div className="prog-obs-code-box">
+                      <span className="code-box-label">
                         Código:
                       </span>
-                      <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#f1f5f9', fontSize: '0.88rem', letterSpacing: '0.02em' }}>
+                      <span className="code-box-val">
                         {obs.id_obs}
                       </span>
                     </div>
 
                     {/* Selector de estado y apartado de fecha en la parte superior derecha */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                    <div className="prog-obs-controls-wrap">
                       {/* Apartado de persona que valida: aparece en todos los estados excepto Pendiente y En Revisión */}
                       {showRevisorYFecha && (
-                        <div
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            background: 'rgba(255, 255, 255, 0.04)',
-                            border: '1px solid rgba(255, 255, 255, 0.12)',
-                            borderRadius: '6px',
-                            padding: '0.2rem 0.5rem'
-                          }}
-                        >
-                          <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <div className="prog-obs-control-box">
+                          <span className="control-box-label">
                             <Users size={11} color="#38bdf8" />
                             Revisado por:
                           </span>
@@ -2423,16 +2290,7 @@ function ModalDetallesProgramacion({
                             value={obs.revisor || obs.validado_por || ''}
                             disabled={isUpdating}
                             onChange={(e) => handleUpdateRevisor(obs, e.target.value)}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#38bdf8',
-                              fontSize: '0.74rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              outline: 'none',
-                              maxWidth: '180px'
-                            }}
+                            className="prog-obs-revisor-select"
                             title="Persona que revisó esta observación"
                           >
                             <option value="" style={{ background: '#1e293b', color: '#94a3b8' }}>
@@ -2483,18 +2341,8 @@ function ModalDetallesProgramacion({
 
                       {/* Apartado de fecha: aparece en todos los estados excepto Pendiente y En Revisión */}
                       {showRevisorYFecha && (
-                        <div
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            background: 'rgba(255, 255, 255, 0.04)',
-                            border: '1px solid rgba(255, 255, 255, 0.12)',
-                            borderRadius: '6px',
-                            padding: '0.2rem 0.5rem'
-                          }}
-                        >
-                          <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600 }}>
+                        <div className="prog-obs-control-box">
+                          <span className="control-box-label">
                             {currentEstado === 'Validado' ? 'F. Validación:' :
                              currentEstado === 'Descartado' ? 'F. Descarte:' :
                              currentEstado === 'Rechazado' ? 'F. Rechazo:' :
@@ -2507,23 +2355,7 @@ function ModalDetallesProgramacion({
                             disabled={isUpdating}
                             onChange={(e) => handleUpdateFecha(obs, e.target.value)}
                             title="Haz clic para modificar la fecha si es necesario"
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color:
-                                currentEstado === 'Validado' ? '#34d399' :
-                                currentEstado === 'Descartado' ? '#cbd5e1' :
-                                currentEstado === 'Rechazado' ? '#f87171' :
-                                currentEstado === 'En Revision' ? '#38bdf8' :
-                                currentEstado === 'Enviado' ? '#e9d5ff' : '#f1f5f9',
-                              fontSize: '0.74rem',
-                              fontFamily: 'monospace',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              outline: 'none',
-                              colorScheme: 'dark',
-                              padding: 0
-                            }}
+                            className="prog-obs-date-input"
                           />
                         </div>
                       )}
@@ -2531,36 +2363,7 @@ function ModalDetallesProgramacion({
                         value={currentEstado}
                         disabled={isUpdating}
                         onChange={(e) => handleSetEstado(obs, e.target.value)}
-                        style={{
-                          background:
-                            currentEstado === 'Validado' ? 'rgba(16, 185, 129, 0.15)' :
-                            currentEstado === 'Descartado' ? 'rgba(100, 116, 139, 0.22)' :
-                            currentEstado === 'Rechazado' ? 'rgba(239, 68, 68, 0.18)' :
-                            currentEstado === 'En Revision' ? 'rgba(56, 189, 248, 0.18)' :
-                            currentEstado === 'Enviado' ? 'rgba(192, 132, 252, 0.18)' :
-                            'rgba(245, 158, 11, 0.18)',
-                          border: `1px solid ${
-                            currentEstado === 'Validado' ? 'rgba(16, 185, 129, 0.5)' :
-                            currentEstado === 'Descartado' ? 'rgba(100, 116, 139, 0.5)' :
-                            currentEstado === 'Rechazado' ? 'rgba(239, 68, 68, 0.5)' :
-                            currentEstado === 'En Revision' ? 'rgba(56, 189, 248, 0.5)' :
-                            currentEstado === 'Enviado' ? 'rgba(192, 132, 252, 0.5)' :
-                            'rgba(245, 158, 11, 0.5)'
-                          }`,
-                          color:
-                            currentEstado === 'Validado' ? '#34d399' :
-                            currentEstado === 'Descartado' ? '#cbd5e1' :
-                            currentEstado === 'Rechazado' ? '#f87171' :
-                            currentEstado === 'En Revision' ? '#38bdf8' :
-                            currentEstado === 'Enviado' ? '#e9d5ff' :
-                            '#fbbf24',
-                          borderRadius: '6px',
-                          padding: '0.24rem 0.6rem',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          cursor: isUpdating ? 'wait' : 'pointer',
-                          outline: 'none'
-                        }}
+                        className={`prog-obs-status-select status-${(currentEstado || '').toLowerCase().replace(/\s+/g, '-')}`}
                       >
                         <option value="Pendiente" style={{ background: '#1e293b', color: '#fbbf24' }}>● Pendiente</option>
                         <option value="En Revision" style={{ background: '#1e293b', color: '#38bdf8' }}>🔍 En Revisión</option>

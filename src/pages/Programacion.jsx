@@ -1862,34 +1862,10 @@ function ModalDetallesProgramacion({
   return (
     <div className="prog-details-modal-overlay" onClick={handleCloseWithAutoSave}>
       <div className="prog-details-modal" onClick={e => e.stopPropagation()}>
-        {/* Cabecera de la ventana centrada */}
+        {/* Cabecera Limpia y Profesional (Sin Fecha, Sin Itinerario y Sin Detalle de Técnico) */}
         <div className="prog-details-modal-header">
           <div className="prog-details-header-main">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>
-                📅 {prog?.fecha}
-              </span>
-              {prog?.notas && (
-                <span
-                  style={{
-                    fontSize: '0.72rem',
-                    color: '#e2e8f0',
-                    background: 'rgba(255,255,255,0.06)',
-                    padding: '0.15rem 0.5rem',
-                    borderRadius: '4px',
-                    maxWidth: '300px',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}
-                  title={prog.notas}
-                >
-                  Itinerario: {prog.notas}
-                </span>
-              )}
-            </div>
-
-            {/* Pestañas para cambiar de sitio si la programación tiene más de un sitio */}
+            {/* Pestañas para cambiar de sitio si la jornada incluye más de uno */}
             {allSitios.length > 1 && (
               <div className="prog-site-tabs-bar">
                 {allSitios.map(s => {
@@ -1902,96 +1878,75 @@ function ModalDetallesProgramacion({
                       type="button"
                       className={`prog-site-tab-btn ${isActive ? 'active' : ''}`}
                       onClick={() => setCurrentSitioId(sId)}
-                      title={loc ? `${sId} - ${loc}` : sId}
+                      title={loc ? `${sId} · ${loc}` : sId}
                     >
-                      <MapPin size={11} color={isActive ? '#818cf8' : '#94a3b8'} />
-                      <span>{sId}</span>
-                      {loc && (
-                        <span className="tab-loc-text">
-                          · {loc}
-                        </span>
-                      )}
+                      <MapPin size={12} className={isActive ? 'tab-icon-active' : ''} />
+                      <span className="tab-site-code">{sId}</span>
+                      {loc && <span className="tab-loc-text">· {loc}</span>}
                     </button>
                   )
                 })}
               </div>
             )}
 
+            {/* Título Principal: Código de Sitio · Localidad + Metadatos */}
             <div className="prog-details-site-title-row">
-              <h2 className="prog-details-site-title">
-                <MapPin size={20} color="#818cf8" style={{ flexShrink: 0 }} />
-                <span>{currentSitioId}</span>
-                {siteInfo.localidad && (
-                  <span className="prog-details-site-loc">
-                    - {siteInfo.localidad}
-                  </span>
-                )}
-              </h2>
-              {siteInfo.grupo && (
-                <span className="prog-details-site-group">
-                  ({siteInfo.grupo} · {siteInfo.zona}{siteInfo.distrito ? ` · ${siteInfo.distrito}` : ''})
-                </span>
-              )}
-            </div>
-
-            {/* Personal en ruta */}
-            <div className="prog-details-team-box">
-              <div className="team-box-title">
-                Personal en ruta:
+              <div className="prog-details-site-badge-icon">
+                <MapPin size={22} />
               </div>
-              <div className="prog-team-list">
-                {team.map((member, mIdx) => {
-                  const cClass = getCargoClass(member.cargo)
-                  const isTecnico = cClass === 'tecnico' || (member.cargo || '').includes('SUPERVISOR')
-                  return (
-                    <div key={member.id || mIdx} className="prog-team-member">
-                      <strong style={{ color: 'var(--text-main)', fontSize: '0.82rem' }}>
-                        {member.nombre_completo || 'Sin nombre'}
-                      </strong>
-                      <span className={`role-badge ${cClass}`}>{member.cargo || 'PERSONAL'}</span>
-                      {isTecnico && member.cuadrilla ? (
-                        <span className="prog-card-cuadrilla-badge">{member.cuadrilla}</span>
-                      ) : (
-                        <span className="prog-cuadrilla-badge-rotativo">Apoyo rotativo</span>
-                      )}
-                    </div>
-                  )
-                })}
+              <div className="prog-details-site-texts">
+                <div className="prog-details-title-line">
+                  <h2 className="prog-details-site-title">{currentSitioId}</h2>
+                  {siteInfo.localidad && (
+                    <span className="prog-details-site-loc">· {siteInfo.localidad}</span>
+                  )}
+                </div>
+                {(siteInfo.grupo || siteInfo.zona || siteInfo.distrito) && (
+                  <div className="prog-details-site-meta-pills">
+                    {siteInfo.grupo && <span className="meta-pill">{siteInfo.grupo}</span>}
+                    {siteInfo.zona && <span className="meta-pill">{siteInfo.zona}</span>}
+                    {siteInfo.distrito && <span className="meta-pill">{siteInfo.distrito}</span>}
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           {/* Acciones de la programación: Editar, Eliminar y Cerrar */}
           <div className="prog-details-modal-actions">
-            <button
-              type="button"
-              className="prog-details-action-btn edit"
-              title="Editar detalles de esta programación"
-              onClick={() => {
-                handleCloseWithAutoSave()
-                onEditProg(prog)
-              }}
-            >
-              <Edit3 size={13} />
-              <span>Editar</span>
-            </button>
+            {onEditProg && (
+              <button
+                type="button"
+                className="prog-details-action-btn edit"
+                title="Editar esta programación"
+                onClick={() => {
+                  handleCloseWithAutoSave()
+                  onEditProg(prog)
+                }}
+              >
+                <Edit3 size={13} />
+                <span>Editar</span>
+              </button>
+            )}
+
+            {onDeleteProg && (
+              <button
+                type="button"
+                className="prog-details-action-btn delete"
+                title="Eliminar esta programación"
+                onClick={() => onDeleteProg(prog?.id)}
+              >
+                <Trash2 size={13} />
+                <span>Eliminar</span>
+              </button>
+            )}
 
             <button
               type="button"
-              className="prog-details-action-btn delete"
-              title="Eliminar esta programación"
-              onClick={() => onDeleteProg(prog.id)}
-            >
-              <Trash2 size={13} />
-              <span>Eliminar</span>
-            </button>
-
-            <button
-              type="button"
-              className="btn-close"
+              className="prog-modal-close-btn"
               onClick={handleCloseWithAutoSave}
-              title="Cerrar y guardar cambios"
-              style={{ marginLeft: '0.25rem' }}
+              title="Cerrar ventana y guardar cambios (Esc)"
+              aria-label="Cerrar"
             >
               <X size={18} />
             </button>
@@ -2000,242 +1955,151 @@ function ModalDetallesProgramacion({
 
         {/* Resumen de contadores del sitio convertidos en botones de filtro interactivo */}
         <div className="prog-modal-stats-bar">
-          {/* Todas */}
           <button
             type="button"
             className={`prog-modal-stat-btn ${filtroModal === 'ALL' ? 'active' : ''}`}
             onClick={() => setFiltroModal('ALL')}
+            title="Ver todas las observaciones"
           >
-            <div className="stat-btn-label">
-              Total
-            </div>
-            <div className="stat-btn-val">
-              {stats.tot}
-            </div>
+            <span className="stat-btn-label">Total</span>
+            <span className="stat-btn-val">{stats.tot}</span>
           </button>
 
-          {/* Validadas (Por subir) */}
           <button
             type="button"
             className={`prog-modal-stat-btn stat-validado ${filtroModal === 'Validado' ? 'active' : ''}`}
-            onClick={() => setFiltroModal(filtroModal === 'Validado' ? 'ALL' : 'Validado')}
-            title="Ver únicamente observaciones validadas en campo esperando ser subidas"
+            onClick={() => setFiltroModal(prev => prev === 'Validado' ? 'ALL' : 'Validado')}
+            title="Observaciones validadas listas para subir"
           >
-            <div className="stat-btn-label text-validado">
-              ✓ Por Subir
-            </div>
-            <div className="stat-btn-val text-validado">
-              {stats.validadas}
-            </div>
+            <span className="stat-btn-label text-validado">✓ Por Subir</span>
+            <span className="stat-btn-val text-validado">{stats.validadas}</span>
           </button>
 
-          {/* En Revisión */}
           <button
             type="button"
             className={`prog-modal-stat-btn stat-revision ${filtroModal === 'En Revision' ? 'active' : ''}`}
-            onClick={() => setFiltroModal(filtroModal === 'En Revision' ? 'ALL' : 'En Revision')}
-            title="Ver observaciones que están actualmente en proceso de revisión"
+            onClick={() => setFiltroModal(prev => prev === 'En Revision' ? 'ALL' : 'En Revision')}
+            title="Observaciones en proceso de revisión"
           >
-            <div className="stat-btn-label text-revision">
-              🔍 En Revisión
-            </div>
-            <div className="stat-btn-val text-revision">
-              {stats.enRevision}
-            </div>
+            <span className="stat-btn-label text-revision">🔍 En Revisión</span>
+            <span className="stat-btn-val text-revision">{stats.enRevision}</span>
           </button>
 
-          {/* Pendientes */}
           <button
             type="button"
             className={`prog-modal-stat-btn stat-pendiente ${filtroModal === 'Pendiente' ? 'active' : ''}`}
-            onClick={() => setFiltroModal(filtroModal === 'Pendiente' ? 'ALL' : 'Pendiente')}
+            onClick={() => setFiltroModal(prev => prev === 'Pendiente' ? 'ALL' : 'Pendiente')}
+            title="Observaciones pendientes por subsanar"
           >
-            <div className="stat-btn-label text-pendiente">
-              Pendientes
-            </div>
-            <div className="stat-btn-val text-pendiente">
-              {stats.pendientes}
-            </div>
+            <span className="stat-btn-label text-pendiente">● Pendientes</span>
+            <span className="stat-btn-val text-pendiente">{stats.pendientes}</span>
           </button>
 
-          {/* Descartadas */}
           <button
             type="button"
             className={`prog-modal-stat-btn stat-descartado ${filtroModal === 'Descartado' ? 'active' : ''}`}
-            onClick={() => setFiltroModal(filtroModal === 'Descartado' ? 'ALL' : 'Descartado')}
+            onClick={() => setFiltroModal(prev => prev === 'Descartado' ? 'ALL' : 'Descartado')}
+            title="Observaciones descartadas en campo"
           >
-            <div className="stat-btn-label text-descartado">
-              Descartadas
-            </div>
-            <div className="stat-btn-val text-descartado">
-              {stats.descartadas}
-            </div>
+            <span className="stat-btn-label text-descartado">🚫 Descartadas</span>
+            <span className="stat-btn-val text-descartado">{stats.descartadas}</span>
           </button>
 
-          {/* Enviadas (Si hay o si se quiere ver) */}
           <button
             type="button"
             className={`prog-modal-stat-btn stat-enviado ${filtroModal === 'Enviado' ? 'active' : ''}`}
-            onClick={() => setFiltroModal(filtroModal === 'Enviado' ? 'ALL' : 'Enviado')}
+            onClick={() => setFiltroModal(prev => prev === 'Enviado' ? 'ALL' : 'Enviado')}
+            title="Observaciones enviadas a COVEPA"
           >
-            <div className="stat-btn-label text-enviado">
-              ✉ Enviadas
-            </div>
-            <div className="stat-btn-val text-enviado">
-              {stats.enviadas}
-            </div>
+            <span className="stat-btn-label text-enviado">✉ Enviadas</span>
+            <span className="stat-btn-val text-enviado">{stats.enviadas}</span>
           </button>
 
-          {/* Rechazadas (sólo si existen) */}
           {stats.rechazadas > 0 && (
             <button
               type="button"
               className={`prog-modal-stat-btn stat-rechazado ${filtroModal === 'Rechazado' ? 'active' : ''}`}
-              onClick={() => setFiltroModal(filtroModal === 'Rechazado' ? 'ALL' : 'Rechazado')}
+              onClick={() => setFiltroModal(prev => prev === 'Rechazado' ? 'ALL' : 'Rechazado')}
+              title="Observaciones rechazadas por calidad"
             >
-              <div className="stat-btn-label text-rechazado">
-                Rechazadas
-              </div>
-              <div className="stat-btn-val text-rechazado">
-                {stats.rechazadas}
-              </div>
+              <span className="stat-btn-label text-rechazado">✕ Rechazadas</span>
+              <span className="stat-btn-val text-rechazado">{stats.rechazadas}</span>
             </button>
           )}
         </div>
 
-        {/* Barra de herramientas: Buscador interactivo y Botón de Descarga Excel (.xlsx) */}
+        {/* Barra de búsqueda interactiva y botón de exportación */}
         <div className="prog-modal-search-bar">
           <div className="prog-modal-search-box-wrap">
-            <div style={{ position: 'relative', width: '100%' }}>
-              <Search
-                size={15}
-                style={{
-                  position: 'absolute',
-                  left: '0.75rem',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: '#94a3b8',
-                  pointerEvents: 'none'
-                }}
-              />
+            <div className="search-input-container">
+              <Search size={15} className="search-input-icon" />
               <input
                 type="text"
                 className="prog-modal-search-input"
                 value={searchObs}
                 onChange={(e) => setSearchObs(e.target.value)}
-                placeholder="Buscar por código de observación (ej. OBS-1234)..."
+                placeholder="Buscar por código (ej. OBS-1234 o C-4175)..."
               />
               {searchObs && (
                 <button
                   type="button"
                   onClick={() => setSearchObs('')}
                   title="Limpiar búsqueda"
-                  style={{
-                    position: 'absolute',
-                    right: '0.5rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
-                    border: 'none',
-                    color: '#94a3b8',
-                    cursor: 'pointer',
-                    padding: '2px',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
+                  className="search-clear-btn"
                 >
                   <X size={14} />
                 </button>
               )}
             </div>
             {searchObs && (
-              <span style={{ fontSize: '0.74rem', color: '#818cf8', fontWeight: 600, whiteSpace: 'nowrap' }}>
+              <span className="search-results-counter">
                 {filteredObservaciones.length} resultado(s)
               </span>
             )}
           </div>
 
-          {/* Botón de Exportación a Excel (.xlsx) */}
           <button
             type="button"
             onClick={handleExportXLSX}
             disabled={exportingXlsx || observaciones.length === 0}
             className="prog-export-btn"
-            title={`Descargar las ${filteredObservaciones.length} observaciones en formato Excel (.xlsx)`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              background: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(16, 185, 129, 0.35)',
-              color: '#6ee7b7',
-              borderRadius: '6px',
-              padding: '0.42rem 0.85rem',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              cursor: (exportingXlsx || observaciones.length === 0) ? 'not-allowed' : 'pointer',
-              opacity: (exportingXlsx || observaciones.length === 0) ? 0.6 : 1,
-              transition: 'all 0.15s ease'
-            }}
+            title={`Descargar las ${filteredObservaciones.length} observaciones en Excel (.xlsx)`}
           >
-            <FileSpreadsheet size={15} color="#34d399" />
+            <FileSpreadsheet size={15} />
             <span>{exportingXlsx ? 'Generando Excel...' : 'Descargar Excel (.xlsx)'}</span>
           </button>
         </div>
 
-        {/* Lista de observaciones: Código, Detalle, Acuerdo de Subsanación y Estado */}
+        {/* Lista de Observaciones */}
         <div className="prog-details-modal-body">
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-              Cargando observaciones del sitio {currentSitioId}...
+            <div className="modal-state-msg">
+              <RefreshCw size={24} className="spin" color="#0284c7" />
+              <span>Cargando observaciones del sitio {currentSitioId}...</span>
             </div>
           ) : errorMsg ? (
-            <div style={{ color: '#ef4444', padding: '1rem' }}>{errorMsg}</div>
+            <div className="modal-state-msg error">{errorMsg}</div>
           ) : observaciones.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-              El sitio {currentSitioId} no tiene observaciones registradas en el sistema.
+            <div className="modal-state-msg">
+              <span>El sitio <strong>{currentSitioId}</strong> no tiene observaciones registradas en el sistema.</span>
             </div>
           ) : filteredObservaciones.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
-              {searchObs ? (
-                <div>No se encontraron observaciones con el código <strong>"{searchObs}"</strong>.</div>
-              ) : (
-                <div>No hay observaciones en estado <strong>{filtroModal}</strong> para este sitio.</div>
-              )}
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: '0.75rem' }}>
+            <div className="modal-empty-filter-state">
+              <p>
+                {searchObs ? (
+                  <>No se encontraron observaciones con el código <strong>"{searchObs}"</strong>.</>
+                ) : (
+                  <>No hay observaciones en estado <strong>{filtroModal}</strong> para este sitio.</>
+                )}
+              </p>
+              <div className="empty-filter-actions">
                 {searchObs && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchObs('')}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      color: '#f1f5f9',
-                      borderRadius: '6px',
-                      padding: '0.35rem 0.85rem',
-                      cursor: 'pointer',
-                      fontSize: '0.78rem',
-                      fontWeight: 600
-                    }}
-                  >
+                  <button type="button" onClick={() => setSearchObs('')} className="btn-reset-filter">
                     Borrar búsqueda
                   </button>
                 )}
                 {filtroModal !== 'ALL' && (
-                  <button
-                    type="button"
-                    onClick={() => setFiltroModal('ALL')}
-                    style={{
-                      background: 'rgba(99, 102, 241, 0.2)',
-                      border: '1px solid #818cf8',
-                      color: '#fff',
-                      borderRadius: '6px',
-                      padding: '0.35rem 0.85rem',
-                      cursor: 'pointer',
-                      fontSize: '0.78rem',
-                      fontWeight: 600
-                    }}
-                  >
+                  <button type="button" onClick={() => setFiltroModal('ALL')} className="btn-reset-filter primary">
                     Ver todas las observaciones ({stats.tot})
                   </button>
                 )}
@@ -2248,228 +2112,170 @@ function ModalDetallesProgramacion({
               const showRevisorYFecha = currentEstado !== 'Pendiente' && currentEstado !== 'En Revision' && currentEstado !== 'En Revisión'
 
               return (
-                <div
-                  key={obs.id_obs}
-                  className="prog-obs-card-item"
-                >
-                  {/* 1. Código y Selector de Estado en la parte superior derecha */}
+                <div key={obs.id_obs} className="prog-obs-card-item">
+                  {/* Fila Superior: Código de Observación y Selector de Estado */}
                   <div className="prog-obs-card-header">
-                    <div className="prog-obs-code-box">
-                      <span className="code-box-label">
-                        Código:
-                      </span>
-                      <span className="code-box-val">
-                        {obs.id_obs}
-                      </span>
+                    <div className="prog-obs-code-badge">
+                      <span className="obs-code-tag">CÓDIGO:</span>
+                      <span className="obs-code-val">{obs.id_obs}</span>
                     </div>
 
-                    {/* Selector de estado y apartado de fecha en la parte superior derecha */}
-                    <div className="prog-obs-controls-wrap">
-                      {/* Apartado de persona que valida: aparece en todos los estados excepto Pendiente y En Revisión */}
-                      {showRevisorYFecha && (
-                        <div className="prog-obs-control-box">
-                          <span className="control-box-label">
-                            <Users size={11} color="#38bdf8" />
-                            Revisado por:
-                          </span>
-                          <select
-                            value={obs.revisor || obs.validado_por || ''}
-                            disabled={isUpdating}
-                            onChange={(e) => handleUpdateRevisor(obs, e.target.value)}
-                            className="prog-obs-revisor-select"
-                            title="Persona que revisó esta observación"
-                          >
-                            <option value="" style={{ background: '#1e293b', color: '#94a3b8' }}>
-                              -- Seleccionar --
-                            </option>
-                            {teamOptions.length > 0 && (
-                              <optgroup label="Personal en ruta (COVEPA)" style={{ background: '#0f172a', color: '#a5b4fc' }}>
-                                {teamOptions.map(p => (
-                                  <option key={p.id || p.nombre_completo} value={p.nombre_completo} style={{ background: '#1e293b', color: '#f1f5f9' }}>
-                                    {p.nombre_completo} {p.cargo ? `(${p.cargo})` : ''}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            {gilatOptions.length > 0 && (
-                              <optgroup label="Personal GILAT (Auditor / Revisor)" style={{ background: '#0f172a', color: '#38bdf8' }}>
-                                {gilatOptions.map(p => (
-                                  <option key={p.id || p.nombre_completo} value={p.nombre_completo} style={{ background: '#1e293b', color: '#38bdf8' }}>
-                                    {p.nombre_completo} {p.cargo ? `(${p.cargo})` : '(GILAT)'}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            {covepaOptions.length > 0 && (
-                              <optgroup label="Equipo COVEPA" style={{ background: '#0f172a', color: '#a5b4fc' }}>
-                                {covepaOptions.map(p => (
-                                  <option key={p.id || p.nombre_completo} value={p.nombre_completo} style={{ background: '#1e293b', color: '#f1f5f9' }}>
-                                    {p.nombre_completo} {p.cargo ? `(${p.cargo})` : ''}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            {currentUserOption && (
-                              <optgroup label="Usuario en sesión" style={{ background: '#0f172a', color: '#a5b4fc' }}>
-                                <option value={currentUserOption} style={{ background: '#1e293b', color: '#f1f5f9' }}>
-                                  {currentUserOption}
-                                </option>
-                              </optgroup>
-                            )}
-                            {(obs.revisor || obs.validado_por) && !allKnownNames.has(obs.revisor || obs.validado_por) && (
-                              <option value={obs.revisor || obs.validado_por} style={{ background: '#1e293b', color: '#f1f5f9' }}>
-                                {obs.revisor || obs.validado_por}
-                              </option>
-                            )}
-                          </select>
-                        </div>
-                      )}
-
-                      {/* Apartado de fecha: aparece en todos los estados excepto Pendiente y En Revisión */}
-                      {showRevisorYFecha && (
-                        <div className="prog-obs-control-box">
-                          <span className="control-box-label">
-                            {currentEstado === 'Validado' ? 'F. Validación:' :
-                             currentEstado === 'Descartado' ? 'F. Descarte:' :
-                             currentEstado === 'Rechazado' ? 'F. Rechazo:' :
-                             currentEstado === 'En Revision' ? 'F. Revisión:' :
-                             currentEstado === 'Enviado' ? 'F. Envío:' : 'Fecha:'}
-                          </span>
-                          <input
-                            type="date"
-                            value={obs.fecha_subsanacion ? String(obs.fecha_subsanacion).split('T')[0].split(' ')[0] : ''}
-                            disabled={isUpdating}
-                            onChange={(e) => handleUpdateFecha(obs, e.target.value)}
-                            title="Haz clic para modificar la fecha si es necesario"
-                            className="prog-obs-date-input"
-                          />
-                        </div>
-                      )}
+                    <div className="prog-obs-status-select-wrap">
                       <select
                         value={currentEstado}
                         disabled={isUpdating}
                         onChange={(e) => handleSetEstado(obs, e.target.value)}
                         className={`prog-obs-status-select status-${(currentEstado || '').toLowerCase().replace(/\s+/g, '-')}`}
                       >
-                        <option value="Pendiente" style={{ background: '#1e293b', color: '#fbbf24' }}>● Pendiente</option>
-                        <option value="En Revision" style={{ background: '#1e293b', color: '#38bdf8' }}>🔍 En Revisión</option>
-                        <option value="Validado" style={{ background: '#1e293b', color: '#34d399' }}>✓ Validado (Esperando subida)</option>
-                        <option value="Rechazado" style={{ background: '#1e293b', color: '#f87171' }}>✕ Rechazado</option>
-                        <option value="Descartado" style={{ background: '#1e293b', color: '#cbd5e1' }}>🚫 Descartado</option>
-                        <option value="Enviado" style={{ background: '#1e293b', color: '#e9d5ff' }}>✉ Enviado (Subido)</option>
+                        <option value="Pendiente">● Pendiente</option>
+                        <option value="En Revision">🔍 En Revisión</option>
+                        <option value="Validado">✓ Validado (Por Subir)</option>
+                        <option value="Enviado">✉ Enviado (COVEPA)</option>
+                        <option value="Descartado">🚫 Descartado</option>
+                        <option value="Rechazado">✕ Rechazado</option>
                       </select>
                     </div>
                   </div>
 
-                  {/* 2. Detalle de la observación (solo si no está vacío) */}
-                  {hasMeaningfulText(obs.detalle) && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>
-                        Detalle:
-                      </span>
-                      <div style={{ fontSize: '0.84rem', color: '#e2e8f0', lineHeight: 1.45, background: 'rgba(0, 0, 0, 0.15)', padding: '0.45rem 0.65rem', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.04)' }}>
-                        {obs.detalle}
+                  {/* Fila de Auditoría: Revisor y Fecha de Validación */}
+                  {showRevisorYFecha && (
+                    <div className="prog-obs-audit-bar">
+                      <div className="audit-col">
+                        <label className="audit-label">
+                          <Users size={12} color="#0284c7" />
+                          <span>Revisado por:</span>
+                        </label>
+                        <select
+                          value={obs.revisor || obs.validado_por || ''}
+                          disabled={isUpdating}
+                          onChange={(e) => handleUpdateRevisor(obs, e.target.value)}
+                          className="audit-select"
+                          title="Persona que revisó esta observación"
+                        >
+                          <option value="">-- Seleccionar --</option>
+                          {teamOptions.length > 0 && (
+                            <optgroup label="Personal en ruta (COVEPA)">
+                              {teamOptions.map(p => (
+                                <option key={p.id || p.nombre_completo} value={p.nombre_completo}>
+                                  {p.nombre_completo} {p.cargo ? `(${p.cargo})` : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {gilatOptions.length > 0 && (
+                            <optgroup label="Personal GILAT (Auditor / Revisor)">
+                              {gilatOptions.map(p => (
+                                <option key={p.id || p.nombre_completo} value={p.nombre_completo}>
+                                  {p.nombre_completo} {p.cargo ? `(${p.cargo})` : '(GILAT)'}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {covepaOptions.length > 0 && (
+                            <optgroup label="Equipo COVEPA">
+                              {covepaOptions.map(p => (
+                                <option key={p.id || p.nombre_completo} value={p.nombre_completo}>
+                                  {p.nombre_completo} {p.cargo ? `(${p.cargo})` : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {currentUserOption && (
+                            <optgroup label="Usuario en sesión">
+                              <option value={currentUserOption}>{currentUserOption}</option>
+                            </optgroup>
+                          )}
+                          {(obs.revisor || obs.validado_por) && !allKnownNames.has(obs.revisor || obs.validado_por) && (
+                            <option value={obs.revisor || obs.validado_por}>
+                              {obs.revisor || obs.validado_por}
+                            </option>
+                          )}
+                        </select>
                       </div>
-                    </div>
-                  )}
 
-                  {/* 3. Comentario Inicial (solo si no está vacío) */}
-                  {hasMeaningfulText(obs.comentario_inicial) && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      <span style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: 600 }}>
-                        Comentario Inicial:
-                      </span>
-                      <div style={{ fontSize: '0.84rem', color: '#fef3c7', lineHeight: 1.45, background: 'rgba(245, 158, 11, 0.06)', padding: '0.45rem 0.65rem', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.18)' }}>
-                        {obs.comentario_inicial}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 4. Acuerdo de Subsanación (solo si no está vacío) */}
-                  {hasMeaningfulText(obs.acuerdo_subsanacion) && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      <span style={{ fontSize: '0.72rem', color: '#818cf8', fontWeight: 600 }}>
-                        Acuerdo de Subsanación:
-                      </span>
-                      <div style={{
-                        fontSize: '0.84rem',
-                        color: '#c7d2fe',
-                        lineHeight: 1.45,
-                        background: 'rgba(99, 102, 241, 0.08)',
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '6px',
-                        border: '1px solid rgba(99, 102, 241, 0.2)'
-                      }}>
-                        {obs.acuerdo_subsanacion}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 4. Apartado Comentario COVEPA */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.15rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.72rem', color: '#38bdf8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        💬 Comentario COVEPA:
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {savingCommentId === obs.id_obs && (
-                          <span style={{ fontSize: '0.7rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <RefreshCw size={11} className="spin" /> Guardando...
+                      <div className="audit-col">
+                        <label className="audit-label">
+                          <Clock size={12} color="#0284c7" />
+                          <span>
+                            {currentEstado === 'Validado' ? 'F. Validación:' :
+                             currentEstado === 'Descartado' ? 'F. Descarte:' :
+                             currentEstado === 'Rechazado' ? 'F. Rechazo:' :
+                             currentEstado === 'Enviado' ? 'F. Envío:' : 'Fecha:'}
                           </span>
-                        )}
-                        {savedCommentId === obs.id_obs && (
-                          <span style={{ fontSize: '0.7rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <Check size={12} /> Guardado
-                          </span>
-                        )}
-                        {dirtyCommentsRef.current.has(obs.id_obs) && savingCommentId !== obs.id_obs && (
-                          <button
-                            type="button"
-                            onClick={() => handleBlurComment(obs.id_obs)}
-                            style={{
-                              background: 'rgba(56, 189, 248, 0.15)',
-                              border: '1px solid #38bdf8',
-                              color: '#38bdf8',
-                              borderRadius: '4px',
-                              padding: '0.15rem 0.5rem',
-                              fontSize: '0.68rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem'
-                            }}
-                          >
-                            <Save size={11} /> Guardar comentario
-                          </button>
-                        )}
+                        </label>
+                        <input
+                          type="date"
+                          value={obs.fecha_subsanacion ? String(obs.fecha_subsanacion).split('T')[0].split(' ')[0] : ''}
+                          disabled={isUpdating}
+                          onChange={(e) => handleUpdateFecha(obs, e.target.value)}
+                          className="audit-date-input"
+                          title="Modificar fecha de subsanación/revisión"
+                        />
                       </div>
                     </div>
-                    <textarea
-                      rows={2}
-                      value={comments[obs.id_obs] ?? ''}
-                      onChange={(e) => handleCommentChange(obs.id_obs, e.target.value)}
-                      onBlur={() => handleBlurComment(obs.id_obs)}
-                      placeholder="Escribe un comentario o nota para esta observación (se guarda automáticamente)..."
-                      style={{
-                        width: '100%',
-                        background: 'rgba(0, 0, 0, 0.25)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                        borderRadius: '6px',
-                        color: '#f1f5f9',
-                        padding: '0.45rem 0.65rem',
-                        fontSize: '0.82rem',
-                        fontFamily: 'inherit',
-                        resize: 'vertical',
-                        minHeight: '44px',
-                        outline: 'none',
-                        lineHeight: 1.4,
-                        transition: 'border-color 0.2s'
-                      }}
-                      onFocus={(e) => {
-                        e.target.style.borderColor = 'rgba(56, 189, 248, 0.5)'
-                      }}
-                    />
+                  )}
+
+                  {/* Cajas de Contenido: Detalle, Comentario Inicial y Acuerdo de Subsanación */}
+                  <div className="prog-obs-blocks-wrap">
+                    {/* Detalle */}
+                    {hasMeaningfulText(obs.detalle) && (
+                      <div className="obs-content-box box-detalle">
+                        <span className="box-label">Detalle de la Observación:</span>
+                        <div className="box-body-text">{obs.detalle}</div>
+                      </div>
+                    )}
+
+                    {/* Comentario Inicial */}
+                    {hasMeaningfulText(obs.comentario_inicial) && (
+                      <div className="obs-content-box box-inicial">
+                        <span className="box-label">Comentario Inicial:</span>
+                        <div className="box-body-text">{obs.comentario_inicial}</div>
+                      </div>
+                    )}
+
+                    {/* Acuerdo de Subsanación */}
+                    {hasMeaningfulText(obs.acuerdo_subsanacion) && (
+                      <div className="obs-content-box box-acuerdo">
+                        <span className="box-label">Acuerdo de Subsanación:</span>
+                        <div className="box-body-text">{obs.acuerdo_subsanacion}</div>
+                      </div>
+                    )}
+
+                    {/* Comentario / Nota COVEPA */}
+                    <div className="obs-content-box box-covepa">
+                      <div className="box-covepa-top">
+                        <span className="box-label">💬 Comentario / Evidencias COVEPA:</span>
+                        <div className="covepa-save-cluster">
+                          {savingCommentId === obs.id_obs && (
+                            <span className="save-tag saving">
+                              <RefreshCw size={11} className="spin" /> Guardando...
+                            </span>
+                          )}
+                          {savedCommentId === obs.id_obs && (
+                            <span className="save-tag saved">
+                              <Check size={12} /> Guardado
+                            </span>
+                          )}
+                          {dirtyCommentsRef.current.has(obs.id_obs) && savingCommentId !== obs.id_obs && (
+                            <button
+                              type="button"
+                              onClick={() => handleBlurComment(obs.id_obs)}
+                              className="save-btn-manual"
+                            >
+                              <Save size={11} /> Guardar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={comments[obs.id_obs] ?? ''}
+                        onChange={(e) => handleCommentChange(obs.id_obs, e.target.value)}
+                        onBlur={() => handleBlurComment(obs.id_obs)}
+                        placeholder="Escribe un comentario o nota de subsanación (se guarda automáticamente)..."
+                        className="covepa-comment-textarea"
+                      />
+                    </div>
                   </div>
                 </div>
               )

@@ -5183,102 +5183,90 @@ body {
   }
 }
 
-.prog-site-compact-pill {
+/* Tarjeta de sitio en 2 filas */
+.prog-site-2row-card {
   display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
+  flex-direction: column;
+  gap: 0.28rem;
   background: #f8fbfe;
   border: 1px solid #d8e5f1;
-  border-radius: 6px;
-  padding: 0.28rem 0.6rem;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
   cursor: pointer;
   transition: all var(--transition);
   user-select: none;
+  min-width: 220px;
 }
 
-.prog-site-compact-pill:hover {
+.prog-site-2row-card:hover {
   background: #edf6ff;
   border-color: #003060;
   transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(0, 48, 96, 0.08);
+  box-shadow: 0 3px 8px rgba(0, 48, 96, 0.08);
 }
 
-.prog-site-compact-pill.is-complete {
+.prog-site-2row-card.is-complete {
   background: #ecfdf5;
   border-color: #a7f3d0;
 }
-.prog-site-compact-pill.is-complete:hover {
+.prog-site-2row-card.is-complete:hover {
   border-color: #059669;
 }
 
-.site-pill-pin {
+/* Fila 1: Código de Sitio y Localidad */
+.site-2row-top {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.site-2row-pin {
   color: #0284c7;
   flex-shrink: 0;
 }
-.prog-site-compact-pill.is-complete .site-pill-pin {
+.prog-site-2row-card.is-complete .site-2row-pin {
   color: #059669;
 }
 
-.site-pill-name {
-  font-size: 0.78rem;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-.site-pill-name strong {
+.site-2row-code {
   font-family: monospace;
+  font-size: 0.84rem;
   font-weight: 700;
   color: #003060;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
-.site-pill-loc {
-  font-size: 0.75rem;
+.site-2row-loc {
+  font-size: 0.78rem;
   color: #0284c7;
   font-weight: 600;
+  white-space: nowrap;
 }
-.prog-site-compact-pill.is-complete .site-pill-loc {
+.prog-site-2row-card.is-complete .site-2row-loc {
   color: #047857;
 }
 
-.site-pill-order {
-  font-size: 0.65rem;
-  color: #64748b;
-  background: #e2e8f0;
-  padding: 0.08rem 0.3rem;
-  border-radius: 3px;
-  font-weight: 600;
+/* Fila 2: Cantidades de observaciones y estados */
+.site-2row-bottom {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
 }
 
-.site-pill-count {
-  font-size: 0.72rem;
+.site-2row-count {
+  font-size: 0.7rem;
   font-weight: 700;
   color: #475569;
   background: #e2e8f0;
-  padding: 0.08rem 0.35rem;
+  padding: 0.08rem 0.38rem;
   border-radius: 4px;
-  margin-left: 0.15rem;
 }
-.site-pill-count.complete {
+.site-2row-count.complete {
   background: #d1fae5;
   color: #065f46;
-}
-
-.site-pill-eye {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 3px;
-  transition: all var(--transition);
-}
-.site-pill-eye:hover {
-  color: #003060;
-  background: rgba(0, 48, 96, 0.08);
 }
 
 /* Micro-insignias operativas para sitios y resumen técnico */
@@ -5288,7 +5276,7 @@ body {
   gap: 0.2rem;
   font-size: 0.67rem;
   font-weight: 700;
-  padding: 0.1rem 0.42rem;
+  padding: 0.08rem 0.38rem;
   border-radius: 4px;
   line-height: 1.15;
   white-space: nowrap;
@@ -5304,6 +5292,12 @@ body {
   background: #dcfce7;
   color: #15803d;
   border: 1px solid #86efac;
+}
+
+.site-pill-badge.badge-rech {
+  background: #ffe4e6;
+  color: #be123c;
+  border: 1px solid #fecdd3;
 }
 
 .site-pill-badge.badge-env {

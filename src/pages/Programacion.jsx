@@ -700,16 +700,6 @@ export default function Programacion() {
                                 Apoyo
                               </span>
                             )}
-                            {tec.telefono && (
-                              <a
-                                href={`tel:${tec.telefono}`}
-                                className="prog-tech-phone-tag"
-                                title="Llamar al técnico"
-                                onClick={e => e.stopPropagation()}
-                              >
-                                📞 {tec.telefono}
-                              </a>
-                            )}
                             {tGroup.companions.length > 0 && (
                               <span
                                 className="prog-tech-comp-pill"
@@ -771,7 +761,7 @@ export default function Programacion() {
                       </div>
                     </div>
 
-                    {/* Fila inferior: Sitios asignados como pastillas compactas e interactivas */}
+                    {/* Fila inferior: Sitios asignados como tarjetas de 2 filas interactivas */}
                     <div className="prog-tech-sites-strip">
                       {tGroup.sitios.map(siteItem => {
                         const sStat = siteItem.stat
@@ -782,61 +772,58 @@ export default function Programacion() {
                         return (
                           <div
                             key={siteItem.id_sitio}
-                            className={`prog-site-compact-pill ${isComplete ? 'is-complete' : ''}`}
+                            className={`prog-site-2row-card ${isComplete ? 'is-complete' : ''}`}
                             onClick={() => setSelectedProgModal({ id_sitio: siteItem.id_sitio, programacion: siteItem.programacion, allSitios: siteItem.allSitios })}
                             title="Clic para ver detalle y observaciones en el modal"
                           >
-                            <MapPin size={13} className="site-pill-pin" />
-                            <span className="site-pill-name">
-                              <strong>{siteItem.id_sitio}</strong>
+                            {/* Fila 1: Código de Sitio y Localidad */}
+                            <div className="site-2row-top">
+                              <MapPin size={13} className="site-2row-pin" />
+                              <span className="site-2row-code">{siteItem.id_sitio}</span>
                               {localidad && (
-                                <span className="site-pill-loc"> · {localidad}</span>
+                                <span className="site-2row-loc">· {localidad}</span>
                               )}
-                            </span>
-                            {siteItem.orden && (
-                              <span className="site-pill-order">Ruta {siteItem.orden}</span>
-                            )}
-                            <span className={`site-pill-count ${isComplete ? 'complete' : ''}`} title="Observaciones resueltas">
-                              {sDone}/{sStat.total}
-                            </span>
+                            </div>
 
-                            {/* Micro-insignias operativas visibles en el sitio */}
-                            {sStat.enRevision > 0 && (
-                              <span
-                                className="site-pill-badge badge-rev"
-                                title={`${sStat.enRevision} observación(es) en revisión`}
-                              >
-                                🔍 {sStat.enRevision}
+                            {/* Fila 2: Cantidades de observaciones y estados */}
+                            <div className="site-2row-bottom">
+                              <span className={`site-2row-count ${isComplete ? 'complete' : ''}`} title="Total resueltas del sitio">
+                                {sDone}/{sStat.total} resueltas
                               </span>
-                            )}
-                            {sStat.validadas > 0 && (
-                              <span
-                                className="site-pill-badge badge-subir"
-                                title={`${sStat.validadas} observación(es) listas por subir`}
-                              >
-                                ✓ {sStat.validadas} por subir
-                              </span>
-                            )}
-                            {sStat.enviadas > 0 && (
-                              <span
-                                className="site-pill-badge badge-env"
-                                title={`${sStat.enviadas} observación(es) enviadas a Covepa`}
-                              >
-                                ✉ {sStat.enviadas}
-                              </span>
-                            )}
 
-                            <button
-                              type="button"
-                              className="site-pill-eye"
-                              title="Ver observaciones"
-                              onClick={e => {
-                                e.stopPropagation()
-                                setSelectedProgModal({ id_sitio: siteItem.id_sitio, programacion: siteItem.programacion, allSitios: siteItem.allSitios })
-                              }}
-                            >
-                              <Eye size={12} />
-                            </button>
+                              {sStat.enRevision > 0 && (
+                                <span
+                                  className="site-pill-badge badge-rev"
+                                  title={`${sStat.enRevision} observación(es) en revisión`}
+                                >
+                                  🔍 {sStat.enRevision} rev.
+                                </span>
+                              )}
+                              {sStat.validadas > 0 && (
+                                <span
+                                  className="site-pill-badge badge-subir"
+                                  title={`${sStat.validadas} observación(es) listas por subir`}
+                                >
+                                  ✓ {sStat.validadas} por subir
+                                </span>
+                              )}
+                              {sStat.descartadas > 0 && (
+                                <span
+                                  className="site-pill-badge badge-rech"
+                                  title={`${sStat.descartadas} observación(es) descartadas / rechazadas`}
+                                >
+                                  ✕ {sStat.descartadas} rech.
+                                </span>
+                              )}
+                              {sStat.enviadas > 0 && (
+                                <span
+                                  className="site-pill-badge badge-env"
+                                  title={`${sStat.enviadas} observación(es) enviadas a Covepa`}
+                                >
+                                  ✉ {sStat.enviadas} env.
+                                </span>
+                              )}
+                            </div>
                           </div>
                         )
                       })}

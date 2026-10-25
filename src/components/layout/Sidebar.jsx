@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
@@ -35,7 +35,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: 'Programación',
+    label: 'ProgramaciÃ³n',
     path: '/programacion',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -65,11 +65,11 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: 'Exportar KMZ',
+    label: 'Centro de Descargas',
     path: '/kmz',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <polygon points="3 11 22 2 13 21 11 13 3 11" />
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
       </svg>
     ),
   },
@@ -123,22 +123,22 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
           )}
         </div>
 
-        {/* Botón de cerrar en móvil */}
+        {/* BotÃ³n de cerrar en mÃ³vil */}
         <button
           type="button"
           className="sidebar-mobile-close"
           onClick={() => setMobileOpen && setMobileOpen(false)}
-          aria-label="Cerrar menú"
-          title="Cerrar menú"
+          aria-label="Cerrar menÃº"
+          title="Cerrar menÃº"
         >
           <X size={20} />
         </button>
 
-        {/* Botón de colapsar en escritorio */}
+        {/* BotÃ³n de colapsar en escritorio */}
         <button
           className="sidebar-toggle"
           onClick={() => setCollapsed(!collapsed)}
-          aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
+          aria-label={collapsed ? 'Expandir menÃº' : 'Colapsar menÃº'}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             {collapsed
@@ -149,7 +149,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
         </button>
       </div>
 
-      {/* Navegación */}
+      {/* NavegaciÃ³n */}
       <nav className="sidebar-nav">
         {NAV_ITEMS.map((item) => (
           <NavLink
@@ -183,7 +183,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
         <button
           className="sidebar-logout"
           onClick={handleSignOut}
-          title="Cerrar sesión"
+          title="Cerrar sesiÃ³n"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -196,3 +196,4 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
     </aside>
   )
 }
+

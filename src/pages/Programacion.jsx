@@ -939,10 +939,22 @@ export default function Programacion() {
 function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacionesExistentes, onClose, onSaved }) {
   const isEditing = Boolean(editingProg)
 
-  const [fecha, setFecha] = useState(() => {
+  const fecha = useMemo(() => {
     if (editingProg?.fecha) return editingProg.fecha
     return initialDate || toLocalDateString(new Date())
-  })
+  }, [editingProg, initialDate])
+
+  const dateFormatted = useMemo(() => {
+    if (!fecha) return ''
+    try {
+      const [y, m, d] = fecha.split('-').map(Number)
+      const dt = new Date(y, m - 1, d)
+      const str = dt.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+      return str.charAt(0).toUpperCase() + str.slice(1)
+    } catch {
+      return fecha
+    }
+  }, [fecha])
 
   const [selectedPersonalIds, setSelectedPersonalIds] = useState(() => {
     if (editingProg) {
@@ -957,11 +969,12 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
   const [searchStaff, setSearchStaff] = useState('')
   const [notas, setNotas] = useState(() => editingProg?.notas || '')
   const [searchSite, setSearchSite] = useState('')
-  const [selectedSites, setSelectedSites] = useState(() => {
+  const [selectedSite, setSelectedSite] = useState(() => {
     if (editingProg?.sitios && editingProg.sitios.length > 0) {
-      return editingProg.sitios.map(s => s.id_sitio).filter(Boolean)
+      const first = editingProg.sitios[0]
+      return first?.id_sitio || first || ''
     }
-    return []
+    return ''
   })
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -1042,16 +1055,7 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
     return () => { active = false }
   }, [])
 
-  // Mapa rápido para chips y detalles de sitios seleccionados
-  const sitiosMap = useMemo(() => {
-    const map = {}
-    sitiosCatalogo.forEach(s => {
-      map[s.id_site] = s
-    })
-    return map
-  }, [sitiosCatalogo])
-
-  // Filtrado reactivo de sitios (por código de lugar, ID, nombre, localidad, zona o grupo)
+  // Filtrado reactivo de sitios por término de búsqueda
   const sitiosFiltrados = useMemo(() => {
     const q = searchSite.toLowerCase().trim()
     if (!q) return sitiosCatalogo
@@ -1065,12 +1069,8 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
     )
   }, [sitiosCatalogo, searchSite])
 
-  const toggleSelectSite = siteId => {
-    if (selectedSites.includes(siteId)) {
-      setSelectedSites(prev => prev.filter(s => s !== siteId))
-    } else {
-      setSelectedSites(prev => [...prev, siteId])
-    }
+  const handleSelectSite = siteId => {
+    setSelectedSite(prev => prev === siteId ? '' : siteId)
   }
 
   const handleSubmit = async e => {
@@ -1078,15 +1078,15 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
     setErrorMsg('')
 
     if (!fecha) {
-      setErrorMsg('Debes seleccionar una fecha.')
+      setErrorMsg('No se especificó la fecha de la jornada.')
       return
     }
     if (selectedPersonalIds.length === 0) {
       setErrorMsg('Debes seleccionar al menos un integrante de personal para la programación.')
       return
     }
-    if (selectedSites.length === 0) {
-      setErrorMsg('Debes seleccionar al menos un sitio para la jornada.')
+    if (!selectedSite) {
+      setErrorMsg('Debes seleccionar un sitio para la jornada.')
       return
     }
 
@@ -1097,14 +1097,14 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
           personal_ids: selectedPersonalIds,
           fecha,
           notas,
-          sitios: selectedSites
+          sitios: [selectedSite]
         })
       } else {
         await createProgramacion({
           personal_ids: selectedPersonalIds,
           fecha,
           notas,
-          sitios: selectedSites
+          sitios: [selectedSite]
         })
       }
       onSaved()
@@ -1117,67 +1117,48 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
   return (
     <div className="prog-modal-overlay">
       <div className="prog-modal prog-modal-wide">
+        {/* Cabecera del Modal con Fecha Debajo del Título */}
         <div className="prog-modal-header">
-          <h3>
-            {isEditing ? <Edit3 size={18} color="#818cf8" /> : <Calendar size={18} color="#818cf8" />}
-            {isEditing ? 'Editar Programación de Cuadrilla' : 'Nueva Programación de Cuadrilla'}
-          </h3>
-          <button type="button" className="btn-close" onClick={onClose}><X size={18} /></button>
+          <div className="prog-modal-header-main">
+            <div className="prog-modal-title-icon">
+              {isEditing ? <Edit3 size={18} color="#003060" /> : <Calendar size={18} color="#003060" />}
+            </div>
+            <div className="prog-modal-title-group">
+              <h3 className="prog-modal-heading">
+                {isEditing ? 'Editar Programación' : 'Nueva Programación'}
+              </h3>
+              <span className="prog-modal-header-date">
+                <Calendar size={12} color="#0284c7" />
+                <span>{dateFormatted}</span>
+              </span>
+            </div>
+          </div>
+          <button type="button" className="btn-close" onClick={onClose} title="Cerrar ventana">
+            <X size={18} />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
           {errorMsg && (
-            <div style={{
-              background: 'rgba(239, 68, 68, 0.15)',
-              borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#fca5a5',
-              padding: '0.65rem 1.4rem',
-              fontSize: '0.82rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
+            <div className="prog-modal-error-banner">
               <AlertCircle size={16} />
-              {errorMsg}
+              <span>{errorMsg}</span>
             </div>
           )}
 
           <div className="prog-modal-body prog-modal-2col">
             {/* ── COLUMNA IZQUIERDA: PERSONAL Y CUADRILLA ── */}
             <div className="prog-modal-col-left">
-              <div className="prog-modal-col-title">
-                <Users size={16} color="#818cf8" />
-                <span>1. Personal y Cuadrilla</span>
-              </div>
-
-              {/* Fecha de la Jornada */}
-              <div className="prog-form-group">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <Calendar size={13} color="#818cf8" />
-                  Fecha de la Jornada *
-                </label>
-                <input
-                  type="date"
-                  className="prog-form-control"
-                  value={fecha}
-                  onChange={e => setFecha(e.target.value)}
-                  required
-                />
-              </div>
-
-              {/* Botones de Asignación Rápida por Cuadrilla Predefinida */}
+              {/* Cuadrillas Rápidas */}
               {cuadrillasPresets.length > 0 && (
-                <div className="prog-cuadrillas-quick-box">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.3rem' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#c7d2fe', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Users size={12} color="#818cf8" />
-                      Cuadrillas Rápidas (1 Clic):
-                    </span>
-                    <span style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>
-                      Técnico + Conductor
+                <div className="prog-quick-assign-box">
+                  <div className="prog-cuad-sublabel-line">
+                    <span className="sub-tag">
+                      <Users size={12} color="#003060" />
+                      Cuadrillas Rápidas
                     </span>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                  <div className="prog-cuad-presets-wrap">
                     {cuadrillasPresets.map(preset => {
                       const isSelected = preset.memberIds.length > 0 && preset.memberIds.every(id => selectedPersonalIds.includes(id))
                       const hasSome = preset.memberIds.some(id => selectedPersonalIds.includes(id))
@@ -1191,10 +1172,8 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                           title={`Integrantes: ${preset.memberNames.join(' · ')}`}
                         >
                           <span>{preset.name}</span>
-                          <span className="prog-cuad-quick-count">
-                            {preset.members.length}
-                          </span>
-                          {isSelected && <Check size={11} color="#34d399" />}
+                          <span className="prog-cuad-quick-count">{preset.members.length}</span>
+                          {isSelected && <Check size={11} color="#10b981" />}
                         </button>
                       )
                     })}
@@ -1202,256 +1181,185 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                 </div>
               )}
 
-              {/* Selector Múltiple de Personal Asignado */}
-              <div className="prog-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <User size={13} color="#818cf8" />
-                    Personal Asignado ({selectedPersonalIds.length} seleccionados) *
-                  </label>
+              {/* Cabecera de Sección: Personal Asignado */}
+              <div className="prog-pane-header">
+                <div className="prog-pane-title">
+                  <Users size={15} color="#003060" />
+                  <span>Personal Asignado</span>
                   {selectedPersonalIds.length > 0 && (
-                    <button
-                      type="button"
-                      style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
-                      onClick={() => setSelectedPersonalIds([])}
-                    >
-                      Limpiar
-                    </button>
+                    <span className="prog-badge-count">{selectedPersonalIds.length}</span>
                   )}
                 </div>
-
-                {/* Chips de personal seleccionado */}
                 {selectedPersonalIds.length > 0 && (
-                  <div className="prog-selected-chips" style={{ marginBottom: '0.4rem', maxHeight: '72px', overflowY: 'auto' }}>
-                    {selectedPersonalIds.map(id => {
-                      const person = tecnicos.find(t => t.id === id)
-                      if (!person) return null
-                      const cClass = getCargoClass(person.cargo)
-                      return (
-                        <span key={id} className="prog-selected-chip">
-                          <span>{person.nombre_completo}</span>
-                          <span className={`role-badge ${cClass}`}>{person.cargo}</span>
-                          {person.cuadrilla ? (
-                            <span className="prog-card-cuadrilla-badge" style={{ fontSize: '0.62rem' }}>
-                              {person.cuadrilla}
-                            </span>
-                          ) : (
-                            <span className="prog-cuadrilla-badge-rotativo" style={{ fontSize: '0.62rem' }}>
-                              Rotativo
-                            </span>
-                          )}
-                          <X
-                            size={12}
-                            style={{ cursor: 'pointer', marginLeft: '2px' }}
-                            onClick={() => toggleSelectStaff(id)}
-                          />
-                        </span>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {/* Lista de candidatos con checkbox, nombre, cargo y cuadrilla */}
-                <div className="prog-personnel-picker" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                  <div className="prog-personnel-picker-search">
-                    <Search size={13} color="var(--text-muted)" />
-                    <input
-                      type="text"
-                      placeholder="Buscar personal por nombre o cargo..."
-                      value={searchStaff}
-                      onChange={e => setSearchStaff(e.target.value)}
-                    />
-                    {searchStaff && (
-                      <button
-                        type="button"
-                        onClick={() => setSearchStaff('')}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                      >
-                        <X size={13} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="prog-personnel-picker-list" style={{ flex: 1, overflowY: 'auto', maxHeight: '180px' }}>
-                    {staffFiltrado.map(p => {
-                      const isSelected = selectedPersonalIds.includes(p.id)
-                      const cClass = getCargoClass(p.cargo)
-                      const isTecnico = cClass === 'tecnico' || (p.cargo || '').includes('SUPERVISOR')
-
-                      return (
-                        <div
-                          key={p.id}
-                          className={`prog-personnel-picker-item ${isSelected ? 'selected' : ''}`}
-                          onClick={() => toggleSelectStaff(p.id)}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => {}}
-                              style={{ cursor: 'pointer', accentColor: '#818cf8' }}
-                            />
-                            <div className={`person-avatar ${cClass}`} style={{ width: '22px', height: '22px', fontSize: '0.62rem', flexShrink: 0 }}>
-                              {getInitials(p.nombre_completo)}
-                            </div>
-                            <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              <span style={{ fontWeight: 600, color: '#f1f5f9', fontSize: '0.8rem' }}>{p.nombre_completo}</span>
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                            <span className={`role-badge ${cClass}`} style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem' }}>{p.cargo}</span>
-                            {isTecnico && p.cuadrilla ? (
-                              <span className="prog-card-cuadrilla-badge" style={{ fontSize: '0.65rem' }}>{p.cuadrilla}</span>
-                            ) : (
-                              <span className="prog-cuadrilla-badge-rotativo" style={{ fontSize: '0.65rem' }}>Rotativo</span>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                    {staffFiltrado.length === 0 && (
-                      <div style={{ padding: '0.8rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                        No se encontró personal con ese criterio de búsqueda.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Notas o Itinerario */}
-              <div className="prog-form-group" style={{ marginBottom: 0 }}>
-                <label style={{ fontSize: '0.75rem' }}>Notas o Itinerario (opcional)</label>
-                <textarea
-                  className="prog-form-control"
-                  rows={2}
-                  placeholder="Instrucciones para la cuadrilla, prioridades o puntos de encuentro..."
-                  value={notas}
-                  onChange={e => setNotas(e.target.value)}
-                  style={{ resize: 'none' }}
-                />
-              </div>
-            </div>
-
-            {/* ── COLUMNA DERECHA: SITIOS ASIGNADOS ── */}
-            <div className="prog-modal-col-right">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div className="prog-modal-col-title">
-                  <MapPin size={16} color="#818cf8" />
-                  <span>2. Sitios Asignados ({selectedSites.length} seleccionados) *</span>
-                </div>
-                {selectedSites.length > 0 && (
                   <button
                     type="button"
-                    style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
-                    onClick={() => setSelectedSites([])}
+                    className="prog-clean-link-btn"
+                    onClick={() => setSelectedPersonalIds([])}
                   >
-                    Limpiar selección
+                    Limpiar
                   </button>
                 )}
               </div>
 
-              {/* Chips de sitios seleccionados */}
-              {selectedSites.length > 0 && (
-                <div className="prog-sites-selected-chips-box">
-                  {selectedSites.map(siteId => {
-                    const siteInfo = sitiosMap[siteId]
-                    const codLugar = siteInfo?.codigo_lugar || (siteId.split('-').length >= 2 ? `${siteId.split('-')[0]}-${siteId.split('-')[1]}` : siteId)
-                    const loc = siteInfo?.localidad || siteInfo?.nombre_nodo || ''
+              {/* Chips de personal seleccionado */}
+              {selectedPersonalIds.length > 0 && (
+                <div className="prog-selected-chips-box">
+                  {selectedPersonalIds.map(id => {
+                    const person = tecnicos.find(t => t.id === id)
+                    if (!person) return null
+                    const cClass = getCargoClass(person.cargo)
                     return (
-                      <span key={siteId} className="prog-site-selected-chip" title={`${siteId} - ${siteInfo?.nombre_nodo || ''} - ${siteInfo?.localidad || ''}`}>
-                        <strong style={{ color: '#c7d2fe' }}>{codLugar}</strong>
-                        <span style={{ opacity: 0.85 }}>({siteId})</span>
-                        {loc && <span style={{ opacity: 0.75, maxWidth: '110px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {loc}</span>}
-                        <X
-                          size={12}
-                          style={{ cursor: 'pointer', marginLeft: '2px' }}
-                          onClick={() => toggleSelectSite(siteId)}
-                        />
+                      <span key={id} className="prog-selected-staff-pill">
+                        <span className="staff-pill-name">{person.nombre_completo}</span>
+                        <span className={`role-badge ${cClass}`}>{person.cargo}</span>
+                        <button
+                          type="button"
+                          className="staff-pill-remove"
+                          onClick={() => toggleSelectStaff(id)}
+                          title="Quitar"
+                        >
+                          <X size={11} />
+                        </button>
                       </span>
                     )
                   })}
                 </div>
               )}
 
-              {/* Buscador de sitios */}
-              <div className="prog-sites-picker-search-bar">
-                <Search size={14} color="var(--text-muted)" />
+              {/* Buscador de personal */}
+              <div className="prog-clean-search-wrap">
+                <Search size={13} color="#64748b" />
                 <input
                   type="text"
-                  placeholder="Buscar por código de lugar (ej: AM-0038), localidad, nombre, zona..."
-                  value={searchSite}
-                  onChange={e => setSearchSite(e.target.value)}
+                  placeholder="Buscar personal por nombre o cargo..."
+                  value={searchStaff}
+                  onChange={e => setSearchStaff(e.target.value)}
                 />
-                {searchSite && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchSite('')}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                  >
-                    <X size={13} />
+                {searchStaff && (
+                  <button type="button" onClick={() => setSearchStaff('')} className="btn-input-clear">
+                    <X size={12} />
                   </button>
                 )}
-                <span className="prog-sites-picker-count-badge">
-                  {sitiosFiltrados.length} sitios
-                </span>
               </div>
 
-              {/* Lista rica de sitios disponibles con Código de Lugar, Localidad, Nombre y Zona */}
-              <div className="prog-sites-rich-list">
-                {sitiosFiltrados.map(s => {
-                  const isSelected = selectedSites.includes(s.id_site)
-                  const codLugar = s.codigo_lugar || (s.id_site.split('-').length >= 2 ? `${s.id_site.split('-')[0]}-${s.id_site.split('-')[1]}` : s.id_site)
+              {/* Lista de personal con ALTO CONTRASTE y diseño corporativo */}
+              <div className="prog-staff-list-container">
+                {staffFiltrado.map(p => {
+                  const isSelected = selectedPersonalIds.includes(p.id)
+                  const cClass = getCargoClass(p.cargo)
+                  const isTecnico = cClass === 'tecnico' || (p.cargo || '').includes('SUPERVISOR')
 
                   return (
                     <div
-                      key={s.id_site}
-                      className={`prog-site-card-item ${isSelected ? 'selected' : ''}`}
-                      onClick={() => toggleSelectSite(s.id_site)}
+                      key={p.id}
+                      className={`prog-staff-row-item ${isSelected ? 'selected' : ''}`}
+                      onClick={() => toggleSelectStaff(p.id)}
                     >
-                      <div className="prog-site-card-top">
-                        <div className="prog-site-card-left">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => {}}
-                            style={{ cursor: 'pointer', accentColor: '#818cf8', width: '15px', height: '15px' }}
-                          />
-                          <span className="prog-site-lugar-tag" title="Código de Lugar">
-                            {codLugar}
-                          </span>
-                          <span className="prog-site-id-tag">
-                            {s.id_site}
-                          </span>
+                      <div className="prog-staff-row-left">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          style={{ cursor: 'pointer', accentColor: '#003060', width: '15px', height: '15px', flexShrink: 0 }}
+                        />
+                        <div className={`person-avatar ${cClass}`}>
+                          {getInitials(p.nombre_completo)}
                         </div>
-
-                        <div className="prog-site-card-badges">
-                          {s.zona && <span className="prog-site-zona-tag">{s.zona}</span>}
-                          {s.grupo && <span className="prog-site-grupo-tag">{s.grupo}</span>}
+                        <div className="prog-staff-row-name">
+                          {p.nombre_completo}
                         </div>
                       </div>
 
-                      <div className="prog-site-card-grid">
-                        <div className="prog-site-card-prop">
-                          <span className="prop-label">Localidad:</span>
-                          <span className="prop-val" title={s.localidad || 'Sin localidad'}>
-                            <MapPin size={11} style={{ marginRight: 3, verticalAlign: 'middle', opacity: 0.7 }} />
-                            {s.localidad || '—'}
-                          </span>
-                        </div>
-
-                        <div className="prog-site-card-prop">
-                          <span className="prop-label">Nombre:</span>
-                          <span className="prop-val" title={s.nombre_nodo || s.id_site}>
-                            {s.nombre_nodo || '—'}
-                          </span>
-                        </div>
+                      <div className="prog-staff-row-right">
+                        <span className={`role-badge ${cClass}`}>{p.cargo}</span>
+                        {isTecnico && p.cuadrilla ? (
+                          <span className="prog-card-cuadrilla-badge">{p.cuadrilla}</span>
+                        ) : (
+                          <span className="prog-cuadrilla-badge-rotativo">Rotativo</span>
+                        )}
                       </div>
                     </div>
                   )
                 })}
+                {staffFiltrado.length === 0 && (
+                  <div className="prog-empty-hint">
+                    No se encontró personal con ese criterio.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── COLUMNA DERECHA: SITIO ASIGNADO (SELECCIÓN ÚNICA) ── */}
+            <div className="prog-modal-col-right">
+              {/* Cabecera de Selección de Sitio */}
+              <div className="prog-pane-header">
+                <div className="prog-pane-title">
+                  <MapPin size={15} color="#003060" />
+                  <span>Seleccionar Sitio</span>
+                </div>
+                {selectedSite && (
+                  <button
+                    type="button"
+                    className="prog-clean-link-btn"
+                    onClick={() => setSelectedSite('')}
+                  >
+                    Desmarcar selección
+                  </button>
+                )}
+              </div>
+
+              {/* Barra de Búsqueda */}
+              <div className="prog-clean-search-wrap">
+                <Search size={13} color="#64748b" />
+                <input
+                  type="text"
+                  placeholder="Buscar por código (ej: AM-0038), localidad o nodo..."
+                  value={searchSite}
+                  onChange={e => setSearchSite(e.target.value)}
+                />
+                {searchSite && (
+                  <button type="button" onClick={() => setSearchSite('')} className="btn-input-clear">
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+
+              {/* Lista Enriquecida de Sitios — Solo Código, Lugar y Zona */}
+              <div className="prog-sites-clean-list">
+                {sitiosFiltrados.map(s => {
+                  const isSelected = selectedSite === s.id_site
+                  const loc = s.localidad || 'Sin localidad'
+
+                  return (
+                    <div
+                      key={s.id_site}
+                      className={`prog-site-item-row ${isSelected ? 'selected' : ''}`}
+                      onClick={() => handleSelectSite(s.id_site)}
+                    >
+                      <div className="prog-site-item-main">
+                        <input
+                          type="radio"
+                          name="selected_programacion_site"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          style={{ cursor: 'pointer', accentColor: '#003060', width: '15px', height: '15px', flexShrink: 0 }}
+                        />
+                        <div className="site-2row-top">
+                          <MapPin size={13} className="site-2row-pin" />
+                          <span className="site-2row-code">{s.id_site}</span>
+                          <span className="site-2row-loc">· {loc}</span>
+                        </div>
+                      </div>
+
+                      <div className="prog-site-item-badges">
+                        {s.zona && <span className="meta-pill">{s.zona}</span>}
+                      </div>
+                    </div>
+                  )
+                })}
+
                 {sitiosFiltrados.length === 0 && (
-                  <div style={{ padding: '1.8rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                  <div className="prog-empty-hint">
                     No se encontraron sitios con ese criterio de búsqueda.
                   </div>
                 )}
@@ -1459,19 +1367,33 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
             </div>
           </div>
 
+          {/* Pie del Modal */}
           <div className="prog-modal-footer">
-            <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>
-              Cancelar
-            </button>
-            <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? 'Guardando...' : (isEditing ? 'Guardar Cambios' : 'Crear Programación')}
-            </button>
+            <div className="prog-modal-footer-actions" style={{ marginLeft: 'auto' }}>
+              <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn-primary" disabled={saving}>
+                {saving ? (
+                  <>
+                    <RefreshCw size={14} className="spin" />
+                    <span>Guardando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} />
+                    <span>{isEditing ? 'Guardar Cambios' : 'Crear Programación'}</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>
     </div>
   )
 }
+
 
 
 // ────────────────────────────────────────────────────────────

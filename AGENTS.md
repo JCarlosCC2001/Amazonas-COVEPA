@@ -4,9 +4,10 @@ Este archivo define las directivas y contexto obligatorio para cualquier asisten
 
 ---
 
-## 1. Fuente de Verdad Obligatoria
-- Antes de proponer o implementar cambios, consulta siempre [CONTEXTO_SISTEMA.md](file:///d:/Desarrollo%20Software/Amazonas-COVEPA/CONTEXTO_SISTEMA.md).
-- **Mantenimiento del Contexto:** Al finalizar cualquier tarea relevante (nuevas pantallas, cambios de lógica, reglas de negocio o despliegue), **DEBES actualizar [CONTEXTO_SISTEMA.md](file:///d:/Desarrollo%20Software/Amazonas-COVEPA/CONTEXTO_SISTEMA.md)** agregando la entrada al Historial de Cambios y reflejando las nuevas directivas.
+## 1. Fuente de Verdad y Control de Cambios
+- Antes de proponer o implementar cambios, consulta siempre [CONTEXTO_SISTEMA.md](file:///d:/Proyectos/Amazonas-COVEPA/CONTEXTO_SISTEMA.md).
+- **Control de Cambios de Gran Magnitud:** Las actualizaciones NO deben aplicarse de forma automática ni unilateral. **Antes de ejecutar cualquier cambio de gran magnitud** (modificaciones de arquitectura, reestructuración profunda de pantallas, alteraciones en el esquema de base de datos o cambios de lógica estructural), **DEBES consultar primero al usuario, presentar la propuesta y solicitar su confirmación**.
+- **Mantenimiento del Contexto:** Una vez aprobado y ejecutado un cambio relevante, registrar el ajuste en el Historial de Cambios de [CONTEXTO_SISTEMA.md](file:///d:/Proyectos/Amazonas-COVEPA/CONTEXTO_SISTEMA.md).
 
 ---
 

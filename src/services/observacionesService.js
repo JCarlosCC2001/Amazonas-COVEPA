@@ -243,7 +243,7 @@ export async function fetchResumenPorSitio(filters = {}) {
 export async function fetchObservacionesPorSitio(idSitio, filters = {}) {
   let query = supabase
     .from('observaciones')
-    .select('id_obs,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_covepa,fecha_subsanacion,comentario_covepa,acuerdo_subsanacion')
+    .select('id_obs,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_covepa,fecha_subsanacion,comentario_covepa,acuerdo_subsanacion,comentario_inicial,comentario_complementario,comentario_final')
     .eq('id_sitio', idSitio)
 
   query = applyQueryFilters(query, filters)

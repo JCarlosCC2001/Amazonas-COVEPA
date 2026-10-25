@@ -10,6 +10,7 @@ import {
   updateObservacionCovepa, exportObservacionesCSV,
   fetchResumenPorSitio, fetchObservacionesPorSitio
 } from '../services/observacionesService'
+import { getCachedSitiosAsignados } from '../services/sitiosService'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 
 // ────────────────────────────────────────────────────────────
@@ -29,7 +30,7 @@ function estadoCovepaBadge(estado) {
 // ────────────────────────────────────────────────────────────
 // DRAWER — detalle completo + edición campos COVEPA
 // ────────────────────────────────────────────────────────────
-function ObsDrawer({ obs, onClose, onSaved }) {
+function ObsDrawer({ obs, sitiosMap = {}, onClose, onSaved }) {
   const [estadoCovepa, setEstadoCovepa] = useState(obs?.estado_covepa || '')
   const [fechaSubsanacion, setFechaSubsanacion] = useState(
     obs?.fecha_subsanacion ? obs.fecha_subsanacion.split('T')[0] : ''
@@ -38,6 +39,9 @@ function ObsDrawer({ obs, onClose, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState('')
+
+  const sitioInfo = sitiosMap[obs?.id_sitio] || {}
+  const localidad = sitioInfo.localidad || sitioInfo.nombre_nodo || ''
 
   useEffect(() => {
     if (obs) {
@@ -90,7 +94,10 @@ function ObsDrawer({ obs, onClose, onSaved }) {
             </div>
             <div>
               <div className="obs-drawer-code">{obs.id_obs}</div>
-              <div className="obs-drawer-meta">{obs.id_sitio} · {obs.protocolo || 'Sin protocolo'}</div>
+              <div className="obs-drawer-meta">
+                <span style={{ fontWeight: 700, color: '#003060' }}>{obs.id_sitio}</span>
+                {localidad ? <span style={{ color: '#0284c7' }}> · {localidad}</span> : ''} · {obs.protocolo || 'Sin protocolo'}
+              </div>
             </div>
           </div>
           <div className="obs-drawer-badges-wrap">
@@ -105,7 +112,12 @@ function ObsDrawer({ obs, onClose, onSaved }) {
           {/* IDENTIFICACIÓN */}
           <div className="obs-section-title">Identificación de la Observación</div>
           <div className="obs-grid-3">
-            <div className="obs-detail-item"><span className="obs-dk">Sitio</span><span className="obs-dv" style={{fontFamily:'monospace',color:'var(--primary-light)'}}>{obs.id_sitio}</span></div>
+            <div className="obs-detail-item">
+              <span className="obs-dk">Sitio y Localidad</span>
+              <span className="obs-dv" style={{fontFamily:'monospace',color:'var(--primary-light)'}}>
+                {obs.id_sitio}{localidad ? ` · ${localidad}` : ''}
+              </span>
+            </div>
             <div className="obs-detail-item"><span className="obs-dk">Protocolo</span><span className="obs-dv">{obs.protocolo || '—'}</span></div>
             <div className="obs-detail-item"><span className="obs-dk">Subsistema</span><span className="obs-dv">{obs.subsistema || '—'}</span></div>
             <div className="obs-detail-item"><span className="obs-dk">Ítem</span><span className="obs-dv">{obs.item || '—'}</span></div>
@@ -210,87 +222,136 @@ function ObsDrawer({ obs, onClose, onSaved }) {
 // ────────────────────────────────────────────────────────────
 // VISTA AGRUPADA POR SITIO — LAZY LOADING por acordeón
 // ────────────────────────────────────────────────────────────
-function SitioAcordeon({ sitio, stats, filtros, onSelectObs }) {
+function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs }) {
   const [isOpen, setIsOpen] = useState(false)
   const [obsData, setObsData] = useState(null)
   const [loadingObs, setLoadingObs] = useState(false)
   const [errorObs, setErrorObs] = useState(null)
 
-  const handleToggle = async () => {
+  const localidad = sitioInfo?.localidad || sitioInfo?.nombre_nodo || ''
+
+  const loadSitioObs = async () => {
+    setLoadingObs(true)
+    setErrorObs(null)
+    try {
+      const data = await fetchObservacionesPorSitio(sitio, filtros)
+      setObsData(data)
+    } catch (err) {
+      setErrorObs(err.message)
+    } finally {
+      setLoadingObs(false)
+    }
+  }
+
+  const handleToggle = () => {
     if (!isOpen && obsData === null) {
-      setLoadingObs(true)
-      setErrorObs(null)
-      try {
-        const data = await fetchObservacionesPorSitio(sitio, filtros)
-        setObsData(data)
-      } catch (err) {
-        setErrorObs(err.message)
-      } finally {
-        setLoadingObs(false)
-      }
+      loadSitioObs()
     }
     setIsOpen(prev => !prev)
   }
 
+  // Refrescar observaciones si el acordeón está abierto y cambian los filtros
+  useEffect(() => {
+    if (isOpen) {
+      loadSitioObs()
+    } else {
+      setObsData(null)
+    }
+  }, [isOpen, filtros.search, filtros.protocolo, filtros.estadoCovepa, filtros.idSitio])
+
   return (
     <div className={`agrupada-card ${isOpen ? 'open' : ''}`}>
-      {/* Cabecera clickeable */}
-      <button className="agrupada-card-header" onClick={handleToggle}>
+      {/* Cabecera clickeable responsiva */}
+      <button className="agrupada-card-header" onClick={handleToggle} type="button">
         <div className="agrupada-site-info">
-          <div className="agrupada-site-icon"><MapPin size={15}/></div>
-          <span className="agrupada-site-code">{sitio}</span>
+          <div className="agrupada-site-icon"><MapPin size={16}/></div>
+          <div className="agrupada-site-headings">
+            <div className="agrupada-site-title-line">
+              <span className="agrupada-site-code">{sitio}</span>
+              <span className="agrupada-site-loc"> · {localidad || 'Amazonas'}</span>
+            </div>
+            {sitioInfo?.zona && (
+              <span className="agrupada-site-zone-pill">{sitioInfo.zona}</span>
+            )}
+          </div>
           <div className="agrupada-site-pills">
             {stats.pendientes > 0 && <span className="pill pill-yellow">{stats.pendientes} pendientes</span>}
             {stats.subsanadas > 0 && <span className="pill pill-green">{stats.subsanadas} subsanadas</span>}
+            {stats.enRevision > 0 && <span className="pill pill-blue">{stats.enRevision} en revisión</span>}
             {stats.descartadas > 0 && <span className="pill pill-dark">{stats.descartadas} descartadas</span>}
           </div>
         </div>
         <div className="agrupada-site-meta">
           <span className="agrupada-total-pill">{stats.total} total</span>
           {loadingObs
-            ? <Loader2 size={15} className="spinning" style={{color:'var(--primary-light)'}}/>
-            : isOpen ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+            ? <Loader2 size={16} className="spinning" style={{color:'var(--primary-light)'}}/>
+            : isOpen ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
         </div>
       </button>
 
-      {/* Cuerpo: observaciones del sitio (lazy) */}
+      {/* Cuerpo: observaciones del sitio (lazy y adaptables a móvil) */}
       {isOpen && (
         <div className="agrupada-obs-list">
           {loadingObs ? (
             <div className="agrupada-loading-row">
               <Loader2 size={16} className="spinning"/>
-              <span>Cargando observaciones de {sitio}...</span>
+              <span>Cargando observaciones de {sitio}{localidad ? ` (${localidad})` : ''}...</span>
             </div>
           ) : errorObs ? (
-            <div className="agrupada-loading-row" style={{color:'#fca5a5'}}>
+            <div className="agrupada-loading-row" style={{color:'#dc2626'}}>
               <AlertCircle size={15}/> {errorObs}
             </div>
           ) : obsData?.length === 0 ? (
             <div className="agrupada-loading-row" style={{color:'var(--text-muted)'}}>
-              Sin resultados con los filtros actuales
+              Sin observaciones con los filtros actuales
             </div>
           ) : (
             obsData?.map(o => (
-              <button key={o.id_obs} className="agrupada-obs-row" onClick={() => onSelectObs({ ...o, id_sitio: sitio })}>
-                <div className="agrupada-obs-left">
-                  <span className="site-code-badge" style={{fontSize:'0.72rem'}}>{o.id_obs}</span>
-                  <span className="agrupada-protocolo-tag">{o.protocolo || '—'}</span>
+              <div
+                key={o.id_obs}
+                className="agrupada-obs-row"
+                onClick={() => onSelectObs({ ...o, id_sitio: sitio })}
+              >
+                <div className="agrupada-obs-col-main">
+                  <div className="agrupada-obs-badges">
+                    <span className="site-code-badge" style={{fontSize:'0.74rem'}}>{o.id_obs}</span>
+                    {o.protocolo && (
+                      <span className="agrupada-protocolo-tag" title={o.protocolo}>{o.protocolo}</span>
+                    )}
+                    {o.item && (
+                      <span className="agrupada-item-tag" title={o.sub_item ? `${o.item} / ${o.sub_item}` : o.item}>
+                        {o.item}
+                      </span>
+                    )}
+                  </div>
+                  <div className="agrupada-obs-detalle" title={o.detalle || ''}>
+                    {o.detalle || '—'}
+                  </div>
+                  {o.acuerdo_subsanacion && (
+                    <div className="agrupada-obs-acuerdo">
+                      <strong>Acuerdo:</strong> {o.acuerdo_subsanacion}
+                    </div>
+                  )}
                 </div>
-                <div className="agrupada-obs-center">
-                  <span className="obs-detalle-cell" title={o.detalle}>
-                    {o.detalle ? (o.detalle.length > 75 ? o.detalle.substring(0, 75) + '…' : o.detalle) : '—'}
+                <div className="agrupada-obs-col-status">
+                  <span className={`estado-badge ${estadoCovepaBadge(o.estado_covepa)}`}>
+                    {o.estado_covepa || 'Pendiente'}
                   </span>
-                </div>
-                <div className="agrupada-obs-right">
-                  <span className={`estado-badge ${estadoCovepaBadge(o.estado_covepa)}`}>{o.estado_covepa || 'Pendiente'}</span>
                   {o.fecha_subsanacion && (
-                    <span style={{fontSize:'0.7rem',color:'var(--accent)'}}>
-                      {o.fecha_subsanacion.split('T')[0]}
+                    <span className="agrupada-obs-fecha" title="Fecha de subsanación">
+                      <Calendar size={12}/> {o.fecha_subsanacion.split('T')[0]}
                     </span>
                   )}
-                  <Eye size={14} style={{color:'var(--text-muted)',flexShrink:0}}/>
+                  <button
+                    type="button"
+                    className="agrupada-view-btn"
+                    onClick={(e) => { e.stopPropagation(); onSelectObs({ ...o, id_sitio: sitio }) }}
+                    title="Ver y editar observación"
+                  >
+                    <Eye size={14}/> <span>Ver</span>
+                  </button>
                 </div>
-              </button>
+              </div>
             ))
           )}
         </div>
@@ -299,27 +360,37 @@ function SitioAcordeon({ sitio, stats, filtros, onSelectObs }) {
   )
 }
 
-function GrupadaView({ resumen, loading, filtros, onSelectObs }) {
+function GrupadaView({ resumen, loading, filtros, sitiosMap = {}, onSelectObs }) {
   const sitios = Object.keys(resumen).sort()
 
   if (loading) return (
-    <div className="table-loading-state"><div className="loader-spinner"/><p>Cargando resumen por sitio...</p></div>
+    <div className="table-loading-state">
+      <div className="loader-spinner"/>
+      <p>Cargando observaciones agrupadas por sitio...</p>
+    </div>
   )
   if (sitios.length === 0) return (
-    <div className="table-empty-state"><ClipboardList size={48} opacity={0.3}/><h3>Sin resultados</h3><p>Ningún sitio tiene observaciones con los filtros aplicados.</p></div>
+    <div className="table-empty-state">
+      <ClipboardList size={48} opacity={0.3}/>
+      <h3>Sin resultados</h3>
+      <p>Ningún sitio tiene observaciones con los filtros aplicados.</p>
+    </div>
   )
+
+  const totalObs = Object.values(resumen).reduce((sum, s) => sum + (s.total || 0), 0)
 
   return (
     <div className="agrupada-container">
       <div className="agrupada-header">
         <span className="agrupada-total-label">
-          {sitios.length} sitios con observaciones
+          <strong>{sitios.length}</strong> sitios con <strong>{totalObs.toLocaleString()}</strong> observaciones
         </span>
       </div>
       {sitios.map(sitio => (
         <SitioAcordeon
           key={sitio}
           sitio={sitio}
+          sitioInfo={sitiosMap[sitio]}
           stats={resumen[sitio]}
           filtros={filtros}
           onSelectObs={onSelectObs}
@@ -343,8 +414,9 @@ export default function Observaciones() {
   const [error, setError] = useState(null)
   const [exporting, setExporting] = useState(false)
   const [selectedObs, setSelectedObs] = useState(null)
-  const [vista, setVista] = useState('tabla') // 'tabla' | 'agrupada'
+  const [vista, setVista] = useState('agrupada') // 'agrupada' (por sitio) es la vista principal predeterminada
   const [gruposData, setGruposData] = useState({})
+  const [sitiosMap, setSitiosMap] = useState({})
 
   // Filtros activos (COVEPA)
   const [search, setSearch] = useState('')
@@ -358,9 +430,16 @@ export default function Observaciones() {
 
   const filtrosActivos = { search, protocolo, estadoCovepa, idSitio }
 
-  // Carga inicial de filtros disponibles
+  // Carga inicial de filtros disponibles y catálogo de localidades
   useEffect(() => {
     fetchFiltrosObservaciones().then(setFiltros)
+    getCachedSitiosAsignados().then(list => {
+      const map = {}
+      for (const s of (list || [])) {
+        map[s.id_site] = s
+      }
+      setSitiosMap(map)
+    })
   }, [])
 
   // Carga de datos
@@ -403,8 +482,12 @@ export default function Observaciones() {
     }
   }, [vista, search, protocolo, estadoCovepa, idSitio])
 
-  useEffect(() => { loadData(true) }, [search, protocolo, estadoCovepa, idSitio])
-  useEffect(() => { if (page > 1) loadData() }, [page])
+  useEffect(() => {
+    if (vista === 'tabla') {
+      loadData(true)
+    }
+  }, [vista, search, protocolo, estadoCovepa, idSitio])
+  useEffect(() => { if (vista === 'tabla' && page > 1) loadData() }, [page])
   useEffect(() => { loadKpis() }, [search, protocolo, idSitio, estadoCovepa])
   useEffect(() => { loadAgrupada() }, [vista, search, protocolo, estadoCovepa, idSitio])
 
@@ -537,7 +620,14 @@ export default function Observaciones() {
             <MapPin size={13} className="select-icon"/>
             <select className="toolbar-select" value={idSitio} onChange={e => setIdSitio(e.target.value)}>
               <option value="">Todos los Sitios</option>
-              {filtros.sitios.map(s => <option key={s} value={s}>{s}</option>)}
+              {filtros.sitios.map(s => {
+                const loc = sitiosMap[s]?.localidad
+                return (
+                  <option key={s} value={s}>
+                    {s}{loc ? ` · ${loc}` : ''}
+                  </option>
+                )
+              })}
             </select>
           </div>
 
@@ -555,37 +645,39 @@ export default function Observaciones() {
             </button>
           )}
 
-          <button
-            className="refresh-btn"
-            onClick={() => { loadData(true); loadKpis(); loadAgrupada() }}
-            disabled={loading}
-            title="Refrescar datos"
-          >
-            <RefreshCw size={15} className={loading || loadingAgrupada ? 'spinning' : ''}/>
-          </button>
-
-          {/* Toggle vista tabla / agrupada */}
-          <div className="vista-toggle">
+          <div className="obs-toolbar-actions">
             <button
-              className={`vista-toggle-btn ${vista === 'tabla' ? 'active' : ''}`}
-              onClick={() => setVista('tabla')}
-              title="Vista tabla detallada"
+              className="refresh-btn"
+              onClick={() => { loadData(true); loadKpis(); loadAgrupada() }}
+              disabled={loading || loadingAgrupada}
+              title="Refrescar datos"
             >
-              <Table2 size={15}/> Tabla
+              <RefreshCw size={15} className={loading || loadingAgrupada ? 'spinning' : ''}/>
             </button>
-            <button
-              className={`vista-toggle-btn ${vista === 'agrupada' ? 'active' : ''}`}
-              onClick={() => setVista('agrupada')}
-              title="Vista agrupada por sitio"
-            >
-              <LayoutList size={15}/> Por sitio
+
+            {/* Toggle vista: Por sitio (predeterminada) / Tabla */}
+            <div className="vista-toggle">
+              <button
+                className={`vista-toggle-btn ${vista === 'agrupada' ? 'active' : ''}`}
+                onClick={() => setVista('agrupada')}
+                title="Vista agrupada por sitio"
+              >
+                <LayoutList size={15}/> Por sitio
+              </button>
+              <button
+                className={`vista-toggle-btn ${vista === 'tabla' ? 'active' : ''}`}
+                onClick={() => setVista('tabla')}
+                title="Vista tabla detallada"
+              >
+                <Table2 size={15}/> Tabla
+              </button>
+            </div>
+
+            <button className="obs-export-btn" onClick={handleExport} disabled={exporting} title="Exportar CSV">
+              <FileDown size={15}/>
+              <span>{exporting ? 'Exportando...' : 'Exportar CSV'}</span>
             </button>
           </div>
-
-          <button className="obs-export-btn" onClick={handleExport} disabled={exporting} title="Exportar CSV">
-            <FileDown size={15}/>
-            <span>{exporting ? 'Exportando...' : 'Exportar CSV'}</span>
-          </button>
         </div>
       </div>
 
@@ -600,7 +692,8 @@ export default function Observaciones() {
           <GrupadaView
             resumen={gruposData}
             loading={loadingAgrupada}
-            filtros={{ protocolo, estadoCovepa, idSitio }}
+            filtros={filtrosActivos}
+            sitiosMap={sitiosMap}
             onSelectObs={obs => setSelectedObs(obs)}
           />
         </div>
@@ -619,7 +712,7 @@ export default function Observaciones() {
               <thead>
                 <tr>
                   <th>Código</th>
-                  <th>Sitio</th>
+                  <th>Sitio / Localidad</th>
                   <th>Protocolo</th>
                   <th>Subsistema</th>
                   <th>Detalle</th>
@@ -633,7 +726,14 @@ export default function Observaciones() {
                 {observaciones.map(o => (
                   <tr key={o.id_obs} className="sitio-row" onClick={() => setSelectedObs(o)}>
                     <td><span className="site-code-badge">{o.id_obs}</span></td>
-                    <td><span className="site-code-badge" style={{color:'var(--accent)'}}>{o.id_sitio}</span></td>
+                    <td>
+                      <div className="table-site-cell">
+                        <span className="site-code-badge" style={{color:'var(--accent)'}}>{o.id_sitio}</span>
+                        {sitiosMap[o.id_sitio]?.localidad && (
+                          <span className="table-site-loc">{sitiosMap[o.id_sitio].localidad}</span>
+                        )}
+                      </div>
+                    </td>
                     <td>
                       <span className="site-name" style={{fontSize:'0.82rem'}}>{o.protocolo || '—'}</span>
                     </td>
@@ -698,6 +798,7 @@ export default function Observaciones() {
       {selectedObs && (
         <ObsDrawer
           obs={selectedObs}
+          sitiosMap={sitiosMap}
           onClose={() => setSelectedObs(null)}
           onSaved={handleObsSaved}
         />

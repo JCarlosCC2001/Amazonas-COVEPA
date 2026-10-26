@@ -13,7 +13,8 @@ import {
   updatePersonal,
   deletePersonal,
   updateCuadrillaAssignments,
-  toggleAccesoPersonal
+  toggleAccesoPersonal,
+  assignUserAccount
 } from '../services/personalService'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 
@@ -107,23 +108,32 @@ export default function Tecnicos() {
     return list.sort()
   }, [personal])
 
-  // Filtrado reactivo con soporte para DNI, nombre, email, origen, cuadrilla
+  // Lista de empresas dinámicas (SELNET, COVEPA, Gilat, etc.)
+  const empresas = useMemo(() => {
+    const list = [...new Set(personal.map(p => p.empresa).filter(Boolean))]
+    return list.sort()
+  }, [personal])
+
+  // Filtrado reactivo con soporte para DNI, nombre, apellido, email, cargo, empresa
   const filteredPersonal = useMemo(() => {
     const q = search.toLowerCase().trim()
     return personal.filter(p => {
       const matchSearch =
         !q ||
         (p.nombre_completo && p.nombre_completo.toLowerCase().includes(q)) ||
+        (p.nombre && p.nombre.toLowerCase().includes(q)) ||
+        (p.apellido && p.apellido.toLowerCase().includes(q)) ||
+        (p.dni && p.dni.includes(q)) ||
         (p.documento_identidad && p.documento_identidad.includes(q)) ||
         (p.email && p.email.toLowerCase().includes(q)) ||
         (p.telefono && p.telefono.includes(q)) ||
-        (p.origen && p.origen.toLowerCase().includes(q)) ||
-        (p.operador && p.operador.toLowerCase().includes(q)) ||
-        (p.cuadrilla && p.cuadrilla.toLowerCase().includes(q)) ||
-        (p.cargo && p.cargo.toLowerCase().includes(q))
+        (p.contacto_1 && p.contacto_1.includes(q)) ||
+        (p.contacto_2 && p.contacto_2.includes(q)) ||
+        (p.cargo && p.cargo.toLowerCase().includes(q)) ||
+        (p.empresa && p.empresa.toLowerCase().includes(q))
 
-      const matchCargo = filterCargo === 'TODOS' || (p.cargo || '').toUpperCase().includes(filterCargo.toUpperCase())
-      const matchEmpresa = filterEmpresa === 'TODOS' || (p.empresa || 'COVEPA').toUpperCase() === filterEmpresa.toUpperCase()
+      const matchCargo = filterCargo === 'TODOS' || (p.cargo || '').toUpperCase() === filterCargo.toUpperCase()
+      const matchEmpresa = filterEmpresa === 'TODOS' || (p.empresa || '').toUpperCase() === filterEmpresa.toUpperCase()
 
       return matchSearch && matchCargo && matchEmpresa
     })
@@ -132,13 +142,12 @@ export default function Tecnicos() {
   // KPIs
   const kpis = useMemo(() => {
     const total = personal.length
-    const covepa = personal.filter(p => (!p.empresa || p.empresa.toUpperCase() === 'COVEPA')).length
-    const gilat = personal.filter(p => p.empresa && p.empresa.toUpperCase() === 'GILAT').length
-    const tecnicos = personal.filter(p => (p.cargo || '').includes('TÉCNICO') || (p.cargo || '').includes('TECNICO')).length
-    const conductores = personal.filter(p => (p.cargo || '').includes('CONDUCTOR')).length
-    const supervisores = personal.filter(p => (p.cargo || '').includes('SUPERVISOR')).length
+    const conCuenta = personal.filter(p => !!p.cuenta_usuario).length
     const conAcceso = personal.filter(p => p.activo).length
-    return { total, covepa, gilat, tecnicos, conductores, supervisores, conAcceso }
+    const tecnicos = personal.filter(p => (p.cargo || '').toUpperCase().includes('TÉCN') || (p.cargo || '').toUpperCase().includes('TECN')).length
+    const supervisores = personal.filter(p => (p.cargo || '').toUpperCase().includes('SUPERVIS')).length
+    const conductores = personal.filter(p => (p.cargo || '').toUpperCase().includes('CONDUCTOR')).length
+    return { total, conCuenta, conAcceso, tecnicos, supervisores, conductores }
   }, [personal])
 
   const handleToggleAccess = async (person) => {
@@ -149,6 +158,51 @@ export default function Tecnicos() {
       setSelectedDrawerPerson(prev => prev ? { ...prev, activo: newStatus } : null)
     } catch (err) {
       alert('Error al actualizar acceso: ' + err.message)
+    }
+  }
+
+  const handleAssignAccount = async (personId, { email, rol, activo }) => {
+    try {
+      const updatedProf = await assignUserAccount({
+        id_personal: personId,
+        email,
+        rol,
+        activo
+      })
+      setPersonal(prev => prev.map(p => {
+        if (p.id === personId) {
+          return {
+            ...p,
+            email,
+            cuenta_usuario: {
+              id: updatedProf?.id || p.cuenta_usuario?.id,
+              email,
+              rol,
+              activo
+            }
+          }
+        }
+        return p
+      }))
+      setSelectedDrawerPerson(prev => {
+        if (prev && prev.id === personId) {
+          return {
+            ...prev,
+            email,
+            cuenta_usuario: {
+              id: updatedProf?.id || prev.cuenta_usuario?.id,
+              email,
+              rol,
+              activo
+            }
+          }
+        }
+        return prev
+      })
+      return true
+    } catch (err) {
+      alert('Error al vincular cuenta en BD local: ' + err.message)
+      throw err
     }
   }
 
@@ -183,21 +237,31 @@ export default function Tecnicos() {
           icon={<Users size={22} />}
           label="Total Personal"
           value={kpis.total}
-          subtitle={`${kpis.conAcceso} con acceso activo`}
+          subtitle={`${kpis.conCuenta} con cuenta vinculada`}
           variant="navy"
           onClick={() => setFilterCargo('TODOS')}
           active={filterCargo === 'TODOS'}
-          title="Ver todos los integrantes registrados"
+          title="Ver todos los integrantes registrados en BD externa"
+        />
+        <MetricCard
+          icon={<Shield size={22} />}
+          label="Supervisores"
+          value={kpis.supervisores}
+          subtitle="Supervisión y control"
+          variant="purple"
+          onClick={() => setFilterCargo(prev => prev === 'SUPERVISOR' ? 'TODOS' : 'SUPERVISOR')}
+          active={filterCargo === 'SUPERVISOR'}
+          title="Filtrar supervisores"
         />
         <MetricCard
           icon={<Wrench size={22} />}
-          label="Técnicos (Cuadrillas)"
+          label="Técnicos"
           value={kpis.tecnicos}
-          subtitle="Cuadrillas 1 a 6"
+          subtitle="Personal operativo de campo"
           variant="sky"
-          onClick={() => setFilterCargo(prev => prev === 'TÉCNICO' ? 'TODOS' : 'TÉCNICO')}
-          active={filterCargo === 'TÉCNICO'}
-          title="Filtrar técnicos de cuadrilla"
+          onClick={() => setFilterCargo(prev => prev === 'TECNICO' ? 'TODOS' : 'TECNICO')}
+          active={filterCargo === 'TECNICO'}
+          title="Filtrar técnicos de campo"
         />
         <MetricCard
           icon={<Truck size={22} />}
@@ -207,17 +271,7 @@ export default function Tecnicos() {
           variant="emerald"
           onClick={() => setFilterCargo(prev => prev === 'CONDUCTOR' ? 'TODOS' : 'CONDUCTOR')}
           active={filterCargo === 'CONDUCTOR'}
-          title="Filtrar conductores de campo"
-        />
-        <MetricCard
-          icon={<Shield size={22} />}
-          label="Supervisores"
-          value={kpis.supervisores}
-          subtitle="Control y gestión COVEPA"
-          variant="purple"
-          onClick={() => setFilterCargo(prev => prev === 'SUPERVISOR' ? 'TODOS' : 'SUPERVISOR')}
-          active={filterCargo === 'SUPERVISOR'}
-          title="Filtrar supervisores"
+          title="Filtrar conductores"
         />
       </MetricGrid>
 
@@ -230,7 +284,7 @@ export default function Tecnicos() {
             <input
               type="text"
               className="obs-search-input"
-              placeholder="Buscar por nombre, origen, celular..."
+              placeholder="Buscar por nombre, DNI, empresa..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -251,8 +305,9 @@ export default function Tecnicos() {
             style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
           >
             <option value="TODOS">Todas las Empresas ({personal.length})</option>
-            <option value="COVEPA">COVEPA ({kpis.covepa})</option>
-            <option value="GILAT">GILAT ({kpis.gilat})</option>
+            {empresas.map(emp => (
+              <option key={emp} value={emp}>{emp}</option>
+            ))}
           </select>
 
           <select
@@ -413,13 +468,19 @@ export default function Tecnicos() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
-                      {person.activo ? (
-                        <span className="covepa-access-badge active" title="Cuenta con acceso web habilitado">
-                          <ShieldCheck size={11} /> Con Acceso
-                        </span>
+                      {person.cuenta_usuario ? (
+                        <>
+                          <span className={`role-tag-covepa ${person.cuenta_usuario.rol}`}>
+                            {person.cuenta_usuario.rol}
+                          </span>
+                          <span className={`covepa-access-badge ${person.cuenta_usuario.activo ? 'active' : 'inactive'}`} title={person.cuenta_usuario.activo ? 'Cuenta COVEPA habilitada' : 'Cuenta COVEPA deshabilitada'}>
+                            {person.cuenta_usuario.activo ? <ShieldCheck size={11} /> : <Lock size={11} />}
+                            {person.cuenta_usuario.activo ? 'Habilitado' : 'Bloqueado'}
+                          </span>
+                        </>
                       ) : (
-                        <span className="covepa-access-badge inactive" title="Sin acceso al sistema">
-                          <Lock size={11} /> Sin Acceso
+                        <span className="covepa-access-badge inactive" title="Sin cuenta de acceso asignada en este proyecto">
+                          <Lock size={11} /> Sin Cuenta
                         </span>
                       )}
                       <ChevronRight size={15} color="var(--text-muted)" />
@@ -496,12 +557,12 @@ export default function Tecnicos() {
               <tr>
                 <th>Integrante</th>
                 <th>DNI / Documento</th>
-                <th>Cargo / Empresa</th>
-                <th>Cuadrilla</th>
-                <th>Ciudad Base</th>
+                <th>Cargo</th>
+                <th>Empresa</th>
                 <th>Contacto Directo</th>
-                <th>Acceso al Sistema</th>
-                <th style={{ textAlign: 'center' }}>Ficha</th>
+                <th>Estado BD Externa</th>
+                <th>Cuenta y Rol COVEPA</th>
+                <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -514,7 +575,6 @@ export default function Tecnicos() {
               ) : (
                 filteredPersonal.map(person => {
                   const cargoClass = getCargoClass(person.cargo)
-                  const isTecnico = cargoClass === 'tecnico' || (person.cargo || '').includes('SUPERVISOR')
                   const phoneLines = parsePhoneLines(person.telefono, person.operador)
                   const firstPhone = phoneLines[0]
 
@@ -547,39 +607,35 @@ export default function Tecnicos() {
                         )}
                       </td>
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <span className={`role-badge ${cargoClass}`}>
-                            {person.cargo}
-                          </span>
-                          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#003060' }}>
-                            {person.empresa || 'COVEPA'}
-                          </span>
-                        </div>
+                        <span className={`role-badge ${cargoClass}`}>
+                          {person.cargo}
+                        </span>
                       </td>
                       <td>
-                        {isTecnico && person.cuadrilla ? (
-                          <span className="prog-card-cuadrilla-badge">
-                            {person.cuadrilla}
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        {person.origen ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: '#003060', fontWeight: 500 }}>
-                            <MapPin size={12} color="#0284c7" />
-                            {person.origen}
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>—</span>
-                        )}
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '4px',
+                            background: person.empresa?.toUpperCase() === 'GILAT' ? '#e0f2fe' : 'rgba(0, 48, 96, 0.07)',
+                            border: `1px solid ${person.empresa?.toUpperCase() === 'GILAT' ? '#7dd3fc' : 'rgba(0, 48, 96, 0.2)'}`,
+                            color: person.empresa?.toUpperCase() === 'GILAT' ? '#0369a1' : '#003060'
+                          }}
+                        >
+                          {person.empresa || 'COVEPA'}
+                        </span>
                       </td>
                       <td>
                         {firstPhone ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                             <span style={{ fontFamily: 'monospace', fontSize: '0.82rem', fontWeight: 600 }}>{firstPhone.phone}</span>
-                            <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
+                            {firstPhone.operator && (
+                              <span className={`phone-operator-tag ${getOperatorClass(firstPhone.operator)}`} style={{ fontSize: '0.65rem', padding: '0.05rem 0.3rem' }}>
+                                {firstPhone.operator}
+                              </span>
+                            )}
+                            <div style={{ display: 'flex', gap: '3px', marginLeft: '2px' }} onClick={e => e.stopPropagation()}>
                               <a href={`tel:${firstPhone.clean}`} className="action-btn-circle call" title="Llamar">
                                 <PhoneCall size={11} />
                               </a>
@@ -594,12 +650,28 @@ export default function Tecnicos() {
                       </td>
                       <td>
                         {person.activo ? (
-                          <span className="covepa-access-badge active">
-                            <ShieldCheck size={11} /> Habilitado
+                          <span className="covepa-access-badge active" title="Estado activo en la base de datos externa">
+                            <ShieldCheck size={11} /> Activo
                           </span>
                         ) : (
-                          <span className="covepa-access-badge inactive">
-                            <Lock size={11} /> Deshabilitado
+                          <span className="covepa-access-badge inactive" title="Estado inactivo en la base de datos externa">
+                            <Lock size={11} /> Inactivo
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {person.cuenta_usuario ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <span className={`role-tag-covepa ${person.cuenta_usuario.rol}`}>
+                              {person.cuenta_usuario.rol}
+                            </span>
+                            <span className={`covepa-access-badge ${person.cuenta_usuario.activo ? 'active' : 'inactive'}`} style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem' }}>
+                              {person.cuenta_usuario.activo ? 'Habilitado' : 'Bloqueado'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="covepa-access-badge inactive" style={{ fontSize: '0.68rem', opacity: 0.75 }}>
+                            <Lock size={10} /> Sin Cuenta
                           </span>
                         )}
                       </td>
@@ -640,6 +712,7 @@ export default function Tecnicos() {
           person={selectedDrawerPerson}
           isAdmin={isAdmin}
           onToggleAccess={handleToggleAccess}
+          onAssignAccount={handleAssignAccount}
           onOpenPasswordModal={() => setPasswordModalOpen(true)}
           onClose={() => setSelectedDrawerPerson(null)}
           onEdit={person => handleOpenEdit(person)}
@@ -935,13 +1008,21 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
 // ────────────────────────────────────────────────────────────
 // SUBCOMPONENTE: Ventana Lateral (Drawer) de Revisión y Gestión
 // ────────────────────────────────────────────────────────────
-function DrawerPersonal({ person, isAdmin, onToggleAccess, onOpenPasswordModal, onClose, onEdit, onDelete }) {
+function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOpenPasswordModal, onClose, onEdit, onDelete }) {
   if (!person) return null
   const cargoClass = getCargoClass(person.cargo)
   const isTecnico = cargoClass === 'tecnico' || (person.cargo || '').includes('SUPERVISOR')
   const phoneLines = parsePhoneLines(person.telefono, person.operador)
   const [copiedDni, setCopiedDni] = useState(false)
   const [togglingAccess, setTogglingAccess] = useState(false)
+
+  // Estado para asignación de cuenta y rol en la base de datos de este proyecto
+  const [showAssignForm, setShowAssignForm] = useState(false)
+  const [accountEmail, setAccountEmail] = useState(person.cuenta_usuario?.email || person.email || '')
+  const [accountRol, setAccountRol] = useState(person.cuenta_usuario?.rol || (person.cargo?.toUpperCase().includes('SUPERVISOR') ? 'supervisor' : 'tecnico'))
+  const [accountActivo, setAccountActivo] = useState(person.cuenta_usuario ? person.cuenta_usuario.activo : true)
+  const [savingAccount, setSavingAccount] = useState(false)
+  const [savedSuccess, setSavedSuccess] = useState(false)
 
   // Cerrar drawer con tecla Escape
   useEffect(() => {
@@ -952,10 +1033,20 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onOpenPasswordModal, 
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
+  // Mantener actualizado el formulario al cambiar de integrante
+  useEffect(() => {
+    setAccountEmail(person.cuenta_usuario?.email || person.email || '')
+    setAccountRol(person.cuenta_usuario?.rol || (person.cargo?.toUpperCase().includes('SUPERVISOR') ? 'supervisor' : 'tecnico'))
+    setAccountActivo(person.cuenta_usuario ? person.cuenta_usuario.activo : true)
+    setShowAssignForm(false)
+    setSavedSuccess(false)
+  }, [person])
+
   const handleCopyDni = (e) => {
     e.stopPropagation()
-    if (!person.documento_identidad) return
-    navigator.clipboard.writeText(person.documento_identidad)
+    const doc = person.dni || person.documento_identidad
+    if (!doc) return
+    navigator.clipboard.writeText(doc)
     setCopiedDni(true)
     setTimeout(() => setCopiedDni(false), 2000)
   }
@@ -971,7 +1062,33 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onOpenPasswordModal, 
     }
   }
 
+  const handleSaveAccount = async (e) => {
+    e.preventDefault()
+    if (!accountEmail.trim()) {
+      alert('Ingresa un correo electrónico para asignar la cuenta.')
+      return
+    }
+    setSavingAccount(true)
+    try {
+      if (onAssignAccount) {
+        await onAssignAccount(person.id, {
+          email: accountEmail.trim(),
+          rol: accountRol,
+          activo: accountActivo
+        })
+      }
+      setSavedSuccess(true)
+      setTimeout(() => setSavedSuccess(false), 3000)
+      setShowAssignForm(false)
+    } catch {
+      // alert gestionado por callback
+    } finally {
+      setSavingAccount(false)
+    }
+  }
+
   const isCarlos = (person.nombre_completo || '').includes('CARLOS CONDOR')
+  const hasAccount = !!person.cuenta_usuario
 
   return (
     <div className="obs-drawer-overlay">
@@ -1009,82 +1126,182 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onOpenPasswordModal, 
         {/* Cuerpo del Drawer */}
         <div className="obs-drawer-body" style={{ gap: '1.1rem', padding: '1.25rem' }}>
 
-          {/* ── SECCIÓN 1: MÉTRICA Y GESTIÓN DE CUENTA DE ACCESO AL PROGRAMA ── */}
-          <div className={`drawer-access-metric-card ${person.activo ? 'is-active' : ''}`}>
+          {/* ── SECCIÓN 1: ASIGNACIÓN DE CUENTA Y ROL EN ESTE PROYECTO (COVEPA) ── */}
+          <div className={`drawer-access-metric-card ${hasAccount && person.cuenta_usuario.activo ? 'is-active' : ''}`}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                {person.activo ? (
+                {hasAccount && person.cuenta_usuario.activo ? (
                   <ShieldCheck size={20} color="#059669" />
                 ) : (
                   <Lock size={20} color="#64748b" />
                 )}
                 <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#003060', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  Cuenta de Acceso al Sistema
+                  Cuenta y Rol en este Proyecto
                 </span>
               </div>
 
-              {person.activo ? (
-                <span className="covepa-access-badge active">
-                  <CheckCircle2 size={11} /> Habilitada
-                </span>
+              {hasAccount ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span className={`role-tag-covepa ${person.cuenta_usuario.rol}`}>
+                    {person.cuenta_usuario.rol}
+                  </span>
+                  <span className={`covepa-access-badge ${person.cuenta_usuario.activo ? 'active' : 'inactive'}`}>
+                    {person.cuenta_usuario.activo ? 'Habilitada' : 'Bloqueada'}
+                  </span>
+                </div>
               ) : (
                 <span className="covepa-access-badge inactive">
-                  <AlertCircle size={11} /> Deshabilitada
+                  <AlertCircle size={11} /> Sin Cuenta en COVEPA
                 </span>
               )}
             </div>
 
-            <div style={{ fontSize: '0.82rem', color: person.activo ? 'var(--text-secondary)' : 'var(--text-muted)', lineHeight: 1.45 }}>
-              {person.activo
-                ? 'Este integrante tiene credenciales activas para acceder y gestionar en la plataforma web de Amazonas-COVEPA.'
-                : 'Este integrante actualmente NO tiene permisos de acceso al sistema. Puedes habilitar su cuenta con el botón inferior.'}
+            <div style={{ fontSize: '0.82rem', color: hasAccount ? 'var(--text-secondary)' : 'var(--text-muted)', lineHeight: 1.45 }}>
+              {hasAccount
+                ? `Este integrante tiene una cuenta configurada con el rol de ${person.cuenta_usuario.rol.toUpperCase()} en esta base de datos.`
+                : 'Este integrante proviene de la base de datos externa y aún no tiene una cuenta ni rol asignado en este proyecto. Puedes asignárselo a continuación.'}
             </div>
 
-            {/* Datos de Credenciales */}
-            <div style={{ background: '#f8fbfe', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
-              <div>
-                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Identificador / DNI</div>
-                <div style={{ fontSize: '0.86rem', fontFamily: 'monospace', fontWeight: 700, color: '#003060' }}>
-                  {person.documento_identidad || 'Sin DNI'}
+            {/* Si el formulario de asignación está abierto */}
+            {showAssignForm ? (
+              <form onSubmit={handleSaveAccount} className="account-form-box">
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#003060', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Sparkles size={13} color="#0284c7" />
+                  Asignar / Modificar Cuenta y Rol
                 </div>
-              </div>
 
-              <div>
-                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Rol Asignado</div>
-                <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0284c7' }}>
-                  {isCarlos || person.cargo === 'SUPERVISOR' ? 'Supervisor (Admin)' : person.cargo}
+                <div className="prog-form-group" style={{ marginBottom: '0.4rem' }}>
+                  <label style={{ fontSize: '0.72rem', color: '#003060', fontWeight: 600 }}>Correo Electrónico de Ingreso *</label>
+                  <input
+                    type="email"
+                    className="prog-form-control"
+                    placeholder="usuario@covepa.com"
+                    value={accountEmail}
+                    onChange={e => setAccountEmail(e.target.value)}
+                    required
+                    style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}
+                  />
                 </div>
-              </div>
 
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Correo Electrónico de Ingreso</div>
-                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: person.email ? '#003060' : 'var(--text-muted)' }}>
-                  {person.email || 'Sin correo asociado (puede vincularse al editar)'}
+                <div className="prog-form-group" style={{ marginBottom: '0.4rem' }}>
+                  <label style={{ fontSize: '0.72rem', color: '#003060', fontWeight: 600 }}>Rol en este Programa *</label>
+                  <select
+                    className="prog-form-control"
+                    value={accountRol}
+                    onChange={e => setAccountRol(e.target.value)}
+                    style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}
+                  >
+                    <option value="admin">Administrador General (Acceso Total)</option>
+                    <option value="supervisor">Supervisor (Operación y Validación)</option>
+                    <option value="coordinador">Coordinador (Programación y Reportes)</option>
+                    <option value="tecnico">Técnico (Consulta y Campo)</option>
+                  </select>
                 </div>
-              </div>
-            </div>
 
-            {/* Botón de Habilitar / Deshabilitar */}
-            <button
-              type="button"
-              className={`btn-access-toggle ${person.activo ? 'disable' : 'enable'}`}
-              onClick={handleToggle}
-              disabled={togglingAccess}
-            >
-              {togglingAccess ? (
-                <RefreshCw size={14} className="spin" />
-              ) : person.activo ? (
-                <>
-                  <Lock size={14} />
-                  <span>Deshabilitar Cuenta de Acceso</span>
-                </>
-              ) : (
-                <>
-                  <ShieldCheck size={14} />
-                  <span>Habilitar Cuenta de Acceso a este Programa</span>
-                </>
-              )}
-            </button>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0' }}>
+                  <span style={{ fontSize: '0.76rem', color: '#003060', fontWeight: 600 }}>Habilitar Inicio de Sesión</span>
+                  <input
+                    type="checkbox"
+                    checked={accountActivo}
+                    onChange={e => setAccountActivo(e.target.checked)}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#003060' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.3rem' }}>
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    disabled={savingAccount}
+                    style={{ fontSize: '0.78rem', padding: '0.45rem', justifyContent: 'center' }}
+                  >
+                    {savingAccount ? 'Guardando...' : 'Guardar Cuenta'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowAssignForm(false)}
+                    disabled={savingAccount}
+                    style={{ fontSize: '0.78rem', padding: '0.45rem', justifyContent: 'center' }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                {/* Resumen de credenciales */}
+                <div style={{ background: '#f8fbfe', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Identificador / DNI</div>
+                    <div style={{ fontSize: '0.86rem', fontFamily: 'monospace', fontWeight: 700, color: '#003060' }}>
+                      {person.dni || person.documento_identidad || 'Sin DNI'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Rol Asignado</div>
+                    <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0284c7' }}>
+                      {hasAccount ? (
+                        <span className={`role-tag-covepa ${person.cuenta_usuario.rol}`}>
+                          {person.cuenta_usuario.rol}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>Sin asignar</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Correo Electrónico de Ingreso</div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: (person.cuenta_usuario?.email || person.email) ? '#003060' : 'var(--text-muted)' }}>
+                      {person.cuenta_usuario?.email || person.email || 'Sin correo asociado'}
+                    </div>
+                  </div>
+                </div>
+
+                {savedSuccess && (
+                  <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#059669', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <CheckCircle2 size={14} /> ¡Cuenta y rol asignados exitosamente en la BD del proyecto!
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowAssignForm(true)}
+                    style={{ fontSize: '0.8rem', padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  >
+                    <KeyRound size={14} color="#003060" />
+                    <span>{hasAccount ? 'Modificar Cuenta y Rol en COVEPA' : 'Asignar Cuenta y Rol a este Personal'}</span>
+                  </button>
+
+                  {hasAccount && (
+                    <button
+                      type="button"
+                      className={`btn-access-toggle ${person.cuenta_usuario.activo ? 'disable' : 'enable'}`}
+                      onClick={handleToggle}
+                      disabled={togglingAccess}
+                    >
+                      {togglingAccess ? (
+                        <RefreshCw size={14} className="spin" />
+                      ) : person.cuenta_usuario.activo ? (
+                        <>
+                          <Lock size={14} />
+                          <span>Deshabilitar Cuenta de Acceso</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck size={14} />
+                          <span>Habilitar Cuenta de Acceso</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {/* ── SECCIÓN 2: IDENTIFICACIÓN Y DATOS PERSONALES ── */}
@@ -1333,23 +1550,26 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onOpenPasswordModal, 
 // ────────────────────────────────────────────────────────────
 function ModalPersonal({ member, onClose, onSaved }) {
   const isEditing = !!member
-  const [nombre, setNombre] = useState(member?.nombre_completo || '')
-  const [dni, setDni] = useState(member?.documento_identidad || '')
-  const [email, setEmail] = useState(member?.email || '')
-  const [empresa, setEmpresa] = useState(member?.empresa || 'COVEPA')
-  const [cargo, setCargo] = useState(member?.cargo || 'TÉCNICO')
-  const [cuadrilla, setCuadrilla] = useState(member?.cuadrilla || 'CUADRILLA 1')
-  const [origen, setOrigen] = useState(member?.origen || '')
-  const [activo, setActivo] = useState(member?.activo !== undefined ? member.activo : true)
+  const [nombre, setNombre] = useState(member?.nombre || (member?.nombre_completo ? member.nombre_completo.split(' ')[0] : ''))
+  const [apellido, setApellido] = useState(member?.apellido || (member?.nombre_completo ? member.nombre_completo.split(' ').slice(1).join(' ') : ''))
+  const [dni, setDni] = useState(member?.dni || member?.documento_identidad || '')
+  const [email, setEmail] = useState(member?.email || member?.cuenta_usuario?.email || '')
+  const [empresa, setEmpresa] = useState(member?.empresa || 'SELNET')
+  const [cargo, setCargo] = useState(member?.cargo || 'Tecnico')
+  const [estado, setEstado] = useState(member?.estado || 'Activo')
 
-  // Separar líneas telefónicas y operadores existentes
   const initialPhones = (member?.telefono || '').split('/').map(s => s.trim())
   const initialOps = (member?.operador || '').split('/').map(s => s.trim())
 
-  const [tel1, setTel1] = useState(initialPhones[0] || '')
-  const [op1, setOp1] = useState(initialOps[0] || 'BITEL')
-  const [tel2, setTel2] = useState(initialPhones[1] || '')
-  const [op2, setOp2] = useState(initialOps[1] || 'CLARO')
+  const [tel1, setTel1] = useState(member?.contacto_1 || initialPhones[0] || '')
+  const [op1, setOp1] = useState(member?.operador_1 || initialOps[0] || 'Claro')
+  const [tel2, setTel2] = useState(member?.contacto_2 || initialPhones[1] || '')
+  const [op2, setOp2] = useState(member?.operador_2 || initialOps[1] || 'Movistar')
+
+  // Asignación de cuenta en la base de datos de este proyecto (COVEPA)
+  const [asignarCuenta, setAsignarCuenta] = useState(!!member?.cuenta_usuario || !!member?.email)
+  const [rolCuenta, setRolCuenta] = useState(member?.cuenta_usuario?.rol || (member?.cargo?.toUpperCase().includes('SUPERVISOR') ? 'supervisor' : 'tecnico'))
+  const [cuentaActiva, setCuentaActiva] = useState(member?.cuenta_usuario ? member.cuenta_usuario.activo : true)
 
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -1363,47 +1583,34 @@ function ModalPersonal({ member, onClose, onSaved }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  const isTecnico = cargo.includes('TÉCNICO') || cargo.includes('SUPERVISOR')
-  const isGilat = empresa === 'GILAT'
-
   const handleSubmit = async e => {
     e.preventDefault()
     setErrorMsg('')
 
     if (!nombre.trim()) {
-      setErrorMsg('El nombre completo es obligatorio.')
+      setErrorMsg('El nombre es obligatorio.')
       return
     }
-
-    // Construir combinación de teléfonos y operadores
-    const phoneParts = []
-    const opParts = []
-    if (tel1.trim()) {
-      phoneParts.push(tel1.trim())
-      opParts.push(op1.trim().toUpperCase())
-    }
-    if (tel2.trim()) {
-      phoneParts.push(tel2.trim())
-      opParts.push(op2.trim().toUpperCase())
-    }
-
-    const combinedTelefono = phoneParts.length > 0 ? phoneParts.join(' / ') : null
-    const combinedOperador = opParts.length > 0 ? opParts.join(' / ') : null
 
     setSaving(true)
     try {
       const payload = {
-        nombre_completo: nombre,
-        documento_identidad: dni.trim() || null,
-        empresa: empresa || 'COVEPA',
-        cargo,
-        // Solo los técnicos de COVEPA conservan cuadrilla fija
-        cuadrilla: (!isGilat && isTecnico) ? (cuadrilla ? cuadrilla.trim().toUpperCase() : null) : null,
-        origen,
+        nombre: nombre.trim(),
+        apellido: apellido.trim() || null,
+        dni: dni.trim() || null,
+        empresa: empresa.trim() || 'SELNET',
+        cargo: cargo.trim() || 'Tecnico',
+        contacto_1: tel1.trim() || null,
+        operador_1: tel1.trim() ? op1 : null,
+        contacto_2: tel2.trim() || null,
+        operador_2: tel2.trim() ? op2 : null,
         email: email ? email.trim().toLowerCase() : null,
-        telefono: combinedTelefono,
-        operador: combinedOperador,
-        activo
+        estado: estado || 'Activo',
+        activo: estado === 'Activo',
+        // Cuenta de acceso en BD local del proyecto
+        rol_cuenta: asignarCuenta ? rolCuenta : null,
+        cuenta_activa: asignarCuenta ? cuentaActiva : false,
+        asignar_cuenta: asignarCuenta
       }
 
       if (isEditing) {
@@ -1420,11 +1627,11 @@ function ModalPersonal({ member, onClose, onSaved }) {
 
   return (
     <div className="prog-modal-overlay">
-      <div className="prog-modal" style={{ maxWidth: '520px' }}>
+      <div className="prog-modal" style={{ maxWidth: '540px' }}>
         <div className="prog-modal-header">
           <h3>
             <Users size={18} color="#003060" />
-            {isEditing ? 'Editar Integrante' : 'Nuevo Integrante de Personal'}
+            {isEditing ? 'Editar Integrante de Personal' : 'Nuevo Integrante de Personal'}
           </h3>
           <button className="btn-close" onClick={onClose}><X size={18} /></button>
         </div>
@@ -1448,25 +1655,40 @@ function ModalPersonal({ member, onClose, onSaved }) {
               </div>
             )}
 
-            <div className="prog-form-group">
-              <label>Nombre Completo *</label>
-              <input
-                type="text"
-                className="prog-form-control"
-                placeholder="Ej: CARLOS CONDOR"
-                value={nombre}
-                onChange={e => setNombre(e.target.value)}
-                required
-              />
-            </div>
-
+            {/* Fila 1: Nombre y Apellido */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
               <div className="prog-form-group">
-                <label>DNI / Documento de Identidad</label>
+                <label>Nombres *</label>
                 <input
                   type="text"
                   className="prog-form-control"
-                  placeholder="Ej: 73144613 (8 dígitos)"
+                  placeholder="Ej: Carlos"
+                  value={nombre}
+                  onChange={e => setNombre(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="prog-form-group">
+                <label>Apellidos</label>
+                <input
+                  type="text"
+                  className="prog-form-control"
+                  placeholder="Ej: Cóndor"
+                  value={apellido}
+                  onChange={e => setApellido(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Fila 2: DNI y Correo Electrónico */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+              <div className="prog-form-group">
+                <label>DNI / Documento (8 dígitos)</label>
+                <input
+                  type="text"
+                  className="prog-form-control"
+                  placeholder="Ej: 73144613"
                   maxLength={8}
                   value={dni}
                   onChange={e => setDni(e.target.value.replace(/\D/g, ''))}
@@ -1474,7 +1696,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
               </div>
 
               <div className="prog-form-group">
-                <label>Correo Electrónico (Acceso web)</label>
+                <label>Correo Electrónico</label>
                 <input
                   type="email"
                   className="prog-form-control"
@@ -1485,115 +1707,64 @@ function ModalPersonal({ member, onClose, onSaved }) {
               </div>
             </div>
 
+            {/* Fila 3: Empresa y Cargo */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
               <div className="prog-form-group">
                 <label>Empresa *</label>
-                <select
+                <input
+                  type="text"
                   className="prog-form-control"
+                  list="empresas-list"
+                  placeholder="SELNET, COVEPA..."
                   value={empresa}
-                  onChange={e => {
-                    const val = e.target.value
-                    setEmpresa(val)
-                    if (val === 'GILAT' && cargo === 'TÉCNICO') {
-                      setCargo('SUPERVISOR GILAT')
-                    }
-                  }}
+                  onChange={e => setEmpresa(e.target.value)}
                   required
-                >
-                  <option value="COVEPA">COVEPA (Operación / Cuadrillas)</option>
-                  <option value="GILAT">GILAT (Cliente / Auditor / Validador)</option>
-                </select>
+                />
+                <datalist id="empresas-list">
+                  <option value="SELNET" />
+                  <option value="COVEPA" />
+                  <option value="Gilat Networks" />
+                </datalist>
               </div>
 
               <div className="prog-form-group">
                 <label>Cargo *</label>
-                <select
-                  className="prog-form-control"
-                  value={cargo}
-                  onChange={e => setCargo(e.target.value)}
-                  required
-                >
-                  {isGilat ? (
-                    <>
-                      <option value="SUPERVISOR GILAT">SUPERVISOR GILAT</option>
-                      <option value="AUDITOR GILAT">AUDITOR GILAT</option>
-                      <option value="VALIDADOR GILAT">VALIDADOR GILAT</option>
-                      <option value="COORDINADOR GILAT">COORDINADOR GILAT</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="SUPERVISOR">SUPERVISOR</option>
-                      <option value="TÉCNICO">TÉCNICO</option>
-                      <option value="CONDUCTOR">CONDUCTOR</option>
-                      <option value="SUPERVISOR / CAMPO">SUPERVISOR / CAMPO</option>
-                      <option value="COORDINADOR">COORDINADOR</option>
-                      <option value="GESTIÓN DE CALIDAD">GESTIÓN DE CALIDAD</option>
-                    </>
-                  )}
-                </select>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
-              {/* Cuadrilla solo para Técnicos de COVEPA */}
-              <div className="prog-form-group">
-                <label>Cuadrilla Fija {(!isGilat && isTecnico) ? '*' : '(No aplica)'}</label>
-                {(!isGilat && isTecnico) ? (
-                  <select
-                    className="prog-form-control"
-                    value={cuadrilla}
-                    onChange={e => setCuadrilla(e.target.value)}
-                  >
-                    <option value="CUADRILLA 1">CUADRILLA 1</option>
-                    <option value="CUADRILLA 2">CUADRILLA 2</option>
-                    <option value="CUADRILLA 3">CUADRILLA 3</option>
-                    <option value="CUADRILLA 4">CUADRILLA 4</option>
-                    <option value="CUADRILLA 5">CUADRILLA 5</option>
-                    <option value="CUADRILLA 6">CUADRILLA 6</option>
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    className="prog-form-control"
-                    value={isGilat ? 'No aplica (Personal GILAT)' : 'Rotativo / Sin cuadrilla fija'}
-                    disabled
-                    style={{ opacity: 0.6, cursor: 'not-allowed' }}
-                  />
-                )}
-              </div>
-
-              <div className="prog-form-group">
-                <label>Ciudad Base / Origen</label>
                 <input
                   type="text"
                   className="prog-form-control"
-                  placeholder="Ej: LIMA, CHACHAPOYAS, BAGUA"
-                  value={origen}
-                  onChange={e => setOrigen(e.target.value)}
+                  list="cargos-list"
+                  placeholder="Supervisor, Tecnico..."
+                  value={cargo}
+                  onChange={e => setCargo(e.target.value)}
+                  required
                 />
+                <datalist id="cargos-list">
+                  <option value="Supervisor" />
+                  <option value="Tecnico" />
+                  <option value="Documentador" />
+                  <option value="Conductor" />
+                  <option value="Logistica" />
+                  <option value="NOC" />
+                  <option value="Supervisor de Campo" />
+                </datalist>
               </div>
             </div>
 
-            {/* Métrica / Switch para Habilitar Acceso al Sistema */}
-            <div style={{ background: '#f8fbfe', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.75rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginTop: '0.25rem' }}>
-              <div>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#003060', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <ShieldCheck size={14} color="#059669" />
-                  Habilitar Cuenta de Acceso a este Programa
-                </div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  Permite a este integrante iniciar sesión y gestionar en Amazonas-COVEPA
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={activo}
-                onChange={e => setActivo(e.target.checked)}
-                style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#003060' }}
-              />
+            {/* Fila 4: Estado en Base Externa */}
+            <div className="prog-form-group">
+              <label>Estado en Base de Datos Externa *</label>
+              <select
+                className="prog-form-control"
+                value={estado}
+                onChange={e => setEstado(e.target.value)}
+                required
+              >
+                <option value="Activo">Activo (Disponible en operación)</option>
+                <option value="Inactivo">Inactivo (Deshabilitado)</option>
+              </select>
             </div>
 
-            {/* Línea Telefónica 1 */}
+            {/* Fila 5: Teléfono 1 y Operador */}
             <div style={{
               background: '#f8fbfe',
               border: '1px solid var(--border)',
@@ -1601,12 +1772,11 @@ function ModalPersonal({ member, onClose, onSaved }) {
               padding: '0.75rem',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.4rem',
-              marginTop: '0.25rem'
+              gap: '0.4rem'
             }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#003060', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Phone size={13} />
-                Línea Telefónica Principal
+                Línea Telefónica Principal (contacto_1)
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '0.6rem' }}>
                 <input
@@ -1621,15 +1791,16 @@ function ModalPersonal({ member, onClose, onSaved }) {
                   value={op1}
                   onChange={e => setOp1(e.target.value)}
                 >
-                  <option value="BITEL">BITEL</option>
-                  <option value="CLARO">CLARO</option>
-                  <option value="MOVISTAR">MOVISTAR</option>
-                  <option value="ENTEL">ENTEL</option>
+                  <option value="Claro">Claro</option>
+                  <option value="Movistar">Movistar</option>
+                  <option value="Entel">Entel</option>
+                  <option value="Bitel">Bitel</option>
+                  <option value="Otro">Otro</option>
                 </select>
               </div>
             </div>
 
-            {/* Línea Telefónica 2 (Opcional) */}
+            {/* Fila 6: Teléfono 2 y Operador */}
             <div style={{
               background: '#f8fbfe',
               border: '1px solid var(--border)',
@@ -1641,13 +1812,13 @@ function ModalPersonal({ member, onClose, onSaved }) {
             }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0284c7', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Phone size={13} />
-                Segunda Línea Telefónica (Opcional)
+                Segunda Línea Telefónica (contacto_2)
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '0.6rem' }}>
                 <input
                   type="text"
                   className="prog-form-control"
-                  placeholder="Número 2 (ej: 939507297)"
+                  placeholder="Número 2 (opcional)"
                   value={tel2}
                   onChange={e => setTel2(e.target.value)}
                 />
@@ -1656,13 +1827,80 @@ function ModalPersonal({ member, onClose, onSaved }) {
                   value={op2}
                   onChange={e => setOp2(e.target.value)}
                 >
-                  <option value="CLARO">CLARO</option>
-                  <option value="BITEL">BITEL</option>
-                  <option value="MOVISTAR">MOVISTAR</option>
-                  <option value="ENTEL">ENTEL</option>
+                  <option value="Movistar">Movistar</option>
+                  <option value="Claro">Claro</option>
+                  <option value="Entel">Entel</option>
+                  <option value="Bitel">Bitel</option>
+                  <option value="Otro">Otro</option>
                 </select>
               </div>
             </div>
+
+            {/* SECCIÓN ESPECIAL: Asignar Cuenta y Rol en ESTE PROYECTO (COVEPA) */}
+            <div style={{
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: '10px',
+              padding: '0.85rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.6rem',
+              marginTop: '0.3rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <ShieldCheck size={16} color="#16a34a" />
+                  Asignar Cuenta y Rol en este Proyecto (COVEPA)
+                </div>
+                <input
+                  type="checkbox"
+                  checked={asignarCuenta}
+                  onChange={e => setAsignarCuenta(e.target.checked)}
+                  style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: '#16a34a' }}
+                />
+              </div>
+
+              {asignarCuenta && (
+                <>
+                  <div style={{ fontSize: '0.72rem', color: '#15803d' }}>
+                    Se vinculará este personal en <code>perfiles_usuario</code> de esta base de datos local con el rol seleccionado.
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                    <div className="prog-form-group">
+                      <label style={{ color: '#166534', fontWeight: 600 }}>Rol Asignado *</label>
+                      <select
+                        className="prog-form-control"
+                        value={rolCuenta}
+                        onChange={e => setRolCuenta(e.target.value)}
+                        style={{ borderColor: '#86efac' }}
+                      >
+                        <option value="admin">Administrador (admin)</option>
+                        <option value="supervisor">Supervisor (supervisor)</option>
+                        <option value="coordinador">Coordinador (coordinador)</option>
+                        <option value="tecnico">Técnico (tecnico)</option>
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                      <label style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 600, marginBottom: '0.3rem' }}>
+                        Permiso de Acceso
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#14532d', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={cuentaActiva}
+                          onChange={e => setCuentaActiva(e.target.checked)}
+                          style={{ accentColor: '#16a34a' }}
+                        />
+                        Inicio de sesión habilitado
+                      </label>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
           </div>
 
           <div className="prog-modal-footer">

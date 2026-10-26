@@ -16,6 +16,20 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   }
 })
 
+// Cliente Supabase — Base de datos EXTERNA (Amazonas-SELNET)
+const supabaseExtUrl = import.meta.env.VITE_SUPABASE_EXT_URL
+const supabaseExtKey = import.meta.env.VITE_SUPABASE_EXT_ANON_KEY
+
+if (!supabaseExtUrl || !supabaseExtKey) {
+  console.warn('⚠️ Supabase (base externa): variables de entorno no configuradas.')
+}
+
+export const supabaseExt = createClient(supabaseExtUrl || '', supabaseExtKey || '', {
+  auth: {
+    persistSession: false
+  }
+})
+
 // Helper para detectar expiración de sesión y limpiar credenciales inválidas
 export function handleSupabaseAuthError(error) {
   if (error && (error.message?.includes('JWT expired') || error.message?.includes('invalid claim') || error.code === '401')) {

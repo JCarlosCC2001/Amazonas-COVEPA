@@ -1,31 +1,25 @@
-import { supabase, handleSupabaseAuthError } from '../lib/supabase'
+import { supabase, handleSupabaseAuthError } from '../lib/supabase.js'
+import { fetchPersonal } from './personalService.js'
 
 // ────────────────────────────────────────────────────────────
 // 1. Obtener la lista de todo el personal activo (técnicos, conductores, supervisores)
 // ────────────────────────────────────────────────────────────
 export async function getPersonalActivo() {
-  const { data, error } = await supabase
-    .from('personal')
-    .select('id, cuadrilla, cargo, nombre_completo, telefono, activo, operador, origen, empresa')
-    .eq('activo', true)
-    .order('cargo', { ascending: true })
-
-  if (error) {
-    handleSupabaseAuthError(error)
-    console.error('Error fetching personal:', error)
+  try {
+    const list = await fetchPersonal()
+    const activeOnly = (list || []).filter(p => p.activo)
+    return activeOnly.sort((a, b) => {
+      const aIsTec = (a.cargo || '').includes('TÉCNICO') || (a.cargo || '').includes('TECNICO')
+      const bIsTec = (b.cargo || '').includes('TÉCNICO') || (b.cargo || '').includes('TECNICO')
+      if (aIsTec && !bIsTec) return -1
+      if (!aIsTec && bIsTec) return 1
+      if (a.cuadrilla && b.cuadrilla) return a.cuadrilla.localeCompare(b.cuadrilla)
+      return (a.nombre_completo || '').localeCompare(b.nombre_completo || '')
+    })
+  } catch (err) {
+    console.error('Error fetching personal:', err)
     return []
   }
-
-  // Ordenar: Técnicos 1-6 primero, luego supervisores, luego conductores
-  const list = data || []
-  return list.sort((a, b) => {
-    const aIsTec = (a.cargo || '').includes('TÉCNICO') || (a.cargo || '').includes('TECNICO')
-    const bIsTec = (b.cargo || '').includes('TÉCNICO') || (b.cargo || '').includes('TECNICO')
-    if (aIsTec && !bIsTec) return -1
-    if (!aIsTec && bIsTec) return 1
-    if (a.cuadrilla && b.cuadrilla) return a.cuadrilla.localeCompare(b.cuadrilla)
-    return (a.nombre_completo || '').localeCompare(b.nombre_completo || '')
-  })
 }
 
 // Alias para compatibilidad
@@ -36,10 +30,7 @@ export const getPersonalTecnico = getPersonalActivo
 // ────────────────────────────────────────────────────────────
 export async function getProgramaciones(fechaInicio, fechaFin) {
   // 1. Cargar catálogo de personal activo para mapear integrantes secundarios
-  const { data: allStaff } = await supabase
-    .from('personal')
-    .select('id, nombre_completo, cuadrilla, cargo, telefono, operador, empresa')
-    .eq('activo', true)
+  const allStaff = await getPersonalActivo()
 
   const staffMap = {}
   ;(allStaff || []).forEach(p => {

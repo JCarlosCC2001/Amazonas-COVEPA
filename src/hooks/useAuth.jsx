@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseExt } from '../lib/supabase'
+import { mapExternalPerson } from '../services/personalService'
 
 const AuthContext = createContext(null)
 
@@ -22,7 +23,7 @@ export function AuthProvider({ children }) {
       const userEmail = (authUser.email || '').toLowerCase().trim()
       const isMasterAdmin = userEmail === 'jcarloscc1101@gmail.com'
 
-      // 1. Consultar tabla perfiles_usuario
+      // 1. Consultar tabla perfiles_usuario en base local
       let { data: prof, error: profErr } = await supabase
         .from('perfiles_usuario')
         .select('*')
@@ -33,15 +34,24 @@ export function AuthProvider({ children }) {
       if (!prof) {
         const defaultRole = isMasterAdmin ? 'admin' : 'tecnico'
 
-        // Buscar si su correo coincide con la tabla personal para autoenlazar
+        // Buscar si su correo coincide con la tabla personal externa para autoenlazar
         let personalId = null
         try {
-          const { data: pFound } = await supabase
+          const { data: pExt } = await supabaseExt
             .from('personal')
-            .select('id')
+            .select('id_personal')
             .ilike('email', userEmail)
             .maybeSingle()
-          if (pFound) personalId = pFound.id
+          if (pExt) {
+            personalId = pExt.id_personal
+          } else {
+            const { data: pFound } = await supabase
+              .from('personal')
+              .select('id')
+              .ilike('email', userEmail)
+              .maybeSingle()
+            if (pFound) personalId = pFound.id
+          }
         } catch {
           // Si falla consulta a personal, continuar
         }
@@ -84,21 +94,53 @@ export function AuthProvider({ children }) {
 
       setProfile(prof)
 
-      // 3. Cargar registro de personal correspondiente
+      // 3. Cargar registro de personal correspondiente desde la BD externa
       if (prof?.id_personal) {
-        const { data: pData } = await supabase
-          .from('personal')
-          .select('*')
-          .eq('id', prof.id_personal)
-          .maybeSingle()
-        if (pData) setPersonalMember(pData)
+        let pFound = null
+        try {
+          const { data: pExt } = await supabaseExt
+            .from('personal')
+            .select('*')
+            .eq('id_personal', prof.id_personal)
+            .maybeSingle()
+          pFound = pExt
+        } catch {
+          // Fallback a local
+        }
+
+        if (!pFound) {
+          const { data: pLocal } = await supabase
+            .from('personal')
+            .select('*')
+            .eq('id', prof.id_personal)
+            .maybeSingle()
+          pFound = pLocal
+        }
+
+        if (pFound) setPersonalMember(mapExternalPerson(pFound))
       } else {
-        const { data: pByEmail } = await supabase
-          .from('personal')
-          .select('*')
-          .ilike('email', userEmail)
-          .maybeSingle()
-        if (pByEmail) setPersonalMember(pByEmail)
+        let pFound = null
+        try {
+          const { data: pExtByEmail } = await supabaseExt
+            .from('personal')
+            .select('*')
+            .ilike('email', userEmail)
+            .maybeSingle()
+          pFound = pExtByEmail
+        } catch {
+          // Fallback a local
+        }
+
+        if (!pFound) {
+          const { data: pLocalByEmail } = await supabase
+            .from('personal')
+            .select('*')
+            .ilike('email', userEmail)
+            .maybeSingle()
+          pFound = pLocalByEmail
+        }
+
+        if (pFound) setPersonalMember(mapExternalPerson(pFound))
       }
     } catch (err) {
       console.warn('Error cargando perfil de usuario:', err)

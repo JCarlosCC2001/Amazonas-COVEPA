@@ -3,9 +3,11 @@ import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2,
   MapPin, CheckCircle2, Clock, AlertCircle, List,
   CalendarDays, X, Search, RefreshCw, Eye, ShieldCheck,
-  Check, AlertTriangle, Users, Edit3, User, FileSpreadsheet, Download, Send
+  Check, AlertTriangle, Users, Edit3, User, FileSpreadsheet, Download, Send,
+  TrendingUp
 } from 'lucide-react'
 import ExcelJS from 'exceljs'
+import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
 import {
   getPersonalActivo,
   getPersonalTecnico,
@@ -111,6 +113,7 @@ export default function Programacion() {
   const [modalNewDate, setModalNewDate] = useState('')
   const [editingProg, setEditingProg] = useState(null)
   const [selectedProgModal, setSelectedProgModal] = useState(null) // { id_sitio, programacion, allSitios }
+  const [modalAvanceOpen, setModalAvanceOpen] = useState(false)
 
   // Calcular rango de la semana (Lunes a Domingo)
   const weekDays = useMemo(() => {
@@ -534,6 +537,16 @@ export default function Programacion() {
           </div>
 
           <button
+            type="button"
+            className="prog-btn-avance"
+            onClick={() => setModalAvanceOpen(true)}
+            title="Ver el avance diario de observaciones y revisiones técnicas del día seleccionado"
+          >
+            <TrendingUp size={15} />
+            <span>Avance del Día</span>
+          </button>
+
+          <button
             className="prog-btn-create"
             onClick={() => {
               setModalNewDate(toLocalDateString(currentDate))
@@ -927,6 +940,15 @@ export default function Programacion() {
             // Refrescar conteos de observaciones y avances
             fetchWeekData()
           }}
+        />
+      )}
+
+      {/* Modal de Avance del Día (Dashboard integrado en Programación) */}
+      {modalAvanceOpen && (
+        <ModalAvanceDia
+          fecha={toLocalDateString(currentDate)}
+          sitiosMap={sitiosMap}
+          onClose={() => setModalAvanceOpen(false)}
         />
       )}
     </div>

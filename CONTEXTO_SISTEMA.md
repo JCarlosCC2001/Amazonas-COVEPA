@@ -1,6 +1,6 @@
 # CONTEXTO GENERAL DEL SISTEMA — COVEPA AMAZONAS
 > **Documento Vivo de Arquitectura, Reglas de Negocio y Estado del Proyecto**  
-> *Última actualización: 24 de Octubre de 2026*
+> *Última actualización: 26 de Octubre de 2026*
 
 Este documento es la **fuente única de verdad (Single Source of Truth)** del proyecto. Debe ser consultado y actualizado cada vez que se implementen nuevas funciones o cambios en la arquitectura.
 
@@ -46,6 +46,12 @@ El sistema **Amazonas-COVEPA** es un ERP / Sistema Web de Gestión Operativa dis
   - Permite revisar y actualizar estado de observaciones (Validado, En Revisión, Descartado, Rechazado).
   - Autoguardado silencioso de comentarios y acuerdos al cerrar el modal.
   - Exportación nativa a **Excel (.xlsx)** con estilo `TableStyleMedium9`, incluyendo la columna dedicada **`LOCALIDAD`** al lado del código de sitio.
+- **Ventana Emergente de Avance del Día (`ModalAvanceDia`):**
+  - Botón dedicado `[ 📊 Avance del Día ]` en la barra superior que abre un modal con el reporte diario de avances para la fecha seleccionada.
+  - Métricas de estado (Total, Por Subir, En Revisión, Enviadas, Descartadas, Rechazadas) que actúan como filtros reactivos.
+  - Buscador en tiempo real por código, técnico, cuadrilla, sitio o revisor.
+  - Tabla de observaciones del día con visualización de detalle individual y exportación oficial a Excel (.xlsx) cumpliendo el estándar de código de sitio y localidad.
+  - Cierre seguro restringido únicamente al botón 'X' o tecla 'Esc'.
 
 ### 3.3. Observaciones Técnicas (`/observaciones`)
 - Tabla completa de las 4,116 observaciones con filtros por estado, grupo, hito, revisor y buscador rápido.
@@ -148,6 +154,7 @@ Para garantizar que Google Earth funcione a máxima velocidad sin congelarse ni 
 | **24-10-2026** | Depuración visual extrema del modal Nueva Programación: fecha como subtítulo, remoción de notas, pie simplificado y sitios mínimos. | La fecha se reubicó directamente debajo del título principal y se eliminó el subtítulo descriptivo ("Asignación de personal operativo..."). Se removió el bloque de 'Notas o Itinerario' y el texto de jornada en el pie. En cuadrillas rápidas se eliminó la mención '1 Clic' y 'Técnico + Conductor'. En la lista de sitios se simplificó la presentación exclusivamente al Código de Sitio, Nombre de Lugar/Localidad y Zona (eliminados grupo y nombres secundarios de nodo). |
 | **26-10-2026** | Cierre exclusivo de ventanas emergentes (modales y drawers) mediante botón 'X' o tecla 'Esc'. | Se eliminó el cierre accidental al hacer clic en el backdrop/overlay exterior en todos los modales del sistema (Programación, Sitios, Técnicos, Dashboard y Observaciones). Ahora las ventanas emergentes solo se cierran intencionalmente al pulsar el botón 'X' o presionar la tecla 'Esc'. |
 | **26-10-2026** | Remoción del botón manual de guardar comentario y persistencia automática al cerrar la ventana/página. | Se eliminó el botón manual 'Guardar' que aparecía al redactar notas en las observaciones del modal de detalles. Los comentarios ahora se guardan automáticamente al perder el foco (`onBlur`), al cambiar de pestaña de sitio, al cerrar la ventana con el botón 'X' o tecla 'Esc', y ante el cierre o recarga de la página web (`beforeunload` y desmontaje). |
+| **26-10-2026** | Incorporación de botón y modal emergente de 'Avance del Día' en Programación sin alterar estructura existente. | Se agregó el botón `[ 📊 Avance del Día ]` en la barra superior de Programación (`prog-toolbar-actions`). Al hacer clic, abre `ModalAvanceDia` para la fecha activa consultando `getAvancePorFecha()`. Cuenta con contadores de estado como filtros (Total, Por Subir, En Revisión, Enviadas, Descartadas, Rechazadas), buscador en vivo, exportación oficial a Excel (.xlsx) con regla inmutable de CÓDIGO DE SITIO acompañado de LOCALIDAD, y visor de detalle de observación. Cierre seguro únicamente mediante 'X' o 'Esc'. |
 
 ---
 

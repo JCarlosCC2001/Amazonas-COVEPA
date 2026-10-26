@@ -1010,28 +1010,39 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  // Lista de personal filtrada por búsqueda (solo personal operativo COVEPA para cuadrillas en ruta)
+  // Lista de TODO el personal activo de la base de datos (con o sin cuadrilla, de cualquier empresa)
   const staffFiltrado = useMemo(() => {
-    const covepaOnly = tecnicos.filter(p => !p.empresa || p.empresa === 'COVEPA')
+    const activos = tecnicos.filter(p => p.activo !== false && (p.estado || '').toUpperCase() !== 'INACTIVO')
+
+    // Ordenar: primero quienes tienen cuadrilla asignada (CUADRILLA 1 a 6), luego por nombre
+    const sorted = [...activos].sort((a, b) => {
+      const cA = a.cuadrilla || ''
+      const cB = b.cuadrilla || ''
+      if (cA && !cB) return -1
+      if (!cA && cB) return 1
+      if (cA && cB && cA !== cB) return cA.localeCompare(cB, undefined, { numeric: true })
+      return (a.nombre_completo || '').localeCompare(b.nombre_completo || '')
+    })
+
     const q = searchStaff.toLowerCase().trim()
-    if (!q) return covepaOnly
-    return covepaOnly.filter(p =>
+    if (!q) return sorted
+    return sorted.filter(p =>
       (p.nombre_completo && p.nombre_completo.toLowerCase().includes(q)) ||
       (p.cargo && p.cargo.toLowerCase().includes(q)) ||
-      (p.cuadrilla && p.cuadrilla.toLowerCase().includes(q))
+      (p.cuadrilla && p.cuadrilla.toLowerCase().includes(q)) ||
+      (p.empresa && p.empresa.toLowerCase().includes(q))
     )
   }, [tecnicos, searchStaff])
 
-  // Cuadrilla del técnico o personal actualmente seleccionado
+  // Cuadrilla del personal o técnico actualmente seleccionado (solo si tiene cuadrilla designada)
   const selectedTechCuadrilla = useMemo(() => {
     if (selectedPersonalIds.length === 0) return null
     const selectedMembers = tecnicos.filter(t => selectedPersonalIds.includes(t.id))
-    const tech = selectedMembers.find(m => {
-      const c = (m.cargo || '').toUpperCase()
-      return c.includes('TÉCNICO') || c.includes('SUPERVISOR')
-    }) || selectedMembers[0]
+    // Buscar si algún integrante seleccionado tiene cuadrilla designada
+    const memberWithCuadrilla = selectedMembers.find(m => m.cuadrilla && m.cuadrilla.trim())
+    if (!memberWithCuadrilla) return null
 
-    return (tech?.cuadrilla || '').trim().toUpperCase() || null
+    return memberWithCuadrilla.cuadrilla.trim().toUpperCase()
   }, [selectedPersonalIds, tecnicos])
 
   const toggleSelectStaff = id => {
@@ -1135,8 +1146,7 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
           const c = (t.cargo || '').toUpperCase()
           const isTech = c.includes('TÉCNICO') || c.includes('SUPERVISOR')
           const matchCuad = (t.cuadrilla || '').trim().toUpperCase() === siteCuad
-          const isCovepa = !t.empresa || t.empresa === 'COVEPA'
-          return isTech && matchCuad && isCovepa
+          return isTech && matchCuad
         })
 
         if (tech) {
@@ -1254,6 +1264,34 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                       <span key={id} className="prog-selected-staff-pill">
                         <span className="staff-pill-name">{person.nombre_completo}</span>
                         <span className={`role-badge ${cClass}`}>{person.cargo}</span>
+                        {person.cuadrilla ? (
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              background: 'rgba(0,48,96,0.12)',
+                              color: '#003060',
+                              border: '1px solid rgba(0,48,96,0.2)'
+                            }}
+                          >
+                            {person.cuadrilla}
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 600,
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              background: 'rgba(100,116,139,0.1)',
+                              color: '#64748b'
+                            }}
+                          >
+                            Sin Cuadrilla
+                          </span>
+                        )}
                         <button
                           type="button"
                           className="staff-pill-remove"
@@ -1273,7 +1311,7 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                 <Search size={13} color="#64748b" />
                 <input
                   type="text"
-                  placeholder="Buscar personal por nombre o cargo..."
+                  placeholder="Buscar personal por nombre, cargo, cuadrilla o empresa..."
                   value={searchStaff}
                   onChange={e => setSearchStaff(e.target.value)}
                 />
@@ -1289,7 +1327,6 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                 {staffFiltrado.map(p => {
                   const isSelected = selectedPersonalIds.includes(p.id)
                   const cClass = getCargoClass(p.cargo)
-                  const isTecnico = cClass === 'tecnico' || (p.cargo || '').includes('SUPERVISOR')
 
                   return (
                     <div
@@ -1311,12 +1348,45 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                           <span className="prog-staff-row-name">
                             {p.nombre_completo}
                           </span>
-                          <div className="prog-staff-row-meta">
+                          <div className="prog-staff-row-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                             <span className={`role-badge ${cClass}`}>{p.cargo}</span>
-                            {isTecnico && p.cuadrilla ? (
-                              <span className="prog-card-cuadrilla-badge">{p.cuadrilla}</span>
+                            {p.empresa && (
+                              <span
+                                style={{
+                                  fontSize: '0.68rem',
+                                  fontWeight: 600,
+                                  padding: '1px 5px',
+                                  borderRadius: '3px',
+                                  background: '#f1f5f9',
+                                  color: '#475569'
+                                }}
+                              >
+                                {p.empresa}
+                              </span>
+                            )}
+                            {p.cuadrilla ? (
+                              <span
+                                className="prog-card-cuadrilla-badge"
+                                style={{
+                                  fontWeight: 700,
+                                  background: 'rgba(0,48,96,0.08)',
+                                  color: '#003060',
+                                  border: '1px solid rgba(0,48,96,0.2)'
+                                }}
+                              >
+                                {p.cuadrilla}
+                              </span>
                             ) : (
-                              <span className="prog-cuadrilla-badge-rotativo">Rotativo</span>
+                              <span
+                                className="prog-cuadrilla-badge-rotativo"
+                                style={{
+                                  background: 'rgba(100,116,139,0.08)',
+                                  color: '#64748b',
+                                  border: '1px solid rgba(100,116,139,0.15)'
+                                }}
+                              >
+                                Sin Cuadrilla
+                              </span>
                             )}
                           </div>
                         </div>

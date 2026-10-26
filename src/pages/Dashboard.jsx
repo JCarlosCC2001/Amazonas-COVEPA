@@ -4,7 +4,7 @@ import {
   ClipboardList, CheckCircle2, Clock, AlertTriangle, XCircle,
   Ban, MapPin, Layers, Award, TrendingUp, RefreshCw, Search,
   ArrowRight, ExternalLink, Calendar, ChevronRight, ShieldCheck,
-  Radio, Sparkles, Filter, Users, Globe, FileSpreadsheet
+  Radio, Sparkles, Filter, Users, Globe, FileSpreadsheet, UploadCloud
 } from 'lucide-react'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 import { getDashboardProjectOverview } from '../services/dashboardService'
@@ -297,13 +297,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── SECCIÓN 1: MEDIDORES GENERALES DE TODO EL PROYECTO ── */}
-      <MetricGrid style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+      {/* ── SECCIÓN 1: MEDIDORES GENERALES DE TODO EL PROYECTO (6 MÉTRICAS OPERATIVAS) ── */}
+      <MetricGrid columns={6}>
         <MetricCard
           icon={<ClipboardList size={22} />}
           label="Total Observaciones"
           value={loading ? '—' : kpis.total.toLocaleString()}
-          subtitle="100% de registros en el proyecto"
+          subtitle="100% registros proyecto"
           variant="navy"
           onClick={() => navigate('/observaciones')}
           title="Ver todas las observaciones del proyecto"
@@ -313,36 +313,36 @@ export default function Dashboard() {
           icon={<AlertTriangle size={22} />}
           label="Pendientes"
           value={loading ? '—' : kpis.pendientes.toLocaleString()}
-          subtitle="Por subsanar o programar"
+          subtitle="Por subsanar en campo"
           variant="amber"
           onClick={() => navigate('/observaciones')}
           title="Observaciones pendientes de atención"
         />
 
         <MetricCard
+          icon={<UploadCloud size={22} />}
+          label="Subidas"
+          value={loading ? '—' : (kpis.enviadas || 0).toLocaleString()}
+          subtitle="Enviadas a supervisión"
+          variant="sky"
+          onClick={() => navigate('/observaciones')}
+          title="Observaciones subidas y enviadas por COVEPA"
+        />
+
+        <MetricCard
           icon={<CheckCircle2 size={22} />}
-          label="Subsanadas / Subidas"
-          value={loading ? '—' : kpis.subsanadas.toLocaleString()}
-          subtitle={`${kpis.validadas} validadas · ${kpis.enviadas} enviadas`}
+          label="Validadas"
+          value={loading ? '—' : (kpis.validadas || 0).toLocaleString()}
+          subtitle="Aprobadas por Pronatel"
           variant="emerald"
           onClick={() => navigate('/observaciones')}
           title="Observaciones acreditadas y validadas"
         />
 
         <MetricCard
-          icon={<Clock size={22} />}
-          label="En Revisión"
-          value={loading ? '—' : kpis.enRevision.toLocaleString()}
-          subtitle="En validación con Gilat / Pronatel"
-          variant="sky"
-          onClick={() => navigate('/observaciones')}
-          title="Observaciones en proceso de revisión técnica"
-        />
-
-        <MetricCard
           icon={<XCircle size={22} />}
           label="Rechazadas"
-          value={loading ? '—' : kpis.rechazadas.toLocaleString()}
+          value={loading ? '—' : (kpis.rechazadas || 0).toLocaleString()}
           subtitle="Observadas por calidad"
           variant="rose"
           onClick={() => navigate('/observaciones')}
@@ -352,21 +352,11 @@ export default function Dashboard() {
         <MetricCard
           icon={<Ban size={22} />}
           label="Descartadas"
-          value={loading ? '—' : kpis.descartadas.toLocaleString()}
+          value={loading ? '—' : (kpis.descartadas || 0).toLocaleString()}
           subtitle="Cerradas / No aplican"
           variant="purple"
           onClick={() => navigate('/observaciones')}
           title="Observaciones descartadas en campo"
-        />
-
-        <MetricCard
-          icon={<MapPin size={22} />}
-          label="Total de Sitios"
-          value={kpis.totalSitios}
-          subtitle="Nodos georreferenciados"
-          variant="indigo"
-          onClick={() => navigate('/sitios')}
-          title="Ver los 156 sitios del proyecto"
         />
       </MetricGrid>
 

@@ -36,7 +36,13 @@ function applyQueryFilters(query, {
   const searchOr = buildSearchOr(search)
   if (searchOr) query = query.or(searchOr)
   if (protocolo)      query = query.eq('protocolo', protocolo)
-  if (estadoCovepa)   query = query.eq('estado_covepa', estadoCovepa)
+  if (estadoCovepa) {
+    if (estadoCovepa === 'Pendiente') {
+      query = query.or('estado_covepa.eq.Pendiente,estado_covepa.is.null')
+    } else {
+      query = query.eq('estado_covepa', estadoCovepa)
+    }
+  }
   if (idSitio)        query = query.eq('id_sitio', idSitio)
   return query
 }
@@ -107,24 +113,31 @@ export async function fetchObservaciones({
 // ────────────────────────────────────────────────────────────
 export async function fetchObservacionesKPIs(filters = {}) {
   try {
-    const [qTotal, qPend, qSub, qRech, qDesc] = await Promise.all([
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }), filters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Pendiente,estado_covepa.is.null'), filters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.Rechazado)'), filters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Rechazado'), filters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Descartado'), filters),
+    // Para que los contadores no se reseteen a 0 al hacer clic en un medidor,
+    // calculamos los totales ignorando el filtro estadoCovepa si estuviera activo
+    const kpiFilters = { ...filters }
+    delete kpiFilters.estadoCovepa
+
+    const [qTotal, qPend, qSubidas, qValidadas, qRech, qDesc] = await Promise.all([
+      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }), kpiFilters),
+      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Pendiente,estado_covepa.is.null'), kpiFilters),
+      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Enviado'), kpiFilters),
+      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Enviado,estado_covepa.neq.Rechazado)'), kpiFilters),
+      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Rechazado'), kpiFilters),
+      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Descartado'), kpiFilters),
     ])
 
     return {
       total: qTotal.count ?? 0,
       pendientes: qPend.count ?? 0,
-      subsanadas: qSub.count ?? 0,
+      subidas: qSubidas.count ?? 0,
+      validadas: qValidadas.count ?? 0,
       rechazadas: qRech.count ?? 0,
       descartadas: qDesc.count ?? 0,
     }
   } catch (err) {
     console.error('Error al calcular KPIs:', err)
-    return { total: 0, pendientes: 0, subsanadas: 0, rechazadas: 0, descartadas: 0 }
+    return { total: 0, pendientes: 0, subidas: 0, validadas: 0, rechazadas: 0, descartadas: 0 }
   }
 }
 

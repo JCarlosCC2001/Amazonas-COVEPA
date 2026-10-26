@@ -3,7 +3,7 @@ import {
   Search, Filter, RefreshCw, FileDown, X, Eye, ChevronLeft,
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,
   AlertTriangle, FileText, Save, LayoutList, Table2,
-  ChevronDown, ChevronUp, MapPin, Loader2, Calendar, Ban
+  ChevronDown, ChevronUp, MapPin, Loader2, Calendar, Ban, UploadCloud
 } from 'lucide-react'
 import {
   fetchObservaciones, fetchObservacionesKPIs, fetchFiltrosObservaciones,
@@ -285,8 +285,9 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs }) {
           </div>
           <div className="agrupada-site-pills">
             {stats.pendientes > 0 && <span className="pill pill-yellow">{stats.pendientes} pendientes</span>}
-            {stats.subsanadas > 0 && <span className="pill pill-green">{stats.subsanadas} subsanadas</span>}
-            {stats.enRevision > 0 && <span className="pill pill-blue">{stats.enRevision} en revisión</span>}
+            {stats.enviadas > 0 && <span className="pill pill-purple">{stats.enviadas} subidas</span>}
+            {stats.validadas > 0 && <span className="pill pill-green">{stats.validadas} validadas</span>}
+            {stats.rechazadas > 0 && <span className="pill pill-red">{stats.rechazadas} rechazadas</span>}
             {stats.descartadas > 0 && <span className="pill pill-dark">{stats.descartadas} descartadas</span>}
           </div>
         </div>
@@ -415,7 +416,7 @@ function GrupadaView({ resumen, loading, filtros, sitiosMap = {}, onSelectObs })
 export default function Observaciones() {
   const [observaciones, setObservaciones] = useState([])
   const [totalCount, setTotalCount] = useState(0)
-  const [kpis, setKpis] = useState({ total: 0, pendientes: 0, subsanadas: 0, rechazadas: 0, descartadas: 0 })
+  const [kpis, setKpis] = useState({ total: 0, pendientes: 0, subidas: 0, validadas: 0, rechazadas: 0, descartadas: 0 })
   const [filtros, setFiltros] = useState({ protocolos: [], estadosCovepa: [], sitios: [] })
   const [loading, setLoading] = useState(true)
   const [loadingKpis, setLoadingKpis] = useState(true)
@@ -570,21 +571,31 @@ export default function Observaciones() {
           icon={<AlertCircle size={22} />}
           label="Pendientes"
           value={loadingKpis ? '—' : kpis.pendientes.toLocaleString()}
-          subtitle="Por subsanar"
+          subtitle="Por subsanar en campo"
           variant="amber"
           onClick={() => setEstadoCovepa(prev => prev === 'Pendiente' ? '' : 'Pendiente')}
           active={estadoCovepa === 'Pendiente'}
           title="Filtrar por observaciones pendientes de subsanar"
         />
         <MetricCard
+          icon={<UploadCloud size={22} />}
+          label="Subidas"
+          value={loadingKpis ? '—' : (kpis.subidas || 0).toLocaleString()}
+          subtitle="Enviadas a supervisión"
+          variant="sky"
+          onClick={() => setEstadoCovepa(prev => prev === 'Enviado' ? '' : 'Enviado')}
+          active={estadoCovepa === 'Enviado'}
+          title="Filtrar por observaciones subidas / enviadas a COVEPA/Pronatel"
+        />
+        <MetricCard
           icon={<CheckCircle2 size={22} />}
-          label="Subsanadas / Subidas"
-          value={loadingKpis ? '—' : kpis.subsanadas.toLocaleString()}
-          subtitle="Validadas / Enviadas"
+          label="Validadas"
+          value={loadingKpis ? '—' : (kpis.validadas || 0).toLocaleString()}
+          subtitle="Aprobadas por Pronatel"
           variant="emerald"
           onClick={() => setEstadoCovepa(prev => prev === 'Validado' ? '' : 'Validado')}
           active={estadoCovepa === 'Validado'}
-          title="Filtrar por observaciones validadas o subsanadas"
+          title="Filtrar por observaciones validadas formalmente"
         />
         <MetricCard
           icon={<AlertTriangle size={22} />}
@@ -594,27 +605,17 @@ export default function Observaciones() {
           variant="rose"
           onClick={() => setEstadoCovepa(prev => prev === 'Rechazado' ? '' : 'Rechazado')}
           active={estadoCovepa === 'Rechazado'}
-          title="Filtrar por observaciones rechazadas"
+          title="Filtrar por observaciones rechazadas que requieren corrección"
         />
         <MetricCard
           icon={<Ban size={22} />}
           label="Descartadas"
-          value={loadingKpis ? '—' : kpis.descartadas.toLocaleString()}
+          value={loadingKpis ? '—' : (kpis.descartadas || 0).toLocaleString()}
           subtitle="Cerradas en campo"
           variant="purple"
           onClick={() => setEstadoCovepa(prev => prev === 'Descartado' ? '' : 'Descartado')}
           active={estadoCovepa === 'Descartado'}
           title="Filtrar por observaciones descartadas"
-        />
-        <MetricCard
-          icon={<MapPin size={22} />}
-          label="Total de Sitios"
-          value={totalSitios}
-          subtitle="Nodos georreferenciados"
-          variant="sky"
-          onClick={() => setIdSitio('')}
-          active={Boolean(idSitio)}
-          title={idSitio ? "Mostrar todos los sitios" : "156 sitios asignados en Amazonas"}
         />
       </MetricGrid>
 

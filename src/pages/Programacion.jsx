@@ -979,6 +979,15 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
+  // Listener para cerrar modal con tecla ESC
+  useEffect(() => {
+    const handleKeyDown = e => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   // Lista de personal filtrada por búsqueda (solo personal operativo COVEPA para cuadrillas en ruta)
   const staffFiltrado = useMemo(() => {
     const covepaOnly = tecnicos.filter(p => !p.empresa || p.empresa === 'COVEPA')
@@ -1782,8 +1791,8 @@ function ModalDetallesProgramacion({
   }
 
   return (
-    <div className="prog-details-modal-overlay" onClick={handleCloseWithAutoSave}>
-      <div className="prog-details-modal" onClick={e => e.stopPropagation()}>
+    <div className="prog-details-modal-overlay">
+      <div className="prog-details-modal">
         {/* Cabecera Limpia y Profesional (Sin Fecha, Sin Itinerario y Sin Detalle de Técnico) */}
         <div className="prog-details-modal-header">
           <div className="prog-details-header-main">

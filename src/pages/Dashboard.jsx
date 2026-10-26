@@ -156,6 +156,16 @@ export default function Dashboard() {
   const [filterEstado, setFilterEstado] = useState('TODOS')
   const [selectedRowDetail, setSelectedRowDetail] = useState(null)
 
+  // Cerrar modal de detalle rápido con tecla Escape
+  useEffect(() => {
+    if (!selectedRowDetail) return
+    const handleKeyDown = e => {
+      if (e.key === 'Escape') setSelectedRowDetail(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedRowDetail])
+
   // Carga reactiva de datos por fecha
   const loadData = useCallback(async (fecha) => {
     setLoading(true)
@@ -883,8 +893,8 @@ export default function Dashboard() {
 
       {/* ── MODAL DETALLE RÁPIDO DE OBSERVACIÓN ── */}
       {selectedRowDetail && (
-        <div className="prog-modal-overlay" onClick={() => setSelectedRowDetail(null)}>
-          <div className="dash-modal-detail" onClick={e => e.stopPropagation()}>
+        <div className="prog-modal-overlay">
+          <div className="dash-modal-detail">
             <div className="dash-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <ShieldCheck size={18} color="#818cf8" />

@@ -38,6 +38,16 @@ export default function Sitios() {
   // Modal de detalle
   const [selectedSite, setSelectedSite] = useState(null)
 
+  // Cerrar modal con tecla Escape
+  useEffect(() => {
+    if (!selectedSite) return
+    const handleKeyDown = e => {
+      if (e.key === 'Escape') setSelectedSite(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedSite])
+
   // Carga de datos
   const loadData = async (asignadosOnly) => {
     setLoading(true)
@@ -353,8 +363,8 @@ export default function Sitios() {
 
       {/* MODAL DE FICHA TÉCNICA DETALLADA */}
       {selectedSite && (
-        <div className="modal-overlay" onClick={() => setSelectedSite(null)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-card">
             <div className="modal-header">
               <div className="modal-title-wrap">
                 <div className="modal-icon-badge">

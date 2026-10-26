@@ -751,9 +751,18 @@ function DrawerPersonal({ person, onClose, onEdit, onDelete }) {
   const isTecnico = cargoClass === 'tecnico' || (person.cargo || '').includes('SUPERVISOR')
   const phoneLines = parsePhoneLines(person.telefono, person.operador)
 
+  // Cerrar drawer con tecla Escape
+  useEffect(() => {
+    const handleKeyDown = e => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   return (
-    <div className="obs-drawer-overlay" onClick={onClose}>
-      <div className="obs-drawer" style={{ maxWidth: '460px' }} onClick={e => e.stopPropagation()}>
+    <div className="obs-drawer-overlay">
+      <div className="obs-drawer" style={{ maxWidth: '460px' }}>
         {/* Cabecera del Drawer */}
         <div className="obs-drawer-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
@@ -998,6 +1007,15 @@ function ModalPersonal({ member, onClose, onSaved }) {
 
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+
+  // Cerrar modal con tecla Escape
+  useEffect(() => {
+    const handleKeyDown = e => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   const isTecnico = cargo.includes('TÉCNICO') || cargo.includes('SUPERVISOR')
   const isGilat = empresa === 'GILAT'

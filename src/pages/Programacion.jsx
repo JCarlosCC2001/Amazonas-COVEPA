@@ -2213,14 +2213,14 @@ function ModalDetallesProgramacion({
                         <span className="obs-code-tag">CÓDIGO:</span>
                         <span className="obs-code-val">{obs.id_obs}</span>
                       </div>
-                      {obs.subsistema && (
-                        <span className="meta-pill" title={`Subsistema: ${obs.subsistema}`}>
-                          Subsistema: <strong>{obs.subsistema}</strong>
-                        </span>
-                      )}
                       {obs.protocolo && (
                         <span className="meta-pill" title={`Protocolo: ${obs.protocolo}`}>
                           Protocolo: <strong>{obs.protocolo}</strong>
+                        </span>
+                      )}
+                      {obs.subsistema && (
+                        <span className="meta-pill" title={`Subsistema: ${obs.subsistema}`}>
+                          Subsistema: <strong>{obs.subsistema}</strong>
                         </span>
                       )}
                     </div>

@@ -605,11 +605,11 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
 
                 {(selectedRowDetail.subsistema || selectedRowDetail.protocolo) && (
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.74rem', color: '#64748b', marginTop: '0.2rem' }}>
-                    {selectedRowDetail.subsistema && (
-                      <span className="meta-pill">Subsistema: <strong>{selectedRowDetail.subsistema}</strong></span>
-                    )}
                     {selectedRowDetail.protocolo && (
                       <span className="meta-pill">Protocolo: <strong>{selectedRowDetail.protocolo}</strong></span>
+                    )}
+                    {selectedRowDetail.subsistema && (
+                      <span className="meta-pill">Subsistema: <strong>{selectedRowDetail.subsistema}</strong></span>
                     )}
                   </div>
                 )}

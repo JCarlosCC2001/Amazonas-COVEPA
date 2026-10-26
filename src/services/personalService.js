@@ -36,7 +36,7 @@ export function mapExternalPerson(p, localMetaMap = {}, profileMap = {}, profile
   const isInactive = (p.estado || '').toUpperCase() === 'INACTIVO'
   const isActivo = !isInactive
 
-  const localMeta = localMetaMap[id] || {}
+  const localMeta = localMetaMap[id] || (nombreCompleto ? localMetaMap[nombreCompleto.toUpperCase().trim()] : null) || {}
   const profile = profileMap[id] || (p.email ? profileByEmailMap[p.email.toLowerCase().trim()] : null) || null
   const ciudadOrigen = p.ciudad_origen || localMeta.origen || p.origen || null
 
@@ -192,13 +192,39 @@ export async function fetchPersonal() {
       console.warn('Aviso leyendo perfiles_usuario locales:', localErr)
     }
 
-    // 3. Mapear cuadrillas predefinidas
-    const cuadrillasMap = getLocalCuadrillasMap()
+    // 3. Consultar la tabla oficial 'personal_cuadrillas' en la base de datos local
     const memberCuadrillaMap = {}
-    Object.entries(cuadrillasMap).forEach(([cuadrillaName, members]) => {
-      if (members.idTecnico) memberCuadrillaMap[members.idTecnico] = { cuadrilla: cuadrillaName }
-      if (members.idConductor) memberCuadrillaMap[members.idConductor] = { cuadrilla: cuadrillaName }
-    })
+    let hasDbCuadrillas = false
+
+    try {
+      const { data: dbCuadrillas, error: cErr } = await supabase
+        .from('personal_cuadrillas')
+        .select('*')
+        .eq('activo', true)
+
+      if (!cErr && dbCuadrillas && dbCuadrillas.length > 0) {
+        hasDbCuadrillas = true
+        dbCuadrillas.forEach(row => {
+          if (row.id_personal) {
+            memberCuadrillaMap[row.id_personal] = { cuadrilla: row.cuadrilla, cargo: row.cargo }
+          }
+          if (row.nombre_completo) {
+            memberCuadrillaMap[row.nombre_completo.toUpperCase().trim()] = { cuadrilla: row.cuadrilla, cargo: row.cargo }
+          }
+        })
+      }
+    } catch (cErr) {
+      console.warn('Aviso leyendo tabla personal_cuadrillas local:', cErr)
+    }
+
+    // Si aún no se ha ejecutado el script en la BD local, usar la configuración base
+    if (!hasDbCuadrillas) {
+      const cuadrillasMap = getLocalCuadrillasMap()
+      Object.entries(cuadrillasMap).forEach(([cuadrillaName, members]) => {
+        if (members.idTecnico) memberCuadrillaMap[members.idTecnico] = { cuadrilla: cuadrillaName }
+        if (members.idConductor) memberCuadrillaMap[members.idConductor] = { cuadrilla: cuadrillaName }
+      })
+    }
 
     // 4. Mapear todo el personal externo
     const list = extPersonal.map(p =>
@@ -482,3 +508,27 @@ export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idC
   saveLocalCuadrillasMap(map)
   return true
 }
+
+// ────────────────────────────────────────────────────────────
+// 8. Actualizar cuadrilla de un integrante en la tabla local `personal_cuadrillas`
+// ────────────────────────────────────────────────────────────
+export async function updatePersonalCuadrilla(idPersonal, nuevaCuadrilla, nombreCompleto = '', cargo = 'TÉCNICO') {
+  if (!idPersonal) return { error: 'ID de personal requerido' }
+  try {
+    const { data, error } = await supabase
+      .from('personal_cuadrillas')
+      .upsert({
+        id_personal: idPersonal,
+        nombre_completo: nombreCompleto,
+        cargo,
+        cuadrilla: nuevaCuadrilla,
+        activo: true,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id_personal' })
+      .select()
+    return { data, error }
+  } catch (err) {
+    return { error: err.message }
+  }
+}
+

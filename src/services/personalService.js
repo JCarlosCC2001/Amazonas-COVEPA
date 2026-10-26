@@ -12,7 +12,8 @@ export const PERSONAL_FALLBACK = [
   { id: '8', cuadrilla: null, origen: 'BAGUA GRANDE', cargo: 'CONDUCTOR', nombre_completo: 'JHORDIN PEREZ', telefono: '921004913', operador: null, activo: true },
   { id: '9', cuadrilla: 'CUADRILLA 5', origen: 'BAGUA GRANDE', cargo: 'TÉCNICO', nombre_completo: 'GABRIEL FARRO', telefono: '931704961', operador: 'BITEL', activo: true },
   { id: '10', cuadrilla: null, origen: 'BAGUA GRANDE', cargo: 'CONDUCTOR', nombre_completo: 'NILSON VERA', telefono: '969936764', operador: null, activo: true },
-  { id: '11', cuadrilla: 'CUADRILLA 6', origen: 'CHACHAPOYAS', cargo: 'TÉCNICO', nombre_completo: 'CRISTIAN ISLA', telefono: '923932783 / 930996665', operador: 'CLARO / BITEL', activo: true }
+  { id: '11', cuadrilla: 'CUADRILLA 6', origen: 'CHACHAPOYAS', cargo: 'TÉCNICO', nombre_completo: 'CRISTIAN ISLA', telefono: '923932783 / 930996665', operador: 'CLARO / BITEL', activo: true },
+  { id: '12', cuadrilla: null, origen: 'CHACHAPOYAS', cargo: 'SUPERVISOR', nombre_completo: 'CARLOS CONDOR', documento_identidad: '73144613', telefono: '958086874', operador: null, email: 'jcarloscc1101@gmail.com', empresa: 'COVEPA', activo: true }
 ]
 
 // ────────────────────────────────────────────────────────────
@@ -164,5 +165,45 @@ export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idC
   }
 
   return true
+}
+
+// ────────────────────────────────────────────────────────────
+// 6. Habilitar / Deshabilitar cuenta de acceso al sistema
+// ────────────────────────────────────────────────────────────
+export async function toggleAccesoPersonal(id, activo, email, rol = 'supervisor') {
+  const { data: updatedPerson, error: pErr } = await supabase
+    .from('personal')
+    .update({ activo, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (pErr) throw new Error(pErr.message)
+
+  if (email) {
+    try {
+      const { data: profile } = await supabase
+        .from('perfiles_usuario')
+        .select('*')
+        .eq('email', email.toLowerCase().trim())
+        .maybeSingle()
+
+      if (profile) {
+        await supabase
+          .from('perfiles_usuario')
+          .update({
+            activo,
+            rol: rol || profile.rol,
+            id_personal: id,
+            updated_at: new Date().toISOString()
+          })
+          .eq('email', email.toLowerCase().trim())
+      }
+    } catch (err) {
+      console.warn('Sincronización con perfiles_usuario omitida o no requerida:', err)
+    }
+  }
+
+  return updatedPerson
 }
 

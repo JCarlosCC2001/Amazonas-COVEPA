@@ -3,7 +3,8 @@ import {
   Users, UserPlus, Search, Phone, MessageSquare, Edit2,
   Trash2, Shield, Wrench, Truck, MapPin, RefreshCw, X,
   LayoutGrid, List, PhoneCall, Eye, EyeOff, ChevronRight,
-  KeyRound, Lock, CheckCircle2, AlertCircle
+  KeyRound, Lock, CheckCircle2, AlertCircle, ShieldCheck,
+  UserCheck, UserX, Mail, Fingerprint, Check, Copy, Sparkles, Building2
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import {
@@ -11,7 +12,8 @@ import {
   createPersonal,
   updatePersonal,
   deletePersonal,
-  updateCuadrillaAssignments
+  updateCuadrillaAssignments,
+  toggleAccesoPersonal
 } from '../services/personalService'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 
@@ -105,19 +107,22 @@ export default function Tecnicos() {
     return list.sort()
   }, [personal])
 
-  // Filtrado reactivo
+  // Filtrado reactivo con soporte para DNI, nombre, email, origen, cuadrilla
   const filteredPersonal = useMemo(() => {
     const q = search.toLowerCase().trim()
     return personal.filter(p => {
       const matchSearch =
         !q ||
         (p.nombre_completo && p.nombre_completo.toLowerCase().includes(q)) ||
+        (p.documento_identidad && p.documento_identidad.includes(q)) ||
+        (p.email && p.email.toLowerCase().includes(q)) ||
         (p.telefono && p.telefono.includes(q)) ||
         (p.origen && p.origen.toLowerCase().includes(q)) ||
         (p.operador && p.operador.toLowerCase().includes(q)) ||
-        (p.cuadrilla && p.cuadrilla.toLowerCase().includes(q))
+        (p.cuadrilla && p.cuadrilla.toLowerCase().includes(q)) ||
+        (p.cargo && p.cargo.toLowerCase().includes(q))
 
-      const matchCargo = filterCargo === 'TODOS' || p.cargo === filterCargo
+      const matchCargo = filterCargo === 'TODOS' || (p.cargo || '').toUpperCase().includes(filterCargo.toUpperCase())
       const matchEmpresa = filterEmpresa === 'TODOS' || (p.empresa || 'COVEPA').toUpperCase() === filterEmpresa.toUpperCase()
 
       return matchSearch && matchCargo && matchEmpresa
@@ -132,8 +137,20 @@ export default function Tecnicos() {
     const tecnicos = personal.filter(p => (p.cargo || '').includes('TÉCNICO') || (p.cargo || '').includes('TECNICO')).length
     const conductores = personal.filter(p => (p.cargo || '').includes('CONDUCTOR')).length
     const supervisores = personal.filter(p => (p.cargo || '').includes('SUPERVISOR')).length
-    return { total, covepa, gilat, tecnicos, conductores, supervisores }
+    const conAcceso = personal.filter(p => p.activo).length
+    return { total, covepa, gilat, tecnicos, conductores, supervisores, conAcceso }
   }, [personal])
+
+  const handleToggleAccess = async (person) => {
+    try {
+      const newStatus = !person.activo
+      await toggleAccesoPersonal(person.id, newStatus, person.email, person.cargo)
+      setPersonal(prev => prev.map(p => p.id === person.id ? { ...p, activo: newStatus } : p))
+      setSelectedDrawerPerson(prev => prev ? { ...prev, activo: newStatus } : null)
+    } catch (err) {
+      alert('Error al actualizar acceso: ' + err.message)
+    }
+  }
 
   const handleOpenEdit = member => {
     setEditingMember(member)
@@ -166,37 +183,41 @@ export default function Tecnicos() {
           icon={<Users size={22} />}
           label="Total Personal"
           value={kpis.total}
-          subtitle="registrados"
+          subtitle={`${kpis.conAcceso} con acceso activo`}
           variant="navy"
           onClick={() => setFilterCargo('TODOS')}
           active={filterCargo === 'TODOS'}
+          title="Ver todos los integrantes registrados"
         />
         <MetricCard
           icon={<Wrench size={22} />}
           label="Técnicos (Cuadrillas)"
           value={kpis.tecnicos}
-          subtitle="cuadrillas 1–6"
+          subtitle="Cuadrillas 1 a 6"
           variant="sky"
-          onClick={() => setFilterCargo('TECNICO')}
-          active={filterCargo === 'TECNICO'}
+          onClick={() => setFilterCargo(prev => prev === 'TÉCNICO' ? 'TODOS' : 'TÉCNICO')}
+          active={filterCargo === 'TÉCNICO'}
+          title="Filtrar técnicos de cuadrilla"
         />
         <MetricCard
           icon={<Truck size={22} />}
           label="Conductores"
           value={kpis.conductores}
-          subtitle="apoyo rotativo"
+          subtitle="Logística y movilidad"
           variant="emerald"
-          onClick={() => setFilterCargo('CONDUCTOR')}
+          onClick={() => setFilterCargo(prev => prev === 'CONDUCTOR' ? 'TODOS' : 'CONDUCTOR')}
           active={filterCargo === 'CONDUCTOR'}
+          title="Filtrar conductores de campo"
         />
         <MetricCard
           icon={<Shield size={22} />}
           label="Supervisores"
           value={kpis.supervisores}
-          subtitle="control de campo"
+          subtitle="Control y gestión COVEPA"
           variant="purple"
-          onClick={() => setFilterCargo('SUPERVISOR')}
+          onClick={() => setFilterCargo(prev => prev === 'SUPERVISOR' ? 'TODOS' : 'SUPERVISOR')}
           active={filterCargo === 'SUPERVISOR'}
+          title="Filtrar supervisores"
         />
       </MetricGrid>
 
@@ -310,25 +331,30 @@ export default function Tecnicos() {
         </div>
       </div>
 
-      {/* ── CONTENIDO: VISTA TARJETAS INDIVIDUALES ── */}
+      {/* ── CONTENIDO: VISTA TARJETAS INDIVIDUALES REDISEÑADA ── */}
       {viewMode === 'tarjetas' && (
         <div className="personal-grid">
           {filteredPersonal.length === 0 ? (
-            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-              No se encontró personal con los filtros aplicados.
+            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1rem', background: '#ffffff', borderRadius: '14px', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              <Users size={40} style={{ opacity: 0.3, margin: '0 auto 0.75rem auto' }} />
+              <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#003060' }}>No se encontró personal con los filtros aplicados</div>
+              <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>Prueba ajustando el término de búsqueda o seleccionando otro cargo</div>
             </div>
           ) : (
             filteredPersonal.map(person => {
               const cargoClass = getCargoClass(person.cargo)
               const isTecnico = cargoClass === 'tecnico' || (person.cargo || '').includes('SUPERVISOR')
               const phoneLines = parsePhoneLines(person.telefono, person.operador)
+              const firstPhone = phoneLines[0]
+              const isGilat = (person.empresa || 'COVEPA').toUpperCase() === 'GILAT'
+              const isCarlos = (person.nombre_completo || '').includes('CARLOS CONDOR')
 
               return (
                 <div
                   key={person.id}
                   className="person-card"
                   onClick={() => setSelectedDrawerPerson(person)}
-                  title="Click para ver ficha completa del integrante"
+                  title="Clic para ver ficha completa y permisos de acceso"
                   style={{ cursor: 'pointer' }}
                 >
                   {/* Cabecera de la persona */}
@@ -338,26 +364,45 @@ export default function Tecnicos() {
                         {getInitials(person.nombre_completo)}
                       </div>
                       <div className="person-names-box">
-                        <span className="person-name">{person.nombre_completo}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                          <span className="person-name">{person.nombre_completo}</span>
+                          {isCarlos && (
+                            <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(0, 48, 96, 0.08)', color: '#003060', border: '1px solid rgba(0, 48, 96, 0.2)' }}>
+                              SUPERVISOR COVEPA
+                            </span>
+                          )}
+                        </div>
+
                         <div className="person-tags-row">
+                          {person.documento_identidad ? (
+                            <span className="person-dni-badge" title="Documento Nacional de Identidad">
+                              DNI {person.documento_identidad}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                              Sin DNI
+                            </span>
+                          )}
+
                           <span className={`role-badge ${cargoClass}`}>
                             {person.cargo}
                           </span>
+
                           <span
                             style={{
                               fontSize: '0.64rem',
                               fontWeight: 700,
-                              padding: '0.12rem 0.4rem',
+                              padding: '0.1rem 0.38rem',
                               borderRadius: '4px',
-                              background: (person.empresa || 'COVEPA').toUpperCase() === 'GILAT' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(99, 102, 241, 0.2)',
-                              border: `1px solid ${(person.empresa || 'COVEPA').toUpperCase() === 'GILAT' ? '#38bdf8' : '#818cf8'}`,
-                              color: (person.empresa || 'COVEPA').toUpperCase() === 'GILAT' ? '#38bdf8' : '#a5b4fc',
+                              background: isGilat ? '#e0f2fe' : 'rgba(0, 48, 96, 0.07)',
+                              border: `1px solid ${isGilat ? '#7dd3fc' : 'rgba(0, 48, 96, 0.2)'}`,
+                              color: isGilat ? '#0369a1' : '#003060',
                               textTransform: 'uppercase'
                             }}
                           >
                             {person.empresa || 'COVEPA'}
                           </span>
-                          {/* Cuadrilla SOLO para Técnicos de COVEPA */}
+
                           {isTecnico && person.cuadrilla && (
                             <span className="prog-card-cuadrilla-badge">
                               {person.cuadrilla}
@@ -367,23 +412,74 @@ export default function Tecnicos() {
                       </div>
                     </div>
 
-                    <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
-                      <ChevronRight size={16} />
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
+                      {person.activo ? (
+                        <span className="covepa-access-badge active" title="Cuenta con acceso web habilitado">
+                          <ShieldCheck size={11} /> Con Acceso
+                        </span>
+                      ) : (
+                        <span className="covepa-access-badge inactive" title="Sin acceso al sistema">
+                          <Lock size={11} /> Sin Acceso
+                        </span>
+                      )}
+                      <ChevronRight size={15} color="var(--text-muted)" />
                     </div>
                   </div>
 
-                  {/* Origen / Ciudad base */}
-                  <div className="person-meta-row">
-                    <span>
-                      {person.origen ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                          <MapPin size={13} color="#818cf8" />
-                          Base: <strong style={{ color: '#e2e8f0' }}>{person.origen}</strong>
+                  {/* Datos de contacto y ubicación */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginTop: '0.35rem' }}>
+                    {/* Fila Ciudad Base y Correo */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
+                        <MapPin size={13} color="#0284c7" />
+                        Base: <strong style={{ color: '#003060' }}>{person.origen || 'Por asignar'}</strong>
+                      </span>
+                      {person.email && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)', fontSize: '0.72rem' }} title={person.email}>
+                          <Mail size={12} color="#0284c7" />
+                          {person.email.length > 20 ? person.email.slice(0, 18) + '…' : person.email}
                         </span>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)' }}>Base no asignada</span>
                       )}
-                    </span>
+                    </div>
+
+                    {/* Fila Teléfono directo con botones de llamada y WhatsApp */}
+                    {firstPhone ? (
+                      <div className="phone-line-card" style={{ marginTop: '0.15rem' }}>
+                        <div className="phone-left">
+                          <Phone size={13} color="#003060" />
+                          <span className="phone-number">{firstPhone.phone}</span>
+                          {firstPhone.operator && (
+                            <span className={`phone-operator-tag ${getOperatorClass(firstPhone.operator)}`}>
+                              {firstPhone.operator}
+                            </span>
+                          )}
+                        </div>
+                        {firstPhone.clean && (
+                          <div className="phone-actions" onClick={e => e.stopPropagation()}>
+                            <a
+                              href={`tel:${firstPhone.clean}`}
+                              className="action-btn-circle call"
+                              title={`Llamar a ${firstPhone.phone}`}
+                            >
+                              <PhoneCall size={12} />
+                            </a>
+                            <a
+                              href={`https://wa.me/51${firstPhone.clean}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="action-btn-circle wa"
+                              title={`Abrir WhatsApp con ${firstPhone.phone}`}
+                            >
+                              <MessageSquare size={12} />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.2rem 0' }}>
+                        Sin teléfono registrado
+                      </div>
+                    )}
                   </div>
                 </div>
               )
@@ -392,23 +488,26 @@ export default function Tecnicos() {
         </div>
       )}
 
-      {/* ── CONTENIDO: VISTA LISTA GENERAL (TABLA) ── */}
+      {/* ── CONTENIDO: VISTA LISTA GENERAL (TABLA) REDISEÑADA ── */}
       {viewMode === 'lista' && (
-        <div className="table-container">
+        <div className="table-container" style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border)' }}>
           <table className="erp-table">
             <thead>
               <tr>
                 <th>Integrante</th>
-                <th>Cargo</th>
-                <th>Cuadrilla (Técnicos)</th>
-                <th>Origen / Base</th>
+                <th>DNI / Documento</th>
+                <th>Cargo / Empresa</th>
+                <th>Cuadrilla</th>
+                <th>Ciudad Base</th>
+                <th>Contacto Directo</th>
+                <th>Acceso al Sistema</th>
                 <th style={{ textAlign: 'center' }}>Ficha</th>
               </tr>
             </thead>
             <tbody>
               {filteredPersonal.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
                     No se encontró personal con los filtros aplicados.
                   </td>
                 </tr>
@@ -416,6 +515,8 @@ export default function Tecnicos() {
                 filteredPersonal.map(person => {
                   const cargoClass = getCargoClass(person.cargo)
                   const isTecnico = cargoClass === 'tecnico' || (person.cargo || '').includes('SUPERVISOR')
+                  const phoneLines = parsePhoneLines(person.telefono, person.operador)
+                  const firstPhone = phoneLines[0]
 
                   return (
                     <tr
@@ -424,20 +525,38 @@ export default function Tecnicos() {
                       style={{ cursor: 'pointer' }}
                     >
                       <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                          <div className={`person-avatar ${cargoClass}`} style={{ width: '30px', height: '30px', fontSize: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          <div className={`person-avatar ${cargoClass}`} style={{ width: '32px', height: '32px', fontSize: '0.78rem' }}>
                             {getInitials(person.nombre_completo)}
                           </div>
-                          <span>{person.nombre_completo}</span>
+                          <div>
+                            <div style={{ color: '#003060', fontWeight: 700 }}>{person.nombre_completo}</div>
+                            {person.email && (
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{person.email}</div>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td>
-                        <span className={`role-badge ${cargoClass}`}>
-                          {person.cargo}
-                        </span>
+                        {person.documento_identidad ? (
+                          <span className="person-dni-badge">
+                            {person.documento_identidad}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                        )}
                       </td>
                       <td>
-                        {/* Cuadrilla solo visible si es técnico */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span className={`role-badge ${cargoClass}`}>
+                            {person.cargo}
+                          </span>
+                          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#003060' }}>
+                            {person.empresa || 'COVEPA'}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
                         {isTecnico && person.cuadrilla ? (
                           <span className="prog-card-cuadrilla-badge">
                             {person.cuadrilla}
@@ -448,26 +567,54 @@ export default function Tecnicos() {
                       </td>
                       <td>
                         {person.origen ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
-                            <MapPin size={12} color="#818cf8" />
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: '#003060', fontWeight: 500 }}>
+                            <MapPin size={12} color="#0284c7" />
                             {person.origen}
                           </span>
                         ) : (
                           <span style={{ color: 'var(--text-muted)' }}>—</span>
                         )}
                       </td>
+                      <td>
+                        {firstPhone ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: '0.82rem', fontWeight: 600 }}>{firstPhone.phone}</span>
+                            <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
+                              <a href={`tel:${firstPhone.clean}`} className="action-btn-circle call" title="Llamar">
+                                <PhoneCall size={11} />
+                              </a>
+                              <a href={`https://wa.me/51${firstPhone.clean}`} target="_blank" rel="noreferrer" className="action-btn-circle wa" title="WhatsApp">
+                                <MessageSquare size={11} />
+                              </a>
+                            </div>
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {person.activo ? (
+                          <span className="covepa-access-badge active">
+                            <ShieldCheck size={11} /> Habilitado
+                          </span>
+                        ) : (
+                          <span className="covepa-access-badge inactive">
+                            <Lock size={11} /> Deshabilitado
+                          </span>
+                        )}
+                      </td>
                       <td style={{ textAlign: 'center' }}>
                         <button
                           type="button"
                           className="btn-secondary-soft"
-                          style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           onClick={e => {
                             e.stopPropagation()
                             setSelectedDrawerPerson(person)
                           }}
                         >
-                          <Eye size={12} />
-                          Ver Ficha
+                          <Eye size={13} />
+                          Ficha
                         </button>
                       </td>
                     </tr>
@@ -492,6 +639,7 @@ export default function Tecnicos() {
         <DrawerPersonal
           person={selectedDrawerPerson}
           isAdmin={isAdmin}
+          onToggleAccess={handleToggleAccess}
           onOpenPasswordModal={() => setPasswordModalOpen(true)}
           onClose={() => setSelectedDrawerPerson(null)}
           onEdit={person => handleOpenEdit(person)}
@@ -787,11 +935,13 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
 // ────────────────────────────────────────────────────────────
 // SUBCOMPONENTE: Ventana Lateral (Drawer) de Revisión y Gestión
 // ────────────────────────────────────────────────────────────
-function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit, onDelete }) {
+function DrawerPersonal({ person, isAdmin, onToggleAccess, onOpenPasswordModal, onClose, onEdit, onDelete }) {
   if (!person) return null
   const cargoClass = getCargoClass(person.cargo)
   const isTecnico = cargoClass === 'tecnico' || (person.cargo || '').includes('SUPERVISOR')
   const phoneLines = parsePhoneLines(person.telefono, person.operador)
+  const [copiedDni, setCopiedDni] = useState(false)
+  const [togglingAccess, setTogglingAccess] = useState(false)
 
   // Cerrar drawer con tecla Escape
   useEffect(() => {
@@ -802,22 +952,46 @@ function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit,
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
+  const handleCopyDni = (e) => {
+    e.stopPropagation()
+    if (!person.documento_identidad) return
+    navigator.clipboard.writeText(person.documento_identidad)
+    setCopiedDni(true)
+    setTimeout(() => setCopiedDni(false), 2000)
+  }
+
+  const handleToggle = async () => {
+    setTogglingAccess(true)
+    try {
+      if (onToggleAccess) {
+        await onToggleAccess(person)
+      }
+    } finally {
+      setTogglingAccess(false)
+    }
+  }
+
+  const isCarlos = (person.nombre_completo || '').includes('CARLOS CONDOR')
+
   return (
     <div className="obs-drawer-overlay">
-      <div className="obs-drawer" style={{ maxWidth: '460px' }}>
+      <div className="obs-drawer" style={{ maxWidth: '480px' }}>
         {/* Cabecera del Drawer */}
         <div className="obs-drawer-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-            <div className={`person-avatar ${cargoClass}`} style={{ width: '46px', height: '46px', fontSize: '1.1rem' }}>
+            <div className={`person-avatar ${cargoClass}`} style={{ width: '48px', height: '48px', fontSize: '1.2rem' }}>
               {getInitials(person.nombre_completo)}
             </div>
             <div>
-              <h2 style={{ fontSize: '1.15rem', margin: 0, color: 'var(--text-primary)', fontWeight: 700 }}>
+              <h2 style={{ fontSize: '1.15rem', margin: 0, color: '#003060', fontWeight: 700 }}>
                 {person.nombre_completo}
               </h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
                 <span className={`role-badge ${cargoClass}`}>
                   {person.cargo}
+                </span>
+                <span style={{ fontSize: '0.66rem', fontWeight: 700, padding: '0.12rem 0.4rem', borderRadius: '4px', background: 'rgba(0, 48, 96, 0.08)', color: '#003060', border: '1px solid rgba(0, 48, 96, 0.2)' }}>
+                  {person.empresa || 'COVEPA'}
                 </span>
                 {isTecnico && person.cuadrilla && (
                   <span className="prog-card-cuadrilla-badge">
@@ -833,74 +1007,156 @@ function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit,
         </div>
 
         {/* Cuerpo del Drawer */}
-        <div className="obs-drawer-body" style={{ gap: '1.2rem', padding: '1.4rem' }}>
-          {/* Bloque de Información General */}
+        <div className="obs-drawer-body" style={{ gap: '1.1rem', padding: '1.25rem' }}>
+
+          {/* ── SECCIÓN 1: MÉTRICA Y GESTIÓN DE CUENTA DE ACCESO AL PROGRAMA ── */}
+          <div className={`drawer-access-metric-card ${person.activo ? 'is-active' : ''}`}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {person.activo ? (
+                  <ShieldCheck size={20} color="#059669" />
+                ) : (
+                  <Lock size={20} color="#64748b" />
+                )}
+                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#003060', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  Cuenta de Acceso al Sistema
+                </span>
+              </div>
+
+              {person.activo ? (
+                <span className="covepa-access-badge active">
+                  <CheckCircle2 size={11} /> Habilitada
+                </span>
+              ) : (
+                <span className="covepa-access-badge inactive">
+                  <AlertCircle size={11} /> Deshabilitada
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: '0.82rem', color: person.activo ? 'var(--text-secondary)' : 'var(--text-muted)', lineHeight: 1.45 }}>
+              {person.activo
+                ? 'Este integrante tiene credenciales activas para acceder y gestionar en la plataforma web de Amazonas-COVEPA.'
+                : 'Este integrante actualmente NO tiene permisos de acceso al sistema. Puedes habilitar su cuenta con el botón inferior.'}
+            </div>
+
+            {/* Datos de Credenciales */}
+            <div style={{ background: '#f8fbfe', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+              <div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Identificador / DNI</div>
+                <div style={{ fontSize: '0.86rem', fontFamily: 'monospace', fontWeight: 700, color: '#003060' }}>
+                  {person.documento_identidad || 'Sin DNI'}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Rol Asignado</div>
+                <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0284c7' }}>
+                  {isCarlos || person.cargo === 'SUPERVISOR' ? 'Supervisor (Admin)' : person.cargo}
+                </div>
+              </div>
+
+              <div style={{ gridColumn: '1 / -1' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Correo Electrónico de Ingreso</div>
+                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: person.email ? '#003060' : 'var(--text-muted)' }}>
+                  {person.email || 'Sin correo asociado (puede vincularse al editar)'}
+                </div>
+              </div>
+            </div>
+
+            {/* Botón de Habilitar / Deshabilitar */}
+            <button
+              type="button"
+              className={`btn-access-toggle ${person.activo ? 'disable' : 'enable'}`}
+              onClick={handleToggle}
+              disabled={togglingAccess}
+            >
+              {togglingAccess ? (
+                <RefreshCw size={14} className="spin" />
+              ) : person.activo ? (
+                <>
+                  <Lock size={14} />
+                  <span>Deshabilitar Cuenta de Acceso</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck size={14} />
+                  <span>Habilitar Cuenta de Acceso a este Programa</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* ── SECCIÓN 2: IDENTIFICACIÓN Y DATOS PERSONALES ── */}
           <div style={{
-            background: 'rgba(255, 255, 255, 0.02)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
+            background: '#ffffff',
+            border: '1px solid var(--border)',
             borderRadius: '12px',
             padding: '1rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.75rem'
           }}>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Datos del Integrante
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#003060', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Identificación Oficial
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Cargo / Rol</div>
-                <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>DNI / Documento</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                  <span className="person-dni-badge" style={{ fontSize: '0.84rem' }}>
+                    {person.documento_identidad || 'Sin DNI'}
+                  </span>
+                  {person.documento_identidad && (
+                    <button
+                      type="button"
+                      onClick={handleCopyDni}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: copiedDni ? '#10b981' : '#0284c7', display: 'flex', alignItems: 'center' }}
+                      title="Copiar DNI"
+                    >
+                      {copiedDni ? <Check size={14} /> : <Copy size={13} />}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Cargo Oficial</div>
+                <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#003060' }}>
                   {person.cargo}
                 </div>
               </div>
 
-              {isTecnico ? (
-                <div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Cuadrilla Fija</div>
-                  <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#818cf8' }}>
-                    {person.cuadrilla || 'Sin asignar'}
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Asignación</div>
-                  <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                    Rotativo en campo
-                  </div>
-                </div>
-              )}
-
               <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Ciudad Base / Origen</div>
-                <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <MapPin size={12} color="#818cf8" />
-                  {person.origen || 'No registrada'}
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Empresa Contratante</div>
+                <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#003060' }}>
+                  {person.empresa || 'COVEPA'}
                 </div>
               </div>
 
               <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ID de Registro</div>
-                <div style={{ fontSize: '0.78rem', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
-                  {person.id ? person.id.slice(0, 8) + '...' : '—'}
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Ciudad Base / Origen</div>
+                <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#003060', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <MapPin size={12} color="#0284c7" />
+                  {person.origen || 'No registrada'}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Bloque de Contacto y Telefonía */}
+          {/* ── SECCIÓN 3: CANALES TELEFÓNICOS DE CONTACTO ── */}
           <div style={{
-            background: 'rgba(255, 255, 255, 0.02)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
+            background: '#ffffff',
+            border: '1px solid var(--border)',
             borderRadius: '12px',
             padding: '1rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.75rem'
           }}>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Canales Telefónicos de Contacto
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#003060', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Canales Telefónicos y WhatsApp
             </div>
 
             {phoneLines.length === 0 ? (
@@ -912,8 +1168,8 @@ function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit,
                 <div
                   key={idx}
                   style={{
-                    background: 'rgba(0, 0, 0, 0.25)',
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    background: '#f8fbfe',
+                    border: '1px solid var(--border-light)',
                     borderRadius: '10px',
                     padding: '0.75rem 0.85rem',
                     display: 'flex',
@@ -923,8 +1179,8 @@ function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit,
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Phone size={14} color="#818cf8" />
-                      <span style={{ fontFamily: 'monospace', fontSize: '0.92rem', fontWeight: 700, color: '#e2e8f0' }}>
+                      <Phone size={14} color="#003060" />
+                      <span style={{ fontFamily: 'monospace', fontSize: '0.92rem', fontWeight: 700, color: '#003060' }}>
                         {line.phone}
                       </span>
                     </div>
@@ -946,10 +1202,10 @@ function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit,
                           gap: '0.4rem',
                           padding: '0.45rem',
                           borderRadius: '6px',
-                          background: 'rgba(16, 185, 129, 0.15)',
-                          border: '1px solid rgba(16, 185, 129, 0.35)',
-                          color: '#34d399',
-                          fontSize: '0.76rem',
+                          background: 'rgba(16, 185, 129, 0.12)',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          color: '#059669',
+                          fontSize: '0.78rem',
                           fontWeight: 600,
                           textDecoration: 'none'
                         }}
@@ -968,10 +1224,10 @@ function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit,
                           gap: '0.4rem',
                           padding: '0.45rem',
                           borderRadius: '6px',
-                          background: 'rgba(37, 211, 102, 0.15)',
-                          border: '1px solid rgba(37, 211, 102, 0.35)',
-                          color: '#25d366',
-                          fontSize: '0.76rem',
+                          background: 'rgba(37, 211, 102, 0.12)',
+                          border: '1px solid rgba(37, 211, 102, 0.3)',
+                          color: '#15803d',
+                          fontSize: '0.78rem',
                           fontWeight: 600,
                           textDecoration: 'none'
                         }}
@@ -986,11 +1242,11 @@ function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit,
             )}
           </div>
 
-          {/* Seguridad de Acceso (Exclusivo Administrador) */}
+          {/* Seguridad de Acceso (Exclusivo Administrador para cambiar clave) */}
           {isAdmin && (
             <div style={{
-              background: 'rgba(99, 102, 241, 0.06)',
-              border: '1px solid rgba(99, 102, 241, 0.22)',
+              background: 'rgba(0, 48, 96, 0.04)',
+              border: '1px solid rgba(0, 48, 96, 0.15)',
               borderRadius: '10px',
               padding: '0.75rem 0.9rem',
               display: 'flex',
@@ -999,13 +1255,13 @@ function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit,
               gap: '0.6rem'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <KeyRound size={15} color="#818cf8" />
+                <KeyRound size={15} color="#003060" />
                 <div>
-                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c7d2fe' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#003060' }}>
                     Seguridad y Contraseña
                   </div>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                    Exclusivo para tu cuenta Administrador
+                    Acceso de Administrador Principal
                   </div>
                 </div>
               </div>
@@ -1018,9 +1274,9 @@ function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit,
                   gap: '0.35rem',
                   padding: '0.35rem 0.65rem',
                   borderRadius: '6px',
-                  background: 'rgba(99, 102, 241, 0.2)',
-                  border: '1px solid #818cf8',
-                  color: '#e0e7ff',
+                  background: '#003060',
+                  border: '1px solid #003060',
+                  color: '#ffffff',
                   fontSize: '0.74rem',
                   fontWeight: 600,
                   cursor: 'pointer'
@@ -1049,7 +1305,7 @@ function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit,
                 onEdit(person)
               }}
             >
-              <Edit2 size={14} color="#818cf8" />
+              <Edit2 size={14} color="#003060" />
               Editar Integrante
             </button>
 
@@ -1078,11 +1334,13 @@ function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit,
 function ModalPersonal({ member, onClose, onSaved }) {
   const isEditing = !!member
   const [nombre, setNombre] = useState(member?.nombre_completo || '')
+  const [dni, setDni] = useState(member?.documento_identidad || '')
   const [email, setEmail] = useState(member?.email || '')
   const [empresa, setEmpresa] = useState(member?.empresa || 'COVEPA')
   const [cargo, setCargo] = useState(member?.cargo || 'TÉCNICO')
   const [cuadrilla, setCuadrilla] = useState(member?.cuadrilla || 'CUADRILLA 1')
   const [origen, setOrigen] = useState(member?.origen || '')
+  const [activo, setActivo] = useState(member?.activo !== undefined ? member.activo : true)
 
   // Separar líneas telefónicas y operadores existentes
   const initialPhones = (member?.telefono || '').split('/').map(s => s.trim())
@@ -1136,6 +1394,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
     try {
       const payload = {
         nombre_completo: nombre,
+        documento_identidad: dni.trim() || null,
         empresa: empresa || 'COVEPA',
         cargo,
         // Solo los técnicos de COVEPA conservan cuadrilla fija
@@ -1144,7 +1403,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
         email: email ? email.trim().toLowerCase() : null,
         telefono: combinedTelefono,
         operador: combinedOperador,
-        activo: true
+        activo
       }
 
       if (isEditing) {
@@ -1164,7 +1423,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
       <div className="prog-modal" style={{ maxWidth: '520px' }}>
         <div className="prog-modal-header">
           <h3>
-            <Users size={18} color="#818cf8" />
+            <Users size={18} color="#003060" />
             {isEditing ? 'Editar Integrante' : 'Nuevo Integrante de Personal'}
           </h3>
           <button className="btn-close" onClick={onClose}><X size={18} /></button>
@@ -1176,7 +1435,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
               <div style={{
                 background: 'rgba(239, 68, 68, 0.15)',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: '#fca5a5',
+                color: '#dc2626',
                 padding: '0.65rem 0.85rem',
                 borderRadius: '6px',
                 fontSize: '0.82rem',
@@ -1194,22 +1453,36 @@ function ModalPersonal({ member, onClose, onSaved }) {
               <input
                 type="text"
                 className="prog-form-control"
-                placeholder="Ej: JHONATAN FLORES"
+                placeholder="Ej: CARLOS CONDOR"
                 value={nombre}
                 onChange={e => setNombre(e.target.value)}
                 required
               />
             </div>
 
-            <div className="prog-form-group">
-              <label>Correo Electrónico (Opcional - Para vincular acceso web al sistema)</label>
-              <input
-                type="email"
-                className="prog-form-control"
-                placeholder="ejemplo@covepa.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+              <div className="prog-form-group">
+                <label>DNI / Documento de Identidad</label>
+                <input
+                  type="text"
+                  className="prog-form-control"
+                  placeholder="Ej: 73144613 (8 dígitos)"
+                  maxLength={8}
+                  value={dni}
+                  onChange={e => setDni(e.target.value.replace(/\D/g, ''))}
+                />
+              </div>
+
+              <div className="prog-form-group">
+                <label>Correo Electrónico (Acceso web)</label>
+                <input
+                  type="email"
+                  className="prog-form-control"
+                  placeholder="ejemplo@covepa.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                />
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
@@ -1249,6 +1522,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
                     </>
                   ) : (
                     <>
+                      <option value="SUPERVISOR">SUPERVISOR</option>
                       <option value="TÉCNICO">TÉCNICO</option>
                       <option value="CONDUCTOR">CONDUCTOR</option>
                       <option value="SUPERVISOR / CAMPO">SUPERVISOR / CAMPO</option>
@@ -1300,17 +1574,37 @@ function ModalPersonal({ member, onClose, onSaved }) {
               </div>
             </div>
 
+            {/* Métrica / Switch para Habilitar Acceso al Sistema */}
+            <div style={{ background: '#f8fbfe', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.75rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginTop: '0.25rem' }}>
+              <div>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#003060', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <ShieldCheck size={14} color="#059669" />
+                  Habilitar Cuenta de Acceso a este Programa
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Permite a este integrante iniciar sesión y gestionar en Amazonas-COVEPA
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={activo}
+                onChange={e => setActivo(e.target.checked)}
+                style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#003060' }}
+              />
+            </div>
+
             {/* Línea Telefónica 1 */}
             <div style={{
-              background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid rgba(255, 255, 255, 0.06)',
+              background: '#f8fbfe',
+              border: '1px solid var(--border)',
               borderRadius: '8px',
               padding: '0.75rem',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.4rem'
+              gap: '0.4rem',
+              marginTop: '0.25rem'
             }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#818cf8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#003060', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Phone size={13} />
                 Línea Telefónica Principal
               </div>
@@ -1318,7 +1612,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
                 <input
                   type="text"
                   className="prog-form-control"
-                  placeholder="Número (ej: 929985566)"
+                  placeholder="Número (ej: 958086874)"
                   value={tel1}
                   onChange={e => setTel1(e.target.value)}
                 />
@@ -1337,17 +1631,17 @@ function ModalPersonal({ member, onClose, onSaved }) {
 
             {/* Línea Telefónica 2 (Opcional) */}
             <div style={{
-              background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid rgba(255, 255, 255, 0.06)',
+              background: '#f8fbfe',
+              border: '1px solid var(--border)',
               borderRadius: '8px',
               padding: '0.75rem',
               display: 'flex',
               flexDirection: 'column',
               gap: '0.4rem'
             }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0284c7', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Phone size={13} />
-                Segunda Línea Telefónica (Opcional - Otro Operador)
+                Segunda Línea Telefónica (Opcional)
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '0.6rem' }}>
                 <input

@@ -7600,6 +7600,88 @@ body {
   color: #ffffff;
 }
 
+/* ──────────────────────────────────────────────────────────── */
+/* ESTILOS CORPORATIVOS REDISEÑO PERSONAL (AMAZONAS-COVEPA)   */
+/* ──────────────────────────────────────────────────────────── */
+.covepa-access-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.covepa-access-badge.active {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.covepa-access-badge.inactive {
+  background: rgba(100, 116, 139, 0.1);
+  color: #64748b;
+  border: 1px solid rgba(100, 116, 139, 0.25);
+}
+
+.person-dni-badge {
+  font-family: monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #003060;
+  background: rgba(0, 48, 96, 0.06);
+  border: 1px solid rgba(0, 48, 96, 0.18);
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  letter-spacing: 0.03em;
+}
+
+.drawer-access-metric-card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 48, 96, 0.12);
+  border-radius: 12px;
+  padding: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  box-shadow: 0 2px 8px rgba(0, 48, 96, 0.04);
+}
+.drawer-access-metric-card.is-active {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: linear-gradient(180deg, #ffffff 0%, rgba(16, 185, 129, 0.02) 100%);
+}
+
+.btn-access-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+.btn-access-toggle.enable {
+  background: #003060;
+  color: #ffffff;
+  border: 1px solid #003060;
+}
+.btn-access-toggle.enable:hover {
+  background: #002244;
+  box-shadow: 0 4px 12px rgba(0, 48, 96, 0.2);
+}
+.btn-access-toggle.disable {
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.btn-access-toggle.disable:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
 
 
 

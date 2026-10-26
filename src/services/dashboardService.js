@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { supabaseExt } from '../lib/supabaseExt'
+import { ASIGNACIONES_BASE } from './sitiosService'
 
 // Cache en memoria de catálogo de sitios para no saturar la BD externa
 let cachedSitiosCatalog = null
@@ -336,3 +337,176 @@ export async function getAvancePorFecha(fechaStr) {
     throw err
   }
 }
+
+/**
+ * Obtiene el consolidado general de todo el proyecto:
+ * 1. Métricas exactas de observaciones (Total, Subsanadas, En Revisión, Descartadas, Rechazadas, Pendientes).
+ * 2. Avance por cada uno de los 6 Grupos Territoriales.
+ * 3. Consolidado por cada uno de los 156 Sitios asignados.
+ */
+export async function getDashboardProjectOverview() {
+  try {
+    // 1. Obtener catálogo externo y asignaciones
+    const [sitiosCatalog, { data: dbAsig }] = await Promise.all([
+      getSitiosCatalogMap(),
+      supabase.from('sitios_asignados').select('id_site, grupo, zona').eq('activo', true)
+    ])
+
+    const asignaciones = (dbAsig && dbAsig.length > 0) ? dbAsig : ASIGNACIONES_BASE
+    const siteMap = new Map(asignaciones.map(a => [a.id_site, a]))
+
+    // 2. Traer todas las observaciones (ligeras: id_sitio, estado_covepa, fecha_subsanacion)
+    const promises = []
+    for (let i = 0; i < 5; i++) {
+      promises.push(
+        supabase
+          .from('observaciones')
+          .select('id_sitio, estado_covepa, fecha_subsanacion')
+          .range(i * 1000, (i + 1) * 1000 - 1)
+      )
+    }
+    const results = await Promise.all(promises)
+    const allRows = results.flatMap(r => r.data || [])
+
+    // 3. Contadores Globales
+    const total = allRows.length
+    let validadas = 0
+    let enviadas = 0
+    let subsanadas = 0
+    let enRevision = 0
+    let descartadas = 0
+    let rechazadas = 0
+    let pendientes = 0
+
+    // Diccionario de los 156 sitios
+    const perSite = {}
+    asignaciones.forEach(a => {
+      const ext = sitiosCatalog[a.id_site] || {}
+      perSite[a.id_site] = {
+        id_sitio: a.id_site,
+        nombre_nodo: ext.nombre_nodo || a.id_site,
+        localidad: ext.localidad || ext.distrito || a.id_site,
+        distrito: ext.distrito || '',
+        provincia: ext.provincia || '',
+        grupo: a.grupo || 'GRUPO 1',
+        zona: a.zona || 'ZONA 2',
+        total: 0,
+        subsanadas: 0,
+        enRevision: 0,
+        descartadas: 0,
+        rechazadas: 0,
+        pendientes: 0,
+        resueltas: 0,
+        porcentaje: 0
+      }
+    })
+
+    // Diccionario de los 6 Grupos
+    const perGroup = {}
+    for (let g = 1; g <= 6; g++) {
+      const gName = `GRUPO ${g}`
+      perGroup[gName] = {
+        grupo: gName,
+        numero: g,
+        zona: g <= 2 ? 'ZONA 2 y ZONA 7' : 'ZONA 7',
+        sitiosCount: asignaciones.filter(a => a.grupo === gName).length,
+        total: 0,
+        subsanadas: 0,
+        enRevision: 0,
+        descartadas: 0,
+        rechazadas: 0,
+        pendientes: 0,
+        resueltas: 0,
+        porcentaje: 0
+      }
+    }
+
+    // Procesar observaciones
+    allRows.forEach(row => {
+      const st = row.estado_covepa ? row.estado_covepa.trim() : null
+      const isSub = st === 'Validado' || st === 'Enviado' || (row.fecha_subsanacion && st !== 'Descartado' && st !== 'Rechazado')
+      const isRev = st === 'En Revision' || st === 'En Revisión'
+      const isDesc = st === 'Descartado'
+      const isRech = st === 'Rechazado'
+
+      if (isSub) {
+        subsanadas++
+        if (st === 'Enviado') enviadas++
+        else validadas++
+      } else if (isRev) {
+        enRevision++
+      } else if (isDesc) {
+        descartadas++
+      } else if (isRech) {
+        rechazadas++
+      } else {
+        pendientes++
+      }
+
+      // Por sitio
+      if (perSite[row.id_sitio]) {
+        const s = perSite[row.id_sitio]
+        s.total++
+        if (isSub) s.subsanadas++
+        else if (isRev) s.enRevision++
+        else if (isDesc) s.descartadas++
+        else if (isRech) s.rechazadas++
+        else s.pendientes++
+      }
+
+      // Por grupo
+      const a = siteMap.get(row.id_sitio)
+      const gName = a ? a.grupo : null
+      if (gName && perGroup[gName]) {
+        const g = perGroup[gName]
+        g.total++
+        if (isSub) g.subsanadas++
+        else if (isRev) g.enRevision++
+        else if (isDesc) g.descartadas++
+        else if (isRech) g.rechazadas++
+        else g.pendientes++
+      }
+    })
+
+    // Porcentaje global
+    const resueltas = subsanadas + descartadas
+    const porcentajeGlobal = total > 0 ? parseFloat(((resueltas / total) * 100).toFixed(1)) : 0
+
+    // Porcentajes por grupo
+    Object.values(perGroup).forEach(g => {
+      g.resueltas = g.subsanadas + g.descartadas
+      g.porcentaje = g.total > 0 ? parseFloat(((g.resueltas / g.total) * 100).toFixed(1)) : 0
+    })
+
+    // Porcentajes por sitio y ordenar por volumen de observaciones
+    const sitiosList = Object.values(perSite).map(s => {
+      s.resueltas = s.subsanadas + s.descartadas
+      s.porcentaje = s.total > 0 ? parseFloat(((s.resueltas / s.total) * 100).toFixed(1)) : 0
+      return s
+    })
+
+    sitiosList.sort((a, b) => b.total - a.total)
+
+    return {
+      kpis: {
+        total,
+        pendientes,
+        subsanadas,
+        validadas,
+        enviadas,
+        enRevision,
+        descartadas,
+        rechazadas,
+        resueltas,
+        porcentajeGlobal,
+        totalSitios: asignaciones.length
+      },
+      grupos: Object.values(perGroup).sort((a, b) => a.numero - b.numero),
+      sitios: sitiosList
+    }
+  } catch (err) {
+    console.error('Error en getDashboardProjectOverview:', err)
+    throw err
+  }
+}
+

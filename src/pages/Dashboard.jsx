@@ -1,119 +1,35 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  Calendar, RefreshCw, CheckCircle2, Clock, AlertTriangle,
-  XCircle, Send, Check, Search, Download,
-  MapPin, User, Users, ShieldCheck, ChevronLeft, ChevronRight,
-  TrendingUp, Award, Layers, Eye
+  ClipboardList, CheckCircle2, Clock, AlertTriangle, XCircle,
+  Ban, MapPin, Layers, Award, TrendingUp, RefreshCw, Search,
+  ArrowRight, ExternalLink, Calendar, ChevronRight, ShieldCheck,
+  Radio, Sparkles, Filter, Users, Globe, FileSpreadsheet
 } from 'lucide-react'
-import { getAvancePorFecha, getGlobalMetrics } from '../services/dashboardService'
-import ExcelJS from 'exceljs'
+import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
+import { getDashboardProjectOverview } from '../services/dashboardService'
 
-// Helper para formato de fecha local YYYY-MM-DD
-function getTodayLocalDate() {
-  const d = new Date()
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function getYesterdayLocalDate() {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function formatDateDisplay(dateStr) {
-  if (!dateStr) return ''
-  const [year, month, day] = dateStr.split('-')
-  const d = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-  return d.toLocaleDateString('es-PE', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
-}
-
-// Subcomponente: Medidor Circular / Radial Segmentado SVG
-function MultiSegmentRadialGauge({ segments = [], total = 0, size = 120, strokeWidth = 10, centerValue, centerLabel, centerSublabel }) {
-  const radius = (size - strokeWidth * 2) / 2
-  const circumference = 2 * Math.PI * radius
-  const effectiveTotal = total > 0 ? total : 0
-  
-  let accumulated = 0
-  const renderedSegments = segments.map((seg) => {
-    const val = Math.max(0, seg.value || 0)
-    const segLength = effectiveTotal > 0 ? (val / effectiveTotal) * circumference : 0
-    const offset = effectiveTotal > 0 ? (accumulated / effectiveTotal) * circumference : 0
-    accumulated += val
-    return { ...seg, val, segLength, offset }
-  })
-
-  return (
-    <div className="dash-radial-gauge" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="dash-gauge-svg">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="rgba(0, 48, 96, 0.08)"
-          strokeWidth={strokeWidth}
-        />
-        {effectiveTotal > 0 && renderedSegments.map((seg, i) => {
-          if (seg.val <= 0) return null
-          return (
-            <circle
-              key={i}
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              fill="none"
-              stroke={seg.color}
-              strokeWidth={strokeWidth}
-              strokeDasharray={`${seg.segLength} ${circumference}`}
-              strokeDashoffset={-seg.offset}
-              style={{
-                transition: 'stroke-dashoffset 0.8s ease-in-out',
-                transform: 'rotate(-90deg)',
-                transformOrigin: '50% 50%'
-              }}
-            />
-          )
-        })}
-      </svg>
-      <div className="dash-gauge-content">
-        <span className="dash-gauge-value" style={{ color: '#003060' }}>{centerValue}</span>
-        {centerLabel && <span className="dash-gauge-label">{centerLabel}</span>}
-        {centerSublabel && <span className="dash-gauge-sublabel">{centerSublabel}</span>}
-      </div>
-    </div>
-  )
-}
-
-// Subcomponente: Medidor Semicircular de Tacómetro
-function SemicircleGauge({ percentage = 0, color = '#10b981', size = 160 }) {
-  const radius = 60
-  const strokeWidth = 12
+// ────────────────────────────────────────────────────────────
+// Subcomponente: Tacómetro Semicircular de Avance Global SVG
+// ────────────────────────────────────────────────────────────
+function SemicircleGauge({ percentage = 0, color = '#10b981', size = 180 }) {
+  const radius = 70
+  const strokeWidth = 14
   const circumference = Math.PI * radius
   const strokeDashoffset = circumference - (Math.min(100, Math.max(0, percentage)) / 100) * circumference
 
   return (
     <div className="dash-semi-gauge" style={{ width: size, height: size / 2 + 35 }}>
-      <svg width={size} height={size / 2 + 15} viewBox="0 0 160 90">
+      <svg width={size} height={size / 2 + 18} viewBox="0 0 180 100">
         <path
-          d="M 20 80 A 60 60 0 0 1 140 80"
+          d="M 20 90 A 70 70 0 0 1 160 90"
           fill="none"
           stroke="rgba(0, 48, 96, 0.08)"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
         />
         <path
-          d="M 20 80 A 60 60 0 0 1 140 80"
+          d="M 20 90 A 70 70 0 0 1 160 90"
           fill="none"
           stroke={color}
           strokeWidth={strokeWidth}
@@ -124,285 +40,249 @@ function SemicircleGauge({ percentage = 0, color = '#10b981', size = 160 }) {
         />
       </svg>
       <div className="dash-semi-text">
-        <span className="dash-semi-pct" style={{ color }}>{percentage}%</span>
-        <span className="dash-semi-label">Avance Global</span>
+        <span className="dash-semi-pct" style={{ color: '#003060', fontSize: '1.9rem', fontWeight: 800 }}>
+          {percentage}%
+        </span>
+        <span className="dash-semi-label" style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+          Avance Global
+        </span>
       </div>
     </div>
   )
 }
 
+// ────────────────────────────────────────────────────────────
+// Subcomponente: Barra de Distribución Segmentada
+// ────────────────────────────────────────────────────────────
+function SegmentedProgressBar({ total = 0, subsanadas = 0, enRevision = 0, descartadas = 0, rechazadas = 0, pendientes = 0 }) {
+  const pctSub = total > 0 ? (subsanadas / total) * 100 : 0
+  const pctRev = total > 0 ? (enRevision / total) * 100 : 0
+  const pctDesc = total > 0 ? (descartadas / total) * 100 : 0
+  const pctRech = total > 0 ? (rechazadas / total) * 100 : 0
+  const pctPend = Math.max(0, 100 - (pctSub + pctRev + pctDesc + pctRech))
+
+  return (
+    <div style={{ width: '100%' }}>
+      <div style={{
+        height: '14px',
+        width: '100%',
+        borderRadius: '7px',
+        background: 'rgba(0, 48, 96, 0.06)',
+        display: 'flex',
+        overflow: 'hidden',
+        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)'
+      }}>
+        {pctSub > 0 && (
+          <div
+            style={{ width: `${pctSub}%`, background: '#10b981', transition: 'width 0.8s ease' }}
+            title={`Subsanadas: ${subsanadas} (${pctSub.toFixed(1)}%)`}
+          />
+        )}
+        {pctRev > 0 && (
+          <div
+            style={{ width: `${pctRev}%`, background: '#38bdf8', transition: 'width 0.8s ease' }}
+            title={`En Revisión: ${enRevision} (${pctRev.toFixed(1)}%)`}
+          />
+        )}
+        {pctDesc > 0 && (
+          <div
+            style={{ width: `${pctDesc}%`, background: '#8b5cf6', transition: 'width 0.8s ease' }}
+            title={`Descartadas: ${descartadas} (${pctDesc.toFixed(1)}%)`}
+          />
+        )}
+        {pctRech > 0 && (
+          <div
+            style={{ width: `${pctRech}%`, background: '#ef4444', transition: 'width 0.8s ease' }}
+            title={`Rechazadas: ${rechazadas} (${pctRech.toFixed(1)}%)`}
+          />
+        )}
+        {pctPend > 0 && (
+          <div
+            style={{ width: `${pctPend}%`, background: '#f59e0b', transition: 'width 0.8s ease' }}
+            title={`Pendientes: ${pendientes} (${pctPend.toFixed(1)}%)`}
+          />
+        )}
+      </div>
+
+      {/* Leyenda interactiva */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '0.6rem',
+        marginTop: '0.75rem',
+        fontSize: '0.75rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }} />
+          <span style={{ color: 'var(--text-secondary)' }}>Subsanadas:</span>
+          <strong style={{ color: '#10b981' }}>{subsanadas.toLocaleString()}</strong>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#38bdf8' }} />
+          <span style={{ color: 'var(--text-secondary)' }}>En Revisión:</span>
+          <strong style={{ color: '#0284c7' }}>{enRevision.toLocaleString()}</strong>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#8b5cf6' }} />
+          <span style={{ color: 'var(--text-secondary)' }}>Descartadas:</span>
+          <strong style={{ color: '#8b5cf6' }}>{descartadas.toLocaleString()}</strong>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }} />
+          <span style={{ color: 'var(--text-secondary)' }}>Rechazadas:</span>
+          <strong style={{ color: '#ef4444' }}>{rechazadas.toLocaleString()}</strong>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} />
+          <span style={{ color: 'var(--text-secondary)' }}>Pendientes:</span>
+          <strong style={{ color: '#d97706' }}>{pendientes.toLocaleString()}</strong>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────
+// COMPONENTE PRINCIPAL: Dashboard Ejecutivo Global
+// ────────────────────────────────────────────────────────────
 export default function Dashboard() {
-  // Siempre se inicia en la fecha actual por defecto
-  const [selectedFecha, setSelectedFecha] = useState(() => getTodayLocalDate())
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
 
-  // Datos
-  const [avanceData, setAvanceData] = useState({ rows: [], stats: {}, programacionesDelDia: 0 })
-  const [globalMetrics, setGlobalMetrics] = useState({
-    total: 0,
-    validadas: 0,
-    enRevision: 0,
-    descartadas: 0,
-    enviadas: 0,
-    rechazadas: 0,
-    resueltas: 0,
-    pendientes: 0,
-    porcentajeGlobal: 0
+  // Estado con las métricas consolidadas del proyecto
+  const [data, setData] = useState({
+    kpis: {
+      total: 4116,
+      pendientes: 0,
+      subsanadas: 0,
+      enRevision: 0,
+      descartadas: 0,
+      rechazadas: 0,
+      resueltas: 0,
+      porcentajeGlobal: 0,
+      totalSitios: 156
+    },
+    grupos: [],
+    sitios: []
   })
 
-  // Filtros de tabla
-  const [searchTable, setSearchTable] = useState('')
-  const [filterEstado, setFilterEstado] = useState('TODOS')
-  const [selectedRowDetail, setSelectedRowDetail] = useState(null)
+  // Filtros de la tabla de sitios
+  const [searchSitio, setSearchSitio] = useState('')
+  const [filterGrupo, setFilterGrupo] = useState('TODOS')
 
-  // Cerrar modal de detalle rápido con tecla Escape
-  useEffect(() => {
-    if (!selectedRowDetail) return
-    const handleKeyDown = e => {
-      if (e.key === 'Escape') setSelectedRowDetail(null)
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedRowDetail])
-
-  // Carga reactiva de datos por fecha
-  const loadData = useCallback(async (fecha) => {
+  // Carga reactiva de métricas consolidadas
+  const loadOverview = useCallback(async () => {
     setLoading(true)
     setErrorMsg('')
     try {
-      const [avanceRes, globalRes] = await Promise.all([
-        getAvancePorFecha(fecha),
-        getGlobalMetrics()
-      ])
-      setAvanceData(avanceRes)
-      setGlobalMetrics(globalRes)
+      const res = await getDashboardProjectOverview()
+      setData(res)
     } catch (err) {
-      console.error('Error cargando datos del dashboard:', err)
-      setErrorMsg(err.message || 'Error al conectar con la base de datos')
+      console.error('Error cargando métricas consolidadas:', err)
+      setErrorMsg(err.message || 'Error al conectar con la base de datos de Supabase.')
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    loadData(selectedFecha)
-  }, [selectedFecha, loadData])
+    loadOverview()
+  }, [loadOverview])
 
-  const stats = avanceData.stats || {}
-  const totalEnFecha = stats.total || 0
-  const todayStr = getTodayLocalDate()
-  const isToday = selectedFecha === todayStr
-  const isYesterday = selectedFecha === getYesterdayLocalDate()
+  const { kpis, grupos, sitios } = data
 
-  // Navegación de fecha con flechas
-  const changeDateBy = (offsetDays) => {
-    const parts = selectedFecha.split('-')
-    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
-    d.setDate(d.getDate() + offsetDays)
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    setSelectedFecha(`${year}-${month}-${day}`)
-  }
-
-  // Filtrado de la tabla de avance de la fecha seleccionada
-  const filteredRows = useMemo(() => {
-    const q = searchTable.toLowerCase().trim()
-    return (avanceData.rows || []).filter(r => {
-      let matchEstado = true
-      if (filterEstado === 'TODOS') {
-        matchEstado = true
-      } else if (filterEstado === 'ENVIADAS_VALIDADAS') {
-        matchEstado = r.estado === 'Validado' || r.estado === 'Enviado'
-      } else {
-        matchEstado = r.estado === filterEstado
-      }
-
+  // Sitios filtrados para la tabla de monitoreo
+  const filteredSitios = useMemo(() => {
+    const q = searchSitio.toLowerCase().trim()
+    return sitios.filter(s => {
+      const matchGrupo = filterGrupo === 'TODOS' || s.grupo === filterGrupo
       const matchSearch =
         !q ||
-        r.id_obs.toLowerCase().includes(q) ||
-        r.id_sitio.toLowerCase().includes(q) ||
-        (r.tecnico && r.tecnico.toLowerCase().includes(q)) ||
-        (r.revisor && r.revisor.toLowerCase().includes(q)) ||
-        (r.cuadrilla && r.cuadrilla.toLowerCase().includes(q))
+        s.id_sitio.toLowerCase().includes(q) ||
+        (s.localidad && s.localidad.toLowerCase().includes(q)) ||
+        (s.nombre_nodo && s.nombre_nodo.toLowerCase().includes(q)) ||
+        (s.distrito && s.distrito.toLowerCase().includes(q))
 
-      return matchEstado && matchSearch
+      return matchGrupo && matchSearch
     })
-  }, [avanceData.rows, filterEstado, searchTable])
-
-  // Exportar tabla nativa a Excel (.xlsx) con Formato de Tabla (Table Design)
-  const handleExportXLSX = async () => {
-    if (filteredRows.length === 0) return
-
-    try {
-      const workbook = new ExcelJS.Workbook()
-      workbook.creator = 'COVEPA ERP'
-      workbook.created = new Date()
-
-      const worksheet = workbook.addWorksheet('Avance_COVEPA', {
-        views: [{ showGridLines: true }]
-      })
-
-      // Construir filas de datos
-      const tableRows = filteredRows.map((r, idx) => [
-        idx + 1,
-        r.id_obs || '',
-        r.tecnico || 'No asignado',
-        r.cuadrilla || 'Apoyo rotativo',
-        r.id_sitio || '',
-        r.estado || '',
-        r.revisor || 'Sin revisor',
-        r.fecha_subsanacion ? String(r.fecha_subsanacion).slice(0, 10) : ''
-      ])
-
-      // Añadir Tabla Oficial de Excel con estilo nativo (filtros y filas alternadas)
-      worksheet.addTable({
-        name: 'TablaAvanceCOVEPA',
-        ref: 'A1',
-        headerRow: true,
-        totalsRow: false,
-        style: {
-          theme: 'TableStyleMedium9', // Estilo azul formal clásico de tabla de Excel con zebra striping
-          showRowStripes: true,
-          showColumnStripes: false
-        },
-        columns: [
-          { name: '#', filterButton: true },
-          { name: 'CÓD. OBSERVACIÓN', filterButton: true },
-          { name: 'NOMBRE DE TÉCNICO', filterButton: true },
-          { name: 'CUADRILLA', filterButton: true },
-          { name: 'CÓDIGO DE SITIO', filterButton: true },
-          { name: 'ESTADO', filterButton: true },
-          { name: 'REVISADO POR', filterButton: true },
-          { name: 'FECHA DE REVISIÓN', filterButton: true }
-        ],
-        rows: tableRows
-      })
-
-      // Anchos de columna óptimos
-      const colWidths = [6, 22, 28, 18, 18, 16, 24, 18]
-      colWidths.forEach((w, i) => {
-        worksheet.getColumn(i + 1).width = w
-      })
-
-      // Altura de filas y alineación
-      worksheet.eachRow((row, rowNumber) => {
-        row.height = rowNumber === 1 ? 24 : 20
-        row.eachCell((cell, colNumber) => {
-          cell.alignment = {
-            vertical: 'middle',
-            horizontal: colNumber === 1 || colNumber === 5 || colNumber === 6 || colNumber === 8 ? 'center' : 'left'
-          }
-        })
-      })
-
-      // Generar buffer y descargar
-      const buffer = await workbook.xlsx.writeBuffer()
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `Avance_COVEPA_${selectedFecha}.xlsx`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      console.error('Error generando archivo Excel:', err)
-      alert('Error al generar el archivo Excel: ' + err.message)
-    }
-  }
-
-  // Helper para badges de estado
-  const renderEstadoBadge = (estado) => {
-    switch (estado) {
-      case 'Validado':
-        return <span className="dash-badge badge-validado"><CheckCircle2 size={12} /> Validado</span>
-      case 'En Revisión':
-      case 'En Revision':
-        return <span className="dash-badge badge-revision"><Clock size={12} /> En Revisión</span>
-      case 'Enviado':
-        return <span className="dash-badge badge-enviado"><Send size={12} /> Enviado</span>
-      case 'Descartado':
-        return <span className="dash-badge badge-descartado"><Check size={12} /> Descartado</span>
-      case 'Rechazado':
-        return <span className="dash-badge badge-rechazado"><XCircle size={12} /> Rechazado</span>
-      default:
-        return <span className="dash-badge badge-pendiente"><AlertTriangle size={12} /> {estado}</span>
-    }
-  }
+  }, [sitios, filterGrupo, searchSitio])
 
   return (
     <div className="dash-page-container">
-      {/* ── HEADER DEL DASHBOARD CON REVISIÓN POR FECHA ── */}
+      {/* ── CABECERA PRINCIPAL DEL DASHBOARD ── */}
       <div className="dash-header-card">
         <div className="dash-header-title-box">
           <div className="dash-header-badge">
             <span className="dash-live-dot" />
-            <span>OPERACIONES COVEPA EN VIVO</span>
+            <span>ESTADO GLOBAL DEL PROYECTO · EN VIVO</span>
           </div>
-          <h1 className="dash-main-title">Dashboard de Levantamiento de Observaciones</h1>
+          <h1 className="dash-main-title">Dashboard Ejecutivo — Amazonas COVEPA</h1>
           <p className="dash-main-sub">
-            Monitoreo en tiempo real del avance en campo, control de revisiones y métricas de desempeño por cuadrilla.
+            Monitoreo general de todo el proyecto: avance consolidado de subsanación técnica en los 156 sitios de la Región Amazonas (ZONA 2 y ZONA 7).
           </p>
         </div>
 
-        {/* Controles de Navegación por Fecha (Siempre hoy por defecto) */}
-        <div className="dash-header-controls">
-          <div className="dash-date-picker-box">
-            <button
-              type="button"
-              className="dash-date-nav-btn"
-              onClick={() => changeDateBy(-1)}
-              title="Día anterior"
-            >
-              <ChevronLeft size={16} />
-            </button>
+        {/* Acciones directas de la barra */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="prog-btn-secondary"
+            onClick={() => navigate('/programacion')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.5rem 0.95rem',
+              borderRadius: '8px',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              background: 'rgba(0, 48, 96, 0.05)',
+              border: '1px solid rgba(0, 48, 96, 0.2)',
+              color: '#003060',
+              cursor: 'pointer'
+            }}
+            title="Abrir módulo de Programación y revisar el Avance Diario"
+          >
+            <Calendar size={15} color="#003060" />
+            <span>Avance Diario (Programación)</span>
+          </button>
 
-            <Calendar size={15} color="#818cf8" style={{ marginLeft: '2px' }} />
-            <input
-              type="date"
-              className="dash-date-input"
-              value={selectedFecha}
-              onChange={e => setSelectedFecha(e.target.value)}
-              title="Seleccionar fecha a revisar"
-            />
-
-            <button
-              type="button"
-              className="dash-date-nav-btn"
-              onClick={() => changeDateBy(1)}
-              title="Día siguiente"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          {/* Botones de Acceso Rápido: Hoy y Ayer */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <button
-              type="button"
-              className={`dash-btn-today ${isToday ? 'active' : ''}`}
-              onClick={() => setSelectedFecha(todayStr)}
-            >
-              Hoy
-            </button>
-            <button
-              type="button"
-              className={`dash-btn-today ${isYesterday ? 'active' : ''}`}
-              onClick={() => setSelectedFecha(getYesterdayLocalDate())}
-            >
-              Ayer
-            </button>
-          </div>
+          <button
+            type="button"
+            className="prog-btn-secondary"
+            onClick={() => navigate('/observaciones')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.5rem 0.95rem',
+              borderRadius: '8px',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              background: 'rgba(14, 165, 233, 0.08)',
+              border: '1px solid rgba(14, 165, 233, 0.3)',
+              color: '#0284c7',
+              cursor: 'pointer'
+            }}
+            title="Ir al listado completo de observaciones"
+          >
+            <ClipboardList size={15} color="#0284c7" />
+            <span>Ver Observaciones</span>
+          </button>
 
           <button
             type="button"
             className={`dash-refresh-btn ${loading ? 'is-spinning' : ''}`}
-            onClick={() => loadData(selectedFecha)}
+            onClick={loadOverview}
             disabled={loading}
-            title="Actualizar datos de la fecha seleccionada"
+            title="Recargar métricas consolidadas"
           >
             <RefreshCw size={15} />
             <span>Actualizar</span>
@@ -417,551 +297,578 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── SECCIÓN DE MEDIDORES Y GAUGES ── */}
-      <div className="dash-metrics-section">
-        {/* Medidor 1: Total Avanzado en la Fecha */}
-        <div className="dash-metric-card primary-gauge">
-          <div className="dash-card-header">
-            <span className="dash-card-tag">{isToday ? 'AVANCE DE HOY' : 'AVANCE EN LA FECHA'}</span>
-            <TrendingUp size={16} color="#818cf8" />
-          </div>
-          <div className="dash-card-gauge-wrap">
-            <MultiSegmentRadialGauge
-              segments={[
-                { value: (stats.enviadas || 0) + (stats.validadas || 0), color: '#10b981' },
-                { value: stats.rechazadas || 0, color: '#ef4444' },
-                { value: stats.enRevision || 0, color: '#38bdf8' },
-                { value: stats.descartadas || 0, color: '#94a3b8' }
-              ]}
-              total={totalEnFecha}
-              centerValue={totalEnFecha}
-              centerLabel="Total Obs"
-              centerSublabel={isToday ? 'Hoy' : selectedFecha}
-              size={120}
-              strokeWidth={10}
-            />
-            <div className="dash-gauge-legend">
-              {/* 1. Enviadas/Validadas */}
-              <div
-                className="dash-legend-row"
-                style={{ cursor: 'pointer' }}
-                onClick={() => setFilterEstado(filterEstado === 'ENVIADAS_VALIDADAS' ? 'TODOS' : 'ENVIADAS_VALIDADAS')}
-                title="Filtrar enviadas y validadas"
-              >
-                <span className="dash-legend-dot" style={{ background: '#10b981' }} />
-                <span className="dash-legend-name">Enviadas/Validadas:</span>
-                <strong style={{ color: '#10b981' }}>
-                  {(stats.enviadas || 0) + (stats.validadas || 0)}
-                  <span style={{ fontSize: '0.67rem', color: '#94a3b8', fontWeight: 500, marginLeft: '3px' }}>
-                    ({stats.enviadas || 0} env / {stats.validadas || 0} val)
-                  </span>
-                </strong>
-              </div>
+      {/* ── SECCIÓN 1: MEDIDORES GENERALES DE TODO EL PROYECTO ── */}
+      <MetricGrid style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+        <MetricCard
+          icon={<ClipboardList size={22} />}
+          label="Total Observaciones"
+          value={loading ? '—' : kpis.total.toLocaleString()}
+          subtitle="100% de registros en el proyecto"
+          variant="navy"
+          onClick={() => navigate('/observaciones')}
+          title="Ver todas las observaciones del proyecto"
+        />
 
-              {/* 2. Rechazadas */}
-              <div
-                className="dash-legend-row"
-                style={{ cursor: 'pointer' }}
-                onClick={() => setFilterEstado(filterEstado === 'Rechazado' ? 'TODOS' : 'Rechazado')}
-                title="Filtrar rechazadas"
-              >
-                <span className="dash-legend-dot" style={{ background: '#ef4444' }} />
-                <span className="dash-legend-name">Rechazadas:</span>
-                <strong style={{ color: (stats.rechazadas || 0) > 0 ? '#ef4444' : '#f1f5f9' }}>
-                  {stats.rechazadas || 0}
-                </strong>
-              </div>
+        <MetricCard
+          icon={<AlertTriangle size={22} />}
+          label="Pendientes"
+          value={loading ? '—' : kpis.pendientes.toLocaleString()}
+          subtitle="Por subsanar o programar"
+          variant="amber"
+          onClick={() => navigate('/observaciones')}
+          title="Observaciones pendientes de atención"
+        />
 
-              {/* 3. En revision */}
-              <div
-                className="dash-legend-row"
-                style={{ cursor: 'pointer' }}
-                onClick={() => setFilterEstado(filterEstado === 'En Revisión' ? 'TODOS' : 'En Revisión')}
-                title="Filtrar en revisión"
-              >
-                <span className="dash-legend-dot" style={{ background: '#38bdf8' }} />
-                <span className="dash-legend-name">En revision:</span>
-                <strong style={{ color: (stats.enRevision || 0) > 0 ? '#38bdf8' : '#f1f5f9' }}>
-                  {stats.enRevision || 0}
-                </strong>
-              </div>
+        <MetricCard
+          icon={<CheckCircle2 size={22} />}
+          label="Subsanadas / Subidas"
+          value={loading ? '—' : kpis.subsanadas.toLocaleString()}
+          subtitle={`${kpis.validadas} validadas · ${kpis.enviadas} enviadas`}
+          variant="emerald"
+          onClick={() => navigate('/observaciones')}
+          title="Observaciones acreditadas y validadas"
+        />
 
-              {/* 4. Descartadas */}
-              <div
-                className="dash-legend-row"
-                style={{ cursor: 'pointer' }}
-                onClick={() => setFilterEstado(filterEstado === 'Descartado' ? 'TODOS' : 'Descartado')}
-                title="Filtrar descartadas"
-              >
-                <span className="dash-legend-dot" style={{ background: '#94a3b8' }} />
-                <span className="dash-legend-name">Descartadas:</span>
-                <strong>{stats.descartadas || 0}</strong>
-              </div>
+        <MetricCard
+          icon={<Clock size={22} />}
+          label="En Revisión"
+          value={loading ? '—' : kpis.enRevision.toLocaleString()}
+          subtitle="En validación con Gilat / Pronatel"
+          variant="sky"
+          onClick={() => navigate('/observaciones')}
+          title="Observaciones en proceso de revisión técnica"
+        />
+
+        <MetricCard
+          icon={<XCircle size={22} />}
+          label="Rechazadas"
+          value={loading ? '—' : kpis.rechazadas.toLocaleString()}
+          subtitle="Observadas por calidad"
+          variant="rose"
+          onClick={() => navigate('/observaciones')}
+          title="Observaciones rechazadas que requieren nueva visita"
+        />
+
+        <MetricCard
+          icon={<Ban size={22} />}
+          label="Descartadas"
+          value={loading ? '—' : kpis.descartadas.toLocaleString()}
+          subtitle="Cerradas / No aplican"
+          variant="purple"
+          onClick={() => navigate('/observaciones')}
+          title="Observaciones descartadas en campo"
+        />
+
+        <MetricCard
+          icon={<MapPin size={22} />}
+          label="Total de Sitios"
+          value={kpis.totalSitios}
+          subtitle="Nodos georreferenciados"
+          variant="indigo"
+          onClick={() => navigate('/sitios')}
+          title="Ver los 156 sitios del proyecto"
+        />
+      </MetricGrid>
+
+      {/* ── SECCIÓN 2: BALANCE Y CONTROL GLOBAL DE OPERACIONES ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+        gap: '1.25rem',
+        marginTop: '0.25rem'
+      }}>
+        {/* Panel 1: Tacómetro & Balance de Resolución */}
+        <div style={{
+          background: '#ffffff',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)',
+          padding: '1.4rem',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <TrendingUp size={18} color="#003060" />
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#003060' }}>
+                Progreso General de Levantamiento
+              </h3>
             </div>
-          </div>
-          <div className="dash-card-footer">
-            <span>{formatDateDisplay(selectedFecha)}</span>
-          </div>
-        </div>
-
-        {/* Medidor 2: Enviadas / Validadas */}
-        <div
-          className={`dash-metric-card green-card ${filterEstado === 'ENVIADAS_VALIDADAS' ? 'active-filter' : ''}`}
-          onClick={() => setFilterEstado(prev => (prev === 'ENVIADAS_VALIDADAS' ? 'TODOS' : 'ENVIADAS_VALIDADAS'))}
-          style={{ cursor: 'pointer' }}
-          title="Haz clic para ver las observaciones enviadas y validadas"
-        >
-          <div className="dash-card-header">
-            <span className="dash-card-tag" style={{ color: '#10b981' }}>ENVIADAS / VALIDADAS</span>
-            <CheckCircle2 size={16} color="#10b981" />
-          </div>
-          <div className="dash-card-stat-main">
-            <span className="dash-stat-big-num" style={{ color: '#10b981' }}>
-              {(stats.enviadas || 0) + (stats.validadas || 0)}
+            <span style={{
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              padding: '0.2rem 0.55rem',
+              borderRadius: '6px',
+              background: 'rgba(16, 185, 129, 0.12)',
+              color: '#059669',
+              border: '1px solid rgba(16, 185, 129, 0.25)'
+            }}>
+              {kpis.resueltas} Obs. Resueltas
             </span>
-            <span className="dash-stat-unit">obs.</span>
           </div>
-          <div className="dash-progress-track">
-            <div
-              className="dash-progress-fill"
-              style={{
-                width: `${totalEnFecha > 0 ? (((stats.enviadas || 0) + (stats.validadas || 0)) / totalEnFecha) * 100 : 0}%`,
-                background: 'linear-gradient(90deg, #10b981, #34d399)'
-              }}
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '1rem 0 0.5rem 0' }}>
+            <SemicircleGauge percentage={kpis.porcentajeGlobal} color="#10b981" size={190} />
+          </div>
+
+          <div style={{ marginTop: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.35rem', fontWeight: 600 }}>
+              <span>Distribución de Observaciones</span>
+              <span>{kpis.total.toLocaleString()} Registros Totales</span>
+            </div>
+            <SegmentedProgressBar
+              total={kpis.total}
+              subsanadas={kpis.subsanadas}
+              enRevision={kpis.enRevision}
+              descartadas={kpis.descartadas}
+              rechazadas={kpis.rechazadas}
+              pendientes={kpis.pendientes}
             />
-          </div>
-          <div className="dash-card-subinfo">
-            <span>{stats.validadas || 0} validadas · {stats.enviadas || 0} enviadas</span>
-            <strong>{totalEnFecha > 0 ? ((((stats.enviadas || 0) + (stats.validadas || 0)) / totalEnFecha) * 100).toFixed(0) : 0}%</strong>
           </div>
         </div>
 
-        {/* Medidor 3: En Revisión */}
-        <div
-          className={`dash-metric-card blue-card ${filterEstado === 'En Revisión' ? 'active-filter' : ''}`}
-          onClick={() => setFilterEstado(prev => (prev === 'En Revisión' ? 'TODOS' : 'En Revisión'))}
-          style={{ cursor: 'pointer' }}
-          title="Haz clic para ver las observaciones y sitios en revisión"
-        >
-          <div className="dash-card-header">
-            <span className="dash-card-tag" style={{ color: '#38bdf8' }}>EN REVISIÓN</span>
-            <Clock size={16} color="#38bdf8" />
+        {/* Panel 2: Cobertura Territorial y Recursos Activos */}
+        <div style={{
+          background: '#ffffff',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)',
+          padding: '1.4rem',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Globe size={18} color="#003060" />
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#003060' }}>
+                Cobertura Territorial y Despliegue
+              </h3>
+            </div>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              Región Amazonas
+            </span>
           </div>
-          <div className="dash-card-stat-main">
-            <span className="dash-stat-big-num" style={{ color: '#38bdf8' }}>{stats.enRevision || 0}</span>
-            <span className="dash-stat-unit">obs.</span>
-            {stats.totalSitiosEnRevision > 0 && (
-              <span style={{ fontSize: '0.78rem', color: '#94a3b8', marginLeft: '0.45rem', fontWeight: 600 }}>
-                ({stats.totalSitiosEnRevision} {stats.totalSitiosEnRevision === 1 ? 'sitio' : 'sitios'})
+
+          {/* Estadísticas de Zonas y Recursos */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '0.85rem',
+            margin: '1rem 0'
+          }}>
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '10px',
+              padding: '0.85rem'
+            }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                ZONA 2 · Norte
               </span>
-            )}
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#003060', marginTop: '0.2rem' }}>
+                53 Sitios
+              </div>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                Utcubamba, Bagua, Condorcanqui
+              </span>
+            </div>
+
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '10px',
+              padding: '0.85rem'
+            }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                ZONA 7 · Sur
+              </span>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#003060', marginTop: '0.2rem' }}>
+                103 Sitios
+              </div>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                Chachapoyas, Luya, Bongará, Mendoza
+              </span>
+            </div>
           </div>
-          <div className="dash-progress-track">
-            <div
-              className="dash-progress-fill"
+
+          {/* Accesos Rápidos a Módulos Operativos */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+            <button
+              type="button"
+              className="prog-btn-secondary"
+              onClick={() => navigate('/kmz')}
               style={{
-                width: `${totalEnFecha > 0 ? ((stats.enRevision || 0) / totalEnFecha) * 100 : 0}%`,
-                background: 'linear-gradient(90deg, #38bdf8, #60a5fa)'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.45rem',
+                padding: '0.65rem',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                color: '#166534',
+                cursor: 'pointer'
               }}
-            />
-          </div>
-          <div className="dash-card-subinfo">
-            <span>{stats.totalSitiosEnRevision > 0 ? `${stats.totalSitiosEnRevision} sitios en revisión técnica` : 'Pendientes de confirmación'}</span>
-            <strong>{totalEnFecha > 0 ? (((stats.enRevision || 0) / totalEnFecha) * 100).toFixed(0) : 0}%</strong>
-          </div>
-        </div>
+            >
+              <FileSpreadsheet size={14} color="#166534" />
+              <span>Centro Descargas KMZ</span>
+            </button>
 
-        {/* Medidor 4: Cobertura Operativa de la Fecha */}
-        <div className="dash-metric-card purple-card">
-          <div className="dash-card-header">
-            <span className="dash-card-tag" style={{ color: '#c084fc' }}>COBERTURA OPERATIVA</span>
-            <MapPin size={16} color="#c084fc" />
-          </div>
-          <div className="dash-dual-stats">
-            <div className="dash-dual-item">
-              <span className="dash-dual-num" style={{ color: '#c084fc' }}>{stats.sitiosUnicos || 0}</span>
-              <span className="dash-dual-label">Sitios Intervenidos</span>
-            </div>
-            <div className="dash-dual-divider" />
-            <div className="dash-dual-item">
-              <span className="dash-dual-num" style={{ color: '#818cf8' }}>{stats.tecnicosUnicos || 0}</span>
-              <span className="dash-dual-label">Técnicos Activos</span>
-            </div>
-          </div>
-          <div className="dash-card-subinfo" style={{ marginTop: '0.4rem' }}>
-            <span>{avanceData.programacionesDelDia} jornadas programadas</span>
-            <Users size={13} color="#94a3b8" />
-          </div>
-        </div>
-
-        {/* Medidor 5: Tacómetro Global del Proyecto */}
-        <div className="dash-metric-card global-gauge-card">
-          <div className="dash-card-header">
-            <span className="dash-card-tag">PROGRESO PROYECTO</span>
-            <Award size={16} color="#fbbf24" />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '-0.3rem' }}>
-            <SemicircleGauge percentage={globalMetrics.porcentajeGlobal} color="#10b981" size={150} />
-          </div>
-          <div className="dash-global-stats-bar">
-            <div>
-              <small>Total Obs:</small>
-              <strong>{globalMetrics.total.toLocaleString()}</strong>
-            </div>
-            <div>
-              <small>Resueltas:</small>
-              <strong style={{ color: '#10b981' }}>{globalMetrics.resueltas.toLocaleString()}</strong>
-            </div>
-            <div>
-              <small>Pendientes:</small>
-              <strong style={{ color: '#fbbf24' }}>{globalMetrics.pendientes.toLocaleString()}</strong>
-            </div>
+            <button
+              type="button"
+              className="prog-btn-secondary"
+              onClick={() => navigate('/sitios')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.45rem',
+                padding: '0.65rem',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                color: '#1d4ed8',
+                cursor: 'pointer'
+              }}
+            >
+              <MapPin size={14} color="#1d4ed8" />
+              <span>Catálogo 156 Nodos</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ── TABLA PRINCIPAL: AVANCE DE LA FECHA SELECCIONADA ── */}
-      <div className="dash-table-container">
-        {/* Cabecera y Herramientas de la Tabla */}
-        <div className="dash-table-header">
-          <div className="dash-table-title-area">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <Layers size={18} color="#818cf8" />
-              <h2 className="dash-table-title">Avance del Día</h2>
-              <span className="dash-table-count-badge">
-                {filteredRows.length} {filteredRows.length === 1 ? 'registro' : 'registros'}
+      {/* ── SECCIÓN 3: AVANCE Y BALANCE POR LOS 6 GRUPOS TERRITORIALES ── */}
+      <div style={{ marginTop: '1.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.9rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#003060', margin: 0 }}>
+              Balance por Grupo Territorial
+            </h2>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+              Consolidado de observaciones y porcentaje de avance para cada uno de los 6 grupos operativos.
+            </p>
+          </div>
+          <span style={{ fontSize: '0.75rem', color: '#0284c7', fontWeight: 600, background: 'rgba(2, 132, 199, 0.08)', padding: '0.3rem 0.65rem', borderRadius: '6px' }}>
+            6 Grupos Territoriales
+          </span>
+        </div>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '1rem'
+        }}>
+          {grupos.map(g => {
+            return (
+              <div
+                key={g.grupo}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '1.15rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'transform 0.2s, box-shadow 0.2s'
+                }}
+              >
+                {/* Cabecera del grupo */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#003060' }}>
+                      {g.grupo}
+                    </h4>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      {g.zona}
+                    </span>
+                  </div>
+                  <span style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    padding: '0.2rem 0.5rem',
+                    borderRadius: '6px',
+                    background: 'rgba(0, 48, 96, 0.06)',
+                    color: '#003060',
+                    border: '1px solid rgba(0, 48, 96, 0.15)'
+                  }}>
+                    {g.sitiosCount} Sitios
+                  </span>
+                </div>
+
+                {/* Porcentaje y barra de progreso */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                      Avance de Subsanación
+                    </span>
+                    <strong style={{ fontSize: '0.85rem', color: g.porcentaje > 0 ? '#10b981' : '#64748b' }}>
+                      {g.porcentaje}%
+                    </strong>
+                  </div>
+                  <div style={{ height: '7px', borderRadius: '4px', background: '#e2e8f0', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: `${Math.min(100, g.porcentaje)}%`,
+                        height: '100%',
+                        background: 'linear-gradient(90deg, #10b981, #0284c7)',
+                        borderRadius: '4px'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Métricas clave del grupo */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '0.4rem',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  padding: '0.6rem 0.4rem',
+                  textAlign: 'center'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.64rem', color: 'var(--text-muted)', display: 'block' }}>TOTAL</span>
+                    <strong style={{ fontSize: '0.82rem', color: '#003060' }}>{g.total}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.64rem', color: '#059669', display: 'block' }}>SUBS.</span>
+                    <strong style={{ fontSize: '0.82rem', color: '#10b981' }}>{g.subsanadas}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.64rem', color: '#0284c7', display: 'block' }}>REV.</span>
+                    <strong style={{ fontSize: '0.82rem', color: '#0284c7' }}>{g.enRevision}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.64rem', color: '#d97706', display: 'block' }}>PEND.</span>
+                    <strong style={{ fontSize: '0.82rem', color: '#d97706' }}>{g.pendientes}</strong>
+                  </div>
+                </div>
+
+                {/* Botón ver detalles */}
+                <button
+                  type="button"
+                  onClick={() => navigate('/observaciones')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    padding: '0.45rem',
+                    borderRadius: '6px',
+                    background: 'transparent',
+                    border: '1px solid rgba(0, 48, 96, 0.15)',
+                    color: '#003060',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    marginTop: 'auto'
+                  }}
+                >
+                  <span>Ver observaciones de {g.grupo}</span>
+                  <ChevronRight size={13} />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── SECCIÓN 4: MONITOR DE SITIOS DEL PROYECTO (156 NODOS) ── */}
+      <div style={{
+        marginTop: '2rem',
+        background: '#ffffff',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        padding: '1.4rem',
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        {/* Cabecera y Buscador de Sitios */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.85rem',
+          borderBottom: '1px solid rgba(0,0,0,0.06)',
+          paddingBottom: '1rem',
+          marginBottom: '1rem'
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Layers size={18} color="#003060" />
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#003060' }}>
+                Monitoreo Ejecutivo de Sitios
+              </h3>
+              <span style={{
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                padding: '0.15rem 0.5rem',
+                borderRadius: '6px',
+                background: 'rgba(0, 48, 96, 0.08)',
+                color: '#003060'
+              }}>
+                {filteredSitios.length} {filteredSitios.length === 1 ? 'sitio' : 'sitios'}
               </span>
-              {isToday && (
-                <span className="dash-today-tag">● Fecha actual (Hoy)</span>
-              )}
             </div>
-            <p className="dash-table-subtitle">
-              Observaciones con fecha de revisión o en proceso de revisión técnica para el <strong>{formatDateDisplay(selectedFecha)}</strong>
+            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+              Detalle de observaciones y porcentaje de resolución de cada nodo del proyecto.
             </p>
           </div>
 
-          <div className="dash-table-actions">
-            {/* Buscador reactivo */}
-            <div className="dash-search-box">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            {/* Buscador */}
+            <div className="dash-search-box" style={{ maxWidth: '240px' }}>
               <Search size={14} color="var(--text-muted)" />
               <input
                 type="text"
-                placeholder="Buscar por técnico, sitio o revisor..."
-                value={searchTable}
-                onChange={e => setSearchTable(e.target.value)}
+                placeholder="Buscar código o localidad..."
+                value={searchSitio}
+                onChange={e => setSearchSitio(e.target.value)}
               />
-              {searchTable && (
-                <button type="button" onClick={() => setSearchTable('')} className="dash-clear-search">
+              {searchSitio && (
+                <button type="button" onClick={() => setSearchSitio('')} className="dash-clear-search">
                   ✕
                 </button>
               )}
             </div>
 
-            {/* Botón de Exportar a Excel (.xlsx) */}
-            <button
-              type="button"
-              className="dash-export-btn"
-              onClick={handleExportXLSX}
-              disabled={filteredRows.length === 0}
-              title="Descargar este reporte en formato Excel (.xlsx)"
+            {/* Filtro por grupo */}
+            <select
+              className="filter-select"
+              value={filterGrupo}
+              onChange={e => setFilterGrupo(e.target.value)}
+              style={{ fontSize: '0.8rem', padding: '0.4rem 0.65rem' }}
             >
-              <Download size={14} />
-              <span>Exportar Excel (.xlsx)</span>
-            </button>
+              <option value="TODOS">Todos los Grupos ({sitios.length})</option>
+              <option value="GRUPO 1">GRUPO 1</option>
+              <option value="GRUPO 2">GRUPO 2</option>
+              <option value="GRUPO 3">GRUPO 3</option>
+              <option value="GRUPO 4">GRUPO 4</option>
+              <option value="GRUPO 5">GRUPO 5</option>
+              <option value="GRUPO 6">GRUPO 6</option>
+            </select>
           </div>
         </div>
 
-        {/* Barra de Filtros Rápidos por Estado */}
-        <div className="dash-filters-strip">
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Filtrar estado:</span>
-          {[
-            { id: 'TODOS', label: 'Todos', count: avanceData.rows.length },
-            {
-              id: 'ENVIADAS_VALIDADAS',
-              label: 'Enviadas/Validadas',
-              count: `${(stats.enviadas || 0) + (stats.validadas || 0)} (${stats.enviadas || 0} env · ${stats.validadas || 0} val)`,
-              color: '#10b981'
-            },
-            { id: 'Rechazado', label: 'Rechazadas', count: stats.rechazadas || 0, color: '#ef4444' },
-            {
-              id: 'En Revisión',
-              label: 'En revision',
-              count: stats.totalSitiosEnRevision
-                ? `${stats.enRevision || 0} (${stats.totalSitiosEnRevision} sit)`
-                : (stats.enRevision || 0),
-              color: '#38bdf8'
-            },
-            { id: 'Descartado', label: 'Descartadas', count: stats.descartadas || 0, color: '#94a3b8' }
-          ].map(f => (
-            <button
-              key={f.id}
-              type="button"
-              className={`dash-filter-pill ${filterEstado === f.id ? 'active' : ''}`}
-              onClick={() => setFilterEstado(f.id)}
-            >
-              {f.color && <span className="dash-filter-dot" style={{ background: f.color }} />}
-              <span>{f.label}</span>
-              <span className="dash-filter-count">({f.count})</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Tira de Sitios en Revisión si existen */}
-        {stats.sitiosEnRevision && stats.sitiosEnRevision.length > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.45rem 0.85rem',
-              background: 'rgba(56, 189, 248, 0.08)',
-              border: '1px solid rgba(56, 189, 248, 0.22)',
-              borderRadius: '8px',
-              margin: '0.4rem 0 0.85rem 0',
-              flexWrap: 'wrap'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#38bdf8', fontSize: '0.74rem', fontWeight: 700 }}>
-              <Clock size={13} />
-              <span>SITIOS EN REVISIÓN ({stats.sitiosEnRevision.length}):</span>
-            </div>
-            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-              {stats.sitiosEnRevision.map(siteCode => (
-                <button
-                  key={siteCode}
-                  type="button"
-                  onClick={() => {
-                    setFilterEstado('En Revisión')
-                    setSearchTable(siteCode)
-                  }}
-                  style={{
-                    background: searchTable === siteCode ? '#0284c7' : 'rgba(255, 255, 255, 0.06)',
-                    border: '1px solid rgba(56, 189, 248, 0.35)',
-                    color: '#f1f5f9',
-                    padding: '0.18rem 0.55rem',
-                    borderRadius: '4px',
-                    fontSize: '0.72rem',
-                    fontFamily: 'monospace',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                  title={`Filtrar solo observaciones de ${siteCode}`}
-                >
-                  <MapPin size={10} color="#38bdf8" />
-                  <span>{siteCode}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Tabla Responsive (sin código de lugar) */}
-        <div className="dash-table-wrapper">
+        {/* Tabla compacta de sitios */}
+        <div className="dash-table-wrapper" style={{ maxHeight: '480px', overflowY: 'auto' }}>
           <table className="dash-table">
             <thead>
               <tr>
                 <th style={{ width: '40px' }}>#</th>
-                <th style={{ width: '140px' }}>CÓD. OBS</th>
-                <th>NOMBRE DE TÉCNICO</th>
-                <th>CÓDIGO DE SITIO</th>
-                <th>ESTADO</th>
-                <th>REVISADO POR</th>
-                <th style={{ width: '60px', textAlign: 'center' }}>DETALLE</th>
+                <th style={{ width: '160px' }}>CÓDIGO DE SITIO</th>
+                <th>LOCALIDAD / NODO</th>
+                <th style={{ width: '110px' }}>GRUPO</th>
+                <th style={{ width: '85px', textAlign: 'center' }}>TOTAL</th>
+                <th style={{ width: '85px', textAlign: 'center' }}>SUBS.</th>
+                <th style={{ width: '85px', textAlign: 'center' }}>EN REV.</th>
+                <th style={{ width: '85px', textAlign: 'center' }}>PEND.</th>
+                <th style={{ width: '130px' }}>AVANCE</th>
+                <th style={{ width: '70px', textAlign: 'center' }}>VER</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row, idx) => (
-                <tr key={row.id_obs || idx} className="dash-table-row">
-                  {/* Índice */}
-                  <td className="dash-td-index">{idx + 1}</td>
+              {filteredSitios.slice(0, 50).map((s, idx) => {
+                return (
+                  <tr key={s.id_sitio} className="dash-table-row">
+                    <td className="dash-td-index">{idx + 1}</td>
 
-                  {/* Código de Observación */}
-                  <td className="dash-td-obs">
-                    <span className="dash-obs-code">{row.id_obs}</span>
-                  </td>
-
-                  {/* Nombre de Técnico */}
-                  <td className="dash-td-tech">
-                    <div className="dash-tech-cell">
-                      <div className="dash-tech-avatar">
-                        <User size={13} color="#818cf8" />
+                    <td className="dash-td-site">
+                      <div className="dash-site-badge" style={{ fontWeight: 700, fontFamily: 'monospace' }}>
+                        <MapPin size={12} color="#003060" />
+                        <span>{s.id_sitio}</span>
                       </div>
-                      <div className="dash-tech-info">
-                        <span className="dash-tech-name">{row.tecnico}</span>
-                        {row.cuadrilla && (
-                          <span className="dash-tech-cuadrilla">{row.cuadrilla}</span>
-                        )}
-                      </div>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Código de Sitio */}
-                  <td className="dash-td-site">
-                    <div className="dash-site-badge">
-                      <MapPin size={12} color="#38bdf8" />
-                      <span>{row.id_sitio}</span>
-                    </div>
-                  </td>
-
-                  {/* Estado */}
-                  <td className="dash-td-estado">
-                    {renderEstadoBadge(row.estado)}
-                  </td>
-
-                  {/* Nombre de Persona que Revisó */}
-                  <td className="dash-td-revisor">
-                    <div className="dash-revisor-cell">
-                      {row.estado === 'En Revisión' ? (
-                        <>
-                          <Clock size={12} color="#38bdf8" />
-                          <span className="dash-revisor-name" style={{ color: '#94a3b8', fontStyle: 'italic' }}>
-                            {row.revisor || 'En proceso'}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <ShieldCheck size={13} color="#a855f7" />
-                          <span className="dash-revisor-name">{row.revisor}</span>
-                        </>
+                    <td style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                      {s.localidad || s.nombre_nodo || '—'}
+                      {s.distrito && (
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '6px', fontWeight: 400 }}>
+                          ({s.distrito})
+                        </span>
                       )}
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Botón de detalle */}
-                  <td className="dash-td-actions">
-                    <button
-                      type="button"
-                      className="dash-row-btn"
-                      title="Ver detalle de la observación"
-                      onClick={() => setSelectedRowDetail(row)}
-                    >
-                      <Eye size={13} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    <td style={{ fontSize: '0.76rem', fontWeight: 600, color: '#003060' }}>
+                      {s.grupo}
+                    </td>
 
-              {filteredRows.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={7}>
-                    <div className="dash-empty-state">
-                      <div className="dash-empty-icon">
-                        <Calendar size={28} color="#6366f1" />
-                      </div>
-                      <h4 className="dash-empty-title">Sin registros para esta fecha</h4>
-                      <p className="dash-empty-sub">
-                        No se encontraron observaciones revisadas el <strong>{selectedFecha}</strong> con los filtros activos.
-                      </p>
-                      <div className="dash-empty-actions">
-                        <button
-                          type="button"
-                          className="dash-btn-today"
-                          onClick={() => {
-                            setSelectedFecha('2026-10-21')
-                            setFilterEstado('TODOS')
-                            setSearchTable('')
-                          }}
-                        >
-                          Ver avance del 21/10/2026
-                        </button>
-                        {!isToday && (
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            style={{ fontSize: '0.78rem', padding: '0.35rem 0.8rem' }}
-                            onClick={() => {
-                              setSelectedFecha(todayStr)
-                              setFilterEstado('TODOS')
-                              setSearchTable('')
+                    <td style={{ textAlign: 'center', fontWeight: 700, color: '#003060' }}>
+                      {s.total}
+                    </td>
+
+                    <td style={{ textAlign: 'center', fontWeight: 700, color: s.subsanadas > 0 ? '#10b981' : 'var(--text-muted)' }}>
+                      {s.subsanadas}
+                    </td>
+
+                    <td style={{ textAlign: 'center', fontWeight: 700, color: s.enRevision > 0 ? '#0284c7' : 'var(--text-muted)' }}>
+                      {s.enRevision}
+                    </td>
+
+                    <td style={{ textAlign: 'center', fontWeight: 700, color: s.pendientes > 0 ? '#d97706' : 'var(--text-muted)' }}>
+                      {s.pendientes}
+                    </td>
+
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <div style={{ flex: 1, height: '6px', borderRadius: '3px', background: '#e2e8f0', overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              width: `${Math.min(100, s.porcentaje)}%`,
+                              height: '100%',
+                              background: '#10b981',
+                              borderRadius: '3px'
                             }}
-                          >
-                            Ir a Hoy
-                          </button>
-                        )}
+                          />
+                        </div>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, minWidth: '32px', textAlign: 'right', color: s.porcentaje > 0 ? '#10b981' : 'var(--text-muted)' }}>
+                          {s.porcentaje}%
+                        </span>
                       </div>
-                    </div>
+                    </td>
+
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        className="dash-row-btn"
+                        onClick={() => navigate('/observaciones')}
+                        title={`Ver observaciones de ${s.id_sitio}`}
+                      >
+                        <ExternalLink size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+
+              {filteredSitios.length === 0 && (
+                <tr>
+                  <td colSpan={10} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                    No se encontraron sitios con los filtros aplicados.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* ── MODAL DETALLE RÁPIDO DE OBSERVACIÓN ── */}
-      {selectedRowDetail && (
-        <div className="prog-modal-overlay">
-          <div className="dash-modal-detail">
-            <div className="dash-modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <ShieldCheck size={18} color="#818cf8" />
-                <h3 style={{ margin: 0, fontSize: '1rem', color: '#f1f5f9' }}>
-                  Detalle de Observación · {selectedRowDetail.id_obs}
-                </h3>
-              </div>
-              <button
-                type="button"
-                className="btn-close"
-                onClick={() => setSelectedRowDetail(null)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="dash-modal-body">
-              <div className="dash-modal-grid">
-                <div>
-                  <label className="dash-m-label">Código de Sitio:</label>
-                  <div className="dash-m-val">{selectedRowDetail.id_sitio}</div>
-                </div>
-                <div>
-                  <label className="dash-m-label">Técnico Asignado:</label>
-                  <div className="dash-m-val">{selectedRowDetail.tecnico} {selectedRowDetail.cuadrilla ? `· ${selectedRowDetail.cuadrilla}` : ''}</div>
-                </div>
-                <div>
-                  <label className="dash-m-label">Revisado Por:</label>
-                  <div className="dash-m-val" style={{ color: '#c084fc', fontWeight: 600 }}>{selectedRowDetail.revisor}</div>
-                </div>
-                <div>
-                  <label className="dash-m-label">Estado:</label>
-                  <div>{renderEstadoBadge(selectedRowDetail.estado)}</div>
-                </div>
-                <div>
-                  <label className="dash-m-label">Fecha de Revisión:</label>
-                  <div className="dash-m-val">{selectedRowDetail.fecha_subsanacion ? String(selectedRowDetail.fecha_subsanacion).slice(0, 10) : '-'}</div>
-                </div>
-              </div>
-
-              {selectedRowDetail.detalle && (
-                <div style={{ marginTop: '0.85rem' }}>
-                  <label className="dash-m-label">Descripción / Detalle:</label>
-                  <div className="dash-m-box">{selectedRowDetail.detalle}</div>
-                </div>
-              )}
-
-              {selectedRowDetail.subsistema && (
-                <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  <span>Subsistema: <strong>{selectedRowDetail.subsistema}</strong></span>
-                  {selectedRowDetail.protocolo && <span>· Protocolo: <strong>{selectedRowDetail.protocolo}</strong></span>}
-                </div>
-              )}
-            </div>
-
-            <div className="dash-modal-footer">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setSelectedRowDetail(null)}
-              >
-                Cerrar
-              </button>
-            </div>
+        {filteredSitios.length > 50 && (
+          <div style={{ textAlign: 'center', marginTop: '0.75rem', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+            Mostrando los primeros 50 sitios con mayor volumen de observaciones de un total de {filteredSitios.length}.
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

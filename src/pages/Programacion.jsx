@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2,
   MapPin, CheckCircle2, Clock, AlertCircle, List,
-  CalendarDays, X, Search, Save, RefreshCw, Eye, ShieldCheck,
+  CalendarDays, X, Search, RefreshCw, Eye, ShieldCheck,
   Check, AlertTriangle, Users, Edit3, User, FileSpreadsheet, Download, Send
 } from 'lucide-react'
 import ExcelJS from 'exceljs'
@@ -1630,6 +1630,52 @@ function ModalDetallesProgramacion({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleCloseWithAutoSave])
 
+  // Guardado automático al cerrar pestaña o recargar página (beforeunload) y al desmontar
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const dirtyIds = Array.from(dirtyCommentsRef.current)
+      if (dirtyIds.length > 0) {
+        dirtyIds.forEach(id => {
+          updateObservacionCovepa(id, { comentario_covepa: commentsRef.current[id] ?? '' })
+            .catch(err => console.error('Error autoguardando al cerrar página:', err))
+        })
+        dirtyCommentsRef.current.clear()
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      const dirtyIds = Array.from(dirtyCommentsRef.current)
+      if (dirtyIds.length > 0) {
+        dirtyIds.forEach(id => {
+          updateObservacionCovepa(id, { comentario_covepa: commentsRef.current[id] ?? '' })
+            .catch(err => console.error('Error autoguardando al desmontar modal:', err))
+        })
+        dirtyCommentsRef.current.clear()
+      }
+    }
+  }, [])
+
+  // Cambiar de sitio guardando automáticamente comentarios pendientes
+  const handleSwitchSitio = async (newSitioId) => {
+    if (newSitioId === currentSitioId) return
+    const dirtyIds = Array.from(dirtyCommentsRef.current)
+    if (dirtyIds.length > 0) {
+      try {
+        await Promise.all(
+          dirtyIds.map(id =>
+            updateObservacionCovepa(id, { comentario_covepa: commentsRef.current[id] ?? '' })
+          )
+        )
+        dirtyCommentsRef.current.clear()
+        onObservationUpdated()
+      } catch (err) {
+        console.error('Error guardando comentarios antes de cambiar de sitio:', err)
+      }
+    }
+    setCurrentSitioId(newSitioId)
+  }
+
   // Resumen del sitio actual
   const stats = useMemo(() => {
     let tot = observaciones.length
@@ -1808,7 +1854,7 @@ function ModalDetallesProgramacion({
                       key={sId}
                       type="button"
                       className={`prog-site-tab-btn ${isActive ? 'active' : ''}`}
-                      onClick={() => setCurrentSitioId(sId)}
+                      onClick={() => handleSwitchSitio(sId)}
                       title={loc ? `${sId} · ${loc}` : sId}
                     >
                       <MapPin size={12} className={isActive ? 'tab-icon-active' : ''} />
@@ -2186,15 +2232,6 @@ function ModalDetallesProgramacion({
                             <span className="save-tag saved">
                               <Check size={12} /> Guardado
                             </span>
-                          )}
-                          {dirtyCommentsRef.current.has(obs.id_obs) && savingCommentId !== obs.id_obs && (
-                            <button
-                              type="button"
-                              onClick={() => handleBlurComment(obs.id_obs)}
-                              className="save-btn-manual"
-                            >
-                              <Save size={11} /> Guardar
-                            </button>
                           )}
                         </div>
                       </div>

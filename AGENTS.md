@@ -27,3 +27,9 @@ Este archivo define las directivas y contexto obligatorio para cualquier asisten
    - Frontend en **Vite + React**. Servido con rutas SPA mediante `vercel.json` y `public/_redirects`.
    - Base de datos en **Supabase**. Las modificaciones de datos deben mantenerse sincronizadas con el cliente Supabase configurado en `src/lib/supabase.js`.
    - Despliegue en la nube mediante **GitHub + Vercel**. Para publicar cambios de código se utiliza `publicar_actualizacion.bat` o `git push origin main`.
+
+4. **Regla Estricta de Manipulación de Bases de Datos:**
+   - El asistente **SÓLO tiene permitido modificar datos de celdas existentes (`UPDATE`)**.
+   - **PROHIBIDO** agregar columnas (`ALTER TABLE ADD COLUMN`), agregar filas (`INSERT`) o eliminar filas/columnas (`DELETE` / `DROP`) directamente en las bases de datos.
+   - Si se requiere cualquier creación de columnas, inserción de filas, eliminación de datos o alteración de esquemas, **SIEMPRE se debe entregar el script SQL correspondiente al usuario** para que él lo revise y ejecute.
+

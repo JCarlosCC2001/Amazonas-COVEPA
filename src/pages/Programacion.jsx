@@ -2206,11 +2206,23 @@ function ModalDetallesProgramacion({
 
               return (
                 <div key={obs.id_obs} className="prog-obs-card-item">
-                  {/* Fila Superior: Código de Observación y Selector de Estado */}
+                  {/* Fila Superior: Código de Observación, Subsistema, Protocolo y Selector de Estado */}
                   <div className="prog-obs-card-header">
-                    <div className="prog-obs-code-badge">
-                      <span className="obs-code-tag">CÓDIGO:</span>
-                      <span className="obs-code-val">{obs.id_obs}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <div className="prog-obs-code-badge">
+                        <span className="obs-code-tag">CÓDIGO:</span>
+                        <span className="obs-code-val">{obs.id_obs}</span>
+                      </div>
+                      {obs.subsistema && (
+                        <span className="meta-pill" title={`Subsistema: ${obs.subsistema}`}>
+                          Subsistema: <strong>{obs.subsistema}</strong>
+                        </span>
+                      )}
+                      {obs.protocolo && (
+                        <span className="meta-pill" title={`Protocolo: ${obs.protocolo}`}>
+                          Protocolo: <strong>{obs.protocolo}</strong>
+                        </span>
+                      )}
                     </div>
 
                     <div className="prog-obs-status-select-wrap">

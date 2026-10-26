@@ -454,10 +454,10 @@ export async function getSitiosObservacionesResumen(sitiosIds = []) {
 // 8. Obtener observaciones detalladas de un sitio
 // ────────────────────────────────────────────────────────────
 export async function getObservacionesSitioDetalle(idSitio) {
-  // Intentar traer campos con comentario_inicial y revisor
-  const selectConRevisor = 'id_obs, id_sitio, detalle, comentario_inicial, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, comentario_covepa, revisor'
-  const selectConValidador = 'id_obs, id_sitio, detalle, comentario_inicial, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, comentario_covepa, validado_por'
-  const selectSinRevisor = 'id_obs, id_sitio, detalle, comentario_inicial, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, comentario_covepa'
+  // Intentar traer campos con comentario_inicial, revisor, protocolo y subsistema
+  const selectConRevisor = 'id_obs, id_sitio, protocolo, subsistema, detalle, comentario_inicial, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, comentario_covepa, revisor'
+  const selectConValidador = 'id_obs, id_sitio, protocolo, subsistema, detalle, comentario_inicial, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, comentario_covepa, validado_por'
+  const selectSinRevisor = 'id_obs, id_sitio, protocolo, subsistema, detalle, comentario_inicial, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, comentario_covepa'
 
   let { data, error } = await supabase
     .from('observaciones')

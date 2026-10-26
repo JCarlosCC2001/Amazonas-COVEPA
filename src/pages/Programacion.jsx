@@ -1137,20 +1137,28 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
     }
     setSelectedSite(siteId)
 
-    // Si se selecciona un sitio primero, auto-seleccionar SOLO al técnico designado a ese lugar
+    // Si el sitio tiene una cuadrilla designada, auto-seleccionar la cuadrilla completa (técnico + conductor)
     const siteObj = sitiosCatalogo.find(s => s.id_site === siteId)
     if (siteObj) {
-      const siteCuad = (siteObj.cuadrilla || siteObj.grupo || '').trim().toUpperCase()
-      if (siteCuad) {
-        const tech = tecnicos.find(t => {
-          const c = (t.cargo || '').toUpperCase()
-          const isTech = c.includes('TÉCNICO') || c.includes('SUPERVISOR')
-          const matchCuad = (t.cuadrilla || '').trim().toUpperCase() === siteCuad
-          return isTech && matchCuad
+      let siteCuad = (siteObj.cuadrilla || siteObj.grupo || '').trim().toUpperCase()
+      siteCuad = siteCuad.replace(/GRUPO/gi, 'CUADRILLA')
+
+      if (siteCuad && !siteCuad.includes('SIN CUADRILLA')) {
+        const cuadrillaMembers = tecnicos.filter(t => {
+          const tCuad = (t.cuadrilla || '').trim().toUpperCase().replace(/GRUPO/gi, 'CUADRILLA')
+          return tCuad === siteCuad
         })
 
-        if (tech) {
-          setSelectedPersonalIds([tech.id])
+        if (cuadrillaMembers.length > 0) {
+          // Ordenar: primero técnico/supervisor, luego conductor u otros
+          const sorted = [...cuadrillaMembers].sort((a, b) => {
+            const aIsLead = (a.cargo || '').toUpperCase().includes('TÉCNICO') || (a.cargo || '').toUpperCase().includes('SUPERVISOR')
+            const bIsLead = (b.cargo || '').toUpperCase().includes('TÉCNICO') || (b.cargo || '').toUpperCase().includes('SUPERVISOR')
+            if (aIsLead && !bIsLead) return -1
+            if (!aIsLead && bIsLead) return 1
+            return (a.nombre_completo || '').localeCompare(b.nombre_completo || '')
+          })
+          setSelectedPersonalIds(sorted.map(m => m.id))
         }
       }
     }
@@ -1482,6 +1490,21 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                       </div>
 
                       <div className="prog-site-item-badges">
+                        {s.cuadrilla && (
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              borderRadius: '3px',
+                              background: 'rgba(0,48,96,0.08)',
+                              color: '#003060',
+                              border: '1px solid rgba(0,48,96,0.18)'
+                            }}
+                          >
+                            {s.cuadrilla}
+                          </span>
+                        )}
                         {s.zona && <span className="meta-pill">{s.zona}</span>}
                       </div>
                     </div>

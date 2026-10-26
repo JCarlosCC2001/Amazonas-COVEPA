@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   TrendingUp, X, Search, Download, MapPin, User,
-  Clock, ShieldCheck, RefreshCw, AlertCircle, Eye, FileText
+  Clock, ShieldCheck, RefreshCw, AlertCircle, Eye, FileText,
+  Copy, Image, Check
 } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import { getAvancePorFecha } from '../../services/dashboardService'
 import { ASIGNACIONES_BASE } from '../../services/sitiosService'
+import { copyAvanceDiaPNG, downloadAvanceDiaPNG } from '../../services/imageExportService'
 
 export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
   const [loading, setLoading] = useState(true)
@@ -15,6 +17,8 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
   const [filterEstado, setFilterEstado] = useState('TODOS')
   const [selectedRowDetail, setSelectedRowDetail] = useState(null)
   const [exportingXlsx, setExportingXlsx] = useState(false)
+  const [exportingPng, setExportingPng] = useState(false)
+  const [copiedPng, setCopiedPng] = useState(false)
 
   // Cargar datos de avance para la fecha seleccionada
   useEffect(() => {
@@ -117,8 +121,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
         views: [{ showGridLines: true }]
       })
 
-      const tableRows = filteredRows.map((r, idx) => [
-        idx + 1,
+      const tableRows = filteredRows.map(r => [
         r.id_obs || '',
         r.tecnico || 'No asignado',
         r.cuadrilla || 'Sin cuadrilla',
@@ -141,7 +144,6 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
           showColumnStripes: false
         },
         columns: [
-          { name: '#', filterButton: true },
           { name: 'CÓD. OBSERVACIÓN', filterButton: true },
           { name: 'NOMBRE DE TÉCNICO', filterButton: true },
           { name: 'CUADRILLA', filterButton: true },
@@ -155,7 +157,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
         rows: tableRows
       })
 
-      const colWidths = [6, 20, 26, 16, 18, 24, 18, 22, 16, 40]
+      const colWidths = [20, 26, 16, 18, 24, 18, 22, 16, 40]
       colWidths.forEach((w, i) => {
         worksheet.getColumn(i + 1).width = w
       })
@@ -165,7 +167,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
         row.eachCell((cell, colNumber) => {
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber === 1 || colNumber === 5 || colNumber === 7 || colNumber === 9 ? 'center' : 'left'
+            horizontal: colNumber === 1 || colNumber === 4 || colNumber === 6 || colNumber === 8 ? 'center' : 'left'
           }
         })
       })
@@ -185,6 +187,54 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       alert('Error generando Excel: ' + err.message)
     } finally {
       setExportingXlsx(false)
+    }
+  }
+
+  // Copiar imagen PNG del reporte al portapapeles
+  const handleCopyPNG = async () => {
+    if (filteredRows.length === 0 || exportingPng) return
+    setExportingPng(true)
+    try {
+      const res = await copyAvanceDiaPNG({
+        fecha,
+        formattedDate,
+        rows: filteredRows,
+        stats,
+        getLocalidad,
+        filterEstado
+      })
+      if (res.method === 'clipboard') {
+        setCopiedPng(true)
+        setTimeout(() => setCopiedPng(false), 3000)
+      } else {
+        alert('Imagen descargada en tu dispositivo (el portapapeles del navegador requiere HTTPS o permiso para copiar directamente).')
+      }
+    } catch (err) {
+      console.error('Error al copiar imagen PNG:', err)
+      alert('Error al generar la imagen: ' + err.message)
+    } finally {
+      setExportingPng(false)
+    }
+  }
+
+  // Descargar imagen PNG del reporte
+  const handleDownloadPNG = async () => {
+    if (filteredRows.length === 0 || exportingPng) return
+    setExportingPng(true)
+    try {
+      await downloadAvanceDiaPNG({
+        fecha,
+        formattedDate,
+        rows: filteredRows,
+        stats,
+        getLocalidad,
+        filterEstado
+      })
+    } catch (err) {
+      console.error('Error al descargar imagen PNG:', err)
+      alert('Error al descargar la imagen: ' + err.message)
+    } finally {
+      setExportingPng(false)
     }
   }
 
@@ -348,16 +398,40 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
             )}
           </div>
 
-          <button
-            type="button"
-            className="prog-export-btn"
-            onClick={handleExportXLSX}
-            disabled={exportingXlsx || filteredRows.length === 0}
-            title="Descargar reporte oficial en Excel (.xlsx)"
-          >
-            <Download size={14} />
-            <span>{exportingXlsx ? 'Generando Excel...' : 'Descargar Excel (.xlsx)'}</span>
-          </button>
+          <div className="prog-modal-export-cluster">
+            <button
+              type="button"
+              className={`prog-export-btn prog-export-copy-btn ${copiedPng ? 'copied' : ''}`}
+              onClick={handleCopyPNG}
+              disabled={exportingPng || filteredRows.length === 0}
+              title="Copiar imagen PNG al portapapeles para pegar directamente en WhatsApp o correo (Ctrl+V)"
+            >
+              {copiedPng ? <Check size={14} /> : <Copy size={14} />}
+              <span>{copiedPng ? '¡Copiado!' : (exportingPng ? 'Generando...' : 'Copiar PNG')}</span>
+            </button>
+
+            <button
+              type="button"
+              className="prog-export-btn prog-export-png-btn"
+              onClick={handleDownloadPNG}
+              disabled={exportingPng || filteredRows.length === 0}
+              title="Descargar imagen PNG de alta definición"
+            >
+              <Image size={14} />
+              <span>{exportingPng ? 'Generando...' : 'Descargar PNG'}</span>
+            </button>
+
+            <button
+              type="button"
+              className="prog-export-btn prog-export-xlsx-btn"
+              onClick={handleExportXLSX}
+              disabled={exportingXlsx || filteredRows.length === 0}
+              title="Descargar reporte oficial en Excel (.xlsx)"
+            >
+              <Download size={14} />
+              <span>{exportingXlsx ? 'Excel...' : 'Excel (.xlsx)'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Cuerpo de la Ventana: Tabla de Avance */}
@@ -398,8 +472,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
               <table className="prog-avance-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '38px', textAlign: 'center' }}>#</th>
-                    <th style={{ width: '110px' }}>CÓD. OBS</th>
+                    <th style={{ width: '120px' }}>CÓD. OBS</th>
                     <th>TÉCNICO / CUADRILLA</th>
                     <th>CÓDIGO DE SITIO · LOCALIDAD</th>
                     <th style={{ width: '130px' }}>ESTADO</th>
@@ -412,9 +485,6 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                     const localidad = getLocalidad(row.id_sitio)
                     return (
                       <tr key={row.id_obs || idx} className="prog-avance-tr">
-                        <td style={{ textAlign: 'center', color: '#64748b', fontSize: '0.76rem', fontWeight: 600 }}>
-                          {idx + 1}
-                        </td>
                         <td>
                           <span className="prog-avance-obs-code">{row.id_obs}</span>
                         </td>

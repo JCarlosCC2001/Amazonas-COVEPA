@@ -6833,6 +6833,51 @@ body {
   cursor: not-allowed;
 }
 
+.prog-modal-export-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.prog-export-copy-btn {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+.prog-export-copy-btn:hover:not(:disabled) {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+}
+.prog-export-copy-btn.copied {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+}
+
+.prog-export-png-btn {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+  color: #0284c7;
+}
+.prog-export-png-btn:hover:not(:disabled) {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+
+.prog-export-xlsx-btn {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+.prog-export-xlsx-btn:hover:not(:disabled) {
+  background: #059669;
+  border-color: #059669;
+  color: #ffffff;
+}
+
 /* Tarjeta individual de observación en modal */
 .prog-obs-card-item {
   background: #ffffff;
@@ -7232,6 +7277,19 @@ body {
   .prog-export-btn {
     width: 100%;
     justify-content: center;
+  }
+  .prog-modal-export-cluster {
+    width: 100%;
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+  }
+  .prog-modal-export-cluster .prog-export-btn {
+    flex: 1 1 calc(33.3% - 0.25rem);
+    min-width: 85px;
+    justify-content: center;
+    padding: 0.45rem 0.35rem;
+    font-size: 0.72rem;
   }
   .prog-details-modal-body {
     padding: 0.65rem;

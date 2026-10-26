@@ -1582,46 +1582,33 @@ function ModalDetallesProgramacion({
 
   const team = (prog?.equipo && prog.equipo.length > 0) ? prog.equipo : [prog?.personal || {}]
 
-  // Candidatos para persona que valida/descarta/rechaza
-  const teamOptions = useMemo(() => {
-    return (team || []).filter(m => m && m.nombre_completo)
-  }, [team])
-
-  // Personal de GILAT (Supervisores / Auditores / Validadores)
+  // Personal auditor y revisor oficial de GILAT
   const gilatOptions = useMemo(() => {
-    return (tecnicos || []).filter(t => t && t.nombre_completo && (t.empresa || '').toUpperCase() === 'GILAT')
+    // 1. Integrantes de la base de datos externa asignados a GILAT
+    const dbGilat = (tecnicos || []).filter(t => {
+      if (!t || !t.nombre_completo) return false
+      const emp = (t.empresa || '').toUpperCase()
+      return emp.includes('GILAT')
+    })
+
+    // 2. Auditores oficiales de Gilat en el proyecto
+    const AUDITORES_GILAT_OFICIALES = [
+      { id: 'gilat-amilcar', nombre_completo: 'AMILCAR HANDER', cargo: 'Auditor Gilat', empresa: 'Gilat Networks' },
+      { id: 'gilat-thalia', nombre_completo: 'THALIA URQUIZO', cargo: 'Auditora Gilat', empresa: 'Gilat Networks' }
+    ]
+
+    const map = new Map()
+    dbGilat.forEach(g => {
+      map.set(g.nombre_completo.toUpperCase().trim(), g)
+    })
+    AUDITORES_GILAT_OFICIALES.forEach(a => {
+      if (!map.has(a.nombre_completo.toUpperCase().trim())) {
+        map.set(a.nombre_completo.toUpperCase().trim(), a)
+      }
+    })
+
+    return Array.from(map.values()).sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo))
   }, [tecnicos])
-
-  // Personal de COVEPA fuera de ruta
-  const covepaOptions = useMemo(() => {
-    const teamNames = new Set(teamOptions.map(t => t.nombre_completo))
-    return (tecnicos || []).filter(t => t && t.nombre_completo && (!t.empresa || t.empresa.toUpperCase() === 'COVEPA') && !teamNames.has(t.nombre_completo))
-  }, [tecnicos, teamOptions])
-
-  const currentUserOption = useMemo(() => {
-    const name = user?.user_metadata?.full_name || user?.email?.split('@')[0]
-    return name || ''
-  }, [user])
-
-  const allKnownNames = useMemo(() => {
-    const s = new Set()
-    teamOptions.forEach(t => s.add(t.nombre_completo))
-    gilatOptions.forEach(t => s.add(t.nombre_completo))
-    covepaOptions.forEach(t => s.add(t.nombre_completo))
-    if (currentUserOption) s.add(currentUserOption)
-    return s
-  }, [teamOptions, gilatOptions, covepaOptions, currentUserOption])
-
-  const defaultRevisorName = useMemo(() => {
-    if (teamOptions.length > 0) {
-      const tec = teamOptions.find(m => {
-        const c = (m.cargo || '').toUpperCase()
-        return c.includes('TECN') || c.includes('TÉCN')
-      })
-      return tec?.nombre_completo || teamOptions[0]?.nombre_completo || ''
-    }
-    return currentUserOption || ''
-  }, [teamOptions, currentUserOption])
 
   useEffect(() => {
     if (sitioId) setCurrentSitioId(sitioId)
@@ -1659,7 +1646,7 @@ function ModalDetallesProgramacion({
       const payload = {
         estado_covepa: nuevoEstado,
         fecha_subsanacion: isSinRevision ? null : (obs.fecha_subsanacion || toLocalDateString(new Date())),
-        revisor: isSinRevision ? null : (obs.revisor || obs.validado_por || defaultRevisorName || null)
+        revisor: isSinRevision ? null : (obs.revisor || obs.validado_por || null)
       }
       await updateObservacionCovepa(obs.id_obs, payload)
 
@@ -2271,42 +2258,15 @@ function ModalDetallesProgramacion({
                           disabled={isUpdating}
                           onChange={(e) => handleUpdateRevisor(obs, e.target.value)}
                           className="audit-select"
-                          title="Persona que revisó esta observación"
+                          title="Persona de GILAT que revisó esta observación"
                         >
-                          <option value="">-- Seleccionar --</option>
-                          {teamOptions.length > 0 && (
-                            <optgroup label="Personal en ruta (COVEPA)">
-                              {teamOptions.map(p => (
-                                <option key={p.id || p.nombre_completo} value={p.nombre_completo}>
-                                  {p.nombre_completo} {p.cargo ? `(${p.cargo})` : ''}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                          {gilatOptions.length > 0 && (
-                            <optgroup label="Personal GILAT (Auditor / Revisor)">
-                              {gilatOptions.map(p => (
-                                <option key={p.id || p.nombre_completo} value={p.nombre_completo}>
-                                  {p.nombre_completo} {p.cargo ? `(${p.cargo})` : '(GILAT)'}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                          {covepaOptions.length > 0 && (
-                            <optgroup label="Equipo COVEPA">
-                              {covepaOptions.map(p => (
-                                <option key={p.id || p.nombre_completo} value={p.nombre_completo}>
-                                  {p.nombre_completo} {p.cargo ? `(${p.cargo})` : ''}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                          {currentUserOption && (
-                            <optgroup label="Usuario en sesión">
-                              <option value={currentUserOption}>{currentUserOption}</option>
-                            </optgroup>
-                          )}
-                          {(obs.revisor || obs.validado_por) && !allKnownNames.has(obs.revisor || obs.validado_por) && (
+                          <option value="">-- Seleccionar Revisor (GILAT) --</option>
+                          {gilatOptions.map(p => (
+                            <option key={p.id || p.nombre_completo} value={p.nombre_completo}>
+                              {p.nombre_completo} {p.cargo && p.cargo !== 'Empresa' ? `(${p.cargo})` : ''}
+                            </option>
+                          ))}
+                          {(obs.revisor || obs.validado_por) && !gilatOptions.some(g => (g.nombre_completo || '').toUpperCase().trim() === (obs.revisor || obs.validado_por).toUpperCase().trim()) && (
                             <option value={obs.revisor || obs.validado_por}>
                               {obs.revisor || obs.validado_por}
                             </option>

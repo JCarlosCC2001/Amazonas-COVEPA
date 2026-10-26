@@ -1022,40 +1022,37 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
     )
   }, [tecnicos, searchStaff])
 
-  // Cuadrillas predefinidas para asignación rápida con 1 clic
-  const cuadrillasPresets = useMemo(() => {
-    const map = {}
-    tecnicos.forEach(p => {
-      if (p.cuadrilla && (!p.empresa || p.empresa === 'COVEPA')) {
-        const c = p.cuadrilla.trim().toUpperCase()
-        if (!map[c]) map[c] = []
-        map[c].push(p)
-      }
-    })
-    return Object.entries(map).map(([name, members]) => ({
-      name,
-      members,
-      memberIds: members.map(m => m.id),
-      memberNames: members.map(m => `${m.nombre_completo} (${m.cargo})`)
-    })).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
-  }, [tecnicos])
+  // Cuadrilla del técnico o personal actualmente seleccionado
+  const selectedTechCuadrilla = useMemo(() => {
+    if (selectedPersonalIds.length === 0) return null
+    const selectedMembers = tecnicos.filter(t => selectedPersonalIds.includes(t.id))
+    const tech = selectedMembers.find(m => {
+      const c = (m.cargo || '').toUpperCase()
+      return c.includes('TÉCNICO') || c.includes('SUPERVISOR')
+    }) || selectedMembers[0]
 
-  const toggleSelectCuadrilla = (preset) => {
-    const allSelected = preset.memberIds.length > 0 && preset.memberIds.every(id => selectedPersonalIds.includes(id))
-    if (allSelected) {
-      // Si ya estaban todos seleccionados, quitarlos
-      setSelectedPersonalIds(prev => prev.filter(id => !preset.memberIds.includes(id)))
-    } else {
-      // Agregar todos los integrantes de la cuadrilla (sin duplicar)
-      setSelectedPersonalIds(prev => Array.from(new Set([...prev, ...preset.memberIds])))
-    }
-  }
+    return (tech?.cuadrilla || '').trim().toUpperCase() || null
+  }, [selectedPersonalIds, tecnicos])
 
   const toggleSelectStaff = id => {
+    const person = tecnicos.find(p => p.id === id)
+    const isLead = person && ((person.cargo || '').toUpperCase().includes('TÉCNICO') || (person.cargo || '').toUpperCase().includes('SUPERVISOR'))
+
     if (selectedPersonalIds.includes(id)) {
       setSelectedPersonalIds(prev => prev.filter(p => p !== id))
     } else {
-      setSelectedPersonalIds(prev => [...prev, id])
+      // Si se selecciona un nuevo técnico principal, reemplazar al técnico anterior
+      if (isLead) {
+        setSelectedPersonalIds(prev => {
+          const others = prev.filter(prevId => {
+            const op = tecnicos.find(t => t.id === prevId)
+            return op && !(op.cargo || '').toUpperCase().includes('TÉCNICO') && !(op.cargo || '').toUpperCase().includes('SUPERVISOR')
+          })
+          return [id, ...others]
+        })
+      } else {
+        setSelectedPersonalIds(prev => [...prev, id])
+      }
     }
   }
 
@@ -1086,22 +1083,67 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
     return () => { active = false }
   }, [])
 
-  // Filtrado reactivo de sitios por término de búsqueda
+  // Filtrado reactivo de sitios según el técnico seleccionado y término de búsqueda
   const sitiosFiltrados = useMemo(() => {
+    let list = sitiosCatalogo
+
+    // Si hay un técnico con cuadrilla seleccionada, SOLO mostrar los sitios designados a esa cuadrilla
+    if (selectedTechCuadrilla) {
+      list = list.filter(s => {
+        const c = (s.cuadrilla || s.grupo || '').trim().toUpperCase()
+        return c === selectedTechCuadrilla
+      })
+    }
+
     const q = searchSite.toLowerCase().trim()
-    if (!q) return sitiosCatalogo
-    return sitiosCatalogo.filter(s =>
+    if (!q) return list
+    return list.filter(s =>
       (s.id_site && s.id_site.toLowerCase().includes(q)) ||
       (s.codigo_lugar && s.codigo_lugar.toLowerCase().includes(q)) ||
       (s.nombre_nodo && s.nombre_nodo.toLowerCase().includes(q)) ||
       (s.localidad && s.localidad.toLowerCase().includes(q)) ||
       (s.zona && s.zona.toLowerCase().includes(q)) ||
+      (s.cuadrilla && s.cuadrilla.toLowerCase().includes(q)) ||
       (s.grupo && s.grupo.toLowerCase().includes(q))
     )
-  }, [sitiosCatalogo, searchSite])
+  }, [sitiosCatalogo, selectedTechCuadrilla, searchSite])
+
+  // Si cambia la cuadrilla del técnico y el sitio actual no coincide, limpiar selección de sitio
+  useEffect(() => {
+    if (selectedTechCuadrilla && selectedSite) {
+      const currentSite = sitiosCatalogo.find(s => s.id_site === selectedSite)
+      const siteCuad = (currentSite?.cuadrilla || currentSite?.grupo || '').trim().toUpperCase()
+      if (siteCuad && siteCuad !== selectedTechCuadrilla) {
+        setSelectedSite('')
+      }
+    }
+  }, [selectedTechCuadrilla, selectedSite, sitiosCatalogo])
 
   const handleSelectSite = siteId => {
-    setSelectedSite(prev => prev === siteId ? '' : siteId)
+    if (selectedSite === siteId) {
+      setSelectedSite('')
+      return
+    }
+    setSelectedSite(siteId)
+
+    // Si se selecciona un sitio primero, auto-seleccionar SOLO al técnico designado a ese lugar
+    const siteObj = sitiosCatalogo.find(s => s.id_site === siteId)
+    if (siteObj) {
+      const siteCuad = (siteObj.cuadrilla || siteObj.grupo || '').trim().toUpperCase()
+      if (siteCuad) {
+        const tech = tecnicos.find(t => {
+          const c = (t.cargo || '').toUpperCase()
+          const isTech = c.includes('TÉCNICO') || c.includes('SUPERVISOR')
+          const matchCuad = (t.cuadrilla || '').trim().toUpperCase() === siteCuad
+          const isCovepa = !t.empresa || t.empresa === 'COVEPA'
+          return isTech && matchCuad && isCovepa
+        })
+
+        if (tech) {
+          setSelectedPersonalIds([tech.id])
+        }
+      }
+    }
   }
 
   const handleSubmit = async e => {
@@ -1178,39 +1220,8 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
           )}
 
           <div className="prog-modal-body prog-modal-2col">
-            {/* ── COLUMNA IZQUIERDA: PERSONAL Y CUADRILLA ── */}
+            {/* ── COLUMNA IZQUIERDA: PERSONAL OPERATIVO ── */}
             <div className="prog-modal-col-left">
-              {/* Cuadrillas Rápidas */}
-              {cuadrillasPresets.length > 0 && (
-                <div className="prog-quick-assign-box">
-                  <div className="prog-cuad-sublabel-line">
-                    <span className="sub-tag">
-                      <Users size={12} color="#003060" />
-                      Cuadrillas Rápidas
-                    </span>
-                  </div>
-                  <div className="prog-cuad-presets-wrap">
-                    {cuadrillasPresets.map(preset => {
-                      const isSelected = preset.memberIds.length > 0 && preset.memberIds.every(id => selectedPersonalIds.includes(id))
-                      const hasSome = preset.memberIds.some(id => selectedPersonalIds.includes(id))
-
-                      return (
-                        <button
-                          key={preset.name}
-                          type="button"
-                          onClick={() => toggleSelectCuadrilla(preset)}
-                          className={`prog-cuad-quick-btn ${isSelected ? 'active' : hasSome ? 'partial' : ''}`}
-                          title={`Integrantes: ${preset.memberNames.join(' · ')}`}
-                        >
-                          <span>{preset.name}</span>
-                          <span className="prog-cuad-quick-count">{preset.members.length}</span>
-                          {isSelected && <Check size={11} color="#10b981" />}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
 
               {/* Cabecera de Sección: Personal Asignado */}
               <div className="prog-pane-header">
@@ -1328,6 +1339,23 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                 <div className="prog-pane-title">
                   <MapPin size={15} color="#003060" />
                   <span>Seleccionar Sitio</span>
+                  {selectedTechCuadrilla ? (
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        background: 'rgba(0,48,96,0.08)',
+                        color: '#003060',
+                        border: '1px solid rgba(0,48,96,0.18)'
+                      }}
+                    >
+                      {selectedTechCuadrilla} ({sitiosFiltrados.length})
+                    </span>
+                  ) : (
+                    <span className="prog-badge-count">{sitiosFiltrados.length}</span>
+                  )}
                 </div>
                 {selectedSite && (
                   <button

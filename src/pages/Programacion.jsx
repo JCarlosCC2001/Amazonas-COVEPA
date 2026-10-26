@@ -1291,23 +1291,24 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => {}}
-                          style={{ cursor: 'pointer', accentColor: '#003060', width: '15px', height: '15px', flexShrink: 0 }}
+                          className="prog-staff-checkbox"
                         />
                         <div className={`person-avatar ${cClass}`}>
                           {getInitials(p.nombre_completo)}
                         </div>
-                        <div className="prog-staff-row-name">
-                          {p.nombre_completo}
+                        <div className="prog-staff-info-col">
+                          <span className="prog-staff-row-name">
+                            {p.nombre_completo}
+                          </span>
+                          <div className="prog-staff-row-meta">
+                            <span className={`role-badge ${cClass}`}>{p.cargo}</span>
+                            {isTecnico && p.cuadrilla ? (
+                              <span className="prog-card-cuadrilla-badge">{p.cuadrilla}</span>
+                            ) : (
+                              <span className="prog-cuadrilla-badge-rotativo">Rotativo</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-
-                      <div className="prog-staff-row-right">
-                        <span className={`role-badge ${cClass}`}>{p.cargo}</span>
-                        {isTecnico && p.cuadrilla ? (
-                          <span className="prog-card-cuadrilla-badge">{p.cuadrilla}</span>
-                        ) : (
-                          <span className="prog-cuadrilla-badge-rotativo">Rotativo</span>
-                        )}
                       </div>
                     </div>
                   )

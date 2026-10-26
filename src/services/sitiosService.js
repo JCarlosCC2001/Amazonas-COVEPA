@@ -173,18 +173,32 @@ export const ASIGNACIONES_BASE = _RAW_ASIGNACIONES.map(s => {
  */
 export async function fetchSitios({ soloAsignados = true } = {}) {
   try {
-    // 1. Obtener asignaciones locales (o usar el fallback)
+    // 1. Obtener asignaciones locales desde la base de datos
     let asignaciones = []
     try {
-      const { data: dbAsig } = await supabase
-        .from('sitios_asignados')
-        .select('id_site, grupo, zona')
+      // Consultar tabla oficial sitios_cuadrillas en base de datos local
+      const { data: dbAsig, error: errSc } = await supabase
+        .from('sitios_cuadrillas')
+        .select('id_site, cuadrilla, zona')
         .eq('activo', true)
 
-      if (dbAsig && dbAsig.length > 0) {
+      if (!errSc && dbAsig && dbAsig.length > 0) {
         asignaciones = dbAsig
       } else {
-        asignaciones = ASIGNACIONES_BASE
+        // Fallback secundario a sitios_asignados
+        const { data: altAsig } = await supabase
+          .from('sitios_asignados')
+          .select('id_site, grupo, zona')
+          .eq('activo', true)
+
+        if (altAsig && altAsig.length > 0) {
+          asignaciones = altAsig.map(a => ({
+            ...a,
+            cuadrilla: (a.grupo || '').replace(/GRUPO/gi, 'CUADRILLA')
+          }))
+        } else {
+          asignaciones = ASIGNACIONES_BASE
+        }
       }
     } catch {
       asignaciones = ASIGNACIONES_BASE

@@ -196,6 +196,7 @@ export async function fetchPersonal() {
     const memberCuadrillaMap = {}
     let hasDbCuadrillas = false
 
+    let localDbCuadrillas = []
     try {
       const { data: dbCuadrillas, error: cErr } = await supabase
         .from('personal_cuadrillas')
@@ -204,6 +205,7 @@ export async function fetchPersonal() {
 
       if (!cErr && dbCuadrillas && dbCuadrillas.length > 0) {
         hasDbCuadrillas = true
+        localDbCuadrillas = dbCuadrillas
         dbCuadrillas.forEach(row => {
           if (row.id_personal) {
             memberCuadrillaMap[row.id_personal] = { cuadrilla: row.cuadrilla, cargo: row.cargo }
@@ -231,16 +233,35 @@ export async function fetchPersonal() {
       mapExternalPerson(p, memberCuadrillaMap, profileMap, profileByEmailMap)
     )
 
-    // 5. Garantizar presencia de los 6 conductores oficiales de COVEPA si aún no están en la BD externa
-    CONDUCTORES_OFICIALES.forEach(cDef => {
-      const exists = list.some(p => {
-        const full = (p.nombre_completo || '').toUpperCase()
-        return full.includes(cDef.nombre) && full.includes(cDef.apellido)
+    // 5. Si la base de datos local tiene personal_cuadrillas, incorporar integrantes de la BD que no estén en la base externa
+    if (hasDbCuadrillas && localDbCuadrillas.length > 0) {
+      localDbCuadrillas.forEach(cRow => {
+        const exists = list.some(p => p.id === cRow.id_personal || (p.nombre_completo || '').toUpperCase() === (cRow.nombre_completo || '').toUpperCase())
+        if (!exists) {
+          list.push({
+            id: cRow.id_personal,
+            id_personal: cRow.id_personal,
+            nombre_completo: cRow.nombre_completo,
+            cargo: cRow.cargo || 'CONDUCTOR',
+            cuadrilla: cRow.cuadrilla,
+            empresa: 'COVEPA',
+            activo: cRow.activo !== false,
+            estado: 'Activo'
+          })
+        }
       })
-      if (!exists) {
-        list.push(mapExternalPerson(cDef, memberCuadrillaMap, profileMap, profileByEmailMap))
-      }
-    })
+    } else {
+      // Fallback si aún no se ejecutó el script SQL
+      CONDUCTORES_OFICIALES.forEach(cDef => {
+        const exists = list.some(p => {
+          const full = (p.nombre_completo || '').toUpperCase()
+          return full.includes(cDef.nombre) && full.includes(cDef.apellido)
+        })
+        if (!exists) {
+          list.push(mapExternalPerson(cDef, memberCuadrillaMap, profileMap, profileByEmailMap))
+        }
+      })
+    }
 
     return list
   } catch (err) {

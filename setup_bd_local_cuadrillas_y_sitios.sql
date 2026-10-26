@@ -45,27 +45,27 @@ INSERT INTO public.personal_cuadrillas (id_personal, nombre_completo, cargo, cua
 VALUES
     -- CUADRILLA 1
     ('554a3a58-bf04-480a-8795-d85e055ee4c6', 'JHONATAN FLORES', 'TÉCNICO', 'CUADRILLA 1', true),
-    ('cond-carlos-perez', 'CARLOS PEREZ', 'CONDUCTOR', 'CUADRILLA 1', true),
+    ('37633174-4fa7-448e-83a1-afcaa67d4189', 'CARLOS PEREZ', 'CONDUCTOR', 'CUADRILLA 1', true),
 
     -- CUADRILLA 2
     ('eebf3b9e-4923-47ce-9eee-8e9af86c9fea', 'CRISTIAN ISLA', 'TÉCNICO', 'CUADRILLA 2', true),
-    ('cond-jhordin-perez', 'JHORDIN PEREZ', 'CONDUCTOR', 'CUADRILLA 2', true),
+    ('63ba01bf-2b85-488a-864b-965b6a96c9db', 'JHORDIN PEREZ', 'CONDUCTOR', 'CUADRILLA 2', true),
 
     -- CUADRILLA 3
     ('05db4c32-3c7a-42e4-a0aa-8ac33dd5c75f', 'DANIEL JAVIER', 'TÉCNICO', 'CUADRILLA 3', true),
-    ('cond-lino-ticlla', 'LINO TICLLA', 'CONDUCTOR', 'CUADRILLA 3', true),
+    ('38375217-1e58-4c17-aeed-12e6cd71fd52', 'LINO TICLLA', 'CONDUCTOR', 'CUADRILLA 3', true),
 
     -- CUADRILLA 4
     ('4b56f618-981f-4f2a-a901-4a4de4543899', 'ALFONSO CURI', 'TÉCNICO', 'CUADRILLA 4', true),
-    ('cond-nilson-vera', 'NILSON VERA', 'CONDUCTOR', 'CUADRILLA 4', true),
+    ('077953b1-9fe9-41ac-b31e-227b7dd270a3', 'NILSON VERA', 'CONDUCTOR', 'CUADRILLA 4', true),
 
     -- CUADRILLA 5
     ('19ff0cdf-7afc-4e50-94b2-f1a9998de148', 'WILLIAM AVILA', 'SUPERVISOR', 'CUADRILLA 5', true),
-    ('cond-jhordin-antonio', 'JHORDIN ANTONIO', 'CONDUCTOR', 'CUADRILLA 5', true),
+    ('84072c1a-9f19-4c98-b7da-f9ec3c3391e6', 'JHORDIN ANTONIO', 'CONDUCTOR', 'CUADRILLA 5', true),
 
     -- CUADRILLA 6
     ('58bf102a-514f-4829-806b-1037856cadb1', 'GABRIEL FARRO', 'TÉCNICO', 'CUADRILLA 6', true),
-    ('cond-ander-peralta', 'ANDER PERALTA', 'CONDUCTOR', 'CUADRILLA 6', true)
+    ('d879089f-5981-4f08-94ca-ccccf8027f78', 'ANDER PERALTA', 'CONDUCTOR', 'CUADRILLA 6', true)
 ON CONFLICT (id_personal) DO UPDATE SET
     nombre_completo = EXCLUDED.nombre_completo,
     cargo = EXCLUDED.cargo,

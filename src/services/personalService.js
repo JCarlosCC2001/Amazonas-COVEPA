@@ -79,56 +79,49 @@ export const DEFAULT_CUADRILLAS_CONFIG = {
   'CUADRILLA 1': {
     idTecnico: '554a3a58-bf04-480a-8795-d85e055ee4c6', // Jhonatan Flores Rojas
     tecnicoNombre: 'JHONATAN FLORES',
-    idConductor: 'cond-carlos-perez',
+    idConductor: '37633174-4fa7-448e-83a1-afcaa67d4189', // Carlos Perez
     conductorNombre: 'CARLOS PEREZ',
     conductorTelefono: ''
   },
   'CUADRILLA 2': {
     idTecnico: 'eebf3b9e-4923-47ce-9eee-8e9af86c9fea', // Cristian Isla
     tecnicoNombre: 'CRISTIAN ISLA',
-    idConductor: 'cond-jhordin-perez',
+    idConductor: '63ba01bf-2b85-488a-864b-965b6a96c9db', // Jhordin Perez
     conductorNombre: 'JHORDIN PEREZ',
     conductorTelefono: '921004913'
   },
   'CUADRILLA 3': {
     idTecnico: '05db4c32-3c7a-42e4-a0aa-8ac33dd5c75f', // Daniel Javier
     tecnicoNombre: 'DANIEL JAVIER',
-    idConductor: 'cond-lino-ticlla',
+    idConductor: '38375217-1e58-4c17-aeed-12e6cd71fd52', // Lino Ticlla
     conductorNombre: 'LINO TICLLA',
     conductorTelefono: '910493156'
   },
   'CUADRILLA 4': {
     idTecnico: '4b56f618-981f-4f2a-a901-4a4de4543899', // Alfonso Curi Lopez
     tecnicoNombre: 'ALFONSO CURI',
-    idConductor: 'cond-nilson-vera',
+    idConductor: '077953b1-9fe9-41ac-b31e-227b7dd270a3', // Nilson Vera
     conductorNombre: 'NILSON VERA',
     conductorTelefono: '969936764'
   },
   'CUADRILLA 5': {
     idTecnico: '19ff0cdf-7afc-4e50-94b2-f1a9998de148', // William Avila
     tecnicoNombre: 'WILLIAM AVILA',
-    idConductor: 'cond-jhordin-antonio',
+    idConductor: '84072c1a-9f19-4c98-b7da-f9ec3c3391e6', // Jhordin Antonio
     conductorNombre: 'JHORDIN ANTONIO',
     conductorTelefono: '999389272'
   },
   'CUADRILLA 6': {
     idTecnico: '58bf102a-514f-4829-806b-1037856cadb1', // Gabriel Farro
     tecnicoNombre: 'GABRIEL FARRO',
-    idConductor: 'cond-ander-peralta',
+    idConductor: 'd879089f-5981-4f08-94ca-ccccf8027f78', // Ander Peralta
     conductorNombre: 'ANDER PERALTA',
     conductorTelefono: '945551928'
   }
 }
 
-// Conductores oficiales del proyecto COVEPA
-export const CONDUCTORES_OFICIALES = [
-  { id: 'cond-carlos-perez', id_personal: 'cond-carlos-perez', nombre: 'CARLOS', apellido: 'PEREZ', nombre_completo: 'CARLOS PEREZ', cargo: 'CONDUCTOR', empresa: 'COVEPA', cuadrilla: 'CUADRILLA 1', contacto_1: '', activo: true, estado: 'Activo' },
-  { id: 'cond-jhordin-perez', id_personal: 'cond-jhordin-perez', nombre: 'JHORDIN', apellido: 'PEREZ', nombre_completo: 'JHORDIN PEREZ', cargo: 'CONDUCTOR', empresa: 'COVEPA', cuadrilla: 'CUADRILLA 2', contacto_1: '921004913', activo: true, estado: 'Activo' },
-  { id: 'cond-lino-ticlla', id_personal: 'cond-lino-ticlla', nombre: 'LINO', apellido: 'TICLLA', nombre_completo: 'LINO TICLLA', cargo: 'CONDUCTOR', empresa: 'COVEPA', cuadrilla: 'CUADRILLA 3', contacto_1: '910493156', activo: true, estado: 'Activo' },
-  { id: 'cond-nilson-vera', id_personal: 'cond-nilson-vera', nombre: 'NILSON', apellido: 'VERA', nombre_completo: 'NILSON VERA', cargo: 'CONDUCTOR', empresa: 'COVEPA', cuadrilla: 'CUADRILLA 4', contacto_1: '969936764', activo: true, estado: 'Activo' },
-  { id: 'cond-jhordin-antonio', id_personal: 'cond-jhordin-antonio', nombre: 'JHORDIN', apellido: 'ANTONIO', nombre_completo: 'JHORDIN ANTONIO', cargo: 'CONDUCTOR', empresa: 'COVEPA', cuadrilla: 'CUADRILLA 5', contacto_1: '999389272', activo: true, estado: 'Activo' },
-  { id: 'cond-ander-peralta', id_personal: 'cond-ander-peralta', nombre: 'ANDER', apellido: 'PERALTA', nombre_completo: 'ANDER PERALTA', cargo: 'CONDUCTOR', empresa: 'COVEPA', cuadrilla: 'CUADRILLA 6', contacto_1: '945551928', activo: true, estado: 'Activo' }
-]
+// Conductores oficiales del proyecto COVEPA (gestionados 100% en la BD externa)
+export const CONDUCTORES_OFICIALES = []
 
 const CUADRILLAS_STORAGE_KEY = 'covepa_cuadrillas_config'
 

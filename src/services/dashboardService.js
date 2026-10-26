@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { supabaseExt } from '../lib/supabaseExt'
 import { ASIGNACIONES_BASE } from './sitiosService'
+import { fetchPersonal } from './personalService.js'
 
 // Cache en memoria de catálogo de sitios para no saturar la BD externa
 let cachedSitiosCatalog = null
@@ -116,31 +117,42 @@ export async function getAvancePorFecha(fechaStr) {
     const endIso = `${fechaStr}T23:59:59`
     const isToday = fechaStr === getTodayDateStr()
 
-    // 1. Obtener programaciones de la jornada para mapear técnicos y sitios del día
-    const { data: rawProgs, error: progErr } = await supabase
+    // Cargar catálogo de personal desde la BD externa para resolución en memoria
+    let staffMap = {}
+    try {
+      const allStaff = await fetchPersonal()
+      ;(allStaff || []).forEach(p => {
+        staffMap[p.id] = p
+        if (p.id_personal) staffMap[p.id_personal] = p
+      })
+    } catch (e) {
+      console.warn('Aviso cargando personal externo en getAvancePorFecha:', e)
+    }
+
+    // 1. Obtener programaciones de la jornada sin joins relacionales a personal local
+    const { data: rawProgsData, error: progErr } = await supabase
       .from('programaciones')
       .select(`
         id,
         fecha,
-        personal:id_tecnico (
-          id,
-          nombre_completo,
-          cargo,
-          cuadrilla
-        ),
+        id_tecnico,
+        notas,
         asignaciones_personal:programacion_personal (
-          personal:id_personal (
-            id,
-            nombre_completo,
-            cargo,
-            cuadrilla
-          )
+          id_personal
         ),
         programacion_sitios (
           id_sitio
         )
       `)
       .eq('fecha', fechaStr)
+
+    const rawProgs = (rawProgsData || []).map(p => ({
+      ...p,
+      personal: staffMap[p.id_tecnico] || null,
+      asignaciones_personal: (p.asignaciones_personal || []).map(ap => ({
+        personal: staffMap[ap.id_personal] || null
+      }))
+    }))
 
     if (progErr) console.warn('Advertencia cargando programaciones:', progErr.message)
 
@@ -237,9 +249,9 @@ export async function getAvancePorFecha(fechaStr) {
           .from('programaciones')
           .select(`
             fecha,
-            personal:id_tecnico ( nombre_completo, cargo, cuadrilla ),
+            id_tecnico,
             asignaciones_personal:programacion_personal (
-              personal:id_personal ( nombre_completo, cargo, cuadrilla )
+              id_personal
             ),
             programacion_sitios!inner ( id_sitio )
           `)
@@ -248,8 +260,9 @@ export async function getAvancePorFecha(fechaStr) {
 
         ;(pastProgs || []).forEach(p => {
           const pSites = p.programacion_sitios || []
-          const techName = p.personal?.nombre_completo || p.asignaciones_personal?.[0]?.personal?.nombre_completo || 'Técnico de Cuadrilla'
-          const techCuad = p.personal?.cuadrilla || p.asignaciones_personal?.[0]?.personal?.cuadrilla || null
+          const mainStaff = staffMap[p.id_tecnico] || staffMap[p.asignaciones_personal?.[0]?.id_personal] || null
+          const techName = mainStaff?.nombre_completo || 'Técnico de Cuadrilla'
+          const techCuad = mainStaff?.cuadrilla || null
           pSites.forEach(s => {
             if (s.id_sitio && !siteTechMap[s.id_sitio]) {
               siteTechMap[s.id_sitio] = {

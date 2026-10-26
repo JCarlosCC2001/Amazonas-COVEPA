@@ -1582,32 +1582,17 @@ function ModalDetallesProgramacion({
 
   const team = (prog?.equipo && prog.equipo.length > 0) ? prog.equipo : [prog?.personal || {}]
 
-  // Personal auditor y revisor oficial de GILAT
+  // Personal auditor y revisor oficial de GILAT (100% desde la Base de Datos)
   const gilatOptions = useMemo(() => {
-    // 1. Integrantes de la base de datos externa asignados a GILAT
-    const dbGilat = (tecnicos || []).filter(t => {
-      if (!t || !t.nombre_completo) return false
-      const emp = (t.empresa || '').toUpperCase()
-      return emp.includes('GILAT')
-    })
-
-    // 2. Auditores oficiales de Gilat en el proyecto
-    const AUDITORES_GILAT_OFICIALES = [
-      { id: 'gilat-amilcar', nombre_completo: 'AMILCAR HANDER', cargo: 'Auditor Gilat', empresa: 'Gilat Networks' },
-      { id: 'gilat-thalia', nombre_completo: 'THALIA URQUIZO', cargo: 'Auditora Gilat', empresa: 'Gilat Networks' }
-    ]
-
-    const map = new Map()
-    dbGilat.forEach(g => {
-      map.set(g.nombre_completo.toUpperCase().trim(), g)
-    })
-    AUDITORES_GILAT_OFICIALES.forEach(a => {
-      if (!map.has(a.nombre_completo.toUpperCase().trim())) {
-        map.set(a.nombre_completo.toUpperCase().trim(), a)
-      }
-    })
-
-    return Array.from(map.values()).sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo))
+    return (tecnicos || [])
+      .filter(t => {
+        if (!t || !t.nombre_completo) return false
+        const emp = (t.empresa || '').toUpperCase()
+        const isGilat = emp.includes('GILAT')
+        const isPersona = (t.cargo || '').toUpperCase() !== 'EMPRESA'
+        return isGilat && isPersona
+      })
+      .sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo))
   }, [tecnicos])
 
   useEffect(() => {

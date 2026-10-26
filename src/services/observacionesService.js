@@ -107,22 +107,24 @@ export async function fetchObservaciones({
 // ────────────────────────────────────────────────────────────
 export async function fetchObservacionesKPIs(filters = {}) {
   try {
-    const [qTotal, qPend, qDesc, qSub] = await Promise.all([
+    const [qTotal, qPend, qSub, qRech, qDesc] = await Promise.all([
       applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }), filters),
       applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Pendiente,estado_covepa.is.null'), filters),
+      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.Rechazado)'), filters),
+      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Rechazado'), filters),
       applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Descartado'), filters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado)'), filters),
     ])
 
     return {
       total: qTotal.count ?? 0,
       pendientes: qPend.count ?? 0,
-      descartadas: qDesc.count ?? 0,
       subsanadas: qSub.count ?? 0,
+      rechazadas: qRech.count ?? 0,
+      descartadas: qDesc.count ?? 0,
     }
   } catch (err) {
     console.error('Error al calcular KPIs:', err)
-    return { total: 0, pendientes: 0, descartadas: 0, subsanadas: 0 }
+    return { total: 0, pendientes: 0, subsanadas: 0, rechazadas: 0, descartadas: 0 }
   }
 }
 

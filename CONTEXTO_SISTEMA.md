@@ -54,6 +54,7 @@ El sistema **Amazonas-COVEPA** es un ERP / Sistema Web de Gestión Operativa dis
   - Cierre seguro restringido únicamente al botón 'X' o tecla 'Esc'.
 
 ### 3.3. Observaciones Técnicas (`/observaciones`)
+- **Medidores KPIs Interactivos (6 Tarjetas):** Total Observaciones, Pendientes, Subsanadas/Subidas, Rechazadas, Descartadas y Total de Sitios (156 nodos), con filtrado reactivo directo al clic.
 - Tabla completa de las 4,116 observaciones con filtros por estado, grupo, hito, revisor y buscador rápido.
 - Edición de acuerdos de subsanación y comentarios técnicos.
 
@@ -156,6 +157,7 @@ Para garantizar que Google Earth funcione a máxima velocidad sin congelarse ni 
 | **26-10-2026** | Remoción del botón manual de guardar comentario y persistencia automática al cerrar la ventana/página. | Se eliminó el botón manual 'Guardar' que aparecía al redactar notas en las observaciones del modal de detalles. Los comentarios ahora se guardan automáticamente al perder el foco (`onBlur`), al cambiar de pestaña de sitio, al cerrar la ventana con el botón 'X' o tecla 'Esc', y ante el cierre o recarga de la página web (`beforeunload` y desmontaje). |
 | **26-10-2026** | Incorporación de botón y modal emergente de 'Avance del Día' en Programación sin alterar estructura existente. | Se agregó el botón `[ 📊 Avance del Día ]` en la barra superior de Programación (`prog-toolbar-actions`). Al hacer clic, abre `ModalAvanceDia` para la fecha activa consultando `getAvancePorFecha()`. Cuenta con contadores de estado como filtros (Total, Por Subir, En Revisión, Enviadas, Descartadas, Rechazadas), buscador en vivo, exportación oficial a Excel (.xlsx) con regla inmutable de CÓDIGO DE SITIO acompañado de LOCALIDAD, y visor de detalle de observación. Cierre seguro únicamente mediante 'X' o 'Esc'. |
 | **26-10-2026** | Eliminación de columna '#' y exportación/copia a portapapeles de reporte en imagen PNG (`imageExportService.js`). | Se removió la columna correlativa `#` tanto en la tabla en pantalla como en el Excel para maximizar la visibilidad del código de observación y localidad. Se implementó `imageExportService.js` mediante HTML5 Canvas de ultra alta definición (2x Retina) que genera un reporte gráfico institucional (cabecera con fecha, medidores de estado, tabla con códigos, técnicos, sitios y badges de estado). Se agregaron los botones 'Copiar PNG' (copia directa al portapapeles con `ClipboardItem` para pegar en WhatsApp o correo) y 'Descargar PNG' (descarga directa de archivo). |
+| **26-10-2026** | Reestructuración de medidores en Observaciones a 6 KPIs operativos interactivos. | Se actualizaron los medidores de la página `/observaciones` para reflejar exactamente: 1. Total Observaciones (navy), 2. Pendientes (amber), 3. Subsanadas / Subidas (emerald), 4. Rechazadas (rose), 5. Descartadas (purple) y 6. Total de Sitios (sky - 156 nodos georreferenciados). Cada medidor funciona como un filtro interactivo con clic y se actualizó `fetchObservacionesKPIs` en `observacionesService.js` para consultar en paralelo los conteos exactos. Soporte responsivo de 6 columnas en pantallas grandes, 3x2 en laptop y 2x3 en móvil. |
 
 ---
 

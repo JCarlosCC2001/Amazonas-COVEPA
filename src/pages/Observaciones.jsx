@@ -3,7 +3,7 @@ import {
   Search, Filter, RefreshCw, FileDown, X, Eye, ChevronLeft,
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,
   AlertTriangle, FileText, Save, LayoutList, Table2,
-  ChevronDown, ChevronUp, MapPin, Loader2, Calendar
+  ChevronDown, ChevronUp, MapPin, Loader2, Calendar, Ban
 } from 'lucide-react'
 import {
   fetchObservaciones, fetchObservacionesKPIs, fetchFiltrosObservaciones,
@@ -415,7 +415,7 @@ function GrupadaView({ resumen, loading, filtros, sitiosMap = {}, onSelectObs })
 export default function Observaciones() {
   const [observaciones, setObservaciones] = useState([])
   const [totalCount, setTotalCount] = useState(0)
-  const [kpis, setKpis] = useState({ total: 0, pendientes: 0, descartadas: 0, subsanadas: 0 })
+  const [kpis, setKpis] = useState({ total: 0, pendientes: 0, subsanadas: 0, rechazadas: 0, descartadas: 0 })
   const [filtros, setFiltros] = useState({ protocolos: [], estadosCovepa: [], sitios: [] })
   const [loading, setLoading] = useState(true)
   const [loadingKpis, setLoadingKpis] = useState(true)
@@ -550,44 +550,71 @@ export default function Observaciones() {
   }
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1
+  const totalSitios = idSitio ? 1 : (filtros.sitios?.length || 156)
 
   return (
     <div className="obs-container">
-      {/* ── MEDIDORES / KPIs REUTILIZABLES COVEPA ── */}
-      <MetricGrid columns={4}>
+      {/* ── MEDIDORES / KPIs REUTILIZABLES COVEPA (6 MÉTRICAS OPERATIVAS) ── */}
+      <MetricGrid columns={6}>
         <MetricCard
           icon={<ClipboardList size={22} />}
-          label="Total en Filtro"
+          label="Total Observaciones"
           value={loadingKpis ? '—' : kpis.total.toLocaleString()}
-          subtitle="de 4,116 obs"
+          subtitle="de 4,116 registros"
           variant="navy"
           onClick={() => setEstadoCovepa('')}
           active={!estadoCovepa}
+          title="Ver todas las observaciones registradas"
         />
         <MetricCard
-          icon={<AlertTriangle size={22} />}
-          label="Pendientes COVEPA"
+          icon={<AlertCircle size={22} />}
+          label="Pendientes"
           value={loadingKpis ? '—' : kpis.pendientes.toLocaleString()}
           subtitle="Por subsanar"
           variant="amber"
           onClick={() => setEstadoCovepa(prev => prev === 'Pendiente' ? '' : 'Pendiente')}
           active={estadoCovepa === 'Pendiente'}
-        />
-        <MetricCard
-          icon={<Calendar size={22} />}
-          label="Con Fecha Subsanación"
-          value={loadingKpis ? '—' : kpis.subsanadas.toLocaleString()}
-          subtitle="Comprometidas"
-          variant="emerald"
+          title="Filtrar por observaciones pendientes de subsanar"
         />
         <MetricCard
           icon={<CheckCircle2 size={22} />}
-          label="Descartadas COVEPA"
-          value={loadingKpis ? '—' : kpis.descartadas.toLocaleString()}
-          subtitle="Cerradas sin acción"
+          label="Subsanadas / Subidas"
+          value={loadingKpis ? '—' : kpis.subsanadas.toLocaleString()}
+          subtitle="Validadas / Enviadas"
+          variant="emerald"
+          onClick={() => setEstadoCovepa(prev => prev === 'Validado' ? '' : 'Validado')}
+          active={estadoCovepa === 'Validado'}
+          title="Filtrar por observaciones validadas o subsanadas"
+        />
+        <MetricCard
+          icon={<AlertTriangle size={22} />}
+          label="Rechazadas"
+          value={loadingKpis ? '—' : (kpis.rechazadas || 0).toLocaleString()}
+          subtitle="Observadas por calidad"
           variant="rose"
+          onClick={() => setEstadoCovepa(prev => prev === 'Rechazado' ? '' : 'Rechazado')}
+          active={estadoCovepa === 'Rechazado'}
+          title="Filtrar por observaciones rechazadas"
+        />
+        <MetricCard
+          icon={<Ban size={22} />}
+          label="Descartadas"
+          value={loadingKpis ? '—' : kpis.descartadas.toLocaleString()}
+          subtitle="Cerradas en campo"
+          variant="purple"
           onClick={() => setEstadoCovepa(prev => prev === 'Descartado' ? '' : 'Descartado')}
           active={estadoCovepa === 'Descartado'}
+          title="Filtrar por observaciones descartadas"
+        />
+        <MetricCard
+          icon={<MapPin size={22} />}
+          label="Total de Sitios"
+          value={totalSitios}
+          subtitle="Nodos georreferenciados"
+          variant="sky"
+          onClick={() => setIdSitio('')}
+          active={Boolean(idSitio)}
+          title={idSitio ? "Mostrar todos los sitios" : "156 sitios asignados en Amazonas"}
         />
       </MetricGrid>
 

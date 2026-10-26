@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
@@ -35,7 +35,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: 'ProgramaciÃ³n',
+    label: 'Programación',
     path: '/programacion',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -123,22 +123,22 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
           )}
         </div>
 
-        {/* BotÃ³n de cerrar en mÃ³vil */}
+        {/* Botón de cerrar en móvil */}
         <button
           type="button"
           className="sidebar-mobile-close"
           onClick={() => setMobileOpen && setMobileOpen(false)}
-          aria-label="Cerrar menÃº"
-          title="Cerrar menÃº"
+          aria-label="Cerrar menú"
+          title="Cerrar menú"
         >
           <X size={20} />
         </button>
 
-        {/* BotÃ³n de colapsar en escritorio */}
+        {/* Botón de colapsar en escritorio */}
         <button
           className="sidebar-toggle"
           onClick={() => setCollapsed(!collapsed)}
-          aria-label={collapsed ? 'Expandir menÃº' : 'Colapsar menÃº'}
+          aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             {collapsed
@@ -149,7 +149,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
         </button>
       </div>
 
-      {/* NavegaciÃ³n */}
+      {/* Navegación */}
       <nav className="sidebar-nav">
         {NAV_ITEMS.map((item) => (
           <NavLink
@@ -183,7 +183,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
         <button
           className="sidebar-logout"
           onClick={handleSignOut}
-          title="Cerrar sesiÃ³n"
+          title="Cerrar sesión"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />

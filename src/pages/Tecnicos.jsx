@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Users, UserPlus, Search, Phone, MessageSquare, Edit2,
   Trash2, Shield, Wrench, Truck, MapPin, RefreshCw, X,
-  LayoutGrid, List, PhoneCall, Eye, ChevronRight
+  LayoutGrid, List, PhoneCall, Eye, EyeOff, ChevronRight,
+  KeyRound, Lock, CheckCircle2, AlertCircle
 } from 'lucide-react'
+import { useAuth } from '../hooks/useAuth'
 import {
   fetchPersonal,
   createPersonal,
@@ -59,6 +61,7 @@ function getCargoClass(cargo) {
 }
 
 export default function Tecnicos() {
+  const { user, isAdmin } = useAuth()
   const [personal, setPersonal] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -70,6 +73,7 @@ export default function Tecnicos() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingMember, setEditingMember] = useState(null)
   const [selectedDrawerPerson, setSelectedDrawerPerson] = useState(null)
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -273,6 +277,32 @@ export default function Tecnicos() {
             </button>
           </div>
 
+          {/* Acción exclusiva de Administrador: Cambiar Contraseña */}
+          {isAdmin && (
+            <button
+              type="button"
+              className="prog-btn-secondary"
+              onClick={() => setPasswordModalOpen(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.45rem 0.85rem',
+                borderRadius: '8px',
+                background: 'rgba(99, 102, 241, 0.12)',
+                border: '1px solid rgba(99, 102, 241, 0.35)',
+                color: '#a5b4fc',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                cursor: 'pointer'
+              }}
+              title="Acceso exclusivo Administrador: Cambiar mi contraseña de acceso"
+            >
+              <KeyRound size={14} color="#818cf8" />
+              <span>Mi Contraseña</span>
+            </button>
+          )}
+
           <button className="prog-btn-create" onClick={handleOpenCreate}>
             <UserPlus size={15} />
             Nuevo Integrante
@@ -461,6 +491,8 @@ export default function Tecnicos() {
       {selectedDrawerPerson && (
         <DrawerPersonal
           person={selectedDrawerPerson}
+          isAdmin={isAdmin}
+          onOpenPasswordModal={() => setPasswordModalOpen(true)}
           onClose={() => setSelectedDrawerPerson(null)}
           onEdit={person => handleOpenEdit(person)}
           onDelete={(id, nombre) => handleDelete(id, nombre)}
@@ -475,6 +507,16 @@ export default function Tecnicos() {
           onSaved={() => {
             setModalOpen(false)
             loadData()
+          }}
+        />
+      )}
+
+      {/* ── MODAL: CAMBIAR CONTRASEÑA (EXCLUSIVO ADMINISTRADOR) ── */}
+      {passwordModalOpen && isAdmin && (
+        <ModalCambiarPassword
+          onClose={() => setPasswordModalOpen(false)}
+          onPasswordUpdated={() => {
+            // Callback opcional tras actualización
           }}
         />
       )}
@@ -745,7 +787,7 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
 // ────────────────────────────────────────────────────────────
 // SUBCOMPONENTE: Ventana Lateral (Drawer) de Revisión y Gestión
 // ────────────────────────────────────────────────────────────
-function DrawerPersonal({ person, onClose, onEdit, onDelete }) {
+function DrawerPersonal({ person, isAdmin, onOpenPasswordModal, onClose, onEdit, onDelete }) {
   if (!person) return null
   const cargoClass = getCargoClass(person.cargo)
   const isTecnico = cargoClass === 'tecnico' || (person.cargo || '').includes('SUPERVISOR')
@@ -944,6 +986,51 @@ function DrawerPersonal({ person, onClose, onEdit, onDelete }) {
             )}
           </div>
 
+          {/* Seguridad de Acceso (Exclusivo Administrador) */}
+          {isAdmin && (
+            <div style={{
+              background: 'rgba(99, 102, 241, 0.06)',
+              border: '1px solid rgba(99, 102, 241, 0.22)',
+              borderRadius: '10px',
+              padding: '0.75rem 0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.6rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <KeyRound size={15} color="#818cf8" />
+                <div>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c7d2fe' }}>
+                    Seguridad y Contraseña
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                    Exclusivo para tu cuenta Administrador
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenPasswordModal}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.35rem 0.65rem',
+                  borderRadius: '6px',
+                  background: 'rgba(99, 102, 241, 0.2)',
+                  border: '1px solid #818cf8',
+                  color: '#e0e7ff',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <span>Cambiar Mi Clave</span>
+              </button>
+            </div>
+          )}
+
           {/* Acciones de gestión en el Drawer */}
           <div style={{
             display: 'grid',
@@ -991,6 +1078,7 @@ function DrawerPersonal({ person, onClose, onEdit, onDelete }) {
 function ModalPersonal({ member, onClose, onSaved }) {
   const isEditing = !!member
   const [nombre, setNombre] = useState(member?.nombre_completo || '')
+  const [email, setEmail] = useState(member?.email || '')
   const [empresa, setEmpresa] = useState(member?.empresa || 'COVEPA')
   const [cargo, setCargo] = useState(member?.cargo || 'TÉCNICO')
   const [cuadrilla, setCuadrilla] = useState(member?.cuadrilla || 'CUADRILLA 1')
@@ -1053,6 +1141,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
         // Solo los técnicos de COVEPA conservan cuadrilla fija
         cuadrilla: (!isGilat && isTecnico) ? (cuadrilla ? cuadrilla.trim().toUpperCase() : null) : null,
         origen,
+        email: email ? email.trim().toLowerCase() : null,
         telefono: combinedTelefono,
         operador: combinedOperador,
         activo: true
@@ -1109,6 +1198,17 @@ function ModalPersonal({ member, onClose, onSaved }) {
                 value={nombre}
                 onChange={e => setNombre(e.target.value)}
                 required
+              />
+            </div>
+
+            <div className="prog-form-group">
+              <label>Correo Electrónico (Opcional - Para vincular acceso web al sistema)</label>
+              <input
+                type="email"
+                className="prog-form-control"
+                placeholder="ejemplo@covepa.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
               />
             </div>
 
@@ -1277,6 +1377,239 @@ function ModalPersonal({ member, onClose, onSaved }) {
             </button>
             <button type="submit" className="btn-primary" disabled={saving}>
               {saving ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Registrar Integrante'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────
+// SUBCOMPONENTE: Modal Cambiar Contraseña (Exclusivo Administrador)
+// ────────────────────────────────────────────────────────────
+function ModalCambiarPassword({ onClose, onPasswordUpdated }) {
+  const { user, updatePassword } = useAuth()
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPass, setShowPass] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
+
+  // Cerrar modal con tecla Escape
+  useEffect(() => {
+    const handleKeyDown = e => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  const handleSubmit = async e => {
+    e.preventDefault()
+    setErrorMsg('')
+    setSuccessMsg('')
+
+    if (!newPassword || newPassword.length < 6) {
+      setErrorMsg('La contraseña debe tener al menos 6 caracteres.')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setErrorMsg('Las contraseñas no coinciden. Por favor verifica ambos campos.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const { error } = await updatePassword(newPassword)
+      if (error) throw error
+
+      setSuccessMsg('¡Contraseña actualizada exitosamente en Supabase!')
+      setNewPassword('')
+      setConfirmPassword('')
+      setTimeout(() => {
+        if (onPasswordUpdated) onPasswordUpdated()
+        onClose()
+      }, 1600)
+    } catch (err) {
+      console.error('Error al cambiar contraseña:', err)
+      setErrorMsg(err.message || 'Error al actualizar la contraseña.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="prog-modal-overlay">
+      <div className="prog-modal" style={{ maxWidth: '440px' }}>
+        <div className="prog-modal-header" style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '8px',
+              background: 'rgba(99, 102, 241, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid rgba(99, 102, 241, 0.35)'
+            }}>
+              <KeyRound size={17} color="#818cf8" />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Seguridad de Administrador</h3>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Cambiar contraseña de acceso</span>
+            </div>
+          </div>
+          <button className="btn-close" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="prog-modal-body" style={{ gap: '1rem', padding: '1.25rem' }}>
+            {/* Indicador de cuenta actual */}
+            <div style={{
+              background: 'rgba(99, 102, 241, 0.08)',
+              border: '1px solid rgba(99, 102, 241, 0.2)',
+              borderRadius: '8px',
+              padding: '0.65rem 0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: '0.68rem', color: '#a5b4fc', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Cuenta Administradora
+                </span>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {user?.email || 'jcarloscc1101@gmail.com'}
+                </span>
+              </div>
+              <span style={{
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#34d399',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                padding: '0.15rem 0.5rem',
+                borderRadius: '6px',
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                textTransform: 'uppercase'
+              }}>
+                Admin
+              </span>
+            </div>
+
+            {errorMsg && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#fca5a5',
+                padding: '0.65rem 0.85rem',
+                borderRadius: '8px',
+                fontSize: '0.8rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <AlertCircle size={16} />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {successMsg && (
+              <div style={{
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                color: '#34d399',
+                padding: '0.75rem 0.85rem',
+                borderRadius: '8px',
+                fontSize: '0.82rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <CheckCircle2 size={16} />
+                <span>{successMsg}</span>
+              </div>
+            )}
+
+            <div className="prog-form-group">
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Nueva Contraseña *
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPass ? 'text' : 'password'}
+                  className="prog-form-control"
+                  placeholder="Mínimo 6 caracteres"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  style={{ paddingRight: '2.5rem' }}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(!showPass)}
+                  style={{
+                    position: 'absolute',
+                    right: '0.6rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex'
+                  }}
+                  tabIndex={-1}
+                >
+                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="prog-form-group">
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Confirmar Nueva Contraseña *
+              </label>
+              <input
+                type={showPass ? 'text' : 'password'}
+                className="prog-form-control"
+                placeholder="Repite la nueva contraseña"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="prog-modal-footer" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={loading || !newPassword}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                background: 'linear-gradient(135deg, #6366f1, #0ea5e9)'
+              }}
+            >
+              {loading ? (
+                <>
+                  <RefreshCw size={14} className="spin" />
+                  <span>Actualizando...</span>
+                </>
+              ) : (
+                <>
+                  <Lock size={14} />
+                  <span>Actualizar Contraseña</span>
+                </>
+              )}
             </button>
           </div>
         </form>

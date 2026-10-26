@@ -85,7 +85,7 @@ const NAV_ITEMS = [
 ]
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
-  const { user, signOut } = useAuth()
+  const { user, profile, personalMember, isAdmin, signOut } = useAuth()
   const navigate = useNavigate()
 
   const handleSignOut = async () => {
@@ -171,12 +171,18 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
       <div className="sidebar-footer">
         <div className={`sidebar-user ${collapsed && !mobileOpen ? 'sidebar-user-collapsed' : ''}`}>
           <div className="user-avatar">
-            {user?.email?.[0]?.toUpperCase() || 'U'}
+            {personalMember?.nombre_completo
+              ? personalMember.nombre_completo.slice(0, 2).toUpperCase()
+              : (user?.email?.[0]?.toUpperCase() || 'U')}
           </div>
           {(!collapsed || mobileOpen) && (
             <div className="user-info">
-              <span className="user-email">{user?.email}</span>
-              <span className="user-role">Administrador</span>
+              <span className="user-email" title={user?.email}>
+                {personalMember?.nombre_completo || user?.email}
+              </span>
+              <span className="user-role">
+                {isAdmin ? 'Administrador' : (profile?.rol ? profile.rol.toUpperCase() : 'Técnico')}
+              </span>
             </div>
           )}
         </div>

@@ -414,15 +414,16 @@ export async function getDashboardProjectOverview() {
       }
     })
 
-    // Diccionario de los 6 Grupos
+    // Diccionario de las 6 Cuadrillas Operativas
     const perGroup = {}
     for (let g = 1; g <= 6; g++) {
-      const gName = `GRUPO ${g}`
+      const gName = `CUADRILLA ${g}`
       perGroup[gName] = {
         grupo: gName,
+        cuadrilla: gName,
         numero: g,
         zona: g <= 2 ? 'ZONA 2 y ZONA 7' : 'ZONA 7',
-        sitiosCount: asignaciones.filter(a => a.grupo === gName).length,
+        sitiosCount: asignaciones.filter(a => (a.cuadrilla || a.grupo || '').replace(/GRUPO/gi, 'CUADRILLA') === gName).length,
         total: 0,
         subsanadas: 0,
         enRevision: 0,
@@ -467,9 +468,9 @@ export async function getDashboardProjectOverview() {
         else s.pendientes++
       }
 
-      // Por grupo
+      // Por cuadrilla
       const a = siteMap.get(row.id_sitio)
-      const gName = a ? a.grupo : null
+      const gName = a ? (a.cuadrilla || a.grupo || '').replace(/GRUPO/gi, 'CUADRILLA') : null
       if (gName && perGroup[gName]) {
         const g = perGroup[gName]
         g.total++

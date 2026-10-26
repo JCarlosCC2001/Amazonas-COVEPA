@@ -27,96 +27,96 @@ const KMZ_FILES = [
     isGeneral: true
   },
   {
-    id: 'grupo-1',
+    id: 'cuadrilla-1',
     name: 'Amazonas_COVEPA_Grupo_1',
-    title: 'Grupo 1',
+    title: 'Cuadrilla 1',
     grupoNum: 1,
-    grupoCode: 'GRUPO 1',
+    grupoCode: 'CUADRILLA 1',
     badge: '29 Sitios',
     badgeColor: '#0ea5e9',
     sitiosCount: 29,
     zonas: 'ZONA 2 y ZONA 7',
-    description: 'Sitios del Grupo 1 con tabla de observaciones (código, detalle, comentario inicial, acuerdo y estado).',
+    description: 'Sitios de la Cuadrilla 1 con tabla de observaciones (código, detalle, comentario inicial, acuerdo y estado).',
     kmzSize: '40 KB',
     kmlSize: '620 KB',
     kmzPath: '/kmz/Amazonas_COVEPA_Grupo_1.kmz',
     kmlPath: '/kmz/Amazonas_COVEPA_Grupo_1.kml'
   },
   {
-    id: 'grupo-2',
+    id: 'cuadrilla-2',
     name: 'Amazonas_COVEPA_Grupo_2',
-    title: 'Grupo 2',
+    title: 'Cuadrilla 2',
     grupoNum: 2,
-    grupoCode: 'GRUPO 2',
+    grupoCode: 'CUADRILLA 2',
     badge: '29 Sitios',
     badgeColor: '#0ea5e9',
     sitiosCount: 29,
     zonas: 'ZONA 2 y ZONA 7',
-    description: 'Sitios del Grupo 2 con tabla de observaciones (código, detalle, comentario inicial, acuerdo y estado).',
+    description: 'Sitios de la Cuadrilla 2 con tabla de observaciones (código, detalle, comentario inicial, acuerdo y estado).',
     kmzSize: '44 KB',
     kmlSize: '680 KB',
     kmzPath: '/kmz/Amazonas_COVEPA_Grupo_2.kmz',
     kmlPath: '/kmz/Amazonas_COVEPA_Grupo_2.kml'
   },
   {
-    id: 'grupo-3',
+    id: 'cuadrilla-3',
     name: 'Amazonas_COVEPA_Grupo_3',
-    title: 'Grupo 3',
+    title: 'Cuadrilla 3',
     grupoNum: 3,
-    grupoCode: 'GRUPO 3',
+    grupoCode: 'CUADRILLA 3',
     badge: '22 Sitios',
     badgeColor: '#10b981',
     sitiosCount: 22,
     zonas: 'ZONA 7',
-    description: 'Sitios del Grupo 3 con tabla de observaciones (código, detalle, comentario inicial, acuerdo y estado).',
+    description: 'Sitios de la Cuadrilla 3 con tabla de observaciones (código, detalle, comentario inicial, acuerdo y estado).',
     kmzSize: '41 KB',
     kmlSize: '640 KB',
     kmzPath: '/kmz/Amazonas_COVEPA_Grupo_3.kmz',
     kmlPath: '/kmz/Amazonas_COVEPA_Grupo_3.kml'
   },
   {
-    id: 'grupo-4',
+    id: 'cuadrilla-4',
     name: 'Amazonas_COVEPA_Grupo_4',
-    title: 'Grupo 4',
+    title: 'Cuadrilla 4',
     grupoNum: 4,
-    grupoCode: 'GRUPO 4',
+    grupoCode: 'CUADRILLA 4',
     badge: '22 Sitios',
     badgeColor: '#10b981',
     sitiosCount: 22,
     zonas: 'ZONA 7',
-    description: 'Sitios del Grupo 4 con tabla de observaciones (código, detalle, comentario inicial, acuerdo y estado).',
+    description: 'Sitios de la Cuadrilla 4 con tabla de observaciones (código, detalle, comentario inicial, acuerdo y estado).',
     kmzSize: '40 KB',
     kmlSize: '620 KB',
     kmzPath: '/kmz/Amazonas_COVEPA_Grupo_4.kmz',
     kmlPath: '/kmz/Amazonas_COVEPA_Grupo_4.kml'
   },
   {
-    id: 'grupo-5',
+    id: 'cuadrilla-5',
     name: 'Amazonas_COVEPA_Grupo_5',
-    title: 'Grupo 5',
+    title: 'Cuadrilla 5',
     grupoNum: 5,
-    grupoCode: 'GRUPO 5',
+    grupoCode: 'CUADRILLA 5',
     badge: '39 Sitios',
     badgeColor: '#f59e0b',
     sitiosCount: 39,
     zonas: 'ZONA 7',
-    description: 'Sitios del Grupo 5 con tabla de observaciones (código, detalle, comentario inicial, acuerdo y estado).',
+    description: 'Sitios de la Cuadrilla 5 con tabla de observaciones (código, detalle, comentario inicial, acuerdo y estado).',
     kmzSize: '55 KB',
     kmlSize: '890 KB',
     kmzPath: '/kmz/Amazonas_COVEPA_Grupo_5.kmz',
     kmlPath: '/kmz/Amazonas_COVEPA_Grupo_5.kml'
   },
   {
-    id: 'grupo-6',
+    id: 'cuadrilla-6',
     name: 'Amazonas_COVEPA_Grupo_6',
-    title: 'Grupo 6',
+    title: 'Cuadrilla 6',
     grupoNum: 6,
-    grupoCode: 'GRUPO 6',
+    grupoCode: 'CUADRILLA 6',
     badge: '15 Sitios',
     badgeColor: '#a855f7',
     sitiosCount: 15,
     zonas: 'ZONA 7',
-    description: 'Sitios del Grupo 6 con tabla de observaciones (código, detalle, comentario inicial, acuerdo y estado).',
+    description: 'Sitios de la Cuadrilla 6 con tabla de observaciones (código, detalle, comentario inicial, acuerdo y estado).',
     kmzSize: '26 KB',
     kmlSize: '410 KB',
     kmzPath: '/kmz/Amazonas_COVEPA_Grupo_6.kmz',
@@ -267,9 +267,9 @@ export default function KMZ() {
         />
         <MetricCard
           icon={<Layers size={22} />}
-          label="Grupos Territoriales"
+          label="Cuadrillas Operativas"
           value={6}
-          subtitle="Grupo 1 al Grupo 6"
+          subtitle="Cuadrilla 1 a Cuadrilla 6"
           variant="emerald"
           badge="6 Cuadrillas"
         />
@@ -323,7 +323,7 @@ export default function KMZ() {
             Centro de Descargas
           </h2>
           <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-            Mapas satelitales Google Earth (KMZ/KML) y reportes ejecutivos en Excel (.xlsx) organizados por grupo operativo
+            Mapas satelitales Google Earth (KMZ/KML) y reportes ejecutivos en Excel (.xlsx) organizados por cuadrilla operativa
           </p>
         </div>
 
@@ -334,7 +334,7 @@ export default function KMZ() {
             onClick={() => setActiveTab('grupos')}
           >
             <Layers size={14} />
-            <span>Por Grupo (KMZ + Excel)</span>
+            <span>Por Cuadrilla (KMZ + Excel)</span>
           </button>
 
           <button

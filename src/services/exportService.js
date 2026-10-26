@@ -1,4 +1,4 @@
-﻿import ExcelJS from 'exceljs'
+import ExcelJS from 'exceljs'
 import { supabase } from '../lib/supabase'
 import { fetchSitios } from './sitiosService'
 
@@ -8,11 +8,13 @@ import { fetchSitios } from './sitiosService'
  * e incluyendo la LOCALIDAD al lado del CÓDIGO DE SITIO.
  */
 export async function exportObservacionesGrupoExcel(grupoCode, grupoTitle) {
-  // 1. Obtener sitios asignados para el grupo
+  // 1. Obtener sitios asignados para la cuadrilla
   const sitios = await fetchSitios({ soloAsignados: true })
-  const sitiosGrupo = sitios.filter(
-    s => (s.grupo || '').toUpperCase() === (grupoCode || '').toUpperCase()
-  )
+  const targetCode = (grupoCode || '').replace(/GRUPO/gi, 'CUADRILLA').toUpperCase()
+  const sitiosGrupo = sitios.filter(s => {
+    const c = (s.cuadrilla || s.grupo || '').replace(/GRUPO/gi, 'CUADRILLA').toUpperCase()
+    return c === targetCode
+  })
 
   if (sitiosGrupo.length === 0) {
     throw new Error(`No se encontraron sitios para ${grupoTitle || grupoCode}`)
@@ -54,11 +56,12 @@ export async function exportObservacionesGrupoExcel(grupoCode, grupoTitle) {
     throw new Error(`No se encontraron observaciones registradas para ${grupoTitle || grupoCode}`)
   }
 
+  const labelCuadrilla = (grupoTitle || grupoCode).replace(/GRUPO/gi, 'Cuadrilla')
   return generateStyledExcel({
     observations: allObs,
     siteMap,
-    sheetName: (grupoTitle || grupoCode).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 28),
-    fileName: `Observaciones_COVEPA_${(grupoTitle || grupoCode).replace(/\s+/g, '_')}.xlsx`
+    sheetName: labelCuadrilla.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 28),
+    fileName: `Observaciones_COVEPA_${labelCuadrilla.replace(/\s+/g, '_')}.xlsx`
   })
 }
 
@@ -122,7 +125,7 @@ async function generateStyledExcel({ observations, siteMap, sheetName, fileName 
 
     return [
       idx + 1,
-      site.grupo || 'Sin Grupo',
+      (site.cuadrilla || site.grupo || 'Sin Cuadrilla').replace(/GRUPO/gi, 'CUADRILLA'),
       o.id_sitio || '',
       site.localidad || 'Sin localidad',
       site.nombre_nodo || '',
@@ -157,7 +160,7 @@ async function generateStyledExcel({ observations, siteMap, sheetName, fileName 
     },
     columns: [
       { name: '#', filterButton: true },
-      { name: 'GRUPO', filterButton: true },
+      { name: 'CUADRILLA', filterButton: true },
       { name: 'CÓDIGO DE SITIO', filterButton: true },
       { name: 'LOCALIDAD', filterButton: true },
       { name: 'NOMBRE NODO', filterButton: true },

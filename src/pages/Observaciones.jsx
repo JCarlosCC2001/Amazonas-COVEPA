@@ -279,9 +279,16 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs }) {
               <span className="agrupada-site-code">{sitio}</span>
               <span className="agrupada-site-loc"> · {localidad || 'Amazonas'}</span>
             </div>
-            {sitioInfo?.zona && (
-              <span className="agrupada-site-zone-pill">{sitioInfo.zona}</span>
-            )}
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '3px', flexWrap: 'wrap' }}>
+              {sitioInfo?.cuadrilla && (
+                <span className="agrupada-site-zone-pill" style={{ background: 'rgba(0, 48, 96, 0.08)', color: '#003060', border: '1px solid rgba(0, 48, 96, 0.15)', fontWeight: 700 }}>
+                  {sitioInfo.cuadrilla}
+                </span>
+              )}
+              {sitioInfo?.zona && (
+                <span className="agrupada-site-zone-pill">{sitioInfo.zona}</span>
+              )}
+            </div>
           </div>
           <div className="agrupada-site-pills">
             {stats.pendientes > 0 && <span className="pill pill-yellow">{stats.pendientes} pendientes</span>}
@@ -765,7 +772,14 @@ export default function Observaciones() {
                     <td><span className="site-code-badge">{o.id_obs}</span></td>
                     <td>
                       <div className="table-site-cell">
-                        <span className="site-code-badge" style={{color:'var(--accent)'}}>{o.id_sitio}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span className="site-code-badge" style={{color:'var(--accent)'}}>{o.id_sitio}</span>
+                          {sitiosMap[o.id_sitio]?.cuadrilla && (
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: 'rgba(0,48,96,0.08)', color: '#003060', border: '1px solid rgba(0,48,96,0.15)' }}>
+                              {sitiosMap[o.id_sitio].cuadrilla}
+                            </span>
+                          )}
+                        </div>
                         {sitiosMap[o.id_sitio]?.localidad && (
                           <span className="table-site-loc">{sitiosMap[o.id_sitio].localidad}</span>
                         )}

@@ -183,7 +183,7 @@ export default function Sitios() {
               onChange={e => setSelectedGrupo(e.target.value)}
               className="toolbar-select"
             >
-              <option value="TODOS">Todos los Grupos</option>
+              <option value="TODOS">Todas las Cuadrillas</option>
               {grupos.map(g => (
                 <option key={g} value={g}>{g}</option>
               ))}
@@ -256,7 +256,7 @@ export default function Sitios() {
               <tr>
                 <th>Código / ID</th>
                 <th>Nombre del Nodo</th>
-                <th>Asignación</th>
+                <th>Cuadrilla</th>
                 <th>Zona</th>
                 <th>Ubicación</th>
                 <th>Red / Tipo</th>

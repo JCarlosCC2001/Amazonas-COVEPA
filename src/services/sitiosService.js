@@ -2,8 +2,8 @@
 import { supabase } from '../lib/supabase'
 import { supabaseExt } from '../lib/supabaseExt'
 
-// Fallback de asignaciones iniciales en caso de que aún no se hayan ejecutado los inserts en Supabase propio
-export const ASIGNACIONES_BASE = [
+// Fallback de asignaciones iniciales mapeadas a Cuadrillas
+const _RAW_ASIGNACIONES = [
   { id_site: 'AM-0038-A01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
   { id_site: 'AM-0038-CS01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
   { id_site: 'AM-0038-CO01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
@@ -159,8 +159,13 @@ export const ASIGNACIONES_BASE = [
   { id_site: 'AM-0037-CO02', grupo: 'GRUPO 2', zona: 'ZONA 2' },
   { id_site: 'AM-0043-A01', grupo: 'GRUPO 2', zona: 'ZONA 2' },
   { id_site: 'AM-0126-A01', grupo: 'GRUPO 2', zona: 'ZONA 2' },
-  { id_site: 'AM-0033-A01', grupo: 'GRUPO 2', zona: 'ZONA 2' },
 ]
+
+export const ASIGNACIONES_BASE = _RAW_ASIGNACIONES.map(s => {
+  const cName = (s.grupo || 'CUADRILLA 1').replace(/GRUPO/gi, 'CUADRILLA')
+  return { ...s, grupo: cName, cuadrilla: cName }
+})
+
 
 /**
  * Obtiene los sitios completos cruzando la asignación local con los datos geográficos de la BD externa
@@ -226,18 +231,22 @@ export async function fetchSitios({ soloAsignados = true } = {}) {
     // 3. Cruzar la información en memoria
     const combinados = (sitiosExt || []).map(sitio => {
       const asig = mapaAsignaciones.get(sitio.id_site)
+      const cName = (asig?.cuadrilla || asig?.grupo || 'Sin Cuadrilla').replace(/GRUPO/gi, 'CUADRILLA')
       return {
         ...sitio,
-        grupo: asig?.grupo || 'Sin Grupo',
+        grupo: cName,
+        cuadrilla: cName,
         zona: asig?.zona || 'Sin Zona',
         es_asignado: !!asig,
         tiene_coordenadas: sitio.latitud !== null && sitio.longitud !== null
       }
     })
 
-    // Ordenar por Grupo y luego por id_site
+    // Ordenar por Cuadrilla y luego por id_site
     return combinados.sort((a, b) => {
-      if (a.grupo !== b.grupo) return a.grupo.localeCompare(b.grupo)
+      const cA = a.cuadrilla || a.grupo || ''
+      const cB = b.cuadrilla || b.grupo || ''
+      if (cA !== cB) return cA.localeCompare(cB, undefined, { numeric: true })
       return a.id_site.localeCompare(b.id_site)
     })
   } catch (error) {

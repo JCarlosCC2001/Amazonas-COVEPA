@@ -202,7 +202,8 @@ export default function Dashboard() {
   const filteredSitios = useMemo(() => {
     const q = searchSitio.toLowerCase().trim()
     return sitios.filter(s => {
-      const matchGrupo = filterGrupo === 'TODOS' || s.grupo === filterGrupo
+      const c = (s.cuadrilla || s.grupo || '').replace(/GRUPO/gi, 'CUADRILLA')
+      const matchGrupo = filterGrupo === 'TODOS' || c === filterGrupo
       const matchSearch =
         !q ||
         s.id_sitio.toLowerCase().includes(q) ||
@@ -534,19 +535,19 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── SECCIÓN 3: AVANCE Y BALANCE POR LOS 6 GRUPOS TERRITORIALES ── */}
+      {/* ── SECCIÓN 3: AVANCE Y BALANCE POR LAS 6 CUADRILLAS OPERATIVAS ── */}
       <div style={{ marginTop: '1.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.9rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div>
             <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#003060', margin: 0 }}>
-              Balance por Grupo Territorial
+              Balance por Cuadrilla Operativa
             </h2>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-              Consolidado de observaciones y porcentaje de avance para cada uno de los 6 grupos operativos.
+              Consolidado de observaciones y porcentaje de avance para cada una de las 6 cuadrillas operativas.
             </p>
           </div>
           <span style={{ fontSize: '0.75rem', color: '#0284c7', fontWeight: 600, background: 'rgba(2, 132, 199, 0.08)', padding: '0.3rem 0.65rem', borderRadius: '6px' }}>
-            6 Grupos Territoriales
+            6 Cuadrillas Operativas
           </span>
         </div>
 
@@ -733,20 +734,20 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Filtro por grupo */}
+            {/* Filtro por cuadrilla */}
             <select
               className="filter-select"
               value={filterGrupo}
               onChange={e => setFilterGrupo(e.target.value)}
               style={{ fontSize: '0.8rem', padding: '0.4rem 0.65rem' }}
             >
-              <option value="TODOS">Todos los Grupos ({sitios.length})</option>
-              <option value="GRUPO 1">GRUPO 1</option>
-              <option value="GRUPO 2">GRUPO 2</option>
-              <option value="GRUPO 3">GRUPO 3</option>
-              <option value="GRUPO 4">GRUPO 4</option>
-              <option value="GRUPO 5">GRUPO 5</option>
-              <option value="GRUPO 6">GRUPO 6</option>
+              <option value="TODOS">Todas las Cuadrillas ({sitios.length})</option>
+              <option value="CUADRILLA 1">CUADRILLA 1</option>
+              <option value="CUADRILLA 2">CUADRILLA 2</option>
+              <option value="CUADRILLA 3">CUADRILLA 3</option>
+              <option value="CUADRILLA 4">CUADRILLA 4</option>
+              <option value="CUADRILLA 5">CUADRILLA 5</option>
+              <option value="CUADRILLA 6">CUADRILLA 6</option>
             </select>
           </div>
         </div>
@@ -759,7 +760,7 @@ export default function Dashboard() {
                 <th style={{ width: '40px' }}>#</th>
                 <th style={{ width: '160px' }}>CÓDIGO DE SITIO</th>
                 <th>LOCALIDAD / NODO</th>
-                <th style={{ width: '110px' }}>GRUPO</th>
+                <th style={{ width: '120px' }}>CUADRILLA</th>
                 <th style={{ width: '85px', textAlign: 'center' }}>TOTAL</th>
                 <th style={{ width: '85px', textAlign: 'center' }}>SUBS.</th>
                 <th style={{ width: '85px', textAlign: 'center' }}>EN REV.</th>

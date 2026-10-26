@@ -74,16 +74,77 @@ export function mapExternalPerson(p, localMetaMap = {}, profileMap = {}, profile
   }
 }
 
-// Helper: Configuración local de cuadrillas sin depender de la tabla personal eliminada
+// Helper: Configuración de cuadrillas oficiales según reporte del proyecto
+export const DEFAULT_CUADRILLAS_CONFIG = {
+  'CUADRILLA 1': {
+    idTecnico: '554a3a58-bf04-480a-8795-d85e055ee4c6', // Jhonatan Flores Rojas
+    tecnicoNombre: 'JHONATAN FLORES',
+    idConductor: 'cond-carlos-perez',
+    conductorNombre: 'CARLOS PEREZ',
+    conductorTelefono: ''
+  },
+  'CUADRILLA 2': {
+    idTecnico: 'eebf3b9e-4923-47ce-9eee-8e9af86c9fea', // Cristian Isla
+    tecnicoNombre: 'CRISTIAN ISLA',
+    idConductor: 'cond-jhordin-perez',
+    conductorNombre: 'JHORDIN PEREZ',
+    conductorTelefono: '921004913'
+  },
+  'CUADRILLA 3': {
+    idTecnico: '05db4c32-3c7a-42e4-a0aa-8ac33dd5c75f', // Daniel Javier
+    tecnicoNombre: 'DANIEL JAVIER',
+    idConductor: 'cond-lino-ticlla',
+    conductorNombre: 'LINO TICLLA',
+    conductorTelefono: '910493156'
+  },
+  'CUADRILLA 4': {
+    idTecnico: '4b56f618-981f-4f2a-a901-4a4de4543899', // Alfonso Curi Lopez
+    tecnicoNombre: 'ALFONSO CURI',
+    idConductor: 'cond-nilson-vera',
+    conductorNombre: 'NILSON VERA',
+    conductorTelefono: '969936764'
+  },
+  'CUADRILLA 5': {
+    idTecnico: '19ff0cdf-7afc-4e50-94b2-f1a9998de148', // William Avila
+    tecnicoNombre: 'WILLIAM AVILA',
+    idConductor: 'cond-jhordin-antonio',
+    conductorNombre: 'JHORDIN ANTONIO',
+    conductorTelefono: '999389272'
+  },
+  'CUADRILLA 6': {
+    idTecnico: '58bf102a-514f-4829-806b-1037856cadb1', // Gabriel Farro
+    tecnicoNombre: 'GABRIEL FARRO',
+    idConductor: 'cond-ander-peralta',
+    conductorNombre: 'ANDER PERALTA',
+    conductorTelefono: '945551928'
+  }
+}
+
+// Conductores oficiales del proyecto COVEPA
+export const CONDUCTORES_OFICIALES = [
+  { id: 'cond-carlos-perez', id_personal: 'cond-carlos-perez', nombre: 'CARLOS', apellido: 'PEREZ', nombre_completo: 'CARLOS PEREZ', cargo: 'CONDUCTOR', empresa: 'COVEPA', cuadrilla: 'CUADRILLA 1', contacto_1: '', activo: true, estado: 'Activo' },
+  { id: 'cond-jhordin-perez', id_personal: 'cond-jhordin-perez', nombre: 'JHORDIN', apellido: 'PEREZ', nombre_completo: 'JHORDIN PEREZ', cargo: 'CONDUCTOR', empresa: 'COVEPA', cuadrilla: 'CUADRILLA 2', contacto_1: '921004913', activo: true, estado: 'Activo' },
+  { id: 'cond-lino-ticlla', id_personal: 'cond-lino-ticlla', nombre: 'LINO', apellido: 'TICLLA', nombre_completo: 'LINO TICLLA', cargo: 'CONDUCTOR', empresa: 'COVEPA', cuadrilla: 'CUADRILLA 3', contacto_1: '910493156', activo: true, estado: 'Activo' },
+  { id: 'cond-nilson-vera', id_personal: 'cond-nilson-vera', nombre: 'NILSON', apellido: 'VERA', nombre_completo: 'NILSON VERA', cargo: 'CONDUCTOR', empresa: 'COVEPA', cuadrilla: 'CUADRILLA 4', contacto_1: '969936764', activo: true, estado: 'Activo' },
+  { id: 'cond-jhordin-antonio', id_personal: 'cond-jhordin-antonio', nombre: 'JHORDIN', apellido: 'ANTONIO', nombre_completo: 'JHORDIN ANTONIO', cargo: 'CONDUCTOR', empresa: 'COVEPA', cuadrilla: 'CUADRILLA 5', contacto_1: '999389272', activo: true, estado: 'Activo' },
+  { id: 'cond-ander-peralta', id_personal: 'cond-ander-peralta', nombre: 'ANDER', apellido: 'PERALTA', nombre_completo: 'ANDER PERALTA', cargo: 'CONDUCTOR', empresa: 'COVEPA', cuadrilla: 'CUADRILLA 6', contacto_1: '945551928', activo: true, estado: 'Activo' }
+]
+
 const CUADRILLAS_STORAGE_KEY = 'covepa_cuadrillas_config'
 
 export function getLocalCuadrillasMap() {
-  if (typeof window === 'undefined') return {}
+  const base = {}
+  Object.entries(DEFAULT_CUADRILLAS_CONFIG).forEach(([cName, cfg]) => {
+    base[cName] = { idTecnico: cfg.idTecnico, idConductor: cfg.idConductor }
+  })
+  if (typeof window === 'undefined') return base
   try {
     const raw = localStorage.getItem(CUADRILLAS_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : {}
+    if (!raw) return base
+    const parsed = JSON.parse(raw)
+    return { ...base, ...parsed }
   } catch {
-    return {}
+    return base
   }
 }
 
@@ -131,7 +192,7 @@ export async function fetchPersonal() {
       console.warn('Aviso leyendo perfiles_usuario locales:', localErr)
     }
 
-    // 3. Mapear cuadrillas desde almacenamiento local
+    // 3. Mapear cuadrillas predefinidas
     const cuadrillasMap = getLocalCuadrillasMap()
     const memberCuadrillaMap = {}
     Object.entries(cuadrillasMap).forEach(([cuadrillaName, members]) => {
@@ -139,10 +200,23 @@ export async function fetchPersonal() {
       if (members.idConductor) memberCuadrillaMap[members.idConductor] = { cuadrilla: cuadrillaName }
     })
 
-    // 4. Mapear todo el personal
-    return extPersonal.map(p =>
+    // 4. Mapear todo el personal externo
+    const list = extPersonal.map(p =>
       mapExternalPerson(p, memberCuadrillaMap, profileMap, profileByEmailMap)
     )
+
+    // 5. Garantizar presencia de los 6 conductores oficiales de COVEPA si aún no están en la BD externa
+    CONDUCTORES_OFICIALES.forEach(cDef => {
+      const exists = list.some(p => {
+        const full = (p.nombre_completo || '').toUpperCase()
+        return full.includes(cDef.nombre) && full.includes(cDef.apellido)
+      })
+      if (!exists) {
+        list.push(mapExternalPerson(cDef, memberCuadrillaMap, profileMap, profileByEmailMap))
+      }
+    })
+
+    return list
   } catch (err) {
     console.error('Error general en fetchPersonal:', err)
     return PERSONAL_FALLBACK.map(p => mapExternalPerson(p))

@@ -245,9 +245,10 @@ def generar_popup_html_ligero(sitio, obs_list):
     </table>
     """ if total > 0 else "<p style='color:#6b7280;font-size:12px;margin:8px 0;'>No hay observaciones registradas en este sitio.</p>"
 
+    cuadrilla_txt = html.escape(str(grupo or "").replace("GRUPO", "CUADRILLA"))
     html_content = f"""<div style="width:850px;min-width:850px;font-family:Arial,sans-serif;background:#ffffff;color:#111827;padding:8px;line-height:1.4;">
 <h3 style="margin:0 0 4px;font-size:15px;color:#111827;border-bottom:1px solid #e5e7eb;padding-bottom:4px;">{codigo_lugar} - {nombre_nodo} ({id_site})</h3>
-<div style="font-size:12px;color:#4b5563;margin-bottom:8px;">Localidad: <b>{localidad}</b> &nbsp;|&nbsp; Distrito: <b>{distrito}</b> &nbsp;|&nbsp; Provincia: <b>{provincia}</b> &nbsp;|&nbsp; <b>{grupo}</b> ({zona})</div>
+<div style="font-size:12px;color:#4b5563;margin-bottom:8px;">Localidad: <b>{localidad}</b> &nbsp;|&nbsp; Distrito: <b>{distrito}</b> &nbsp;|&nbsp; Provincia: <b>{provincia}</b> &nbsp;|&nbsp; <b>{cuadrilla_txt}</b> ({zona})</div>
 {tabla_html}
 </div>"""
 

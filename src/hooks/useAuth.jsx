@@ -44,16 +44,9 @@ export function AuthProvider({ children }) {
             .maybeSingle()
           if (pExt) {
             personalId = pExt.id_personal
-          } else {
-            const { data: pFound } = await supabase
-              .from('personal')
-              .select('id')
-              .ilike('email', userEmail)
-              .maybeSingle()
-            if (pFound) personalId = pFound.id
           }
         } catch {
-          // Si falla consulta a personal, continuar
+          // Si falla consulta a personal externa, continuar
         }
 
         const newProfile = {
@@ -105,16 +98,7 @@ export function AuthProvider({ children }) {
             .maybeSingle()
           pFound = pExt
         } catch {
-          // Fallback a local
-        }
-
-        if (!pFound) {
-          const { data: pLocal } = await supabase
-            .from('personal')
-            .select('*')
-            .eq('id', prof.id_personal)
-            .maybeSingle()
-          pFound = pLocal
+          // Error no crítico de red
         }
 
         if (pFound) setPersonalMember(mapExternalPerson(pFound))
@@ -128,16 +112,7 @@ export function AuthProvider({ children }) {
             .maybeSingle()
           pFound = pExtByEmail
         } catch {
-          // Fallback a local
-        }
-
-        if (!pFound) {
-          const { data: pLocalByEmail } = await supabase
-            .from('personal')
-            .select('*')
-            .ilike('email', userEmail)
-            .maybeSingle()
-          pFound = pLocalByEmail
+          // Error no crítico de red
         }
 
         if (pFound) setPersonalMember(mapExternalPerson(pFound))

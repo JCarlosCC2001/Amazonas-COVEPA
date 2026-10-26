@@ -38,6 +38,7 @@ export function mapExternalPerson(p, localMetaMap = {}, profileMap = {}, profile
 
   const localMeta = localMetaMap[id] || {}
   const profile = profileMap[id] || (p.email ? profileByEmailMap[p.email.toLowerCase().trim()] : null) || null
+  const ciudadOrigen = p.ciudad_origen || localMeta.origen || p.origen || null
 
   return {
     id,
@@ -58,9 +59,11 @@ export function mapExternalPerson(p, localMetaMap = {}, profileMap = {}, profile
     activo: isActivo,
     telefono: combinedPhone,
     operador: combinedOp,
-    // Metadatos locales de asignación de operación
+    // Ciudad de origen / base operativa directa de la BD externa
+    ciudad_origen: ciudadOrigen,
+    origen: ciudadOrigen,
+    // Metadato de cuadrilla operativa
     cuadrilla: localMeta.cuadrilla || p.cuadrilla || null,
-    origen: localMeta.origen || p.origen || null,
     // Cuenta y rol en esta base de datos (COVEPA)
     cuenta_usuario: profile ? {
       id: profile.id,
@@ -71,29 +74,24 @@ export function mapExternalPerson(p, localMetaMap = {}, profileMap = {}, profile
   }
 }
 
-// ────────────────────────────────────────────────────────────
-// Sincronización transparente de espejo local (non-blocking)
-// Garantiza que claves foráneas en programaciones sigan funcionando
-// ────────────────────────────────────────────────────────────
-async function syncLocalMirror(persons) {
-  if (!persons || persons.length === 0) return
-  try {
-    const rows = persons.map(p => ({
-      id: p.id_personal,
-      nombre_completo: [p.nombre, p.apellido].filter(Boolean).join(' ') || 'SIN NOMBRE',
-      cargo: p.cargo || 'TÉCNICO',
-      telefono: [p.contacto_1, p.contacto_2].filter(Boolean).join(' / ') || null,
-      operador: [p.operador_1, p.operador_2].filter(Boolean).join(' / ') || null,
-      documento_identidad: p.dni || null,
-      email: p.email ? p.email.toLowerCase().trim() : null,
-      empresa: p.empresa || 'COVEPA',
-      activo: (p.estado || '').toUpperCase() !== 'INACTIVO'
-    }))
+// Helper: Configuración local de cuadrillas sin depender de la tabla personal eliminada
+const CUADRILLAS_STORAGE_KEY = 'covepa_cuadrillas_config'
 
-    await supabase.from('personal').upsert(rows, { onConflict: 'id' })
-  } catch (err) {
-    console.warn('Sincronización de espejo local omitida o no requerida:', err?.message || err)
+export function getLocalCuadrillasMap() {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = localStorage.getItem(CUADRILLAS_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
   }
+}
+
+export function saveLocalCuadrillasMap(map) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(CUADRILLAS_STORAGE_KEY, JSON.stringify(map))
+  } catch {}
 }
 
 // ────────────────────────────────────────────────────────────
@@ -109,70 +107,46 @@ export async function fetchPersonal() {
       .order('nombre', { ascending: true })
 
     if (extErr) {
-      console.warn('Error consultando base externa, usando BD local como respaldo:', extErr.message)
-      return fetchPersonalFallbackLocal()
+      console.warn('Error consultando base externa:', extErr.message)
+      return PERSONAL_FALLBACK.map(p => mapExternalPerson(p))
     }
 
     if (!extPersonal || extPersonal.length === 0) {
-      return fetchPersonalFallbackLocal()
+      return PERSONAL_FALLBACK.map(p => mapExternalPerson(p))
     }
 
-    // 2. Consultar metadatos locales (cuadrillas) y cuentas de usuario en esta base de datos
-    let localMetaMap = {}
+    // 2. Consultar cuentas de usuario (roles) en esta base de datos
     let profileMap = {}
     let profileByEmailMap = {}
 
     try {
-      const [metaRes, profRes] = await Promise.all([
-        supabase.from('personal').select('id, cuadrilla, origen'),
-        supabase.from('perfiles_usuario').select('*')
-      ])
-
-      if (metaRes.data) {
-        metaRes.data.forEach(m => {
-          localMetaMap[m.id] = m
-        })
-      }
-
-      if (profRes.data) {
-        profRes.data.forEach(pr => {
+      const { data: profData } = await supabase.from('perfiles_usuario').select('*')
+      if (profData) {
+        profData.forEach(pr => {
           if (pr.id_personal) profileMap[pr.id_personal] = pr
           if (pr.email) profileByEmailMap[pr.email.toLowerCase().trim()] = pr
         })
       }
     } catch (localErr) {
-      console.warn('Error leyendo metadatos locales de personal:', localErr)
+      console.warn('Aviso leyendo perfiles_usuario locales:', localErr)
     }
 
-    // 3. Mapear todo el personal
-    const mapped = extPersonal.map(p =>
-      mapExternalPerson(p, localMetaMap, profileMap, profileByEmailMap)
+    // 3. Mapear cuadrillas desde almacenamiento local
+    const cuadrillasMap = getLocalCuadrillasMap()
+    const memberCuadrillaMap = {}
+    Object.entries(cuadrillasMap).forEach(([cuadrillaName, members]) => {
+      if (members.idTecnico) memberCuadrillaMap[members.idTecnico] = { cuadrilla: cuadrillaName }
+      if (members.idConductor) memberCuadrillaMap[members.idConductor] = { cuadrilla: cuadrillaName }
+    })
+
+    // 4. Mapear todo el personal
+    return extPersonal.map(p =>
+      mapExternalPerson(p, memberCuadrillaMap, profileMap, profileByEmailMap)
     )
-
-    // Sincronizar espejo local en segundo plano para no bloquear UI
-    setTimeout(() => {
-      syncLocalMirror(extPersonal)
-    }, 100)
-
-    return mapped
   } catch (err) {
     console.error('Error general en fetchPersonal:', err)
-    return fetchPersonalFallbackLocal()
-  }
-}
-
-// Respaldo secundario si la base de datos externa estuviera inaccesible
-async function fetchPersonalFallbackLocal() {
-  const { data, error } = await supabase
-    .from('personal')
-    .select('*')
-    .order('nombre_completo', { ascending: true })
-
-  if (error || !data || data.length === 0) {
     return PERSONAL_FALLBACK.map(p => mapExternalPerson(p))
   }
-
-  return data.map(p => mapExternalPerson(p))
 }
 
 // ────────────────────────────────────────────────────────────
@@ -192,7 +166,8 @@ export async function createPersonal(payload) {
     contacto_2: payload.contacto_2 ? payload.contacto_2.trim() : (payload.telefono ? payload.telefono.split('/')[1]?.trim() : null),
     operador_1: payload.operador_1 || null,
     operador_2: payload.operador_2 || null,
-    estado: payload.estado || (payload.activo !== false ? 'Activo' : 'Inactivo')
+    estado: payload.estado || (payload.activo !== false ? 'Activo' : 'Inactivo'),
+    ciudad_origen: payload.ciudad_origen ? payload.ciudad_origen.trim() : (payload.origen ? payload.origen.trim() : null)
   }
 
   // 1. Insertar en la BD EXTERNA
@@ -218,26 +193,6 @@ export async function createPersonal(payload) {
     } catch (accErr) {
       console.warn('No se pudo autogenerar perfil local:', accErr)
     }
-  }
-
-  // 3. Espejo en la base local (incluyendo cuadrilla y origen si se definieron)
-  try {
-    await supabase.from('personal').upsert({
-      id: personId,
-      nombre_completo: [extPayload.nombre, extPayload.apellido].filter(Boolean).join(' '),
-      cargo: extPayload.cargo,
-      dni: extPayload.dni,
-      documento_identidad: extPayload.dni,
-      telefono: [extPayload.contacto_1, extPayload.contacto_2].filter(Boolean).join(' / ') || null,
-      operador: [extPayload.operador_1, extPayload.operador_2].filter(Boolean).join(' / ') || null,
-      cuadrilla: payload.cuadrilla ? payload.cuadrilla.trim().toUpperCase() : null,
-      origen: payload.origen ? payload.origen.trim().toUpperCase() : null,
-      email: extPayload.email,
-      empresa: extPayload.empresa,
-      activo: extPayload.estado === 'Activo'
-    })
-  } catch {
-    // Continuar si falla el espejo
   }
 
   return mapExternalPerson(newPerson)
@@ -268,6 +223,13 @@ export async function updatePersonal(id, payload) {
     extUpdate.estado = payload.estado
   } else if (payload.activo !== undefined) {
     extUpdate.estado = payload.activo ? 'Activo' : 'Inactivo'
+  }
+
+  // Si enviaron ciudad_origen u origen
+  if (payload.ciudad_origen !== undefined) {
+    extUpdate.ciudad_origen = payload.ciudad_origen ? payload.ciudad_origen.trim() : null
+  } else if (payload.origen !== undefined) {
+    extUpdate.ciudad_origen = payload.origen ? payload.origen.trim() : null
   }
 
   // Si enviaron un teléfono combinado, desglosarlo
@@ -307,36 +269,6 @@ export async function updatePersonal(id, payload) {
     }
   }
 
-  // 3. Sincronizar espejo local
-  try {
-    const localUpdate = {
-      updated_at: new Date().toISOString()
-    }
-    if (extUpdate.nombre !== undefined || extUpdate.apellido !== undefined) {
-      localUpdate.nombre_completo = [updatedPerson.nombre, updatedPerson.apellido].filter(Boolean).join(' ')
-    }
-    if (extUpdate.cargo !== undefined) localUpdate.cargo = extUpdate.cargo
-    if (extUpdate.dni !== undefined) {
-      localUpdate.documento_identidad = extUpdate.dni
-      localUpdate.dni = extUpdate.dni
-    }
-    if (finalEmail !== undefined) localUpdate.email = finalEmail
-    if (extUpdate.empresa !== undefined) localUpdate.empresa = extUpdate.empresa
-    if (extUpdate.contacto_1 !== undefined || extUpdate.contacto_2 !== undefined) {
-      localUpdate.telefono = [updatedPerson.contacto_1, updatedPerson.contacto_2].filter(Boolean).join(' / ') || null
-    }
-    if (extUpdate.operador_1 !== undefined || extUpdate.operador_2 !== undefined) {
-      localUpdate.operador = [updatedPerson.operador_1, updatedPerson.operador_2].filter(Boolean).join(' / ') || null
-    }
-    if (payload.cuadrilla !== undefined) localUpdate.cuadrilla = payload.cuadrilla ? payload.cuadrilla.trim().toUpperCase() : null
-    if (payload.origen !== undefined) localUpdate.origen = payload.origen ? payload.origen.trim().toUpperCase() : null
-    if (extUpdate.estado !== undefined) localUpdate.activo = extUpdate.estado === 'Activo'
-
-    await supabase.from('personal').update(localUpdate).eq('id', id)
-  } catch {
-    // Continuar si falla el espejo
-  }
-
   return mapExternalPerson(updatedPerson)
 }
 
@@ -351,10 +283,9 @@ export async function deletePersonal(id) {
 
   if (extErr) throw new Error(`Error eliminando de base externa: ${extErr.message}`)
 
-  // Desvincular de espejo local y de perfiles_usuario en segundo plano
+  // Desvincular de perfiles_usuario en segundo plano si existía
   try {
     await supabase.from('perfiles_usuario').update({ id_personal: null }).eq('id_personal', id)
-    await supabase.from('personal').delete().eq('id', id)
   } catch (err) {
     console.warn('Limpieza local no crítica:', err)
   }
@@ -414,7 +345,6 @@ export async function assignUserAccount({ id_personal, email, rol = 'tecnico', a
       .single()
 
     if (insErr) {
-      // Si falla por RLS o falta de sesión, registrar advertencia
       console.warn('Aviso insertando en perfiles_usuario:', insErr.message)
       resultProfile = { email: cleanEmail, rol, id_personal, activo }
     } else {
@@ -470,60 +400,11 @@ export async function toggleAccesoPersonal(id, activo, email, rol = 'supervisor'
 
 // ────────────────────────────────────────────────────────────
 // 7. Configurar o actualizar integrantes de una cuadrilla predefinida
-// Almacenado en la base de datos local para la operación COVEPA
 // ────────────────────────────────────────────────────────────
 export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idConductor }) {
   const cName = cuadrillaName.trim().toUpperCase()
-
-  // Buscar integrantes actuales con esta cuadrilla en local
-  const { data: currentMembers } = await supabase
-    .from('personal')
-    .select('id, cargo')
-    .eq('cuadrilla', cName)
-
-  const members = currentMembers || []
-  const currentTecs = members.filter(m => {
-    const c = (m.cargo || '').toUpperCase()
-    return c.includes('TÉCNICO') || c.includes('TECNICO') || c.includes('SUPERVISOR')
-  })
-  const currentConds = members.filter(m => {
-    const c = (m.cargo || '').toUpperCase()
-    return c.includes('CONDUCTOR')
-  })
-
-  // Desasignar técnicos que ya no pertenecen a esta cuadrilla
-  const tecsToClear = currentTecs.filter(m => m.id !== idTecnico).map(m => m.id)
-  if (tecsToClear.length > 0) {
-    await supabase
-      .from('personal')
-      .update({ cuadrilla: null, updated_at: new Date().toISOString() })
-      .in('id', tecsToClear)
-  }
-
-  // Desasignar conductores que ya no pertenecen a esta cuadrilla
-  const condsToClear = currentConds.filter(m => m.id !== idConductor).map(m => m.id)
-  if (condsToClear.length > 0) {
-    await supabase
-      .from('personal')
-      .update({ cuadrilla: null, updated_at: new Date().toISOString() })
-      .in('id', condsToClear)
-  }
-
-  // Asignar el nuevo técnico a la cuadrilla
-  if (idTecnico) {
-    await supabase
-      .from('personal')
-      .update({ cuadrilla: cName, updated_at: new Date().toISOString() })
-      .eq('id', idTecnico)
-  }
-
-  // Asignar el nuevo conductor a la cuadrilla
-  if (idConductor) {
-    await supabase
-      .from('personal')
-      .update({ cuadrilla: cName, updated_at: new Date().toISOString() })
-      .eq('id', idConductor)
-  }
-
+  const map = getLocalCuadrillasMap()
+  map[cName] = { idTecnico, idConductor }
+  saveLocalCuadrillasMap(map)
   return true
 }

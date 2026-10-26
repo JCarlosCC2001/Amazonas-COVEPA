@@ -27,17 +27,39 @@ export const getPersonalTecnico = getPersonalActivo
 
 // ────────────────────────────────────────────────────────────
 // 2. Obtener programaciones en un rango de fechas con sus sitios y equipo completo
+// Diccionario de nombres históricos para resolver asignaciones anteriores mientras se reasignan IDs
+export const KNOWN_LEGACY_NAMES = {
+  'b0e30c52-ef5e-46cb-8ae1-82e992ec69b4': 'JHONATAN FLORES',
+  '9184f892-b8f4-441c-af48-fe801cae68c7': 'DANIEL JAVIER',
+  '84624160-b95e-46a0-be80-6aa9cb0974a9': 'ALFONSO CURI',
+  'eb9daa58-60db-4c93-b955-9c520a2281a4': 'WILLIAM AVILA',
+  'a7533248-7885-4cb7-ab7c-8f97093c2b52': 'GABRIEL FARRO',
+  '739fa2c9-5d60-43af-add6-6fb897c8ba7b': 'CRISTIAN ISLA',
+  '1': 'JHONATAN FLORES',
+  '2': 'ANDER PERALTA',
+  '3': 'DANIEL JAVIER',
+  '4': 'LINO TICLLA',
+  '5': 'ALFONSO CURI',
+  '6': 'JHORDITH ZULUETA',
+  '7': 'WILLIAM AVILA',
+  '8': 'JHORDIN PEREZ',
+  '9': 'GABRIEL FARRO',
+  '10': 'NILSON VERA',
+  '11': 'CRISTIAN ISLA'
+}
+
 // ────────────────────────────────────────────────────────────
 export async function getProgramaciones(fechaInicio, fechaFin) {
-  // 1. Cargar catálogo de personal activo para mapear integrantes secundarios
+  // 1. Cargar catálogo de personal activo desde la BD EXTERNA
   const allStaff = await getPersonalActivo()
 
   const staffMap = {}
   ;(allStaff || []).forEach(p => {
     staffMap[p.id] = p
+    if (p.id_personal) staffMap[p.id_personal] = p
   })
 
-  // 2. Consultar programaciones
+  // 2. Consultar programaciones sin depender de la tabla personal local
   let query = supabase
     .from('programaciones')
     .select(`
@@ -48,22 +70,7 @@ export async function getProgramaciones(fechaInicio, fechaFin) {
       created_at,
       asignaciones_personal:programacion_personal (
         id,
-        id_personal,
-        personal:id_personal (
-          id,
-          nombre_completo,
-          cuadrilla,
-          cargo,
-          telefono,
-          operador
-        )
-      ),
-      personal:id_tecnico (
-        id,
-        nombre_completo,
-        cuadrilla,
-        cargo,
-        telefono
+        id_personal
       ),
       sitios:programacion_sitios (
         id,
@@ -87,19 +94,22 @@ export async function getProgramaciones(fechaInicio, fechaFin) {
 
   // 3. Mapear equipo relacional con soporte múltiple personal y notas limpias
   return (data || []).map(row => {
-    // 1. Extraer equipo desde la tabla relacional programacion_personal
+    // 1. Extraer equipo desde la tabla relacional programacion_personal cruzando con staffMap
     let equipo = (row.asignaciones_personal || [])
-      .map(ap => ap.personal)
+      .map(ap => staffMap[ap.id_personal])
       .filter(Boolean)
 
     let textoNotas = row.notas || ''
 
     // 2. Fallback de retrocompatibilidad si hubo personal_ids guardados en notas
-    if (equipo.length === 0 && row.notas && row.notas.startsWith('{') && row.notas.endsWith('}')) {
+    if (row.notas && row.notas.startsWith('{') && row.notas.endsWith('}')) {
       try {
         const parsed = JSON.parse(row.notas)
         if (Array.isArray(parsed.personal_ids) && parsed.personal_ids.length > 0) {
-          equipo = parsed.personal_ids.map(pid => staffMap[pid]).filter(Boolean)
+          const fromNotas = parsed.personal_ids.map(pid => staffMap[pid]).filter(Boolean)
+          if (fromNotas.length > 0 && equipo.length === 0) {
+            equipo = fromNotas
+          }
         }
         textoNotas = parsed.texto || parsed.notas || ''
       } catch (e) {
@@ -107,17 +117,69 @@ export async function getProgramaciones(fechaInicio, fechaFin) {
       }
     }
 
-    // 3. Fallback al técnico principal si equipo sigue vacío
-    if (equipo.length === 0 && row.personal) {
-      equipo = [row.personal]
+    // 3. Resolver técnico principal
+    let tecnicoPrincipal = staffMap[row.id_tecnico] || null
+    if (!tecnicoPrincipal && row.id_tecnico) {
+      const legacyName = KNOWN_LEGACY_NAMES[row.id_tecnico] || 'Personal por vincular'
+      tecnicoPrincipal = {
+        id: row.id_tecnico,
+        id_personal: row.id_tecnico,
+        nombre_completo: legacyName,
+        cargo: 'TÉCNICO',
+        telefono: null,
+        is_legacy_unlinked: true
+      }
+    }
+
+    if (equipo.length === 0 && tecnicoPrincipal) {
+      equipo = [tecnicoPrincipal]
     }
 
     return {
       ...row,
+      personal: tecnicoPrincipal,
       notas: textoNotas,
       equipo
     }
   })
+}
+
+// ────────────────────────────────────────────────────────────
+// Reasignar un ID de personal antiguo a un id_personal de la base externa
+// ────────────────────────────────────────────────────────────
+export async function reassignProgramacionStaff(oldId, newIdPersonal) {
+  if (!oldId || !newIdPersonal) return false
+
+  // 1. Actualizar programaciones donde id_tecnico = oldId
+  const { data: progs } = await supabase
+    .from('programaciones')
+    .select('id, notas, id_tecnico')
+
+  if (progs) {
+    for (const pr of progs) {
+      let needsUpdate = false
+      const updatePayload = {}
+      if (pr.id_tecnico === oldId) {
+        updatePayload.id_tecnico = newIdPersonal
+        needsUpdate = true
+      }
+      if (pr.notas && pr.notas.includes(oldId)) {
+        updatePayload.notas = pr.notas.replaceAll(oldId, newIdPersonal)
+        needsUpdate = true
+      }
+      if (needsUpdate) {
+        await supabase.from('programaciones').update(updatePayload).eq('id', pr.id)
+      }
+    }
+  }
+
+  // 2. Actualizar programacion_personal
+  await supabase
+    .from('programacion_personal')
+    .update({ id_personal: newIdPersonal })
+    .eq('id_personal', oldId)
+
+  return true
 }
 
 // ────────────────────────────────────────────────────────────

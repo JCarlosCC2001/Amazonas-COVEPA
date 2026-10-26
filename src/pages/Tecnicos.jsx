@@ -1557,6 +1557,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
   const [empresa, setEmpresa] = useState(member?.empresa || 'SELNET')
   const [cargo, setCargo] = useState(member?.cargo || 'Tecnico')
   const [estado, setEstado] = useState(member?.estado || 'Activo')
+  const [ciudadOrigen, setCiudadOrigen] = useState(member?.ciudad_origen || member?.origen || '')
 
   const initialPhones = (member?.telefono || '').split('/').map(s => s.trim())
   const initialOps = (member?.operador || '').split('/').map(s => s.trim())
@@ -1607,6 +1608,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
         email: email ? email.trim().toLowerCase() : null,
         estado: estado || 'Activo',
         activo: estado === 'Activo',
+        ciudad_origen: ciudadOrigen.trim() || null,
         // Cuenta de acceso en BD local del proyecto
         rol_cuenta: asignarCuenta ? rolCuenta : null,
         cuenta_activa: asignarCuenta ? cuentaActiva : false,
@@ -1750,18 +1752,31 @@ function ModalPersonal({ member, onClose, onSaved }) {
               </div>
             </div>
 
-            {/* Fila 4: Estado en Base Externa */}
-            <div className="prog-form-group">
-              <label>Estado en Base de Datos Externa *</label>
-              <select
-                className="prog-form-control"
-                value={estado}
-                onChange={e => setEstado(e.target.value)}
-                required
-              >
-                <option value="Activo">Activo (Disponible en operación)</option>
-                <option value="Inactivo">Inactivo (Deshabilitado)</option>
-              </select>
+            {/* Fila 4: Estado en Base Externa y Ciudad de Origen */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+              <div className="prog-form-group">
+                <label>Estado en BD Externa *</label>
+                <select
+                  className="prog-form-control"
+                  value={estado}
+                  onChange={e => setEstado(e.target.value)}
+                  required
+                >
+                  <option value="Activo">Activo (Disponible en operación)</option>
+                  <option value="Inactivo">Inactivo (Deshabilitado)</option>
+                </select>
+              </div>
+
+              <div className="prog-form-group">
+                <label>Ciudad de Origen / Base</label>
+                <input
+                  type="text"
+                  className="prog-form-control"
+                  placeholder="ej: CHACHAPOYAS, BAGUA..."
+                  value={ciudadOrigen}
+                  onChange={e => setCiudadOrigen(e.target.value)}
+                />
+              </div>
             </div>
 
             {/* Fila 5: Teléfono 1 y Operador */}

@@ -31,7 +31,8 @@ function applyQueryFilters(query, {
   search = '',
   protocolo = '',
   estadoCovepa = '',
-  idSitio = ''
+  idSitio = '',
+  idSitios = null
 } = {}) {
   const searchOr = buildSearchOr(search)
   if (searchOr) query = query.or(searchOr)
@@ -44,6 +45,9 @@ function applyQueryFilters(query, {
     }
   }
   if (idSitio)        query = query.eq('id_sitio', idSitio)
+  if (idSitios && Array.isArray(idSitios) && idSitios.length > 0) {
+    query = query.in('id_sitio', idSitios)
+  }
   return query
 }
 

@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Search, Filter, RefreshCw, FileDown, X, Eye, ChevronLeft,
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,
   AlertTriangle, FileText, Save, LayoutList, Table2,
-  ChevronDown, ChevronUp, MapPin, Loader2, Calendar, Ban, UploadCloud
+  ChevronDown, ChevronUp, MapPin, Loader2, Calendar, Ban, UploadCloud, Layers
 } from 'lucide-react'
 import {
   fetchObservaciones, fetchObservacionesKPIs, fetchFiltrosObservaciones,
@@ -121,6 +121,12 @@ function ObsDrawer({ obs, sitiosMap = {}, onClose, onSaved }) {
           {/* IDENTIFICACIÓN */}
           <div className="obs-section-title">Identificación de la Observación</div>
           <div className="obs-grid-3">
+            <div className="obs-detail-item">
+              <span className="obs-dk">Cuadrilla</span>
+              <span className="obs-dv" style={{fontWeight: 700, color: '#003060'}}>
+                {sitioInfo.cuadrilla || 'Sin Cuadrilla'}
+              </span>
+            </div>
             <div className="obs-detail-item">
               <span className="obs-dk">Sitio y Localidad</span>
               <span className="obs-dv" style={{fontFamily:'monospace',color:'var(--primary-light)'}}>
@@ -440,12 +446,26 @@ export default function Observaciones() {
   const [protocolo, setProtocolo] = useState('')
   const [estadoCovepa, setEstadoCovepa] = useState('')
   const [idSitio, setIdSitio] = useState('')
+  const [cuadrilla, setCuadrilla] = useState('')
   const [page, setPage] = useState(1)
   const pageSize = 20
 
   const searchTimeout = useRef(null)
 
-  const filtrosActivos = { search, protocolo, estadoCovepa, idSitio }
+  const siteIdsForCuadrilla = useMemo(() => {
+    if (!cuadrilla) return null
+    return Object.values(sitiosMap)
+      .filter(s => (s.cuadrilla || s.grupo || '').replace(/GRUPO/gi, 'CUADRILLA') === cuadrilla)
+      .map(s => s.id_site)
+  }, [cuadrilla, sitiosMap])
+
+  const filtrosActivos = useMemo(() => ({
+    search,
+    protocolo,
+    estadoCovepa,
+    idSitio,
+    idSitios: siteIdsForCuadrilla
+  }), [search, protocolo, estadoCovepa, idSitio, siteIdsForCuadrilla])
 
   // Carga inicial de filtros disponibles y catálogo de localidades
   useEffect(() => {
@@ -474,7 +494,7 @@ export default function Observaciones() {
     } finally {
       setLoading(false)
     }
-  }, [search, protocolo, estadoCovepa, idSitio, page])
+  }, [filtrosActivos, page])
 
   const loadKpis = useCallback(async () => {
     setLoadingKpis(true)
@@ -484,7 +504,7 @@ export default function Observaciones() {
     } finally {
       setLoadingKpis(false)
     }
-  }, [search, protocolo, estadoCovepa, idSitio])
+  }, [filtrosActivos])
 
   const loadAgrupada = useCallback(async () => {
     if (vista !== 'agrupada') return
@@ -497,16 +517,16 @@ export default function Observaciones() {
     } finally {
       setLoadingAgrupada(false)
     }
-  }, [vista, search, protocolo, estadoCovepa, idSitio])
+  }, [vista, filtrosActivos])
 
   useEffect(() => {
     if (vista === 'tabla') {
       loadData(true)
     }
-  }, [vista, search, protocolo, estadoCovepa, idSitio])
+  }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla])
   useEffect(() => { if (vista === 'tabla' && page > 1) loadData() }, [page])
-  useEffect(() => { loadKpis() }, [search, protocolo, idSitio, estadoCovepa])
-  useEffect(() => { loadAgrupada() }, [vista, search, protocolo, estadoCovepa, idSitio])
+  useEffect(() => { loadKpis() }, [search, protocolo, idSitio, estadoCovepa, cuadrilla])
+  useEffect(() => { loadAgrupada() }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla])
 
   const handleSearchChange = (val) => {
     clearTimeout(searchTimeout.current)
@@ -514,25 +534,27 @@ export default function Observaciones() {
   }
 
   const clearFilters = () => {
-    setSearch(''); setProtocolo(''); setEstadoCovepa(''); setIdSitio(''); setPage(1)
+    setSearch(''); setProtocolo(''); setEstadoCovepa(''); setIdSitio(''); setCuadrilla(''); setPage(1)
     const el = document.getElementById('obs-search-input')
     if (el) el.value = ''
   }
 
-  const hasActiveFilters = Boolean(search || protocolo || estadoCovepa || idSitio)
+  const hasActiveFilters = Boolean(search || protocolo || estadoCovepa || idSitio || cuadrilla)
 
   const handleExport = async () => {
     setExporting(true)
     try {
       const data = await exportObservacionesCSV(filtrosActivos)
       const cols = [
-        'id_obs', 'id_sitio', 'protocolo', 'subsistema', 'detalle', 'item', 'sub_item',
+        'id_obs', 'cuadrilla', 'id_sitio', 'localidad', 'protocolo', 'subsistema', 'detalle', 'item', 'sub_item',
         'comentario_inicial', 'comentario_complementario', 'comentario_final',
         'acuerdo_subsanacion', 'estado_covepa', 'fecha_subsanacion', 'comentario_covepa'
       ]
       const header = cols.join(',')
       const rows = data.map(r => cols.map(c => {
-        const v = r[c] ?? ''
+        let v = r[c] ?? ''
+        if (c === 'cuadrilla') v = sitiosMap[r.id_sitio]?.cuadrilla || ''
+        if (c === 'localidad') v = sitiosMap[r.id_sitio]?.localidad || ''
         const s = String(v).replace(/"/g, '""').replace(/\n/g, ' ')
         return `"${s}"`
       }).join(','))
@@ -652,6 +674,20 @@ export default function Observaciones() {
         </div>
 
         <div className="obs-filter-group">
+          {/* Filtro por Cuadrilla */}
+          <div className="obs-select-wrap">
+            <Layers size={13} className="select-icon"/>
+            <select className="toolbar-select" value={cuadrilla} onChange={e => { setCuadrilla(e.target.value); setPage(1) }}>
+              <option value="">Todas las Cuadrillas</option>
+              <option value="CUADRILLA 1">CUADRILLA 1</option>
+              <option value="CUADRILLA 2">CUADRILLA 2</option>
+              <option value="CUADRILLA 3">CUADRILLA 3</option>
+              <option value="CUADRILLA 4">CUADRILLA 4</option>
+              <option value="CUADRILLA 5">CUADRILLA 5</option>
+              <option value="CUADRILLA 6">CUADRILLA 6</option>
+            </select>
+          </div>
+
           <div className="obs-select-wrap">
             <FileText size={13} className="select-icon"/>
             <select className="toolbar-select" value={protocolo} onChange={e => setProtocolo(e.target.value)}>
@@ -755,7 +791,8 @@ export default function Observaciones() {
             <table className="sitios-table">
               <thead>
                 <tr>
-                  <th>Código</th>
+                  <th style={{ width: '105px' }}>Código</th>
+                  <th style={{ width: '120px' }}>Cuadrilla</th>
                   <th>Sitio / Localidad</th>
                   <th>Protocolo</th>
                   <th>Subsistema</th>
@@ -767,24 +804,36 @@ export default function Observaciones() {
                 </tr>
               </thead>
               <tbody>
-                {observaciones.map(o => (
-                  <tr key={o.id_obs} className="sitio-row" onClick={() => setSelectedObs(o)}>
-                    <td><span className="site-code-badge">{o.id_obs}</span></td>
-                    <td>
-                      <div className="table-site-cell">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                {observaciones.map(o => {
+                  const sInfo = sitiosMap[o.id_sitio] || {}
+                  return (
+                    <tr key={o.id_obs} className="sitio-row" onClick={() => setSelectedObs(o)}>
+                      <td><span className="site-code-badge">{o.id_obs}</span></td>
+                      <td>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '0.22rem 0.55rem',
+                            borderRadius: '6px',
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            background: 'rgba(0, 48, 96, 0.08)',
+                            border: '1px solid rgba(0, 48, 96, 0.18)',
+                            color: '#003060',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {sInfo.cuadrilla || 'Sin Cuadrilla'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="table-site-cell">
                           <span className="site-code-badge" style={{color:'var(--accent)'}}>{o.id_sitio}</span>
-                          {sitiosMap[o.id_sitio]?.cuadrilla && (
-                            <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: 'rgba(0,48,96,0.08)', color: '#003060', border: '1px solid rgba(0,48,96,0.15)' }}>
-                              {sitiosMap[o.id_sitio].cuadrilla}
-                            </span>
+                          {sInfo.localidad && (
+                            <span className="table-site-loc">{sInfo.localidad}</span>
                           )}
                         </div>
-                        {sitiosMap[o.id_sitio]?.localidad && (
-                          <span className="table-site-loc">{sitiosMap[o.id_sitio].localidad}</span>
-                        )}
-                      </div>
-                    </td>
+                      </td>
                     <td>
                       <span className="site-name" style={{fontSize:'0.82rem'}}>{o.protocolo || '—'}</span>
                     </td>
@@ -819,7 +868,8 @@ export default function Observaciones() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           )}

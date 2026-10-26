@@ -16,6 +16,22 @@ export const PERSONAL_FALLBACK = [
   { id: '8359c281-33ce-423e-9823-0e9e09663889', id_personal: '8359c281-33ce-423e-9823-0e9e09663889', cargo: 'SUPERVISOR', nombre: 'CARLOS', apellido: 'CONDOR', nombre_completo: 'CARLOS CONDOR', dni: '73144613', contacto_1: '958086874', email: 'jcarloscc1101@gmail.com', empresa: 'COVEPA', estado: 'Activo', activo: true }
 ]
 
+// Empresas oficiales permitidas en el proyecto
+export const EMPRESAS_OFICIALES = [
+  'SELNET S.A.C.',
+  'COVEPA S.A.C.',
+  'Gilat Networks'
+]
+
+export function normalizeEmpresa(raw) {
+  if (!raw) return 'SELNET S.A.C.'
+  const s = raw.trim().toUpperCase()
+  if (s.includes('COVEPA')) return 'COVEPA S.A.C.'
+  if (s.includes('GILAT')) return 'Gilat Networks'
+  if (s.includes('SELNET')) return 'SELNET S.A.C.'
+  return raw.trim()
+}
+
 // ────────────────────────────────────────────────────────────
 // Helper: Mapeo de fila externa (personal) a modelo unificado de frontend
 // ────────────────────────────────────────────────────────────
@@ -50,7 +66,7 @@ export function mapExternalPerson(p, localMetaMap = {}, profileMap = {}, profile
     documento_identidad: p.dni || p.documento_identidad || '',
     cargo: p.cargo || 'SIN CARGO',
     email: p.email ? p.email.toLowerCase().trim() : '',
-    empresa: p.empresa || 'COVEPA',
+    empresa: normalizeEmpresa(p.empresa),
     contacto_1: p.contacto_1 || '',
     contacto_2: p.contacto_2 || '',
     operador_1: p.operador_1 || '',
@@ -275,7 +291,7 @@ export async function createPersonal(payload) {
     dni: payload.dni ? payload.dni.trim() : (payload.documento_identidad ? payload.documento_identidad.trim() : null),
     cargo: payload.cargo ? payload.cargo.trim() : 'TÉCNICO',
     email: payload.email ? payload.email.trim().toLowerCase() : null,
-    empresa: payload.empresa ? payload.empresa.trim() : 'COVEPA',
+    empresa: normalizeEmpresa(payload.empresa),
     contacto_1: payload.contacto_1 ? payload.contacto_1.trim() : (payload.telefono ? payload.telefono.split('/')[0]?.trim() : null),
     contacto_2: payload.contacto_2 ? payload.contacto_2.trim() : (payload.telefono ? payload.telefono.split('/')[1]?.trim() : null),
     operador_1: payload.operador_1 || null,
@@ -327,7 +343,7 @@ export async function updatePersonal(id, payload) {
   }
   if (payload.cargo !== undefined) extUpdate.cargo = payload.cargo ? payload.cargo.trim() : null
   if (payload.email !== undefined) extUpdate.email = payload.email ? payload.email.trim().toLowerCase() : null
-  if (payload.empresa !== undefined) extUpdate.empresa = payload.empresa ? payload.empresa.trim() : null
+  if (payload.empresa !== undefined) extUpdate.empresa = normalizeEmpresa(payload.empresa)
   if (payload.contacto_1 !== undefined) extUpdate.contacto_1 = payload.contacto_1 ? payload.contacto_1.trim() : null
   if (payload.contacto_2 !== undefined) extUpdate.contacto_2 = payload.contacto_2 ? payload.contacto_2.trim() : null
   if (payload.operador_1 !== undefined) extUpdate.operador_1 = payload.operador_1 || null

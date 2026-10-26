@@ -108,11 +108,10 @@ export default function Tecnicos() {
     return list.sort()
   }, [personal])
 
-  // Lista de empresas dinámicas (SELNET, COVEPA, Gilat, etc.)
+  // Lista de empresas oficiales permitidas en el proyecto
   const empresas = useMemo(() => {
-    const list = [...new Set(personal.map(p => p.empresa).filter(Boolean))]
-    return list.sort()
-  }, [personal])
+    return ['SELNET S.A.C.', 'COVEPA S.A.C.', 'Gilat Networks']
+  }, [])
 
   // Filtrado reactivo con soporte para DNI, nombre, apellido, email, cargo, empresa
   const filteredPersonal = useMemo(() => {
@@ -401,7 +400,7 @@ export default function Tecnicos() {
               const isTecnico = cargoClass === 'tecnico' || (person.cargo || '').includes('SUPERVISOR')
               const phoneLines = parsePhoneLines(person.telefono, person.operador)
               const firstPhone = phoneLines[0]
-              const isGilat = (person.empresa || 'COVEPA').toUpperCase() === 'GILAT'
+              const isGilat = (person.empresa || '').toUpperCase().includes('GILAT')
               const isCarlos = (person.nombre_completo || '').includes('CARLOS CONDOR')
 
               return (
@@ -455,7 +454,7 @@ export default function Tecnicos() {
                               textTransform: 'uppercase'
                             }}
                           >
-                            {person.empresa || 'COVEPA'}
+                            {person.empresa || 'SELNET S.A.C.'}
                           </span>
 
                           {isTecnico && person.cuadrilla && (
@@ -618,12 +617,12 @@ export default function Tecnicos() {
                             fontWeight: 700,
                             padding: '0.15rem 0.45rem',
                             borderRadius: '4px',
-                            background: person.empresa?.toUpperCase() === 'GILAT' ? '#e0f2fe' : 'rgba(0, 48, 96, 0.07)',
-                            border: `1px solid ${person.empresa?.toUpperCase() === 'GILAT' ? '#7dd3fc' : 'rgba(0, 48, 96, 0.2)'}`,
-                            color: person.empresa?.toUpperCase() === 'GILAT' ? '#0369a1' : '#003060'
+                            background: person.empresa?.toUpperCase().includes('GILAT') ? '#e0f2fe' : 'rgba(0, 48, 96, 0.07)',
+                            border: `1px solid ${person.empresa?.toUpperCase().includes('GILAT') ? '#7dd3fc' : 'rgba(0, 48, 96, 0.2)'}`,
+                            color: person.empresa?.toUpperCase().includes('GILAT') ? '#0369a1' : '#003060'
                           }}
                         >
-                          {person.empresa || 'COVEPA'}
+                          {person.empresa || 'SELNET S.A.C.'}
                         </span>
                       </td>
                       <td>
@@ -1108,7 +1107,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                   {person.cargo}
                 </span>
                 <span style={{ fontSize: '0.66rem', fontWeight: 700, padding: '0.12rem 0.4rem', borderRadius: '4px', background: 'rgba(0, 48, 96, 0.08)', color: '#003060', border: '1px solid rgba(0, 48, 96, 0.2)' }}>
-                  {person.empresa || 'COVEPA'}
+                  {person.empresa || 'SELNET S.A.C.'}
                 </span>
                 {isTecnico && person.cuadrilla && (
                   <span className="prog-card-cuadrilla-badge">
@@ -1348,7 +1347,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
               <div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Empresa Contratante</div>
                 <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#003060' }}>
-                  {person.empresa || 'COVEPA'}
+                  {person.empresa || 'SELNET S.A.C.'}
                 </div>
               </div>
 
@@ -1553,9 +1552,13 @@ function ModalPersonal({ member, onClose, onSaved }) {
   const [nombre, setNombre] = useState(member?.nombre || (member?.nombre_completo ? member.nombre_completo.split(' ')[0] : ''))
   const [apellido, setApellido] = useState(member?.apellido || (member?.nombre_completo ? member.nombre_completo.split(' ').slice(1).join(' ') : ''))
   const [dni, setDni] = useState(member?.dni || member?.documento_identidad || '')
-  const [email, setEmail] = useState(member?.email || member?.cuenta_usuario?.email || '')
-  const [empresa, setEmpresa] = useState(member?.empresa || 'SELNET')
-  const [cargo, setCargo] = useState(member?.cargo || 'Tecnico')
+  const [empresa, setEmpresa] = useState(() => {
+    if (!member?.empresa) return 'SELNET S.A.C.'
+    const emp = member.empresa.toUpperCase()
+    if (emp.includes('COVEPA')) return 'COVEPA S.A.C.'
+    if (emp.includes('GILAT')) return 'Gilat Networks'
+    return 'SELNET S.A.C.'
+  })
   const [estado, setEstado] = useState(member?.estado || 'Activo')
   const [ciudadOrigen, setCiudadOrigen] = useState(member?.ciudad_origen || member?.origen || '')
 
@@ -1599,7 +1602,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
         nombre: nombre.trim(),
         apellido: apellido.trim() || null,
         dni: dni.trim() || null,
-        empresa: empresa.trim() || 'SELNET',
+        empresa: empresa || 'SELNET S.A.C.',
         cargo: cargo.trim() || 'Tecnico',
         contacto_1: tel1.trim() || null,
         operador_1: tel1.trim() ? op1 : null,
@@ -1713,20 +1716,16 @@ function ModalPersonal({ member, onClose, onSaved }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
               <div className="prog-form-group">
                 <label>Empresa *</label>
-                <input
-                  type="text"
+                <select
                   className="prog-form-control"
-                  list="empresas-list"
-                  placeholder="SELNET, COVEPA..."
                   value={empresa}
                   onChange={e => setEmpresa(e.target.value)}
                   required
-                />
-                <datalist id="empresas-list">
-                  <option value="SELNET" />
-                  <option value="COVEPA" />
-                  <option value="Gilat Networks" />
-                </datalist>
+                >
+                  <option value="SELNET S.A.C.">SELNET S.A.C.</option>
+                  <option value="COVEPA S.A.C.">COVEPA S.A.C.</option>
+                  <option value="Gilat Networks">Gilat Networks</option>
+                </select>
               </div>
 
               <div className="prog-form-group">

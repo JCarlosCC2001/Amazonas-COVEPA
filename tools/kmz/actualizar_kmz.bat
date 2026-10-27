@@ -9,7 +9,7 @@ echo.
 echo Consultando datos actualizados y generando nuevos archivos KMZ...
 echo.
 
-python generar_kmz.py
+python "%~dp0generar_kmz.py"
 
 echo.
 echo =================================================================

@@ -184,12 +184,33 @@ Para garantizar que Google Earth funcione a máxima velocidad sin congelarse ni 
 | **27-10-2026** | Header General Global (`AppHeader`) y Modo Secreto / Presentación para ocultar datos sensibles. | Se integró una barra superior fija global (`AppHeader`) en todas las vistas con el nombre y subtítulo de la página activa, campanita de notificaciones operativas con menú flotante, y conmutador de **Modo Secreto** (`PresentationContext`). Cuando el Modo Secreto está activo: 1. En Programación y Avance del Día se omite totalmente el nombre de los técnicos y conductores, mostrando **únicamente la Cuadrilla**; 2. En el módulo de Personal (`/tecnicos`), se bloquea el acceso visual mostrando la pantalla de restricción: *"Este apartado solo está disponible para la vista de administrador libre"*; 3. En la barra lateral (`Sidebar`) se enmascara el nombre/correo del usuario y se muestra insignia de candado en Personal. |
 | **27-10-2026** | Visualización de Técnicos por Cuadrilla en el Dashboard y soporte con Modo Secreto. | En `dashboardService.js`, se incorporó la vinculación del técnico asignado a cada una de las 6 cuadrillas y a la lista de sitios (consultando prioritariamente la BD con fallback a la configuración oficial). En `Dashboard.jsx`, cada tarjeta de Cuadrilla y la columna de cuadrilla en la tabla ejecutiva muestran la insignia del técnico responsable (`[ 👤 Nombre ]`). Cuando el Modo Secreto / Presentación está activo, los nombres de los técnicos se ocultan automáticamente, mostrando únicamente la cuadrilla. |
 | **27-10-2026** | Cierre automático de sesión por inactividad a los 30 min con alerta previa a los 5 min y contador regresivo. | Se implementó el componente global `SessionTimeoutModal` en `Layout.jsx` con detección pasiva de actividad (ratón, teclado, scroll, toques). La sesión expira tras 30 minutos de inactividad total. Al alcanzar el minuto 25 (5 minutos restantes), se despliega una ventana emergente de alta prioridad con un contador digital regresivo en vivo (`MM:SS`) y barra de progreso. El usuario puede pulsar **'Continuar Sesión'** para reiniciar el temporizador a 30 minutos y seguir trabajando, o **'Cerrar Sesión'** para salir de inmediato. Si el contador llega a `00:00`, el sistema cierra la sesión automáticamente en Supabase y redirige a `/login`. Sincronizado entre pestañas vía `localStorage`. |
+| **27-10-2026** | Fase 1 de estandarización tipográfica: fuentes autoalojadas, tokens y barrera anti-estilos en línea. | 1. Fuentes `Inter` (variable) y `JetBrains Mono` instaladas vía `@fontsource` e importadas en `main.jsx` (funcionan sin internet; se eliminó el `@import` de Google Fonts). 2. `:root` define `--font-sans`, `--font-mono`, escala `--text-*`, pesos `--fw-*` y `--lh-*`. 3. Las 20 declaraciones `Courier New`/`monospace`/`SF Mono` del CSS y las inline de JSX ahora usan `var(--font-mono)`. 4. Herencia de fuente en `button/input/select/textarea` y utilidades `.t-title`, `.t-body`, `.t-caption`, `.t-label`, `.t-code`, `.t-metric`. 5. Script `npm run check:typography[:strict]` (`scripts/check-typography.cjs`): prohíbe `fontFamily` en línea y, en archivos migrados (lista `CLEAN`), `fontSize` en línea. **Convención:** no usar tipografía en línea; usar tokens y clases `.t-*`. |
+| **27-10-2026** | Fase 2 de estandarización tipográfica: componentes globales (Sidebar, AppHeader, notificaciones, Modo Secreto, MetricCard, SessionTimeoutModal). | 55 valores `font-size`/`font-weight` de sus reglas CSS migrados a tokens `--text-*` y `--fw-*`. Cifras de `MetricCard` (`.metric-value`) y contador `MM:SS` de la sesión en `var(--font-mono)` con `tabular-nums`. Los 5 componentes quedaron registrados en la lista `CLEAN` de `check-typography.cjs` (sin tipografía en línea permitida). |
+| **27-10-2026** | Fase 3: componentes y utilidades compartidas. | Nuevos `src/components/shared/`: `StatusBadge`, `SiteBadge` (CÓDIGO · LOCALIDAD), `SearchInput`, `SegmentedProgressBar` (extraído de Dashboard). Nuevo `src/utils/helpers.js` con `hasMeaningfulText`, `toLocalDateString`, `getInitials`, `getCargoClass`, `estadoCovepaBadge` (eliminadas copias locales en Programacion, Tecnicos y Observaciones). `Tecnicos` usa `SearchInput`. |
+| **27-10-2026** | Fase 4: tipografía en todas las páginas y CSS. | Codemod: 296 `fontSize`/`fontWeight` en línea de JSX y 477 `font-size`/`font-weight` del CSS migrados a tokens (`--text-*`, `--fw-*`); los tamaños se redondean a la escala (variaciones de centésimas de rem). `check-typography.cjs` ahora valida TODO `src/`: `fontFamily`, `fontSize` y `fontWeight` en línea deben usar tokens. Pendiente opcional: adoptar `SiteBadge`/`SearchInput` en el resto de páginas y dividir modales de Programacion/Observaciones/Tecnicos. |
 
 
 
 
 
 
+
+---
+
+## 7. Pendientes — Ideas Funcionales (a presentar al usuario cuando termine la optimización/reorganización)
+
+> Estado: **en espera**. No implementar ni proponer de nuevo hasta que se cierre el plan de reorganización y optimización técnica.
+
+1. **Reportes y Eficiencia:** hoy son páginas "En construcción". Avance semanal por cuadrilla, subsanadas por día, tiempo promedio de subsanación, ranking de sitios críticos.
+2. **Vista de campo para técnicos (móvil):** "mis sitios de hoy", botón "marcar subsanada" y adjuntar foto de evidencia (Supabase Storage).
+3. **Notificaciones reales:** observaciones rechazadas, programaciones sin técnico, sitios sin avance en X días.
+4. **Auditoría de cambios:** tabla que registre quién cambió el estado de una observación y cuándo.
+5. **Roles con permisos reales:** políticas RLS en Supabase (hoy `isAdmin` solo oculta interfaz).
+6. **Modo offline (PWA):** app instalable con caché de datos del día y sincronización posterior.
+7. **Compartir programación del día por WhatsApp:** reutilizar la exportación a PNG.
+8. **Búsqueda global (Ctrl+K):** saltar a un sitio, observación o persona desde el header.
+9. **Gráficos de tendencia en el Dashboard** (`recharts` ya está instalado).
+10. **Copias de seguridad programadas:** exportación semanal de observaciones a Excel.
 
 ---
 

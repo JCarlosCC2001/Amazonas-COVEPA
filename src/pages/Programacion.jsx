@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+﻿import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2,
   MapPin, CheckCircle2, Clock, AlertCircle, List,
@@ -6,7 +6,7 @@ import {
   Check, AlertTriangle, Users, Edit3, User, FileSpreadsheet, Download, Send,
   TrendingUp
 } from 'lucide-react'
-import ExcelJS from 'exceljs'
+// M3: ExcelJS se importa dinámicamente en handleExportXLSX para no inflar el bundle inicial
 import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
 import {
   getPersonalActivo,
@@ -23,21 +23,7 @@ import { ASIGNACIONES_BASE, getCachedSitiosAsignados } from '../services/sitiosS
 import { useAuth } from '../hooks/useAuth'
 import { usePresentationMode } from '../context/PresentationContext'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
-
-// Helper para validar si un texto tiene contenido significativo
-function hasMeaningfulText(val) {
-  if (val === null || val === undefined) return false
-  const s = String(val).trim()
-  return s !== '' && s !== '0' && s !== '-' && s !== '—' && s.toLowerCase() !== 'null' && s.toLowerCase() !== 'undefined'
-}
-
-// Helper para formato de fecha YYYY-MM-DD local
-function toLocalDateString(d) {
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
+import { hasMeaningfulText, toLocalDateString, getInitials, getCargoClass } from '../utils/helpers'
 
 // Helper para obtener el lunes de la semana actual
 function getMonday(d) {
@@ -45,23 +31,6 @@ function getMonday(d) {
   const day = date.getDay()
   const diff = date.getDate() - day + (day === 0 ? -6 : 1) // Si es domingo (0), resta 6
   return new Date(date.setDate(diff))
-}
-
-// Helper para iniciales
-function getInitials(name) {
-  if (!name) return '?'
-  const parts = name.trim().split(' ')
-  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`
-  return parts[0].slice(0, 2).toUpperCase()
-}
-
-// Helper para clase de cargo
-function getCargoClass(cargo) {
-  const c = (cargo || '').toUpperCase()
-  if (c.includes('TÉCNICO') || c.includes('TECNICO')) return 'tecnico'
-  if (c.includes('CONDUCTOR')) return 'conductor'
-  if (c.includes('SUPERVISOR')) return 'supervisor'
-  return 'tecnico'
 }
 
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
@@ -604,12 +573,12 @@ export default function Programacion() {
               <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Clock size={24} color="#003060" />
               </div>
-              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#003060' }}>
+              <div style={{ fontSize: 'var(--text-md)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
                 {statusFilter !== 'ALL'
                   ? 'No hay cuadrillas con ese estado específico para esta fecha'
                   : 'No hay cuadrillas programadas para esta fecha'}
               </div>
-              <div style={{ fontSize: '0.84rem', color: '#64748b', maxWidth: '440px', lineHeight: 1.5 }}>
+              <div style={{ fontSize: 'var(--text-sm)', color: '#64748b', maxWidth: '440px', lineHeight: 1.5 }}>
                 {statusFilter !== 'ALL'
                   ? 'Prueba seleccionando "Todas" para ver el total de las rutas y cuadrillas del día.'
                   : 'Organiza las salidas del personal y asigna los sitios a visitar para mantener el avance de observaciones al día.'}
@@ -1292,8 +1261,8 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                         {person.cuadrilla ? (
                           <span
                             style={{
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
+                              fontSize: 'var(--text-2xs)',
+                              fontWeight: 'var(--fw-bold)',
                               padding: '1px 6px',
                               borderRadius: '4px',
                               background: 'rgba(0,48,96,0.12)',
@@ -1306,8 +1275,8 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                         ) : (
                           <span
                             style={{
-                              fontSize: '0.65rem',
-                              fontWeight: 600,
+                              fontSize: 'var(--text-2xs)',
+                              fontWeight: 'var(--fw-semibold)',
                               padding: '1px 5px',
                               borderRadius: '4px',
                               background: 'rgba(100,116,139,0.1)',
@@ -1378,8 +1347,8 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                             {p.empresa && (
                               <span
                                 style={{
-                                  fontSize: '0.68rem',
-                                  fontWeight: 600,
+                                  fontSize: 'var(--text-2xs)',
+                                  fontWeight: 'var(--fw-semibold)',
                                   padding: '1px 5px',
                                   borderRadius: '3px',
                                   background: '#f1f5f9',
@@ -1393,7 +1362,7 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                               <span
                                 className="prog-card-cuadrilla-badge"
                                 style={{
-                                  fontWeight: 700,
+                                  fontWeight: 'var(--fw-bold)',
                                   background: 'rgba(0,48,96,0.08)',
                                   color: '#003060',
                                   border: '1px solid rgba(0,48,96,0.2)'
@@ -1437,8 +1406,8 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                   {selectedTechCuadrilla ? (
                     <span
                       style={{
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: 'var(--fw-bold)',
                         padding: '2px 8px',
                         borderRadius: '4px',
                         background: 'rgba(0,48,96,0.08)',
@@ -1510,8 +1479,8 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
                         {s.cuadrilla && (
                           <span
                             style={{
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
+                              fontSize: 'var(--text-2xs)',
+                              fontWeight: 'var(--fw-bold)',
                               padding: '1px 6px',
                               borderRadius: '3px',
                               background: 'rgba(0,48,96,0.08)',
@@ -1867,6 +1836,8 @@ function ModalDetallesProgramacion({
 
     setExportingXlsx(true)
     try {
+      // M3: Import din\u00e1mico \u2014 solo descarga exceljs cuando el usuario exporta
+      const { default: ExcelJS } = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
       workbook.creator = 'COVEPA ERP'
       workbook.created = new Date()

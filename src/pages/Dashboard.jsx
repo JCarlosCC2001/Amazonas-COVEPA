@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { usePresentationMode } from '../context/PresentationContext'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
+import SegmentedProgressBar from '../components/shared/SegmentedProgressBar'
 import { getDashboardProjectOverview } from '../services/dashboardService'
 
 // ────────────────────────────────────────────────────────────
@@ -41,109 +42,12 @@ function SemicircleGauge({ percentage = 0, color = '#10b981', size = 180 }) {
         />
       </svg>
       <div className="dash-semi-text">
-        <span className="dash-semi-pct" style={{ color: '#003060', fontSize: '1.9rem', fontWeight: 800 }}>
+        <span className="dash-semi-pct" style={{ color: '#003060', fontSize: 'var(--text-2xl)', fontWeight: 'var(--fw-black)' }}>
           {percentage}%
         </span>
-        <span className="dash-semi-label" style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+        <span className="dash-semi-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-semibold)' }}>
           Avance Global
         </span>
-      </div>
-    </div>
-  )
-}
-
-// ────────────────────────────────────────────────────────────
-// Subcomponente: Barra de Distribución Segmentada
-// ────────────────────────────────────────────────────────────
-function SegmentedProgressBar({ total = 0, subsanadas = 0, enRevision = 0, descartadas = 0, rechazadas = 0, pendientes = 0 }) {
-  const pctSub = total > 0 ? (subsanadas / total) * 100 : 0
-  const pctRev = total > 0 ? (enRevision / total) * 100 : 0
-  const pctDesc = total > 0 ? (descartadas / total) * 100 : 0
-  const pctRech = total > 0 ? (rechazadas / total) * 100 : 0
-  const pctPend = Math.max(0, 100 - (pctSub + pctRev + pctDesc + pctRech))
-
-  return (
-    <div style={{ width: '100%' }}>
-      <div style={{
-        height: '14px',
-        width: '100%',
-        borderRadius: '7px',
-        background: 'rgba(0, 48, 96, 0.06)',
-        display: 'flex',
-        overflow: 'hidden',
-        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)'
-      }}>
-        {pctSub > 0 && (
-          <div
-            style={{ width: `${pctSub}%`, background: '#10b981', transition: 'width 0.8s ease' }}
-            title={`Subsanadas: ${subsanadas} (${pctSub.toFixed(1)}%)`}
-          />
-        )}
-        {pctRev > 0 && (
-          <div
-            style={{ width: `${pctRev}%`, background: '#38bdf8', transition: 'width 0.8s ease' }}
-            title={`En Revisión: ${enRevision} (${pctRev.toFixed(1)}%)`}
-          />
-        )}
-        {pctDesc > 0 && (
-          <div
-            style={{ width: `${pctDesc}%`, background: '#8b5cf6', transition: 'width 0.8s ease' }}
-            title={`Descartadas: ${descartadas} (${pctDesc.toFixed(1)}%)`}
-          />
-        )}
-        {pctRech > 0 && (
-          <div
-            style={{ width: `${pctRech}%`, background: '#ef4444', transition: 'width 0.8s ease' }}
-            title={`Rechazadas: ${rechazadas} (${pctRech.toFixed(1)}%)`}
-          />
-        )}
-        {pctPend > 0 && (
-          <div
-            style={{ width: `${pctPend}%`, background: '#f59e0b', transition: 'width 0.8s ease' }}
-            title={`Pendientes: ${pendientes} (${pctPend.toFixed(1)}%)`}
-          />
-        )}
-      </div>
-
-      {/* Leyenda interactiva */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '0.6rem',
-        marginTop: '0.75rem',
-        fontSize: '0.75rem'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }} />
-          <span style={{ color: 'var(--text-secondary)' }}>Subsanadas:</span>
-          <strong style={{ color: '#10b981' }}>{subsanadas.toLocaleString()}</strong>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#38bdf8' }} />
-          <span style={{ color: 'var(--text-secondary)' }}>En Revisión:</span>
-          <strong style={{ color: '#0284c7' }}>{enRevision.toLocaleString()}</strong>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#8b5cf6' }} />
-          <span style={{ color: 'var(--text-secondary)' }}>Descartadas:</span>
-          <strong style={{ color: '#8b5cf6' }}>{descartadas.toLocaleString()}</strong>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }} />
-          <span style={{ color: 'var(--text-secondary)' }}>Rechazadas:</span>
-          <strong style={{ color: '#ef4444' }}>{rechazadas.toLocaleString()}</strong>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} />
-          <span style={{ color: 'var(--text-secondary)' }}>Pendientes:</span>
-          <strong style={{ color: '#d97706' }}>{pendientes.toLocaleString()}</strong>
-        </div>
       </div>
     </div>
   )
@@ -244,8 +148,8 @@ export default function Dashboard() {
               gap: '0.45rem',
               padding: '0.5rem 0.95rem',
               borderRadius: '8px',
-              fontSize: '0.82rem',
-              fontWeight: 600,
+              fontSize: 'var(--text-sm)',
+              fontWeight: 'var(--fw-semibold)',
               background: 'rgba(0, 48, 96, 0.05)',
               border: '1px solid rgba(0, 48, 96, 0.2)',
               color: '#003060',
@@ -267,8 +171,8 @@ export default function Dashboard() {
               gap: '0.45rem',
               padding: '0.5rem 0.95rem',
               borderRadius: '8px',
-              fontSize: '0.82rem',
-              fontWeight: 600,
+              fontSize: 'var(--text-sm)',
+              fontWeight: 'var(--fw-semibold)',
               background: 'rgba(14, 165, 233, 0.08)',
               border: '1px solid rgba(14, 165, 233, 0.3)',
               color: '#0284c7',
@@ -384,13 +288,13 @@ export default function Dashboard() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <TrendingUp size={18} color="#003060" />
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#003060' }}>
+              <h3 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
                 Progreso General de Levantamiento
               </h3>
             </div>
             <span style={{
-              fontSize: '0.7rem',
-              fontWeight: 700,
+              fontSize: 'var(--text-2xs)',
+              fontWeight: 'var(--fw-bold)',
               padding: '0.2rem 0.55rem',
               borderRadius: '6px',
               background: 'rgba(16, 185, 129, 0.12)',
@@ -406,7 +310,7 @@ export default function Dashboard() {
           </div>
 
           <div style={{ marginTop: '0.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.35rem', fontWeight: 600 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '0.35rem', fontWeight: 'var(--fw-semibold)' }}>
               <span>Distribución de Observaciones</span>
               <span>{kpis.total.toLocaleString()} Registros Totales</span>
             </div>
@@ -435,11 +339,11 @@ export default function Dashboard() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Globe size={18} color="#003060" />
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#003060' }}>
+              <h3 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
                 Cobertura Territorial y Despliegue
               </h3>
             </div>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-semibold)' }}>
               Región Amazonas
             </span>
           </div>
@@ -457,13 +361,13 @@ export default function Dashboard() {
               borderRadius: '10px',
               padding: '0.85rem'
             }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+              <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-bold)', textTransform: 'uppercase' }}>
                 ZONA 2 · Norte
               </span>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#003060', marginTop: '0.2rem' }}>
+              <div style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--fw-black)', color: '#003060', marginTop: '0.2rem' }}>
                 53 Sitios
               </div>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                 Utcubamba, Bagua, Condorcanqui
               </span>
             </div>
@@ -474,13 +378,13 @@ export default function Dashboard() {
               borderRadius: '10px',
               padding: '0.85rem'
             }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+              <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-bold)', textTransform: 'uppercase' }}>
                 ZONA 7 · Sur
               </span>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#003060', marginTop: '0.2rem' }}>
+              <div style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--fw-black)', color: '#003060', marginTop: '0.2rem' }}>
                 103 Sitios
               </div>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                 Chachapoyas, Luya, Bongará, Mendoza
               </span>
             </div>
@@ -499,8 +403,8 @@ export default function Dashboard() {
                 gap: '0.45rem',
                 padding: '0.65rem',
                 borderRadius: '8px',
-                fontSize: '0.78rem',
-                fontWeight: 600,
+                fontSize: 'var(--text-sm)',
+                fontWeight: 'var(--fw-semibold)',
                 background: '#f0fdf4',
                 border: '1px solid #bbf7d0',
                 color: '#166534',
@@ -522,8 +426,8 @@ export default function Dashboard() {
                 gap: '0.45rem',
                 padding: '0.65rem',
                 borderRadius: '8px',
-                fontSize: '0.78rem',
-                fontWeight: 600,
+                fontSize: 'var(--text-sm)',
+                fontWeight: 'var(--fw-semibold)',
                 background: '#eff6ff',
                 border: '1px solid #bfdbfe',
                 color: '#1d4ed8',
@@ -541,14 +445,14 @@ export default function Dashboard() {
       <div style={{ marginTop: '1.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.9rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div>
-            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#003060', margin: 0 }}>
+            <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 'var(--fw-bold)', color: '#003060', margin: 0 }}>
               Balance por Cuadrilla Operativa
             </h2>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
               Consolidado de observaciones y porcentaje de avance para cada una de las 6 cuadrillas operativas.
             </p>
           </div>
-          <span style={{ fontSize: '0.75rem', color: '#0284c7', fontWeight: 600, background: 'rgba(2, 132, 199, 0.08)', padding: '0.3rem 0.65rem', borderRadius: '6px' }}>
+          <span style={{ fontSize: 'var(--text-xs)', color: '#0284c7', fontWeight: 'var(--fw-semibold)', background: 'rgba(2, 132, 199, 0.08)', padding: '0.3rem 0.65rem', borderRadius: '6px' }}>
             6 Cuadrillas Operativas
           </span>
         </div>
@@ -578,14 +482,14 @@ export default function Dashboard() {
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                      <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: '#003060', letterSpacing: '-0.01em' }}>
+                      <h4 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 'var(--fw-black)', color: '#003060', letterSpacing: '-0.01em' }}>
                         {g.grupo}
                       </h4>
                       {!presentationMode && g.tecnico && (
                         <span
                           style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
+                            fontSize: 'var(--text-xs)',
+                            fontWeight: 'var(--fw-bold)',
                             padding: '1px 7px',
                             borderRadius: '4px',
                             background: '#e0f2fe',
@@ -602,13 +506,13 @@ export default function Dashboard() {
                         </span>
                       )}
                     </div>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
+                    <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
                       {g.zona}
                     </span>
                   </div>
                   <span style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 'var(--fw-bold)',
                     padding: '0.2rem 0.5rem',
                     borderRadius: '6px',
                     background: 'rgba(0, 48, 96, 0.06)',
@@ -623,10 +527,10 @@ export default function Dashboard() {
                 {/* Porcentaje y barra de progreso */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', fontWeight: 'var(--fw-semibold)' }}>
                       Avance de Subsanación
                     </span>
-                    <strong style={{ fontSize: '0.85rem', color: g.porcentaje > 0 ? '#10b981' : '#64748b' }}>
+                    <strong style={{ fontSize: 'var(--text-sm)', color: g.porcentaje > 0 ? '#10b981' : '#64748b' }}>
                       {g.porcentaje}%
                     </strong>
                   </div>
@@ -654,20 +558,20 @@ export default function Dashboard() {
                   textAlign: 'center'
                 }}>
                   <div>
-                    <span style={{ fontSize: '0.64rem', color: 'var(--text-muted)', display: 'block' }}>TOTAL</span>
-                    <strong style={{ fontSize: '0.82rem', color: '#003060' }}>{g.total}</strong>
+                    <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', display: 'block' }}>TOTAL</span>
+                    <strong style={{ fontSize: 'var(--text-sm)', color: '#003060' }}>{g.total}</strong>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.64rem', color: '#059669', display: 'block' }}>SUBS.</span>
-                    <strong style={{ fontSize: '0.82rem', color: '#10b981' }}>{g.subsanadas}</strong>
+                    <span style={{ fontSize: 'var(--text-2xs)', color: '#059669', display: 'block' }}>SUBS.</span>
+                    <strong style={{ fontSize: 'var(--text-sm)', color: '#10b981' }}>{g.subsanadas}</strong>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.64rem', color: '#0284c7', display: 'block' }}>REV.</span>
-                    <strong style={{ fontSize: '0.82rem', color: '#0284c7' }}>{g.enRevision}</strong>
+                    <span style={{ fontSize: 'var(--text-2xs)', color: '#0284c7', display: 'block' }}>REV.</span>
+                    <strong style={{ fontSize: 'var(--text-sm)', color: '#0284c7' }}>{g.enRevision}</strong>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.64rem', color: '#d97706', display: 'block' }}>PEND.</span>
-                    <strong style={{ fontSize: '0.82rem', color: '#d97706' }}>{g.pendientes}</strong>
+                    <span style={{ fontSize: 'var(--text-2xs)', color: '#d97706', display: 'block' }}>PEND.</span>
+                    <strong style={{ fontSize: 'var(--text-sm)', color: '#d97706' }}>{g.pendientes}</strong>
                   </div>
                 </div>
 
@@ -685,8 +589,8 @@ export default function Dashboard() {
                     background: 'transparent',
                     border: '1px solid rgba(0, 48, 96, 0.15)',
                     color: '#003060',
-                    fontSize: '0.74rem',
-                    fontWeight: 600,
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 'var(--fw-semibold)',
                     cursor: 'pointer',
                     marginTop: 'auto'
                   }}
@@ -723,12 +627,12 @@ export default function Dashboard() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Layers size={18} color="#003060" />
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#003060' }}>
+              <h3 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
                 Monitoreo Ejecutivo de Sitios
               </h3>
               <span style={{
-                fontSize: '0.72rem',
-                fontWeight: 700,
+                fontSize: 'var(--text-xs)',
+                fontWeight: 'var(--fw-bold)',
                 padding: '0.15rem 0.5rem',
                 borderRadius: '6px',
                 background: 'rgba(0, 48, 96, 0.08)',
@@ -737,7 +641,7 @@ export default function Dashboard() {
                 {filteredSitios.length} {filteredSitios.length === 1 ? 'sitio' : 'sitios'}
               </span>
             </div>
-            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+            <p style={{ margin: '0.2rem 0 0 0', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
               Detalle de observaciones y porcentaje de resolución de cada nodo del proyecto.
             </p>
           </div>
@@ -764,7 +668,7 @@ export default function Dashboard() {
               className="filter-select"
               value={filterGrupo}
               onChange={e => setFilterGrupo(e.target.value)}
-              style={{ fontSize: '0.8rem', padding: '0.4rem 0.65rem' }}
+              style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.65rem' }}
             >
               <option value="TODOS">Todas las Cuadrillas ({sitios.length})</option>
               <option value="CUADRILLA 1">CUADRILLA 1</option>
@@ -801,26 +705,26 @@ export default function Dashboard() {
                     <td className="dash-td-index">{idx + 1}</td>
 
                     <td className="dash-td-site">
-                      <div className="dash-site-badge" style={{ fontWeight: 700, fontFamily: 'monospace' }}>
+                      <div className="dash-site-badge" style={{ fontWeight: 'var(--fw-bold)', fontFamily: 'var(--font-mono)' }}>
                         <MapPin size={12} color="#003060" />
                         <span>{s.id_sitio}</span>
                       </div>
                     </td>
 
-                    <td style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                    <td style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', color: '#1e293b' }}>
                       {s.localidad || s.nombre_nodo || '—'}
                       {s.distrito && (
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '6px', fontWeight: 400 }}>
+                        <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', marginLeft: '6px', fontWeight: 'var(--fw-regular)' }}>
                           ({s.distrito})
                         </span>
                       )}
                     </td>
 
-                    <td style={{ fontSize: '0.76rem', fontWeight: 600, color: '#003060' }}>
+                    <td style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-semibold)', color: '#003060' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <span>{s.grupo}</span>
                         {!presentationMode && s.tecnico && (
-                          <span style={{ fontSize: '0.67rem', color: '#0284c7', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <span style={{ fontSize: 'var(--text-2xs)', color: '#0284c7', fontWeight: 'var(--fw-semibold)', display: 'flex', alignItems: 'center', gap: '3px' }}>
                             <User size={10} color="#0284c7" />
                             <span>{s.tecnico}</span>
                           </span>
@@ -828,19 +732,19 @@ export default function Dashboard() {
                       </div>
                     </td>
 
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: '#003060' }}>
+                    <td style={{ textAlign: 'center', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
                       {s.total}
                     </td>
 
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: s.subsanadas > 0 ? '#10b981' : 'var(--text-muted)' }}>
+                    <td style={{ textAlign: 'center', fontWeight: 'var(--fw-bold)', color: s.subsanadas > 0 ? '#10b981' : 'var(--text-muted)' }}>
                       {s.subsanadas}
                     </td>
 
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: s.enRevision > 0 ? '#0284c7' : 'var(--text-muted)' }}>
+                    <td style={{ textAlign: 'center', fontWeight: 'var(--fw-bold)', color: s.enRevision > 0 ? '#0284c7' : 'var(--text-muted)' }}>
                       {s.enRevision}
                     </td>
 
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: s.pendientes > 0 ? '#d97706' : 'var(--text-muted)' }}>
+                    <td style={{ textAlign: 'center', fontWeight: 'var(--fw-bold)', color: s.pendientes > 0 ? '#d97706' : 'var(--text-muted)' }}>
                       {s.pendientes}
                     </td>
 
@@ -856,7 +760,7 @@ export default function Dashboard() {
                             }}
                           />
                         </div>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, minWidth: '32px', textAlign: 'right', color: s.porcentaje > 0 ? '#10b981' : 'var(--text-muted)' }}>
+                        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-bold)', minWidth: '32px', textAlign: 'right', color: s.porcentaje > 0 ? '#10b981' : 'var(--text-muted)' }}>
                           {s.porcentaje}%
                         </span>
                       </div>
@@ -888,7 +792,7 @@ export default function Dashboard() {
         </div>
 
         {filteredSitios.length > 50 && (
-          <div style={{ textAlign: 'center', marginTop: '0.75rem', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+          <div style={{ textAlign: 'center', marginTop: '0.75rem', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
             Mostrando los primeros 50 sitios con mayor volumen de observaciones de un total de {filteredSitios.length}.
           </div>
         )}

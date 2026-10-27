@@ -1,3 +1,4 @@
+import os
 import openpyxl
 import json
 import time
@@ -15,7 +16,7 @@ def clean_val(v):
 
 def migrar():
     print("⏳ Leyendo archivo observaciones.xlsx...")
-    wb = openpyxl.load_workbook('observaciones.xlsx', data_only=True)
+    wb = openpyxl.load_workbook(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'observaciones.xlsx'), data_only=True)
     sheet = wb.active
 
     records = []

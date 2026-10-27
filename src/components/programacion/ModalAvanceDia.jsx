@@ -1,13 +1,13 @@
-import { useState, useEffect, useMemo } from 'react'
+﻿import { useState, useEffect, useMemo } from 'react'
 import {
   TrendingUp, X, Search, Download, MapPin, User,
   Clock, ShieldCheck, RefreshCw, AlertCircle, Eye, FileText,
   Copy, Image, Check
 } from 'lucide-react'
-import ExcelJS from 'exceljs'
+// M3: ExcelJS importado dinamicamente en handleExportXLSX
 import { getAvancePorFecha } from '../../services/dashboardService'
 import { ASIGNACIONES_BASE } from '../../services/sitiosService'
-import { copyAvanceDiaPNG, downloadAvanceDiaPNG } from '../../services/imageExportService'
+// M3: imageExportService importado dinamicamente en handleCopyPNG / handleDownloadPNG
 import { usePresentationMode } from '../../context/PresentationContext'
 
 export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
@@ -115,6 +115,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     if (filteredRows.length === 0) return
     setExportingXlsx(true)
     try {
+      const { default: ExcelJS } = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
       workbook.creator = 'COVEPA ERP'
       workbook.created = new Date()
@@ -197,6 +198,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     if (filteredRows.length === 0 || exportingPng) return
     setExportingPng(true)
     try {
+      const { copyAvanceDiaPNG } = await import('../../services/imageExportService')
       const res = await copyAvanceDiaPNG({
         fecha,
         formattedDate,
@@ -224,6 +226,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     if (filteredRows.length === 0 || exportingPng) return
     setExportingPng(true)
     try {
+      const { downloadAvanceDiaPNG } = await import('../../services/imageExportService')
       await downloadAvanceDiaPNG({
         fecha,
         formattedDate,
@@ -274,12 +277,12 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                   <h2 className="prog-details-site-title" style={{ fontFamily: 'inherit', letterSpacing: 'normal' }}>
                     Avance del Día
                   </h2>
-                  <span className="prog-details-site-loc" style={{ textTransform: 'capitalize', color: '#475569', fontSize: '0.95rem' }}>
+                  <span className="prog-details-site-loc" style={{ textTransform: 'capitalize', color: '#475569', fontSize: 'var(--text-base)' }}>
                     · {formattedDate}
                   </span>
                 </div>
                 <div className="prog-details-site-meta-pills">
-                  <span className="meta-pill" style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd', fontWeight: 700 }}>
+                  <span className="meta-pill" style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd', fontWeight: 'var(--fw-bold)' }}>
                     {avanceData.rows?.length || 0} observaciones registradas
                   </span>
                   {avanceData.programacionesDelDia > 0 && (
@@ -522,14 +525,14 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                             {row.estado === 'En Revision' || row.estado === 'En Revisión' ? (
                               <>
                                 <Clock size={12} color="#0284c7" />
-                                <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.78rem' }}>
+                                <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: 'var(--text-sm)' }}>
                                   {row.revisor || 'En proceso'}
                                 </span>
                               </>
                             ) : (
                               <>
                                 <ShieldCheck size={13} color="#059669" />
-                                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#003060' }}>
+                                <span style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', color: '#003060' }}>
                                   {row.revisor || 'Sin revisor'}
                                 </span>
                               </>
@@ -562,7 +565,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
               <div className="prog-modal-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <FileText size={18} color="#0284c7" />
-                  <h3 style={{ margin: 0, fontSize: '1rem', color: '#003060' }}>
+                  <h3 style={{ margin: 0, fontSize: 'var(--text-md)', color: '#003060' }}>
                     Detalle de Observación · {selectedRowDetail.id_obs}
                   </h3>
                 </div>
@@ -580,13 +583,13 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
                   <div className="audit-col" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
                     <span className="stat-btn-label">Código de Sitio y Localidad:</span>
-                    <strong style={{ color: '#003060', fontSize: '0.84rem' }}>
+                    <strong style={{ color: '#003060', fontSize: 'var(--text-sm)' }}>
                       {selectedRowDetail.id_sitio} {getLocalidad(selectedRowDetail.id_sitio) ? `· ${getLocalidad(selectedRowDetail.id_sitio)}` : ''}
                     </strong>
                   </div>
                   <div className="audit-col" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
                     <span className="stat-btn-label">{presentationMode ? 'Cuadrilla Asignada:' : 'Técnico Asignado:'}</span>
-                    <span style={{ color: '#1e293b', fontSize: '0.84rem', fontWeight: 600 }}>
+                    <span style={{ color: '#1e293b', fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)' }}>
                       {presentationMode
                         ? (selectedRowDetail.cuadrilla || 'Sin Cuadrilla')
                         : `${selectedRowDetail.tecnico} ${selectedRowDetail.cuadrilla ? `(${selectedRowDetail.cuadrilla})` : ''}`}
@@ -598,7 +601,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                   </div>
                   <div className="audit-col" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
                     <span className="stat-btn-label">Revisado Por:</span>
-                    <span style={{ color: '#003060', fontSize: '0.84rem', fontWeight: 600 }}>
+                    <span style={{ color: '#003060', fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)' }}>
                       {selectedRowDetail.revisor || 'Sin revisor'}
                     </span>
                   </div>
@@ -612,7 +615,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                 )}
 
                 {(selectedRowDetail.subsistema || selectedRowDetail.protocolo) && (
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.74rem', color: '#64748b', marginTop: '0.2rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: 'var(--text-xs)', color: '#64748b', marginTop: '0.2rem' }}>
                     {selectedRowDetail.protocolo && (
                       <span className="meta-pill">Protocolo: <strong>{selectedRowDetail.protocolo}</strong></span>
                     )}

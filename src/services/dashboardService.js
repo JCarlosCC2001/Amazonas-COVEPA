@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import { supabaseExt } from '../lib/supabaseExt'
+import { supabaseExt } from '../lib/supabase'
 import { ASIGNACIONES_BASE } from './sitiosService'
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService.js'
 

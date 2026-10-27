@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+﻿import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Users, UserPlus, Search, Phone, MessageSquare, Edit2,
   Trash2, Shield, Wrench, Truck, MapPin, RefreshCw, X,
@@ -18,6 +18,8 @@ import {
   assignUserAccount
 } from '../services/personalService'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
+import SearchInput from '../components/shared/SearchInput'
+import { getInitials, getCargoClass } from '../utils/helpers'
 
 // Helper para parsear hasta 2 teléfonos y operadores estructurados
 function parsePhoneLines(telefono, operador) {
@@ -45,23 +47,6 @@ function getOperatorClass(op) {
   if (o.includes('MOVISTAR')) return 'movistar'
   if (o.includes('ENTEL')) return 'entel'
   return 'otro'
-}
-
-// Helper para iniciales de avatar
-function getInitials(name) {
-  if (!name) return '?'
-  const parts = name.trim().split(' ')
-  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`
-  return parts[0].slice(0, 2).toUpperCase()
-}
-
-// Helper para clase de cargo
-function getCargoClass(cargo) {
-  const c = (cargo || '').toUpperCase()
-  if (c.includes('TÉCNICO') || c.includes('TECNICO')) return 'tecnico'
-  if (c.includes('CONDUCTOR')) return 'conductor'
-  if (c.includes('SUPERVISOR')) return 'supervisor'
-  return 'tecnico'
 }
 
 export default function Tecnicos() {
@@ -309,30 +294,19 @@ export default function Tecnicos() {
       <div className="prog-toolbar">
         {/* Izquierda: Buscador y Filtro por Cargo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', flex: 1 }}>
-          <div className="obs-search-box" style={{ maxWidth: '280px' }}>
-            <Search size={14} className="obs-search-icon" />
-            <input
-              type="text"
-              className="obs-search-input"
-              placeholder="Buscar por nombre, DNI, empresa..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                style={{ position: 'absolute', right: '0.6rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Buscar por nombre, DNI, empresa..."
+            style={{ maxWidth: '280px' }}
+            iconSize={14}
+          />
 
           <select
             className="filter-select"
             value={filterEmpresa}
             onChange={e => setFilterEmpresa(e.target.value)}
-            style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+            style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.6rem' }}
           >
             <option value="TODOS">Todas las Empresas ({personal.length})</option>
             {empresas.map(emp => (
@@ -344,7 +318,7 @@ export default function Tecnicos() {
             className="filter-select"
             value={filterCargo}
             onChange={e => setFilterCargo(e.target.value)}
-            style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+            style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.6rem' }}
           >
             <option value="TODOS">Todos los Cargos</option>
             {cargos.map(c => (
@@ -398,8 +372,8 @@ export default function Tecnicos() {
                 background: 'rgba(99, 102, 241, 0.12)',
                 border: '1px solid rgba(99, 102, 241, 0.35)',
                 color: '#a5b4fc',
-                fontWeight: 600,
-                fontSize: '0.8rem',
+                fontWeight: 'var(--fw-semibold)',
+                fontSize: 'var(--text-sm)',
                 cursor: 'pointer'
               }}
               title="Acceso exclusivo Administrador: Cambiar mi contraseña de acceso"
@@ -422,8 +396,8 @@ export default function Tecnicos() {
           {filteredPersonal.length === 0 ? (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1rem', background: '#ffffff', borderRadius: '14px', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
               <Users size={40} style={{ opacity: 0.3, margin: '0 auto 0.75rem auto' }} />
-              <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#003060' }}>No se encontró personal con los filtros aplicados</div>
-              <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>Prueba ajustando el término de búsqueda o seleccionando otro cargo</div>
+              <div style={{ fontWeight: 'var(--fw-semibold)', fontSize: 'var(--text-base)', color: '#003060' }}>No se encontró personal con los filtros aplicados</div>
+              <div style={{ fontSize: 'var(--text-sm)', marginTop: '0.25rem' }}>Prueba ajustando el término de búsqueda o seleccionando otro cargo</div>
             </div>
           ) : (
             filteredPersonal.map(person => {
@@ -452,7 +426,7 @@ export default function Tecnicos() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                           <span className="person-name">{person.nombre_completo}</span>
                           {isCarlos && (
-                            <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(0, 48, 96, 0.08)', color: '#003060', border: '1px solid rgba(0, 48, 96, 0.2)' }}>
+                            <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 'var(--fw-black)', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(0, 48, 96, 0.08)', color: '#003060', border: '1px solid rgba(0, 48, 96, 0.2)' }}>
                               SUPERVISOR COVEPA
                             </span>
                           )}
@@ -464,7 +438,7 @@ export default function Tecnicos() {
                               DNI {person.documento_identidad}
                             </span>
                           ) : (
-                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                            <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>
                               Sin DNI
                             </span>
                           )}
@@ -475,8 +449,8 @@ export default function Tecnicos() {
 
                           <span
                             style={{
-                              fontSize: '0.64rem',
-                              fontWeight: 700,
+                              fontSize: 'var(--text-2xs)',
+                              fontWeight: 'var(--fw-bold)',
                               padding: '0.1rem 0.38rem',
                               borderRadius: '4px',
                               background: isGilat ? '#e0f2fe' : 'rgba(0, 48, 96, 0.07)',
@@ -520,13 +494,13 @@ export default function Tecnicos() {
                   {/* Datos de contacto y ubicación */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginTop: '0.35rem' }}>
                     {/* Fila Ciudad Base y Correo */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 'var(--text-sm)' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
                         <MapPin size={13} color="#0284c7" />
                         Base: <strong style={{ color: '#003060' }}>{person.origen || 'Por asignar'}</strong>
                       </span>
                       {person.email && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)', fontSize: '0.72rem' }} title={person.email}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }} title={person.email}>
                           <Mail size={12} color="#0284c7" />
                           {person.email.length > 20 ? person.email.slice(0, 18) + '…' : person.email}
                         </span>
@@ -567,7 +541,7 @@ export default function Tecnicos() {
                         )}
                       </div>
                     ) : (
-                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.2rem 0' }}>
+                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.2rem 0' }}>
                         Sin teléfono registrado
                       </div>
                     )}
@@ -614,15 +588,15 @@ export default function Tecnicos() {
                       onClick={() => setSelectedDrawerPerson(person)}
                       style={{ cursor: 'pointer' }}
                     >
-                      <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                      <td style={{ fontWeight: 'var(--fw-semibold)', color: 'var(--text-primary)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <div className={`person-avatar ${cargoClass}`} style={{ width: '32px', height: '32px', fontSize: '0.78rem' }}>
+                          <div className={`person-avatar ${cargoClass}`} style={{ width: '32px', height: '32px', fontSize: 'var(--text-sm)' }}>
                             {getInitials(person.nombre_completo)}
                           </div>
                           <div>
-                            <div style={{ color: '#003060', fontWeight: 700 }}>{person.nombre_completo}</div>
+                            <div style={{ color: '#003060', fontWeight: 'var(--fw-bold)' }}>{person.nombre_completo}</div>
                             {person.email && (
-                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{person.email}</div>
+                              <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>{person.email}</div>
                             )}
                           </div>
                         </div>
@@ -633,7 +607,7 @@ export default function Tecnicos() {
                             {person.documento_identidad}
                           </span>
                         ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>—</span>
                         )}
                       </td>
                       <td>
@@ -644,8 +618,8 @@ export default function Tecnicos() {
                       <td>
                         <span
                           style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
+                            fontSize: 'var(--text-xs)',
+                            fontWeight: 'var(--fw-bold)',
                             padding: '0.15rem 0.45rem',
                             borderRadius: '4px',
                             background: person.empresa?.toUpperCase().includes('GILAT') ? '#e0f2fe' : 'rgba(0, 48, 96, 0.07)',
@@ -659,9 +633,9 @@ export default function Tecnicos() {
                       <td>
                         {firstPhone ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <span style={{ fontFamily: 'monospace', fontSize: '0.82rem', fontWeight: 600 }}>{firstPhone.phone}</span>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)' }}>{firstPhone.phone}</span>
                             {firstPhone.operator && (
-                              <span className={`phone-operator-tag ${getOperatorClass(firstPhone.operator)}`} style={{ fontSize: '0.65rem', padding: '0.05rem 0.3rem' }}>
+                              <span className={`phone-operator-tag ${getOperatorClass(firstPhone.operator)}`} style={{ fontSize: 'var(--text-2xs)', padding: '0.05rem 0.3rem' }}>
                                 {firstPhone.operator}
                               </span>
                             )}
@@ -675,7 +649,7 @@ export default function Tecnicos() {
                             </div>
                           </div>
                         ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>—</span>
                         )}
                       </td>
                       <td>
@@ -695,12 +669,12 @@ export default function Tecnicos() {
                             <span className={`role-tag-covepa ${person.cuenta_usuario.rol}`}>
                               {person.cuenta_usuario.rol}
                             </span>
-                            <span className={`covepa-access-badge ${person.cuenta_usuario.activo ? 'active' : 'inactive'}`} style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem' }}>
+                            <span className={`covepa-access-badge ${person.cuenta_usuario.activo ? 'active' : 'inactive'}`} style={{ fontSize: 'var(--text-2xs)', padding: '0.1rem 0.35rem' }}>
                               {person.cuenta_usuario.activo ? 'Habilitado' : 'Bloqueado'}
                             </span>
                           </div>
                         ) : (
-                          <span className="covepa-access-badge inactive" style={{ fontSize: '0.68rem', opacity: 0.75 }}>
+                          <span className="covepa-access-badge inactive" style={{ fontSize: 'var(--text-2xs)', opacity: 0.75 }}>
                             <Lock size={10} /> Sin Cuenta
                           </span>
                         )}
@@ -709,7 +683,7 @@ export default function Tecnicos() {
                         <button
                           type="button"
                           className="btn-secondary-soft"
-                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          style={{ padding: '0.35rem 0.75rem', fontSize: 'var(--text-xs)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           onClick={e => {
                             e.stopPropagation()
                             setSelectedDrawerPerson(person)
@@ -935,7 +909,7 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
                 {tecSelected && (
                   <div className="cuadrilla-member-preview">
                     <span>{tecSelected.nombre_completo}</span>
-                    <span style={{ color: '#818cf8', fontWeight: 600 }}>{tecSelected.telefono || 'Sin telf.'}</span>
+                    <span style={{ color: '#818cf8', fontWeight: 'var(--fw-semibold)' }}>{tecSelected.telefono || 'Sin telf.'}</span>
                   </div>
                 )}
               </div>
@@ -964,7 +938,7 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
                 {condSelected && (
                   <div className="cuadrilla-member-preview">
                     <span>{condSelected.nombre_completo}</span>
-                    <span style={{ color: '#38bdf8', fontWeight: 600 }}>{condSelected.telefono || 'Sin telf.'}</span>
+                    <span style={{ color: '#38bdf8', fontWeight: 'var(--fw-semibold)' }}>{condSelected.telefono || 'Sin telf.'}</span>
                   </div>
                 )}
               </div>
@@ -1001,7 +975,7 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
           <button
             type="button"
             className="btn-secondary"
-            style={{ fontSize: '0.8rem', padding: '0.45rem 0.85rem' }}
+            style={{ fontSize: 'var(--text-sm)', padding: '0.45rem 0.85rem' }}
             onClick={() => setShowAddForm(true)}
           >
             + Agregar Otra Cuadrilla
@@ -1014,16 +988,16 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
               value={newCuadrillaName}
               onChange={e => setNewCuadrillaName(e.target.value)}
               className="prog-form-control"
-              style={{ padding: '0.35rem 0.65rem', fontSize: '0.82rem', width: '180px' }}
+              style={{ padding: '0.35rem 0.65rem', fontSize: 'var(--text-sm)', width: '180px' }}
               autoFocus
             />
-            <button type="submit" className="btn-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}>
+            <button type="submit" className="btn-primary" style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.75rem' }}>
               Crear
             </button>
             <button
               type="button"
               className="btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '0.4rem 0.65rem' }}
+              style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.65rem' }}
               onClick={() => setShowAddForm(false)}
             >
               Cancelar
@@ -1039,10 +1013,11 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
 // SUBCOMPONENTE: Ventana Lateral (Drawer) de Revisión y Gestión
 // ────────────────────────────────────────────────────────────
 function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOpenPasswordModal, onClose, onEdit, onDelete }) {
-  if (!person) return null
-  const cargoClass = getCargoClass(person.cargo)
-  const isTecnico = cargoClass === 'tecnico' || (person.cargo || '').includes('SUPERVISOR')
-  const phoneLines = parsePhoneLines(person.telefono, person.operador)
+  // M1: Hooks antes del guard — persona nula se maneja en el JSX con un guard al final
+  // NO hay early return aquí para cumplir con las reglas de hooks de React
+  const cargoClass = getCargoClass(person?.cargo)
+  const isTecnico = cargoClass === 'tecnico' || (person?.cargo || '').includes('SUPERVISOR')
+  const phoneLines = parsePhoneLines(person?.telefono, person?.operador)
   const [copiedDni, setCopiedDni] = useState(false)
   const [togglingAccess, setTogglingAccess] = useState(false)
 
@@ -1120,24 +1095,26 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
   const isCarlos = (person.nombre_completo || '').includes('CARLOS CONDOR')
   const hasAccount = !!person.cuenta_usuario
 
+  // Guard después de todos los hooks — cumple reglas de hooks
+  if (!person) return null
   return (
     <div className="obs-drawer-overlay">
       <div className="obs-drawer" style={{ maxWidth: '480px' }}>
         {/* Cabecera del Drawer */}
         <div className="obs-drawer-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-            <div className={`person-avatar ${cargoClass}`} style={{ width: '48px', height: '48px', fontSize: '1.2rem' }}>
+            <div className={`person-avatar ${cargoClass}`} style={{ width: '48px', height: '48px', fontSize: 'var(--text-lg)' }}>
               {getInitials(person.nombre_completo)}
             </div>
             <div>
-              <h2 style={{ fontSize: '1.15rem', margin: 0, color: '#003060', fontWeight: 700 }}>
+              <h2 style={{ fontSize: 'var(--text-lg)', margin: 0, color: '#003060', fontWeight: 'var(--fw-bold)' }}>
                 {person.nombre_completo}
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
                 <span className={`role-badge ${cargoClass}`}>
                   {person.cargo}
                 </span>
-                <span style={{ fontSize: '0.66rem', fontWeight: 700, padding: '0.12rem 0.4rem', borderRadius: '4px', background: 'rgba(0, 48, 96, 0.08)', color: '#003060', border: '1px solid rgba(0, 48, 96, 0.2)' }}>
+                <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 'var(--fw-bold)', padding: '0.12rem 0.4rem', borderRadius: '4px', background: 'rgba(0, 48, 96, 0.08)', color: '#003060', border: '1px solid rgba(0, 48, 96, 0.2)' }}>
                   {person.empresa || 'SELNET S.A.C.'}
                 </span>
                 {isTecnico && person.cuadrilla && (
@@ -1165,7 +1142,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                 ) : (
                   <Lock size={20} color="#64748b" />
                 )}
-                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#003060', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                <span style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-black)', color: '#003060', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                   Cuenta y Rol en este Proyecto
                 </span>
               </div>
@@ -1186,7 +1163,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
               )}
             </div>
 
-            <div style={{ fontSize: '0.82rem', color: hasAccount ? 'var(--text-secondary)' : 'var(--text-muted)', lineHeight: 1.45 }}>
+            <div style={{ fontSize: 'var(--text-sm)', color: hasAccount ? 'var(--text-secondary)' : 'var(--text-muted)', lineHeight: 1.45 }}>
               {hasAccount
                 ? `Este integrante tiene una cuenta configurada con el rol de ${person.cuenta_usuario.rol.toUpperCase()} en esta base de datos.`
                 : 'Este integrante proviene de la base de datos externa y aún no tiene una cuenta ni rol asignado en este proyecto. Puedes asignárselo a continuación.'}
@@ -1195,13 +1172,13 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
             {/* Si el formulario de asignación está abierto */}
             {showAssignForm ? (
               <form onSubmit={handleSaveAccount} className="account-form-box">
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#003060', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-bold)', color: '#003060', display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <Sparkles size={13} color="#0284c7" />
                   Asignar / Modificar Cuenta y Rol
                 </div>
 
                 <div className="prog-form-group" style={{ marginBottom: '0.4rem' }}>
-                  <label style={{ fontSize: '0.72rem', color: '#003060', fontWeight: 600 }}>Correo Electrónico de Ingreso *</label>
+                  <label style={{ fontSize: 'var(--text-xs)', color: '#003060', fontWeight: 'var(--fw-semibold)' }}>Correo Electrónico de Ingreso *</label>
                   <input
                     type="email"
                     className="prog-form-control"
@@ -1209,17 +1186,17 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                     value={accountEmail}
                     onChange={e => setAccountEmail(e.target.value)}
                     required
-                    style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}
+                    style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.6rem' }}
                   />
                 </div>
 
                 <div className="prog-form-group" style={{ marginBottom: '0.4rem' }}>
-                  <label style={{ fontSize: '0.72rem', color: '#003060', fontWeight: 600 }}>Rol en este Programa *</label>
+                  <label style={{ fontSize: 'var(--text-xs)', color: '#003060', fontWeight: 'var(--fw-semibold)' }}>Rol en este Programa *</label>
                   <select
                     className="prog-form-control"
                     value={accountRol}
                     onChange={e => setAccountRol(e.target.value)}
-                    style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}
+                    style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.6rem' }}
                   >
                     <option value="admin">Administrador General (Acceso Total)</option>
                     <option value="supervisor">Supervisor (Operación y Validación)</option>
@@ -1229,7 +1206,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0' }}>
-                  <span style={{ fontSize: '0.76rem', color: '#003060', fontWeight: 600 }}>Habilitar Inicio de Sesión</span>
+                  <span style={{ fontSize: 'var(--text-xs)', color: '#003060', fontWeight: 'var(--fw-semibold)' }}>Habilitar Inicio de Sesión</span>
                   <input
                     type="checkbox"
                     checked={accountActivo}
@@ -1243,7 +1220,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                     type="submit"
                     className="btn-primary"
                     disabled={savingAccount}
-                    style={{ fontSize: '0.78rem', padding: '0.45rem', justifyContent: 'center' }}
+                    style={{ fontSize: 'var(--text-sm)', padding: '0.45rem', justifyContent: 'center' }}
                   >
                     {savingAccount ? 'Guardando...' : 'Guardar Cuenta'}
                   </button>
@@ -1252,7 +1229,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                     className="btn-secondary"
                     onClick={() => setShowAssignForm(false)}
                     disabled={savingAccount}
-                    style={{ fontSize: '0.78rem', padding: '0.45rem', justifyContent: 'center' }}
+                    style={{ fontSize: 'var(--text-sm)', padding: '0.45rem', justifyContent: 'center' }}
                   >
                     Cancelar
                   </button>
@@ -1263,15 +1240,15 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                 {/* Resumen de credenciales */}
                 <div style={{ background: '#f8fbfe', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
                   <div>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Identificador / DNI</div>
-                    <div style={{ fontSize: '0.86rem', fontFamily: 'monospace', fontWeight: 700, color: '#003060' }}>
+                    <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>Identificador / DNI</div>
+                    <div style={{ fontSize: 'var(--text-sm)', fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
                       {person.dni || person.documento_identidad || 'Sin DNI'}
                     </div>
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Rol Asignado</div>
-                    <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0284c7' }}>
+                    <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>Rol Asignado</div>
+                    <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-bold)', color: '#0284c7' }}>
                       {hasAccount ? (
                         <span className={`role-tag-covepa ${person.cuenta_usuario.rol}`}>
                           {person.cuenta_usuario.rol}
@@ -1283,15 +1260,15 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                   </div>
 
                   <div style={{ gridColumn: '1 / -1' }}>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Correo Electrónico de Ingreso</div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: (person.cuenta_usuario?.email || person.email) ? '#003060' : 'var(--text-muted)' }}>
+                    <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>Correo Electrónico de Ingreso</div>
+                    <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', color: (person.cuenta_usuario?.email || person.email) ? '#003060' : 'var(--text-muted)' }}>
                       {person.cuenta_usuario?.email || person.email || 'Sin correo asociado'}
                     </div>
                   </div>
                 </div>
 
                 {savedSuccess && (
-                  <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#059669', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#059669', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: 'var(--text-xs)', display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <CheckCircle2 size={14} /> ¡Cuenta y rol asignados exitosamente en la BD del proyecto!
                   </div>
                 )}
@@ -1301,7 +1278,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                     type="button"
                     className="btn-secondary"
                     onClick={() => setShowAssignForm(true)}
-                    style={{ fontSize: '0.8rem', padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    style={{ fontSize: 'var(--text-sm)', padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   >
                     <KeyRound size={14} color="#003060" />
                     <span>{hasAccount ? 'Modificar Cuenta y Rol en COVEPA' : 'Asignar Cuenta y Rol a este Personal'}</span>
@@ -1344,15 +1321,15 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
             flexDirection: 'column',
             gap: '0.75rem'
           }}>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#003060', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-bold)', color: '#003060', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Identificación Oficial
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>DNI / Documento</div>
+                <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>DNI / Documento</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                  <span className="person-dni-badge" style={{ fontSize: '0.84rem' }}>
+                  <span className="person-dni-badge" style={{ fontSize: 'var(--text-sm)' }}>
                     {person.documento_identidad || 'Sin DNI'}
                   </span>
                   {person.documento_identidad && (
@@ -1369,22 +1346,22 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
               </div>
 
               <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Cargo Oficial</div>
-                <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#003060' }}>
+                <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>Cargo Oficial</div>
+                <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', color: '#003060' }}>
                   {person.cargo}
                 </div>
               </div>
 
               <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Empresa Contratante</div>
-                <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#003060' }}>
+                <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>Empresa Contratante</div>
+                <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', color: '#003060' }}>
                   {person.empresa || 'SELNET S.A.C.'}
                 </div>
               </div>
 
               <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Ciudad Base / Origen</div>
-                <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#003060', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>Ciudad Base / Origen</div>
+                <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', color: '#003060', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <MapPin size={12} color="#0284c7" />
                   {person.origen || 'No registrada'}
                 </div>
@@ -1402,12 +1379,12 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
             flexDirection: 'column',
             gap: '0.75rem'
           }}>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#003060', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-bold)', color: '#003060', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Canales Telefónicos y WhatsApp
             </div>
 
             {phoneLines.length === 0 ? (
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
                 No tiene números de teléfono registrados.
               </div>
             ) : (
@@ -1427,7 +1404,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Phone size={14} color="#003060" />
-                      <span style={{ fontFamily: 'monospace', fontSize: '0.92rem', fontWeight: 700, color: '#003060' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-base)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
                         {line.phone}
                       </span>
                     </div>
@@ -1452,8 +1429,8 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                           background: 'rgba(16, 185, 129, 0.12)',
                           border: '1px solid rgba(16, 185, 129, 0.3)',
                           color: '#059669',
-                          fontSize: '0.78rem',
-                          fontWeight: 600,
+                          fontSize: 'var(--text-sm)',
+                          fontWeight: 'var(--fw-semibold)',
                           textDecoration: 'none'
                         }}
                       >
@@ -1474,8 +1451,8 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                           background: 'rgba(37, 211, 102, 0.12)',
                           border: '1px solid rgba(37, 211, 102, 0.3)',
                           color: '#15803d',
-                          fontSize: '0.78rem',
-                          fontWeight: 600,
+                          fontSize: 'var(--text-sm)',
+                          fontWeight: 'var(--fw-semibold)',
                           textDecoration: 'none'
                         }}
                       >
@@ -1504,10 +1481,10 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <KeyRound size={15} color="#003060" />
                 <div>
-                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#003060' }}>
+                  <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
                     Seguridad y Contraseña
                   </div>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>
                     Acceso de Administrador Principal
                   </div>
                 </div>
@@ -1524,8 +1501,8 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                   background: '#003060',
                   border: '1px solid #003060',
                   color: '#ffffff',
-                  fontSize: '0.74rem',
-                  fontWeight: 600,
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 'var(--fw-semibold)',
                   cursor: 'pointer'
                 }}
               >
@@ -1546,7 +1523,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
             <button
               type="button"
               className="btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.65rem', fontSize: '0.82rem' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.65rem', fontSize: 'var(--text-sm)' }}
               onClick={() => {
                 onClose()
                 onEdit(person)
@@ -1559,7 +1536,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
             <button
               type="button"
               className="btn-danger-soft"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.65rem', fontSize: '0.82rem' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.65rem', fontSize: 'var(--text-sm)' }}
               onClick={() => {
                 onDelete(person.id, person.nombre_completo)
               }}
@@ -1681,7 +1658,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
                 color: '#dc2626',
                 padding: '0.65rem 0.85rem',
                 borderRadius: '6px',
-                fontSize: '0.82rem',
+                fontSize: 'var(--text-sm)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem'
@@ -1819,7 +1796,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
               flexDirection: 'column',
               gap: '0.4rem'
             }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#003060', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-semibold)', color: '#003060', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Phone size={13} />
                 Línea Telefónica Principal (contacto_1)
               </div>
@@ -1855,7 +1832,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
               flexDirection: 'column',
               gap: '0.4rem'
             }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0284c7', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-semibold)', color: '#0284c7', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Phone size={13} />
                 Segunda Línea Telefónica (contacto_2)
               </div>
@@ -1893,7 +1870,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
               marginTop: '0.3rem'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-bold)', color: '#166534', display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <ShieldCheck size={16} color="#16a34a" />
                   Asignar Cuenta y Rol en este Proyecto (COVEPA)
                 </div>
@@ -1907,13 +1884,13 @@ function ModalPersonal({ member, onClose, onSaved }) {
 
               {asignarCuenta && (
                 <>
-                  <div style={{ fontSize: '0.72rem', color: '#15803d' }}>
+                  <div style={{ fontSize: 'var(--text-xs)', color: '#15803d' }}>
                     Se vinculará este personal en <code>perfiles_usuario</code> de esta base de datos local con el rol seleccionado.
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
                     <div className="prog-form-group">
-                      <label style={{ color: '#166534', fontWeight: 600 }}>Rol Asignado *</label>
+                      <label style={{ color: '#166534', fontWeight: 'var(--fw-semibold)' }}>Rol Asignado *</label>
                       <select
                         className="prog-form-control"
                         value={rolCuenta}
@@ -1928,10 +1905,10 @@ function ModalPersonal({ member, onClose, onSaved }) {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                      <label style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 600, marginBottom: '0.3rem' }}>
+                      <label style={{ fontSize: 'var(--text-xs)', color: '#166534', fontWeight: 'var(--fw-semibold)', marginBottom: '0.3rem' }}>
                         Permiso de Acceso
                       </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#14532d', cursor: 'pointer' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-sm)', color: '#14532d', cursor: 'pointer' }}>
                         <input
                           type="checkbox"
                           checked={cuentaActiva}
@@ -2036,8 +2013,8 @@ function ModalCambiarPassword({ onClose, onPasswordUpdated }) {
               <KeyRound size={17} color="#818cf8" />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Seguridad de Administrador</h3>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Cambiar contraseña de acceso</span>
+              <h3 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 'var(--fw-bold)' }}>Seguridad de Administrador</h3>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Cambiar contraseña de acceso</span>
             </div>
           </div>
           <button className="btn-close" onClick={onClose}><X size={18} /></button>
@@ -2056,10 +2033,10 @@ function ModalCambiarPassword({ onClose, onPasswordUpdated }) {
               justifyContent: 'space-between'
             }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <span style={{ fontSize: '0.68rem', color: '#a5b4fc', textTransform: 'uppercase', fontWeight: 700 }}>
+                <span style={{ fontSize: 'var(--text-2xs)', color: '#a5b4fc', textTransform: 'uppercase', fontWeight: 'var(--fw-bold)' }}>
                   Cuenta Administradora
                 </span>
-                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                <span style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-primary)' }}>
                   {user?.email || 'jcarloscc1101@gmail.com'}
                 </span>
               </div>
@@ -2069,8 +2046,8 @@ function ModalCambiarPassword({ onClose, onPasswordUpdated }) {
                 border: '1px solid rgba(16, 185, 129, 0.3)',
                 padding: '0.15rem 0.5rem',
                 borderRadius: '6px',
-                fontSize: '0.68rem',
-                fontWeight: 700,
+                fontSize: 'var(--text-2xs)',
+                fontWeight: 'var(--fw-bold)',
                 textTransform: 'uppercase'
               }}>
                 Admin
@@ -2084,7 +2061,7 @@ function ModalCambiarPassword({ onClose, onPasswordUpdated }) {
                 color: '#fca5a5',
                 padding: '0.65rem 0.85rem',
                 borderRadius: '8px',
-                fontSize: '0.8rem',
+                fontSize: 'var(--text-sm)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem'
@@ -2101,7 +2078,7 @@ function ModalCambiarPassword({ onClose, onPasswordUpdated }) {
                 color: '#34d399',
                 padding: '0.75rem 0.85rem',
                 borderRadius: '8px',
-                fontSize: '0.82rem',
+                fontSize: 'var(--text-sm)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem'
@@ -2112,7 +2089,7 @@ function ModalCambiarPassword({ onClose, onPasswordUpdated }) {
             )}
 
             <div className="prog-form-group">
-              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <label style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-secondary)' }}>
                 Nueva Contraseña *
               </label>
               <div style={{ position: 'relative' }}>
@@ -2147,7 +2124,7 @@ function ModalCambiarPassword({ onClose, onPasswordUpdated }) {
             </div>
 
             <div className="prog-form-group">
-              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <label style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-secondary)' }}>
                 Confirmar Nueva Contraseña *
               </label>
               <input

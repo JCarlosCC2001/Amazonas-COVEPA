@@ -294,8 +294,8 @@ export default function KMZ() {
           background: feedbackMsg.type === 'info' ? '#eff6ff' : '#ecfdf5',
           border: `1px solid ${feedbackMsg.type === 'info' ? '#bfdbfe' : '#a7f3d0'}`,
           color: feedbackMsg.type === 'info' ? '#1d4ed8' : '#065f46',
-          fontSize: '0.85rem',
-          fontWeight: 600,
+          fontSize: 'var(--text-sm)',
+          fontWeight: 'var(--fw-semibold)',
           boxShadow: 'var(--shadow-sm)',
           animation: 'fadeIn 0.25s ease'
         }}>
@@ -318,11 +318,11 @@ export default function KMZ() {
         boxShadow: 'var(--shadow-sm)'
       }}>
         <div>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#003060', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 'var(--fw-black)', color: '#003060', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Download size={20} color="#003060" />
             Centro de Descargas
           </h2>
-          <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+          <p style={{ margin: '0.15rem 0 0 0', fontSize: 'var(--text-sm)', color: '#64748b' }}>
             Mapas satelitales Google Earth (KMZ/KML) y reportes ejecutivos en Excel (.xlsx) organizados por cuadrilla operativa
           </p>
         </div>
@@ -374,11 +374,11 @@ export default function KMZ() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <Info size={18} color="#0284c7" />
-              <span style={{ fontSize: '0.84rem', color: '#334e68' }}>
+              <span style={{ fontSize: 'var(--text-sm)', color: '#334e68' }}>
                 Cada grupo cuenta con su archivo <strong>KMZ ultraligero</strong> (40-80 KB para celular) y su <strong>Excel oficial (.xlsx)</strong> con la localidad al lado de cada sitio y formato de tabla con filtros.
               </span>
             </div>
-            <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#003060', background: '#e0f2fe', padding: '0.2rem 0.6rem', borderRadius: '6px' }}>
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-bold)', color: '#003060', background: '#e0f2fe', padding: '0.2rem 0.6rem', borderRadius: '6px' }}>
               6 Grupos Disponibles
             </span>
           </div>
@@ -411,7 +411,7 @@ export default function KMZ() {
                 >
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#003060', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h3 style={{ fontSize: 'var(--text-md)', fontWeight: 'var(--fw-black)', color: '#003060', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Folder size={18} color="#0284c7" />
                         {gf.title}
                       </h3>
@@ -419,8 +419,8 @@ export default function KMZ() {
                         background: '#e0f2fe',
                         border: '1px solid #bae6fd',
                         color: '#0284c7',
-                        fontSize: '0.74rem',
-                        fontWeight: 700,
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: 'var(--fw-bold)',
                         padding: '0.2rem 0.6rem',
                         borderRadius: '6px'
                       }}>
@@ -428,7 +428,7 @@ export default function KMZ() {
                       </span>
                     </div>
 
-                    <p style={{ color: '#475569', fontSize: '0.84rem', margin: '0 0 0.6rem 0', lineHeight: 1.45 }}>
+                    <p style={{ color: '#475569', fontSize: 'var(--text-sm)', margin: '0 0 0.6rem 0', lineHeight: 1.45 }}>
                       {gf.description}
                     </p>
 
@@ -436,7 +436,7 @@ export default function KMZ() {
                       display: 'flex',
                       flexWrap: 'wrap',
                       gap: '0.75rem',
-                      fontSize: '0.76rem',
+                      fontSize: 'var(--text-xs)',
                       color: '#64748b',
                       padding: '0.5rem 0.75rem',
                       background: '#f8fbfe',
@@ -471,8 +471,8 @@ export default function KMZ() {
                         color: '#ffffff',
                         borderRadius: '7px',
                         padding: '0.62rem 0.9rem',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 'var(--fw-bold)',
                         cursor: isExportingExcel ? 'not-allowed' : 'pointer',
                         boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)',
                         transition: 'all 0.15s ease'
@@ -508,8 +508,8 @@ export default function KMZ() {
                           color: '#ffffff',
                           borderRadius: '6px',
                           padding: '0.52rem 0.75rem',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
+                          fontSize: 'var(--text-sm)',
+                          fontWeight: 'var(--fw-bold)',
                           cursor: isDownloadingKmz ? 'wait' : 'pointer',
                           transition: 'all 0.15s ease'
                         }}
@@ -529,8 +529,8 @@ export default function KMZ() {
                           color: '#475569',
                           borderRadius: '6px',
                           padding: '0.52rem 0.8rem',
-                          fontSize: '0.76rem',
-                          fontWeight: 700,
+                          fontSize: 'var(--text-xs)',
+                          fontWeight: 'var(--fw-bold)',
                           cursor: isDownloadingKml ? 'wait' : 'pointer'
                         }}
                         title="Descargar versión KML plano"
@@ -562,21 +562,21 @@ export default function KMZ() {
               <div style={{ maxWidth: '680px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
                   <Globe size={22} color="#ffffff" />
-                  <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>
+                  <h3 style={{ fontSize: 'var(--text-lg)', fontWeight: 'var(--fw-black)', margin: 0, color: '#ffffff' }}>
                     Mapa Satelital General (Proyecto Completo)
                   </h3>
                 </div>
-                <p style={{ color: '#e0f2fe', fontSize: '0.86rem', margin: 0, lineHeight: 1.5 }}>
+                <p style={{ color: '#e0f2fe', fontSize: 'var(--text-sm)', margin: 0, lineHeight: 1.5 }}>
                   Consolida los <strong>156 sitios</strong> y las <strong>4,116 observaciones</strong> georreferenciadas con carpetas colapsadas por grupo. Optimizado para Google Earth Desktop y Celular con fichas técnicas completas.
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', marginTop: '0.8rem' }}>
-                  <span style={{ background: 'rgba(255,255,255,0.15)', padding: '0.2rem 0.55rem', borderRadius: '5px', fontSize: '0.74rem' }}>
+                  <span style={{ background: 'rgba(255,255,255,0.15)', padding: '0.2rem 0.55rem', borderRadius: '5px', fontSize: 'var(--text-xs)' }}>
                     156 Nodos Activos
                   </span>
-                  <span style={{ background: 'rgba(255,255,255,0.15)', padding: '0.2rem 0.55rem', borderRadius: '5px', fontSize: '0.74rem' }}>
+                  <span style={{ background: 'rgba(255,255,255,0.15)', padding: '0.2rem 0.55rem', borderRadius: '5px', fontSize: 'var(--text-xs)' }}>
                     Peso: 240 KB (KMZ)
                   </span>
-                  <span style={{ background: 'rgba(255,255,255,0.15)', padding: '0.2rem 0.55rem', borderRadius: '5px', fontSize: '0.74rem' }}>
+                  <span style={{ background: 'rgba(255,255,255,0.15)', padding: '0.2rem 0.55rem', borderRadius: '5px', fontSize: 'var(--text-xs)' }}>
                     Zonas 2 y 7
                   </span>
                 </div>
@@ -596,8 +596,8 @@ export default function KMZ() {
                     border: 'none',
                     borderRadius: '8px',
                     padding: '0.65rem 1.1rem',
-                    fontSize: '0.84rem',
-                    fontWeight: 800,
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 'var(--fw-black)',
                     cursor: 'pointer',
                     boxShadow: '0 3px 10px rgba(0,0,0,0.12)'
                   }}
@@ -620,8 +620,8 @@ export default function KMZ() {
                     border: 'none',
                     borderRadius: '8px',
                     padding: '0.65rem 1.1rem',
-                    fontSize: '0.84rem',
-                    fontWeight: 800,
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 'var(--fw-black)',
                     cursor: exportingExcelId === 'general-excel' ? 'not-allowed' : 'pointer',
                     boxShadow: '0 3px 10px rgba(16, 185, 129, 0.25)'
                   }}
@@ -652,8 +652,8 @@ export default function KMZ() {
                     border: '1px solid rgba(255,255,255,0.3)',
                     borderRadius: '8px',
                     padding: '0.55rem 1.1rem',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 'var(--fw-bold)',
                     cursor: 'pointer'
                   }}
                 >
@@ -689,10 +689,10 @@ export default function KMZ() {
                 <FileArchive size={26} color="#d97706" />
               </div>
               <div>
-                <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#003060', margin: 0 }}>
+                <h4 style={{ fontSize: 'var(--text-md)', fontWeight: 'var(--fw-black)', color: '#003060', margin: 0 }}>
                   Paquete Comprimido Completo ZIP
                 </h4>
-                <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.82rem', color: '#64748b' }}>
+                <p style={{ margin: '0.15rem 0 0 0', fontSize: 'var(--text-sm)', color: '#64748b' }}>
                   Contiene los 7 archivos KMZ (1 General + Grupos 1 al 6) en un solo archivo comprimido de ~420 KB.
                 </p>
               </div>
@@ -710,8 +710,8 @@ export default function KMZ() {
                 border: 'none',
                 borderRadius: '8px',
                 padding: '0.65rem 1.25rem',
-                fontSize: '0.82rem',
-                fontWeight: 700,
+                fontSize: 'var(--text-sm)',
+                fontWeight: 'var(--fw-bold)',
                 cursor: 'pointer',
                 boxShadow: '0 2px 8px rgba(0, 48, 96, 0.2)'
               }}
@@ -738,8 +738,8 @@ export default function KMZ() {
                   <span style={{
                     background: '#e0f2fe',
                     color: '#0284c7',
-                    fontWeight: 700,
-                    fontSize: '0.72rem',
+                    fontWeight: 'var(--fw-bold)',
+                    fontSize: 'var(--text-xs)',
                     padding: '0.15rem 0.5rem',
                     borderRadius: '4px',
                     display: 'flex',
@@ -748,11 +748,11 @@ export default function KMZ() {
                   }}>
                     <Radio size={12} /> EN VIVO
                   </span>
-                  <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#003060', margin: 0 }}>
+                  <h4 style={{ fontSize: 'var(--text-md)', fontWeight: 'var(--fw-black)', color: '#003060', margin: 0 }}>
                     Google Earth en Tiempo Real (NetworkLink KML)
                   </h4>
                 </div>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: '#475569', lineHeight: 1.45, maxWidth: '700px' }}>
+                <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: '#475569', lineHeight: 1.45, maxWidth: '700px' }}>
                   Abre este archivo una sola vez en <strong>Google Earth Pro de oficina</strong>. Se auto-refresca cada 60 segundos desde la base de datos sin necesidad de descargar archivos nuevos cuando las cuadrillas actualizan observaciones.
                 </p>
               </div>
@@ -770,8 +770,8 @@ export default function KMZ() {
                   color: syncSuccess ? '#ffffff' : '#15803d',
                   borderRadius: '7px',
                   padding: '0.55rem 0.95rem',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 'var(--fw-bold)',
                   cursor: isSyncing ? 'wait' : 'pointer'
                 }}
               >
@@ -793,8 +793,8 @@ export default function KMZ() {
                   border: 'none',
                   borderRadius: '6px',
                   padding: '0.52rem 0.9rem',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 'var(--fw-bold)',
                   cursor: 'pointer'
                 }}
               >
@@ -814,8 +814,8 @@ export default function KMZ() {
                   color: '#334e68',
                   borderRadius: '6px',
                   padding: '0.52rem 0.85rem',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 'var(--fw-semibold)',
                   cursor: 'pointer'
                 }}
               >
@@ -846,11 +846,11 @@ export default function KMZ() {
               <div style={{ background: '#e0f2fe', padding: '0.5rem', borderRadius: '8px' }}>
                 <Globe size={20} color="#003060" />
               </div>
-              <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#003060', margin: 0 }}>
+              <h4 style={{ fontSize: 'var(--text-base)', fontWeight: 'var(--fw-black)', color: '#003060', margin: 0 }}>
                 En Computadora (PC / Laptop)
               </h4>
             </div>
-            <ol style={{ fontSize: '0.82rem', color: '#334e68', paddingLeft: '1.2rem', margin: 0, lineHeight: 1.6 }}>
+            <ol style={{ fontSize: 'var(--text-sm)', color: '#334e68', paddingLeft: '1.2rem', margin: 0, lineHeight: 1.6 }}>
               <li>Descarga el archivo <strong>.KMZ</strong> del grupo asignado o el General.</li>
               <li>Haz doble clic sobre el archivo descargado.</li>
               <li>Se abrirá automáticamente en <strong>Google Earth Pro</strong>.</li>
@@ -870,11 +870,11 @@ export default function KMZ() {
               <div style={{ background: '#ecfdf5', padding: '0.5rem', borderRadius: '8px' }}>
                 <Smartphone size={20} color="#059669" />
               </div>
-              <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#059669', margin: 0 }}>
+              <h4 style={{ fontSize: 'var(--text-base)', fontWeight: 'var(--fw-black)', color: '#059669', margin: 0 }}>
                 En Celular vía Google Drive
               </h4>
             </div>
-            <ol style={{ fontSize: '0.82rem', color: '#334e68', paddingLeft: '1.2rem', margin: 0, lineHeight: 1.6 }}>
+            <ol style={{ fontSize: 'var(--text-sm)', color: '#334e68', paddingLeft: '1.2rem', margin: 0, lineHeight: 1.6 }}>
               <li>Sube el archivo <strong>KMZ</strong> a tu cuenta de Google Drive.</li>
               <li>Abre la aplicación <strong>Google Earth</strong> en tu teléfono.</li>
               <li>Toca en el menú <strong>Proyectos → Abrir → Desde Google Drive</strong>.</li>
@@ -893,11 +893,11 @@ export default function KMZ() {
               <div style={{ background: '#fef3c7', padding: '0.5rem', borderRadius: '8px' }}>
                 <ShieldCheck size={20} color="#d97706" />
               </div>
-              <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#d97706', margin: 0 }}>
+              <h4 style={{ fontSize: 'var(--text-base)', fontWeight: 'var(--fw-black)', color: '#d97706', margin: 0 }}>
                 En Campo 100% Offline (Sin Señal)
               </h4>
             </div>
-            <ol style={{ fontSize: '0.82rem', color: '#334e68', paddingLeft: '1.2rem', margin: 0, lineHeight: 1.6 }}>
+            <ol style={{ fontSize: 'var(--text-sm)', color: '#334e68', paddingLeft: '1.2rem', margin: 0, lineHeight: 1.6 }}>
               <li>Antes de salir a ruta, activa en Drive <strong>"Permitir acceso sin conexión"</strong> en el archivo.</li>
               <li>También puedes importar el KMZ en apps como <strong>Organic Maps</strong> o <strong>Locus Map</strong>.</li>
               <li>El GPS de tu celular te posicionará exactamente en la torre o caseta sin necesidad de internet ni datos móviles.</li>

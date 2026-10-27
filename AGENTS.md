@@ -8,6 +8,7 @@ Este archivo define las directivas y contexto obligatorio para cualquier asisten
 - Antes de proponer o implementar cambios, consulta siempre [CONTEXTO_SISTEMA.md](file:///d:/Proyectos/Amazonas-COVEPA/CONTEXTO_SISTEMA.md).
 - **Control de Cambios de Gran Magnitud:** Las actualizaciones NO deben aplicarse de forma automática ni unilateral. **Antes de ejecutar cualquier cambio de gran magnitud** (modificaciones de arquitectura, reestructuración profunda de pantallas, alteraciones en el esquema de base de datos o cambios de lógica estructural), **DEBES consultar primero al usuario, presentar la propuesta y solicitar su confirmación**.
 - **Mantenimiento del Contexto:** Una vez aprobado y ejecutado un cambio relevante, registrar el ajuste en el Historial de Cambios de [CONTEXTO_SISTEMA.md](file:///d:/Proyectos/Amazonas-COVEPA/CONTEXTO_SISTEMA.md).
+- **Tipografía Unificada:** Todo texto nuevo debe usar las fuentes del sistema (`var(--font-sans)` Inter y `var(--font-mono)` JetBrains Mono para códigos/números) y las clases `.t-*` de `src/styles/index.css`. **Prohibido** `fontFamily`/`fontSize` en línea en JSX en archivos migrados. Validar con `npm run check:typography:strict`.
 
 ---
 

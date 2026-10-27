@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Search, Filter, RefreshCw, FileDown, X, Eye, ChevronLeft,
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,
@@ -12,20 +12,7 @@ import {
 } from '../services/observacionesService'
 import { getCachedSitiosAsignados } from '../services/sitiosService'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
-
-// ────────────────────────────────────────────────────────────
-// Helper de estilos para badges de estado COVEPA
-// ────────────────────────────────────────────────────────────
-function estadoCovepaBadge(estado) {
-  if (!estado) return 'badge-muted'
-  if (estado === 'Validado') return 'badge-green'
-  if (estado === 'Descartado') return 'badge-dark'
-  if (estado === 'Pendiente') return 'badge-yellow'
-  if (estado === 'Rechazado') return 'badge-red'
-  if (estado === 'En Revision' || estado === 'En Revisión') return 'badge-blue'
-  if (estado === 'Enviado') return 'badge-purple'
-  return 'badge-muted'
-}
+import { estadoCovepaBadge } from '../utils/helpers'
 
 // ────────────────────────────────────────────────────────────
 // DRAWER — detalle completo + edición campos COVEPA
@@ -53,6 +40,15 @@ function ObsDrawer({ obs, sitiosMap = {}, onClose, onSaved }) {
     }
   }, [obs?.id_obs])
 
+  // Cerrar drawer con tecla Escape
+  useEffect(() => {
+    const handleKeyDown = e => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   if (!obs) return null
 
   const handleSave = async () => {
@@ -73,15 +69,6 @@ function ObsDrawer({ obs, sitiosMap = {}, onClose, onSaved }) {
       setSaving(false)
     }
   }
-
-  // Cerrar drawer con tecla Escape
-  useEffect(() => {
-    const handleKeyDown = e => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
 
   const TextBlock = ({ label, value }) => (
     value ? (
@@ -104,7 +91,7 @@ function ObsDrawer({ obs, sitiosMap = {}, onClose, onSaved }) {
             <div>
               <div className="obs-drawer-code">{obs.id_obs}</div>
               <div className="obs-drawer-meta">
-                <span style={{ fontWeight: 700, color: '#003060' }}>{obs.id_sitio}</span>
+                <span style={{ fontWeight: 'var(--fw-bold)', color: '#003060' }}>{obs.id_sitio}</span>
                 {localidad ? <span style={{ color: '#0284c7' }}> · {localidad}</span> : ''} · {obs.protocolo || 'Sin protocolo'}
               </div>
             </div>
@@ -123,13 +110,13 @@ function ObsDrawer({ obs, sitiosMap = {}, onClose, onSaved }) {
           <div className="obs-grid-3">
             <div className="obs-detail-item">
               <span className="obs-dk">Cuadrilla</span>
-              <span className="obs-dv" style={{fontWeight: 700, color: '#003060'}}>
+              <span className="obs-dv" style={{fontWeight: 'var(--fw-bold)', color: '#003060'}}>
                 {sitioInfo.cuadrilla || 'Sin Cuadrilla'}
               </span>
             </div>
             <div className="obs-detail-item">
               <span className="obs-dk">Sitio y Localidad</span>
-              <span className="obs-dv" style={{fontFamily:'monospace',color:'var(--primary-light)'}}>
+              <span className="obs-dv" style={{fontFamily: 'var(--font-mono)',color:'var(--primary-light)'}}>
                 {obs.id_sitio}{localidad ? ` · ${localidad}` : ''}
               </span>
             </div>
@@ -147,7 +134,7 @@ function ObsDrawer({ obs, sitiosMap = {}, onClose, onSaved }) {
 
           <div className="obs-detail-item" style={{marginTop:'0.75rem'}}>
             <span className="obs-dk">Detalle de la Observación</span>
-            <span className="obs-dv" style={{fontSize:'0.9rem',color:'var(--text-primary)'}}>{obs.detalle || '—'}</span>
+            <span className="obs-dv" style={{fontSize:'var(--text-base)',color:'var(--text-primary)'}}>{obs.detalle || '—'}</span>
           </div>
 
           {/* ACUERDO DE SUBSANACIÓN */}
@@ -287,7 +274,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs }) {
             </div>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '3px', flexWrap: 'wrap' }}>
               {sitioInfo?.cuadrilla && (
-                <span className="agrupada-site-zone-pill" style={{ background: 'rgba(0, 48, 96, 0.08)', color: '#003060', border: '1px solid rgba(0, 48, 96, 0.15)', fontWeight: 700 }}>
+                <span className="agrupada-site-zone-pill" style={{ background: 'rgba(0, 48, 96, 0.08)', color: '#003060', border: '1px solid rgba(0, 48, 96, 0.15)', fontWeight: 'var(--fw-bold)' }}>
                   {sitioInfo.cuadrilla}
                 </span>
               )}
@@ -337,7 +324,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs }) {
               >
                 <div className="agrupada-obs-col-main">
                   <div className="agrupada-obs-badges">
-                    <span className="site-code-badge" style={{fontSize:'0.74rem'}}>{o.id_obs}</span>
+                    <span className="site-code-badge" style={{fontSize:'var(--text-xs)'}}>{o.id_obs}</span>
                     {o.protocolo && (
                       <span className="agrupada-protocolo-tag" title={o.protocolo}>{o.protocolo}</span>
                     )}
@@ -815,8 +802,8 @@ export default function Observaciones() {
                             display: 'inline-block',
                             padding: '0.22rem 0.55rem',
                             borderRadius: '6px',
-                            fontSize: '0.74rem',
-                            fontWeight: 700,
+                            fontSize: 'var(--text-xs)',
+                            fontWeight: 'var(--fw-bold)',
                             background: 'rgba(0, 48, 96, 0.08)',
                             border: '1px solid rgba(0, 48, 96, 0.18)',
                             color: '#003060',
@@ -835,17 +822,17 @@ export default function Observaciones() {
                         </div>
                       </td>
                     <td>
-                      <span className="site-name" style={{fontSize:'0.82rem'}}>{o.protocolo || '—'}</span>
+                      <span className="site-name" style={{fontSize:'var(--text-sm)'}}>{o.protocolo || '—'}</span>
                     </td>
                     <td>
-                      <span style={{color:'var(--text-secondary)',fontSize:'0.8rem'}}>{o.subsistema || '—'}</span>
+                      <span style={{color:'var(--text-secondary)',fontSize:'var(--text-sm)'}}>{o.subsistema || '—'}</span>
                     </td>
                     <td>
                       <span className="obs-detalle-cell" title={o.detalle || ''}>
                         {o.detalle ? (o.detalle.length > 60 ? o.detalle.substring(0, 60) + '…' : o.detalle) : '—'}
                       </span>
                     </td>
-                    <td style={{color:'var(--text-muted)',fontSize:'0.8rem'}}>
+                    <td style={{color:'var(--text-muted)',fontSize:'var(--text-sm)'}}>
                       {o.item}{o.sub_item ? ` / ${o.sub_item}` : ''}
                     </td>
                     <td>
@@ -854,7 +841,7 @@ export default function Observaciones() {
                       </span>
                     </td>
                     <td>
-                      <span style={{fontSize:'0.78rem',color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)'}}>
+                      <span style={{fontSize:'var(--text-sm)',color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)'}}>
                         {o.fecha_subsanacion ? o.fecha_subsanacion.split('T')[0] : '—'}
                       </span>
                     </td>

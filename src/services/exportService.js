@@ -1,4 +1,4 @@
-import ExcelJS from 'exceljs'
+﻿// M3: ExcelJS se importa dinamicamente dentro de generateStyledExcel
 import { supabase } from '../lib/supabase'
 import { fetchSitios } from './sitiosService'
 
@@ -108,6 +108,8 @@ export async function exportTodasObservacionesExcel() {
 }
 
 async function generateStyledExcel({ observations, siteMap, sheetName, fileName }) {
+  // Import dinámico: solo se descarga exceljs al exportar
+  const { default: ExcelJS } = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
   workbook.creator = 'COVEPA ERP - Amazonas'
   workbook.created = new Date()

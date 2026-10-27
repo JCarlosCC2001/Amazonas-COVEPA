@@ -32,10 +32,11 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 SUPABASE_EXT_URL = "https://iiwmqvnjjhaapyolaity.supabase.co"
 SUPABASE_EXT_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpd21xdm5qamhhYXB5b2xhaXR5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mjk5OTM3MCwiZXhwIjoyMDk4NTc1MzcwfQ.Q6YLBY_HWLQP3pGNyDtq1SYqTTBtjYQQqvGiVkcIVSw"
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))  # raíz del proyecto
 OUTPUT_DIR = os.path.join(BASE_DIR, "kmz_output")
 PUBLIC_KMZ_DIR = os.path.join(BASE_DIR, "public", "kmz")
-ICONS_CACHE_DIR = os.path.join(BASE_DIR, "temp_icons")
+ICONS_CACHE_DIR = os.path.join(SCRIPT_DIR, "icons-cache")
 
 # URLs seguras HTTPS para KML plano
 REMOTE_ICONS = {
@@ -80,7 +81,7 @@ def fetch_json(url, key, range_header=None):
 
 def cargar_asignaciones():
     """Carga los 156 sitios asignados con su grupo y zona"""
-    sql_path = os.path.join(BASE_DIR, "insert_sitios_asignados.sql")
+    sql_path = os.path.join(BASE_DIR, "sql", "setup", "insert_sitios_asignados.sql")
     if os.path.exists(sql_path):
         with open(sql_path, "r", encoding="utf-8") as f:
             content = f.read()

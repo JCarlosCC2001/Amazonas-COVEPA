@@ -1,6 +1,6 @@
 // Servicio para gestionar sitios combinando la BD propia (asignaciones) y la BD externa (georreferenciación y catálogo)
 import { supabase } from '../lib/supabase'
-import { supabaseExt } from '../lib/supabaseExt'
+import { supabaseExt } from '../lib/supabase'
 
 // Fallback de asignaciones iniciales mapeadas a Cuadrillas
 const _RAW_ASIGNACIONES = [

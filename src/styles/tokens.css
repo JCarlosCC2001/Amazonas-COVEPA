@@ -21,15 +21,15 @@
   --text-2xl: 1.85rem;
   --text-3xl: 2.25rem;
 
-  /* ── Estándar Tipográfico Semántico COVEPA (Desktop & Móvil) ── */
-  --text-title-page: clamp(1.15rem, 1.8vw, 1.30rem);    /* TÍTULOS: Título de página en AppHeader */
-  --text-title-section: clamp(0.98rem, 1.3vw, 1.10rem); /* TÍTULOS: Secciones, modales H2 */
-  --text-subtitle: clamp(0.82rem, 1.0vw, 0.90rem);      /* SUBTÍTULOS: Descripción de página / contexto */
-  --text-name: clamp(0.85rem, 0.95vw, 0.90rem);         /* NOMBRES: Códigos de sitio, localidades, técnicos */
-  --text-body: 0.85rem;                                 /* INFORMACIÓN: Datos generales, tablas, detalles, inputs */
-  --text-meta: 0.76rem;                                 /* METADATOS: Fechas, cabeceras th de tabla, secundarios */
-  --text-badge: 0.70rem;                                /* BADGES/PILLS: Estados, zonas, pills de conteo, cuadrillas */
-  --text-metric-kpi: clamp(1.35rem, 2.0vw, 1.80rem);    /* MÉTRICAS: Cifras de impacto KPI en MetricCard */
+  /* ── Estándar Tipográfico Semántico COVEPA (Alta Densidad Desktop, Tablets y Celular) ── */
+  --text-title-page: clamp(1.05rem, 1.5vw, 1.18rem);    /* TÍTULOS: Título de página en AppHeader */
+  --text-title-section: clamp(0.92rem, 1.2vw, 1.02rem); /* TÍTULOS: Secciones, modales H2 */
+  --text-subtitle: clamp(0.78rem, 0.9vw, 0.85rem);      /* SUBTÍTULOS: Descripción de página / contexto */
+  --text-name: clamp(0.82rem, 0.9vw, 0.88rem);          /* NOMBRES: Códigos de sitio, localidades, técnicos */
+  --text-body: 0.82rem;                                 /* INFORMACIÓN: Datos generales, tablas, detalles, inputs */
+  --text-meta: 0.74rem;                                 /* METADATOS: Fechas, cabeceras th de tabla, secundarios */
+  --text-badge: 0.68rem;                                /* BADGES/PILLS: Estados, zonas, pills de conteo, cuadrillas */
+  --text-metric-kpi: clamp(1.25rem, 1.8vw, 1.55rem);    /* MÉTRICAS: Cifras de impacto KPI en MetricCard */
 
   --fw-regular: 400;
   --fw-medium: 500;
@@ -108,31 +108,33 @@
 }
 
 html {
-  font-size: 15px; /* Base óptima de alta densidad para ERP en escritorio */
+  font-size: 14px; /* Base óptima de alta densidad compacta para ERP en PC de escritorio */
   scroll-behavior: smooth;
 }
 
 @media (min-width: 1600px) {
   html {
-    font-size: 15.5px; /* Pantallas ultra-anchas */
+    font-size: 14.5px; /* Monitores ultra-anchos de escritorio (2K / 4K) */
   }
 }
 
-@media (max-width: 1024px) {
+/* ─── Acondicionado exclusivo para Tablets (769px a 1024px: iPads, Galaxy Tabs) ─── */
+@media (max-width: 1024px) and (min-width: 769px) {
   html {
-    font-size: 14.5px; /* Laptops compactas y tablets */
+    font-size: 13.5px; /* Escala balanceada ergonómica para pantallas táctiles medianas */
   }
 }
 
+/* ─── Celulares / Smartphones ─── */
 @media (max-width: 768px) {
   html {
-    font-size: 14px; /* Smartphones */
+    font-size: 13px; /* Smartphones estándar */
   }
 }
 
 @media (max-width: 480px) {
   html {
-    font-size: 13.5px; /* Celulares pequeños */
+    font-size: 12.5px; /* Celulares compactos */
   }
 }
 

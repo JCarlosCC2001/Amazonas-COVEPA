@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { supabaseExt } from '../lib/supabaseExt'
 import { ASIGNACIONES_BASE } from './sitiosService'
-import { fetchPersonal } from './personalService.js'
+import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService.js'
 
 // Cache en memoria de catálogo de sitios para no saturar la BD externa
 let cachedSitiosCatalog = null
@@ -414,14 +414,16 @@ export async function getDashboardProjectOverview() {
       }
     })
 
-    // Diccionario de las 6 Cuadrillas Operativas
+    // Diccionario de las 6 Cuadrillas Operativas con técnico asignado
     const perGroup = {}
     for (let g = 1; g <= 6; g++) {
       const gName = `CUADRILLA ${g}`
+      const cfg = DEFAULT_CUADRILLAS_CONFIG[gName] || {}
       perGroup[gName] = {
         grupo: gName,
         cuadrilla: gName,
         numero: g,
+        tecnico: cfg.tecnicoNombre || '',
         zona: g <= 2 ? 'ZONA 2 y ZONA 7' : 'ZONA 7',
         sitiosCount: asignaciones.filter(a => (a.cuadrilla || a.grupo || '').replace(/GRUPO/gi, 'CUADRILLA') === gName).length,
         total: 0,
@@ -433,6 +435,25 @@ export async function getDashboardProjectOverview() {
         resueltas: 0,
         porcentaje: 0
       }
+    }
+
+    // Consultar si hay asignaciones dinámicas en la tabla local personal_cuadrillas
+    try {
+      const { data: dbCuad } = await supabase
+        .from('personal_cuadrillas')
+        .select('*')
+        .eq('activo', true)
+      if (dbCuad && dbCuad.length > 0) {
+        dbCuad.forEach(cRow => {
+          const cName = (cRow.cuadrilla || '').toUpperCase().trim().replace(/GRUPO/gi, 'CUADRILLA')
+          const isLead = (cRow.cargo || '').toUpperCase().includes('TÉCNICO') || (cRow.cargo || '').toUpperCase().includes('SUPERVISOR')
+          if (isLead && perGroup[cName]) {
+            perGroup[cName].tecnico = cRow.nombre_completo || cRow.nombre || perGroup[cName].tecnico
+          }
+        })
+      }
+    } catch {
+      // Mantener fallback de DEFAULT_CUADRILLAS_CONFIG
     }
 
     // Procesar observaciones
@@ -496,6 +517,8 @@ export async function getDashboardProjectOverview() {
     const sitiosList = Object.values(perSite).map(s => {
       s.resueltas = s.subsanadas + s.descartadas
       s.porcentaje = s.total > 0 ? parseFloat(((s.resueltas / s.total) * 100).toFixed(1)) : 0
+      const sCuad = (s.cuadrilla || s.grupo || '').replace(/GRUPO/gi, 'CUADRILLA')
+      s.tecnico = perGroup[sCuad]?.tecnico || ''
       return s
     })
 

@@ -4,8 +4,9 @@ import {
   ClipboardList, CheckCircle2, Clock, AlertTriangle, XCircle,
   Ban, MapPin, Layers, Award, TrendingUp, RefreshCw, Search,
   ArrowRight, ExternalLink, Calendar, ChevronRight, ShieldCheck,
-  Radio, Sparkles, Filter, Users, Globe, FileSpreadsheet, UploadCloud
+  Radio, Sparkles, Filter, Users, Globe, FileSpreadsheet, UploadCloud, User
 } from 'lucide-react'
+import { usePresentationMode } from '../context/PresentationContext'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 import { getDashboardProjectOverview } from '../services/dashboardService'
 
@@ -153,6 +154,7 @@ function SegmentedProgressBar({ total = 0, subsanadas = 0, enRevision = 0, desca
 // ────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate()
+  const { presentationMode } = usePresentationMode()
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -572,13 +574,35 @@ export default function Dashboard() {
                   transition: 'transform 0.2s, box-shadow 0.2s'
                 }}
               >
-                {/* Cabecera del grupo */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#003060' }}>
-                      {g.grupo}
-                    </h4>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                {/* Cabecera de la cuadrilla */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: '#003060', letterSpacing: '-0.01em' }}>
+                        {g.grupo}
+                      </h4>
+                      {!presentationMode && g.tecnico && (
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '1px 7px',
+                            borderRadius: '4px',
+                            background: '#e0f2fe',
+                            color: '#0369a1',
+                            border: '1px solid #bae6fd',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px'
+                          }}
+                          title={`Técnico a cargo: ${g.tecnico}`}
+                        >
+                          <User size={11} />
+                          <span>{g.tecnico}</span>
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
                       {g.zona}
                     </span>
                   </div>
@@ -589,7 +613,8 @@ export default function Dashboard() {
                     borderRadius: '6px',
                     background: 'rgba(0, 48, 96, 0.06)',
                     color: '#003060',
-                    border: '1px solid rgba(0, 48, 96, 0.15)'
+                    border: '1px solid rgba(0, 48, 96, 0.15)',
+                    flexShrink: 0
                   }}>
                     {g.sitiosCount} Sitios
                   </span>
@@ -792,7 +817,15 @@ export default function Dashboard() {
                     </td>
 
                     <td style={{ fontSize: '0.76rem', fontWeight: 600, color: '#003060' }}>
-                      {s.grupo}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span>{s.grupo}</span>
+                        {!presentationMode && s.tecnico && (
+                          <span style={{ fontSize: '0.67rem', color: '#0284c7', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <User size={10} color="#0284c7" />
+                            <span>{s.tecnico}</span>
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td style={{ textAlign: 'center', fontWeight: 700, color: '#003060' }}>

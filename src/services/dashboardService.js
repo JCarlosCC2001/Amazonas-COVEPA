@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+﻿import { supabase } from '../lib/supabase'
 import { supabaseExt } from '../lib/supabase'
 import { ASIGNACIONES_BASE } from './sitiosService'
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService.js'
@@ -441,7 +441,7 @@ export async function getDashboardProjectOverview() {
     try {
       const { data: dbCuad } = await supabase
         .from('personal_cuadrillas')
-        .select('*')
+        .select('nombre_completo, cuadrilla, cargo') // M8
         .eq('activo', true)
       if (dbCuad && dbCuad.length > 0) {
         dbCuad.forEach(cRow => {

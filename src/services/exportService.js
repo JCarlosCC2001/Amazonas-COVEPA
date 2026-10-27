@@ -1,6 +1,28 @@
-﻿// M3: ExcelJS se importa dinamicamente dentro de generateStyledExcel
+// M3: ExcelJS se importa dinamicamente dentro de generateStyledExcel
 import { supabase } from '../lib/supabase'
 import { fetchSitios } from './sitiosService'
+
+// M9: Helper genérico de paginación — evita duplicar el bucle while/range
+// Recibe una función queryFn(from, to) que retorna { data, error } de Supabase
+const OBS_COLUMNS = 'id_obs, id_sitio, protocolo, subsistema, detalle, item, sub_item, comentario_inicial, comentario_complementario, comentario_final, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, comentario_covepa'
+
+async function fetchAllPages(queryFn, pageSize = 1000) {
+  const results = []
+  let from = 0
+  let hasMore = true
+  while (hasMore) {
+    const { data, error } = await queryFn(from, from + pageSize - 1)
+    if (error) throw new Error(error.message)
+    if (!data || data.length === 0) {
+      hasMore = false
+    } else {
+      results.push(...data)
+      hasMore = data.length === pageSize
+      from += pageSize
+    }
+  }
+  return results
+}
 
 /**
  * Exporta a Excel (.xlsx) las observaciones de un grupo específico
@@ -8,7 +30,6 @@ import { fetchSitios } from './sitiosService'
  * e incluyendo la LOCALIDAD al lado del CÓDIGO DE SITIO.
  */
 export async function exportObservacionesGrupoExcel(grupoCode, grupoTitle) {
-  // 1. Obtener sitios asignados para la cuadrilla
   const sitios = await fetchSitios({ soloAsignados: true })
   const targetCode = (grupoCode || '').replace(/GRUPO/gi, 'CUADRILLA').toUpperCase()
   const sitiosGrupo = sitios.filter(s => {
@@ -23,34 +44,16 @@ export async function exportObservacionesGrupoExcel(grupoCode, grupoTitle) {
   const siteIds = sitiosGrupo.map(s => s.id_site)
   const siteMap = new Map(sitiosGrupo.map(s => [s.id_site, s]))
 
-  // 2. Traer observaciones en lotes de 1000 de Supabase
-  let allObs = []
-  const PAGE_SIZE = 1000
-  let from = 0
-  let hasMore = true
-
-  while (hasMore) {
-    const { data, error } = await supabase
+  // M9: Paginación unificada mediante fetchAllPages
+  const allObs = await fetchAllPages((from, to) =>
+    supabase
       .from('observaciones')
-      .select('id_obs, id_sitio, protocolo, subsistema, detalle, item, sub_item, comentario_inicial, comentario_complementario, comentario_final, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, comentario_covepa')
+      .select(OBS_COLUMNS)
       .in('id_sitio', siteIds)
       .order('id_sitio', { ascending: true })
       .order('id_obs', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1)
-
-    if (error) throw new Error(`Error al consultar observaciones: ${error.message}`)
-
-    if (!data || data.length === 0) {
-      hasMore = false
-    } else {
-      allObs.push(...data)
-      if (data.length < PAGE_SIZE) {
-        hasMore = false
-      } else {
-        from += PAGE_SIZE
-      }
-    }
-  }
+      .range(from, to)
+  )
 
   if (allObs.length === 0) {
     throw new Error(`No se encontraron observaciones registradas para ${grupoTitle || grupoCode}`)
@@ -72,32 +75,15 @@ export async function exportTodasObservacionesExcel() {
   const sitios = await fetchSitios({ soloAsignados: true })
   const siteMap = new Map(sitios.map(s => [s.id_site, s]))
 
-  let allObs = []
-  const PAGE_SIZE = 1000
-  let from = 0
-  let hasMore = true
-
-  while (hasMore) {
-    const { data, error } = await supabase
+  // M9: Paginación unificada
+  const allObs = await fetchAllPages((from, to) =>
+    supabase
       .from('observaciones')
-      .select('id_obs, id_sitio, protocolo, subsistema, detalle, item, sub_item, comentario_inicial, comentario_complementario, comentario_final, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, comentario_covepa')
+      .select(OBS_COLUMNS)
       .order('id_sitio', { ascending: true })
       .order('id_obs', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1)
-
-    if (error) throw new Error(`Error al consultar observaciones: ${error.message}`)
-
-    if (!data || data.length === 0) {
-      hasMore = false
-    } else {
-      allObs.push(...data)
-      if (data.length < PAGE_SIZE) {
-        hasMore = false
-      } else {
-        from += PAGE_SIZE
-      }
-    }
-  }
+      .range(from, to)
+  )
 
   return generateStyledExcel({
     observations: allObs,

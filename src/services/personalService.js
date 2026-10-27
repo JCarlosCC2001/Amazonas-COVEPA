@@ -1,4 +1,4 @@
-import { supabase, supabaseExt, handleSupabaseAuthError } from '../lib/supabase.js'
+﻿import { supabase, supabaseExt, handleSupabaseAuthError } from '../lib/supabase.js'
 
 // Fallback del personal inicial del proyecto por si falla la red
 export const PERSONAL_FALLBACK = [
@@ -190,7 +190,7 @@ export async function fetchPersonal() {
     let profileByEmailMap = {}
 
     try {
-      const { data: profData } = await supabase.from('perfiles_usuario').select('*')
+      const { data: profData } = await supabase.from('perfiles_usuario').select('id, email, rol, id_personal, activo, updated_at') // M8
       if (profData) {
         profData.forEach(pr => {
           if (pr.id_personal) profileMap[pr.id_personal] = pr
@@ -209,7 +209,7 @@ export async function fetchPersonal() {
     try {
       const { data: dbCuadrillas, error: cErr } = await supabase
         .from('personal_cuadrillas')
-        .select('*')
+        .select('id_personal, nombre_completo, cuadrilla, cargo, activo') // M8
         .eq('activo', true)
 
       if (!cErr && dbCuadrillas && dbCuadrillas.length > 0) {
@@ -437,7 +437,7 @@ export async function assignUserAccount({ id_personal, email, rol = 'tecnico', a
   // 1. Buscar si ya existe un perfil con este correo o id_personal en perfiles_usuario
   const { data: existingProf } = await supabase
     .from('perfiles_usuario')
-    .select('*')
+    .select('id, email, rol, id_personal, activo') // M8
     .or(`email.eq.${cleanEmail},id_personal.eq.${id_personal}`)
     .maybeSingle()
 

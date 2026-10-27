@@ -1,0 +1,418 @@
+﻿/* ============================================================
+   MEDIDORES / TARJETAS KPI REUTILIZABLES (METRIC CARD & GRID)
+   ============================================================ */
+.covepa-metric-grid {
+  display: grid;
+  gap: 0.85rem;
+  width: 100%;
+  margin-bottom: 1.25rem;
+}
+.covepa-metric-grid.cols-6 {
+  grid-template-columns: repeat(6, 1fr);
+}
+.covepa-metric-grid.cols-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+.covepa-metric-grid.cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+.covepa-metric-grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.covepa-metric-grid.cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.covepa-metric-card {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 48, 96, 0.04);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.covepa-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 48, 96, 0.08);
+}
+
+.covepa-metric-card.is-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+.covepa-metric-card.is-clickable:active {
+  transform: translateY(0);
+}
+
+.covepa-metric-card.is-active {
+  box-shadow: 0 0 0 2px var(--card-accent, #003060), 0 4px 12px rgba(0, 48, 96, 0.1);
+  border-color: var(--card-accent, #003060);
+}
+
+/* Barra de acento superior */
+.metric-accent-bar {
+  height: 3px;
+  width: 100%;
+  background: var(--card-gradient, linear-gradient(90deg, #003060, #0284c7));
+  flex-shrink: 0;
+}
+
+/* Contenedor interior compacto */
+.metric-card-inner {
+  position: relative;
+  z-index: 2;
+  padding: 0.75rem 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Caja de icono compacta */
+.metric-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--card-icon-bg, #e0f2fe);
+  border: 1px solid var(--card-icon-border, #bae6fd);
+  color: var(--card-icon-color, #003060);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 48, 96, 0.04);
+  transition: transform 0.2s ease;
+}
+.covepa-metric-card:hover .metric-icon-box {
+  transform: scale(1.05);
+}
+.metric-icon-box svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* Columna de información */
+.metric-info-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.metric-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.metric-label {
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #627d98;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric-badge-tag {
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-bold);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: var(--card-badge-bg, #f0f6fc);
+  color: var(--card-badge-color, #003060);
+  border: 1px solid var(--card-badge-border, #d8e5f1);
+  white-space: nowrap;
+}
+
+.metric-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.metric-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xl);
+  font-weight: var(--fw-black);
+  line-height: 1.1;
+  color: var(--card-val-color, #003060);
+  letter-spacing: -0.02em;
+}
+
+.metric-sub-pill {
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  padding: 0.1rem 0.42rem;
+  border-radius: 5px;
+  background: var(--card-pill-bg, #f0f6fc);
+  color: var(--card-pill-color, #334e68);
+  border: 1px solid var(--card-pill-border, #d8e5f1);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Marca de agua decorativa de fondo */
+.metric-watermark {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 1;
+  color: var(--card-watermark-color, #003060);
+  transform: scale(2.3);
+  transform-origin: bottom right;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.covepa-metric-card:hover .metric-watermark {
+  opacity: 0.075;
+  transform: scale(2.5);
+}
+
+/* Loading skeleton */
+.metric-skeleton-pulse {
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* ── Variantes de Color ── */
+.variant-navy {
+  --card-gradient: linear-gradient(90deg, #003060 0%, #0284c7 100%);
+  --card-accent: #003060;
+  --card-icon-bg: #e0f2fe;
+  --card-icon-border: #bae6fd;
+  --card-icon-color: #003060;
+  --card-val-color: #003060;
+  --card-pill-bg: #f0f6fc;
+  --card-pill-color: #003060;
+  --card-pill-border: #d8e5f1;
+  --card-watermark-color: #003060;
+}
+.variant-navy:hover {
+  border-color: #003060;
+}
+
+.variant-sky {
+  --card-gradient: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
+  --card-accent: #0284c7;
+  --card-icon-bg: #e0f9fe;
+  --card-icon-border: #7dd3fc;
+  --card-icon-color: #0284c7;
+  --card-val-color: #0284c7;
+  --card-pill-bg: #f0f9ff;
+  --card-pill-color: #0369a1;
+  --card-pill-border: #bae6fd;
+  --card-watermark-color: #0284c7;
+}
+.variant-sky:hover {
+  border-color: #0284c7;
+}
+
+.variant-emerald {
+  --card-gradient: linear-gradient(90deg, #059669 0%, #34d399 100%);
+  --card-accent: #059669;
+  --card-icon-bg: #dcfce7;
+  --card-icon-border: #86efac;
+  --card-icon-color: #059669;
+  --card-val-color: #059669;
+  --card-pill-bg: #ecfdf5;
+  --card-pill-color: #166534;
+  --card-pill-border: #a7f3d0;
+  --card-watermark-color: #059669;
+}
+.variant-emerald:hover {
+  border-color: #059669;
+}
+
+.variant-amber {
+  --card-gradient: linear-gradient(90deg, #d97706 0%, #fbbf24 100%);
+  --card-accent: #d97706;
+  --card-icon-bg: #fef3c7;
+  --card-icon-border: #fcd34d;
+  --card-icon-color: #d97706;
+  --card-val-color: #d97706;
+  --card-pill-bg: #fffbeb;
+  --card-pill-color: #92400e;
+  --card-pill-border: #fde68a;
+  --card-watermark-color: #d97706;
+}
+.variant-amber:hover {
+  border-color: #d97706;
+}
+
+.variant-purple {
+  --card-gradient: linear-gradient(90deg, #7c3aed 0%, #c084fc 100%);
+  --card-accent: #7c3aed;
+  --card-icon-bg: #f3e8ff;
+  --card-icon-border: #d8b4fe;
+  --card-icon-color: #7c3aed;
+  --card-val-color: #7c3aed;
+  --card-pill-bg: #faf5ff;
+  --card-pill-color: #6b21a8;
+  --card-pill-border: #e9d5ff;
+  --card-watermark-color: #7c3aed;
+}
+.variant-purple:hover {
+  border-color: #7c3aed;
+}
+
+.variant-rose {
+  --card-gradient: linear-gradient(90deg, #e11d48 0%, #fb7185 100%);
+  --card-accent: #e11d48;
+  --card-icon-bg: #ffe4e6;
+  --card-icon-border: #fda4af;
+  --card-icon-color: #e11d48;
+  --card-val-color: #e11d48;
+  --card-pill-bg: #fff1f2;
+  --card-pill-color: #9f1239;
+  --card-pill-border: #fecdd3;
+  --card-watermark-color: #e11d48;
+}
+.variant-rose:hover {
+  border-color: #e11d48;
+}
+
+/* ── RESPONSIVE PARA TABLET Y CELULAR ── */
+@media (max-width: 1280px) {
+  .covepa-metric-grid.cols-6,
+  .covepa-metric-grid.cols-5 {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 1024px) {
+  .covepa-metric-grid.cols-6,
+  .covepa-metric-grid.cols-5,
+  .covepa-metric-grid.cols-4 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  .covepa-metric-grid.cols-3 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  .metric-card-inner {
+    padding: 0.7rem 0.85rem;
+  }
+  .metric-value {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--text-xl);
+  }
+}
+
+@media (max-width: 640px) {
+  .covepa-metric-grid {
+    gap: 0.65rem;
+    margin-bottom: 0.95rem;
+  }
+  .covepa-metric-grid.cols-6,
+  .covepa-metric-grid.cols-5,
+  .covepa-metric-grid.cols-4,
+  .covepa-metric-grid.cols-3,
+  .covepa-metric-grid.cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .metric-card-inner {
+    padding: 0.7rem 0.8rem;
+    gap: 0.5rem;
+  }
+  .metric-icon-box {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    flex-shrink: 0;
+  }
+  .metric-icon-box svg {
+    width: 16px;
+    height: 16px;
+  }
+  .metric-info-col {
+    gap: 0.18rem;
+    min-width: 0;
+  }
+  .metric-top-row {
+    gap: 0.35rem;
+  }
+  .metric-label {
+    font-size: var(--text-2xs);
+    letter-spacing: 0.02em;
+    font-weight: var(--fw-bold);
+  }
+  .metric-value-row {
+    gap: 0.4rem;
+    align-items: baseline;
+  }
+  .metric-value {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--text-lg);
+  }
+  .metric-sub-pill {
+    font-size: var(--text-2xs);
+    padding: 0.08rem 0.38rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .metric-watermark {
+    display: none;
+  }
+}
+
+@media (max-width: 440px) {
+  .covepa-metric-grid {
+    gap: 0.55rem;
+    margin-bottom: 0.85rem;
+  }
+  .covepa-metric-grid.cols-5,
+  .covepa-metric-grid.cols-4,
+  .covepa-metric-grid.cols-3,
+  .covepa-metric-grid.cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .metric-card-inner {
+    padding: 0.62rem 0.68rem;
+    gap: 0.45rem;
+  }
+  .metric-icon-box {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
+  .metric-icon-box svg {
+    width: 15px;
+    height: 15px;
+  }
+  .metric-label {
+    font-size: var(--text-2xs);
+    font-weight: var(--fw-bold);
+  }
+  .metric-value {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--text-lg);
+  }
+  .metric-sub-pill {
+    font-size: var(--text-2xs);
+    padding: 0.06rem 0.32rem;
+  }
+}
+

@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import Sidebar from './Sidebar'
 import AppHeader from './AppHeader'
+import SessionTimeoutModal from '../auth/SessionTimeoutModal'
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false)
@@ -49,6 +50,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Modal global de cierre de sesión por inactividad (30 min con alerta a los 5 min previos) */}
+      <SessionTimeoutModal />
     </div>
   )
 }

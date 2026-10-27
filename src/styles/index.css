@@ -8151,6 +8151,240 @@ body {
   gap: 0.75rem;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   MODAL DE CIERRE DE SESIÓN POR INACTIVIDAD (30 MIN / ALERTA 5 MIN)
+   ═══════════════════════════════════════════════════════════════ */
+.session-timeout-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 20, 45, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  animation: timeoutFadeIn 0.25s ease-out;
+}
+
+@keyframes timeoutFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.session-timeout-card {
+  width: 100%;
+  max-width: 460px;
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  box-shadow: 0 20px 45px -10px rgba(0, 48, 96, 0.35), 0 0 0 1px rgba(0, 48, 96, 0.05);
+  padding: 2.25rem 2rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: timeoutCardPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes timeoutCardPop {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.session-timeout-icon-wrap {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: #fef3c7;
+  border: 2px solid #fde68a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #b45309;
+  margin-bottom: 1.25rem;
+}
+
+.timeout-clock-icon {
+  position: relative;
+  z-index: 2;
+  color: #d97706;
+}
+
+.timeout-icon-pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.25);
+  animation: timeoutPulseAura 2s infinite ease-out;
+  z-index: 1;
+}
+
+@keyframes timeoutPulseAura {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 0; }
+  100% { transform: scale(0.95); opacity: 0; }
+}
+
+.session-timeout-heading {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #003060;
+  margin: 0 0 0.65rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.session-timeout-desc {
+  font-size: 0.86rem;
+  color: #475569;
+  line-height: 1.45;
+  margin: 0 0 1.25rem;
+}
+
+.session-timeout-countdown-box {
+  width: 100%;
+  background: #fffbeb;
+  border: 1.5px solid #fde68a;
+  border-radius: 14px;
+  padding: 1.1rem 1.5rem 0.95rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: inset 0 2px 4px rgba(245, 158, 11, 0.05);
+}
+
+.timeout-countdown-display {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+}
+
+.countdown-time-digits {
+  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+  font-size: 2.75rem;
+  font-weight: 900;
+  color: #b45309;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 2px rgba(180, 83, 9, 0.15);
+}
+
+.countdown-time-unit {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #92400e;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.timeout-progress-bar-wrap {
+  width: 100%;
+  height: 6px;
+  background: #fde68a;
+  border-radius: 100px;
+  overflow: hidden;
+}
+
+.timeout-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #d97706, #f59e0b);
+  border-radius: 100px;
+  transition: width 1s linear;
+}
+
+.session-timeout-subtext {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin: 0 0 1.5rem;
+  line-height: 1.35;
+}
+
+.session-timeout-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.session-timeout-btn-primary {
+  flex: 1.4;
+  height: 44px;
+  border-radius: 10px;
+  background: #003060;
+  color: #ffffff;
+  border: none;
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 48, 96, 0.25);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.session-timeout-btn-primary:hover {
+  background: #004385;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 48, 96, 0.35);
+}
+
+.session-timeout-btn-primary:active {
+  transform: translateY(0);
+}
+
+.session-timeout-btn-secondary {
+  flex: 1;
+  height: 44px;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.session-timeout-btn-secondary:hover {
+  background: #fef2f2;
+  border-color: #f87171;
+  color: #b91c1c;
+}
+
+@media (max-width: 480px) {
+  .session-timeout-card {
+    padding: 1.75rem 1.25rem 1.5rem;
+  }
+  .session-timeout-actions {
+    flex-direction: column-reverse;
+  }
+  .session-timeout-btn-primary,
+  .session-timeout-btn-secondary {
+    width: 100%;
+    flex: none;
+  }
+}
+
+
 
 
 

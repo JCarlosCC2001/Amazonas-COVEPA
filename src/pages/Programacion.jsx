@@ -21,6 +21,7 @@ import {
 import { updateObservacionCovepa } from '../services/observacionesService'
 import { ASIGNACIONES_BASE, getCachedSitiosAsignados } from '../services/sitiosService'
 import { useAuth } from '../hooks/useAuth'
+import { usePresentationMode } from '../context/PresentationContext'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 
 // Helper para validar si un texto tiene contenido significativo
@@ -66,6 +67,7 @@ function getCargoClass(cargo) {
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
 export default function Programacion() {
+  const { presentationMode } = usePresentationMode()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('today') // 'today' | 'week'
   const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL' | 'EN_REVISION' | 'VALIDADO' | 'ENVIADO' | 'DESCARTADA'
@@ -647,11 +649,15 @@ export default function Programacion() {
                     <div className="prog-tech-main-bar">
                       <div className="prog-tech-person-info">
                         <div className="prog-tech-avatar-sm">
-                          {getInitials(tec.nombre_completo)}
+                          {presentationMode
+                            ? (tGroup.cuadrilla ? tGroup.cuadrilla.replace(/CUADRILLA\s*/i, 'C') : 'CP')
+                            : getInitials(tec.nombre_completo)}
                         </div>
                         <div className="prog-tech-details">
                           <div className="prog-tech-title-line">
-                            <span className="prog-tech-name-text">{tec.nombre_completo || 'Técnico sin asignar'}</span>
+                            {!presentationMode && (
+                              <span className="prog-tech-name-text">{tec.nombre_completo || 'Técnico sin asignar'}</span>
+                            )}
                             {tGroup.cuadrilla ? (
                               <span className="prog-card-cuadrilla-badge">
                                 {tGroup.cuadrilla}
@@ -661,7 +667,7 @@ export default function Programacion() {
                                 Apoyo
                               </span>
                             )}
-                            {tGroup.companions.length > 0 && (
+                            {!presentationMode && tGroup.companions.length > 0 && (
                               <span
                                 className="prog-tech-comp-pill"
                                 title={tGroup.companions.map(c => `${c.cargo ? `${c.cargo}: ` : ''}${c.nombre_completo}`).join(' · ')}
@@ -843,12 +849,16 @@ export default function Programacion() {
                           {/* Cabecera del Técnico: Solo Nombre y Cuadrilla */}
                           <div className="week-tech-header">
                             <div className="week-tech-avatar">
-                              {getInitials(tec.nombre_completo)}
+                              {presentationMode
+                                ? (tDay.cuadrilla ? tDay.cuadrilla.replace(/CUADRILLA\s*/i, 'C') : 'CP')
+                                : getInitials(tec.nombre_completo)}
                             </div>
                             <div className="week-tech-info">
-                              <span className="week-tech-name" title={tec.nombre_completo}>
-                                {tec.nombre_completo || 'Sin asignar'}
-                              </span>
+                              {!presentationMode && (
+                                <span className="week-tech-name" title={tec.nombre_completo}>
+                                  {tec.nombre_completo || 'Sin asignar'}
+                                </span>
+                              )}
                               {tDay.cuadrilla && (
                                 <span className="week-tech-badge">{tDay.cuadrilla}</span>
                               )}

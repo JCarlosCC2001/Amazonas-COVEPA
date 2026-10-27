@@ -729,7 +729,432 @@ body {
   transition: margin-left var(--transition-slow);
 }
 
-/* Header superior */
+/* ═══════════════════════════════════════════════════════════════
+   HEADER GENERAL GLOBAL (AppHeader)
+   ═══════════════════════════════════════════════════════════════ */
+.global-app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.75rem;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  min-height: 64px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 3px rgba(0, 48, 96, 0.04);
+  gap: 1rem;
+}
+
+.app-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.app-header-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.app-header-page-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #003060;
+  line-height: 1.2;
+  margin: 0;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-header-page-subtitle {
+  font-size: 0.74rem;
+  color: #64748b;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.app-header-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  height: 38px;
+  padding: 0 0.85rem;
+  border-radius: 9px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.app-header-action-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  transform: translateY(-1px);
+}
+
+/* Botón de Modo Secreto / Presentación */
+.btn-secret-mode {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+
+.btn-secret-mode.active {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #b45309;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15);
+}
+
+.btn-secret-mode.active:hover {
+  background: #fde68a;
+  border-color: #d97706;
+}
+
+.secret-icon-active {
+  color: #d97706;
+  animation: pulse 2.5s ease-in-out infinite;
+}
+
+.secret-icon-inactive {
+  color: #64748b;
+}
+
+.secret-mode-label {
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.secret-label-inactive {
+  font-weight: 600;
+  color: #64748b;
+}
+
+/* Botón de Notificaciones */
+.btn-notif {
+  position: relative;
+  width: 38px;
+  padding: 0;
+}
+
+.btn-notif.open {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+.notif-badge-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0284c7;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 6px rgba(2, 132, 199, 0.6);
+}
+
+/* Popover desplegable de Notificaciones */
+.notif-dropdown-wrapper {
+  position: relative;
+}
+
+.notif-popover-card {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px -5px rgba(0, 48, 96, 0.14), 0 4px 10px -2px rgba(0, 48, 96, 0.05);
+  z-index: 1000;
+  overflow: hidden;
+  animation: slideDownFade 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notif-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.notif-popover-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #003060;
+}
+
+.notif-popover-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 3px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notif-popover-close:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.notif-popover-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  transition: background 0.15s ease;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.notif-item:last-child {
+  border-bottom: none;
+}
+
+.notif-item:hover {
+  background: #f8fafc;
+}
+
+.notif-item-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.notif-item-icon.icon-success {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+.notif-item-icon.icon-info {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.notif-item-icon.icon-warning {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.notif-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notif-item-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.notif-item-desc {
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.notif-popover-footer {
+  padding: 0.65rem 1rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.notif-view-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #003060;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.notif-view-all-btn:hover {
+  background: #e2e8f0;
+  color: #0284c7;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PANTALLA BLOQUEADA DE PERSONAL EN MODO PRESENTACIÓN
+   ═══════════════════════════════════════════════════════════════ */
+.personal-restricted-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 180px);
+  padding: 2rem 1rem;
+}
+
+.personal-restricted-card {
+  max-width: 520px;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 2.75rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 10px 30px -5px rgba(0, 48, 96, 0.08);
+}
+
+.personal-restricted-icon-box {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(0, 48, 96, 0.06);
+  border: 2px solid rgba(0, 48, 96, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.personal-restricted-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #003060;
+  margin-bottom: 0.65rem;
+}
+
+.personal-restricted-msg {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 1.25rem;
+  line-height: 1.5;
+}
+
+.personal-restricted-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #92400e;
+  margin-bottom: 1.75rem;
+  text-align: left;
+}
+
+.personal-restricted-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #003060;
+  color: #ffffff;
+  border: none;
+  border-radius: 9px;
+  padding: 0.7rem 1.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 48, 96, 0.2);
+  transition: all 0.2s ease;
+}
+
+.personal-restricted-btn:hover {
+  background: #004385;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 48, 96, 0.28);
+}
+
+/* En móvil: Ajustes para el Header */
+@media (max-width: 640px) {
+  .global-app-header {
+    padding: 0.65rem 0.85rem;
+    min-height: 56px;
+  }
+  .app-header-page-title {
+    font-size: 1rem;
+  }
+  .app-header-page-subtitle {
+    display: none;
+  }
+  .secret-mode-label {
+    display: none;
+  }
+  .btn-secret-mode {
+    width: 38px;
+    padding: 0;
+  }
+  .notif-popover-card {
+    right: -40px;
+    width: 290px;
+  }
+}
+
+/* Header superior legacy */
 .top-header {
   display: flex;
   align-items: center;

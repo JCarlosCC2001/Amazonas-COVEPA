@@ -7,6 +7,7 @@ import {
   UserCheck, UserX, Mail, Fingerprint, Check, Copy, Sparkles, Building2
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { usePresentationMode } from '../context/PresentationContext'
 import {
   fetchPersonal,
   createPersonal,
@@ -65,6 +66,7 @@ function getCargoClass(cargo) {
 
 export default function Tecnicos() {
   const { user, isAdmin } = useAuth()
+  const { presentationMode, togglePresentationMode } = usePresentationMode()
   const [personal, setPersonal] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -226,6 +228,35 @@ export default function Tecnicos() {
     } catch (err) {
       alert('Error eliminando integrante: ' + err.message)
     }
+  }
+
+  // Si está activo el Modo Secreto / Presentación, bloquear acceso a la vista de Personal
+  if (presentationMode) {
+    return (
+      <div className="personal-restricted-wrapper">
+        <div className="personal-restricted-card">
+          <div className="personal-restricted-icon-box">
+            <Lock size={38} color="#003060" />
+          </div>
+          <h2 className="personal-restricted-title">Apartado Restringido</h2>
+          <p className="personal-restricted-msg">
+            Este apartado solo está disponible para la vista de administrador libre.
+          </p>
+          <div className="personal-restricted-banner">
+            <ShieldCheck size={16} color="#b45309" />
+            <span>El Modo Secreto / Presentación está activo para proteger la privacidad de los integrantes y sus números telefónicos.</span>
+          </div>
+          <button
+            type="button"
+            className="personal-restricted-btn"
+            onClick={togglePresentationMode}
+          >
+            <Eye size={16} />
+            <span>Desactivar Modo Secreto</span>
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (

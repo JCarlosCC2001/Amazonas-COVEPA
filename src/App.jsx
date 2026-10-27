@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './hooks/useAuth'
+import { PresentationProvider } from './context/PresentationContext'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
@@ -15,7 +16,8 @@ import Reportes from './pages/Reportes'
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <PresentationProvider>
+        <BrowserRouter>
         <Routes>
           {/* Ruta pública */}
           <Route path="/login" element={<Login />} />
@@ -44,6 +46,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>
+      </PresentationProvider>
     </AuthProvider>
   )
 }

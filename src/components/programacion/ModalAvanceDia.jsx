@@ -8,8 +8,10 @@ import ExcelJS from 'exceljs'
 import { getAvancePorFecha } from '../../services/dashboardService'
 import { ASIGNACIONES_BASE } from '../../services/sitiosService'
 import { copyAvanceDiaPNG, downloadAvanceDiaPNG } from '../../services/imageExportService'
+import { usePresentationMode } from '../../context/PresentationContext'
 
 export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
+  const { presentationMode } = usePresentationMode()
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [avanceData, setAvanceData] = useState({ rows: [], stats: {}, programacionesDelDia: 0 })
@@ -492,9 +494,13 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                           <div className="prog-avance-tech-cell">
                             <User size={13} color="#0284c7" style={{ flexShrink: 0 }} />
                             <div className="prog-avance-tech-texts">
-                              <span className="prog-avance-tech-name">{row.tecnico || 'No asignado'}</span>
-                              {row.cuadrilla && (
+                              {!presentationMode && (
+                                <span className="prog-avance-tech-name">{row.tecnico || 'No asignado'}</span>
+                              )}
+                              {row.cuadrilla ? (
                                 <span className="prog-avance-tech-cuadrilla">{row.cuadrilla}</span>
+                              ) : (
+                                presentationMode && <span className="prog-avance-tech-cuadrilla">Sin Cuadrilla</span>
                               )}
                             </div>
                           </div>
@@ -579,9 +585,11 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                     </strong>
                   </div>
                   <div className="audit-col" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-                    <span className="stat-btn-label">Técnico Asignado:</span>
+                    <span className="stat-btn-label">{presentationMode ? 'Cuadrilla Asignada:' : 'Técnico Asignado:'}</span>
                     <span style={{ color: '#1e293b', fontSize: '0.84rem', fontWeight: 600 }}>
-                      {selectedRowDetail.tecnico} {selectedRowDetail.cuadrilla ? `(${selectedRowDetail.cuadrilla})` : ''}
+                      {presentationMode
+                        ? (selectedRowDetail.cuadrilla || 'Sin Cuadrilla')
+                        : `${selectedRowDetail.tecnico} ${selectedRowDetail.cuadrilla ? `(${selectedRowDetail.cuadrilla})` : ''}`}
                     </span>
                   </div>
                   <div className="audit-col" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>

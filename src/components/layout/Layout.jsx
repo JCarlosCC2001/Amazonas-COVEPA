@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import Sidebar from './Sidebar'
+import AppHeader from './AppHeader'
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false)
@@ -43,6 +44,7 @@ export default function Layout() {
       />
 
       <div className="main-content">
+        <AppHeader />
         <main className="page-body">
           <Outlet />
         </main>

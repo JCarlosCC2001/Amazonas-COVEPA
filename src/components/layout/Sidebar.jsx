@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { X } from 'lucide-react'
+import { X, Lock } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
+import { usePresentationMode } from '../../context/PresentationContext'
 
 const NAV_ITEMS = [
   {
@@ -86,6 +87,7 @@ const NAV_ITEMS = [
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { user, profile, personalMember, isAdmin, signOut } = useAuth()
+  const { presentationMode } = usePresentationMode()
   const navigate = useNavigate()
 
   const handleSignOut = async () => {
@@ -151,34 +153,51 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
 
       {/* Navegación */}
       <nav className="sidebar-nav">
-        {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            className={({ isActive }) =>
-              `sidebar-nav-item ${isActive ? 'active' : ''}`
-            }
-            onClick={handleNavClick}
-            title={collapsed && !mobileOpen ? item.label : undefined}
-          >
-            <span className="nav-icon">{item.icon}</span>
-            {(!collapsed || mobileOpen) && <span className="nav-label">{item.label}</span>}
-          </NavLink>
-        ))}
+        {NAV_ITEMS.map((item) => {
+          const isPersonalLocked = item.path === '/tecnicos' && presentationMode
+
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `sidebar-nav-item ${isActive ? 'active' : ''} ${isPersonalLocked ? 'nav-item-restricted' : ''}`
+              }
+              onClick={handleNavClick}
+              title={
+                collapsed && !mobileOpen
+                  ? (isPersonalLocked ? `${item.label} (Restringido)` : item.label)
+                  : undefined
+              }
+            >
+              <span className="nav-icon">{item.icon}</span>
+              {(!collapsed || mobileOpen) && (
+                <span className="nav-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span>{item.label}</span>
+                  {isPersonalLocked && (
+                    <Lock size={12} style={{ opacity: 0.75, color: '#f59e0b', marginLeft: '6px' }} title="Restringido en Modo Secreto" />
+                  )}
+                </span>
+              )}
+            </NavLink>
+          )
+        })}
       </nav>
 
       {/* Footer del sidebar */}
       <div className="sidebar-footer">
         <div className={`sidebar-user ${collapsed && !mobileOpen ? 'sidebar-user-collapsed' : ''}`}>
           <div className="user-avatar">
-            {personalMember?.nombre_completo
-              ? personalMember.nombre_completo.slice(0, 2).toUpperCase()
-              : (user?.email?.[0]?.toUpperCase() || 'U')}
+            {presentationMode
+              ? 'CP'
+              : (personalMember?.nombre_completo
+                  ? personalMember.nombre_completo.slice(0, 2).toUpperCase()
+                  : (user?.email?.[0]?.toUpperCase() || 'U'))}
           </div>
           {(!collapsed || mobileOpen) && (
             <div className="user-info">
-              <span className="user-email" title={user?.email}>
-                {personalMember?.nombre_completo || user?.email}
+              <span className="user-email" title={presentationMode ? 'COVEPA Admin' : user?.email}>
+                {presentationMode ? 'COVEPA Admin' : (personalMember?.nombre_completo || user?.email)}
               </span>
               <span className="user-role">
                 {isAdmin ? 'Administrador' : (profile?.rol ? profile.rol.toUpperCase() : 'Técnico')}

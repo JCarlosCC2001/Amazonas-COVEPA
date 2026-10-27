@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    COVEPA — Sistema de Observaciones Técnicas
    Diseño: Corporativo Profesional — Blanco, Celeste Suave y Azul Marino #003060
    ============================================================ */
@@ -112,10 +112,33 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Herencia tipográfica: todo elemento (incl. formularios) usa la fuente del sistema */
-button, input, select, textarea, optgroup { font-family: inherit; font-size: inherit; }
-h1, h2, h3, h4, h5, h6 { font-family: var(--font-sans); line-height: var(--lh-tight); letter-spacing: var(--tracking-tight); }
-code, kbd, samp, pre { font-family: var(--font-mono); }
+/* ─── Fuente uniforme en TODO el árbol DOM ─── */
+/* Chrome y Safari aplican su propio UA font en inputs/selects — lo sobreescribimos explícitamente */
+*,
+*::before,
+*::after {
+  font-family: var(--font-sans);
+}
+
+/* Excepciones: códigos, terminales y números tabulados usan mono */
+code, kbd, samp, pre,
+.font-mono, .t-code, .t-metric {
+  font-family: var(--font-mono);
+}
+
+/* Herencia tipográfica de elementos de formulario — explicit > inherit */
+button, input, select, textarea, optgroup {
+  font-family: var(--font-sans);
+  font-size: inherit;
+  line-height: inherit;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
 
 /* Utilidades tipográficas (usar en lugar de style={{fontSize, fontWeight}}) */
 .font-sans { font-family: var(--font-sans); }

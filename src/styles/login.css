@@ -167,7 +167,7 @@
   padding: 0.8rem 0.9rem 0.8rem 2.8rem;
   color: var(--text-primary);
   font-size: var(--text-base);
-  font-family: inherit;
+  font-family: var(--font-sans);
   transition: border-color var(--transition), box-shadow var(--transition);
   outline: none;
 }
@@ -213,7 +213,7 @@
   color: white;
   font-size: var(--text-base);
   font-weight: var(--fw-semibold);
-  font-family: inherit;
+  font-family: var(--font-sans);
   cursor: pointer;
   transition: all var(--transition);
   position: relative;

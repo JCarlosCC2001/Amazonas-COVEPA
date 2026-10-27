@@ -161,7 +161,7 @@
   border-radius: 10px;
   font-size: var(--text-sm);
   font-weight: var(--fw-semibold);
-  font-family: inherit;
+  font-family: var(--font-sans);
   cursor: pointer;
   text-decoration: none;
   transition: all var(--transition);

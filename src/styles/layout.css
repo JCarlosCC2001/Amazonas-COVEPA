@@ -345,7 +345,7 @@
   color: #fca5a5;
   font-size: var(--text-sm);
   font-weight: var(--fw-medium);
-  font-family: inherit;
+  font-family: var(--font-sans);
   cursor: pointer;
   transition: all var(--transition);
   white-space: nowrap;

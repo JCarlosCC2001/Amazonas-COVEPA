@@ -274,7 +274,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
               </div>
               <div className="prog-details-site-texts">
                 <div className="prog-details-title-line">
-                  <h2 className="prog-details-site-title" style={{ fontFamily: 'inherit', letterSpacing: 'normal' }}>
+                  <h2 className="prog-details-site-title" style={{ fontFamily: 'var(--font-sans)', letterSpacing: 'normal' }}>
                     Avance del Día
                   </h2>
                   <span className="prog-details-site-loc" style={{ textTransform: 'capitalize', color: '#475569', fontSize: 'var(--text-base)' }}>

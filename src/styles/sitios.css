@@ -108,7 +108,7 @@
   padding: 0.55rem 2.2rem 0.55rem 2.5rem;
   color: var(--text-primary);
   font-size: var(--text-sm);
-  font-family: inherit;
+  font-family: var(--font-sans);
   outline: none;
   transition: all var(--transition);
 }
@@ -157,7 +157,7 @@
   border-radius: 10px;
   padding: 0.55rem 1.75rem 0.55rem 2.2rem;
   font-size: var(--text-sm);
-  font-family: inherit;
+  font-family: var(--font-sans);
   outline: none;
   cursor: pointer;
   transition: all var(--transition);

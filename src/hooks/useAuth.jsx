@@ -30,8 +30,16 @@ export function AuthProvider({ children }) {
         .eq('id', authUser.id)
         .maybeSingle()
 
-      // 2. Si no existe perfil en la tabla, lo autoinicializamos
-      if (!prof) {
+      if (profErr) {
+        // Si hay restricción RLS (403), asignar perfil en memoria sin intentar upsert redundante
+        prof = {
+          id: authUser.id,
+          email: userEmail,
+          rol: isMasterAdmin ? 'admin' : 'tecnico',
+          id_personal: null,
+          activo: true
+        }
+      } else if (!prof) {
         const defaultRole = isMasterAdmin ? 'admin' : 'tecnico'
 
         // Buscar si su correo coincide con la tabla personal externa para autoenlazar

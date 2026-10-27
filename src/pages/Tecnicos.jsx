@@ -1560,6 +1560,8 @@ function ModalPersonal({ member, onClose, onSaved }) {
   const [nombre, setNombre] = useState(member?.nombre || (member?.nombre_completo ? member.nombre_completo.split(' ')[0] : ''))
   const [apellido, setApellido] = useState(member?.apellido || (member?.nombre_completo ? member.nombre_completo.split(' ').slice(1).join(' ') : ''))
   const [dni, setDni] = useState(member?.dni || member?.documento_identidad || '')
+  const [email, setEmail] = useState(member?.email || '')
+  const [cargo, setCargo] = useState(member?.cargo || 'Tecnico')
   const [empresa, setEmpresa] = useState(() => {
     if (!member?.empresa) return 'SELNET S.A.C.'
     const emp = member.empresa.toUpperCase()

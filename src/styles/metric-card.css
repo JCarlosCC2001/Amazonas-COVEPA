@@ -111,7 +111,7 @@
 }
 
 .metric-label {
-  font-size: var(--text-2xs);
+  font-size: var(--text-badge);
   font-weight: var(--fw-bold);
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -122,7 +122,7 @@
 }
 
 .metric-badge-tag {
-  font-size: var(--text-2xs);
+  font-size: var(--text-badge);
   font-weight: var(--fw-bold);
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
@@ -142,7 +142,7 @@
 .metric-value {
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: var(--text-xl);
+  font-size: var(--text-metric-kpi);
   font-weight: var(--fw-black);
   line-height: 1.1;
   color: var(--card-val-color, #003060);
@@ -150,7 +150,7 @@
 }
 
 .metric-sub-pill {
-  font-size: var(--text-2xs);
+  font-size: var(--text-badge);
   font-weight: var(--fw-semibold);
   padding: 0.1rem 0.42rem;
   border-radius: 5px;

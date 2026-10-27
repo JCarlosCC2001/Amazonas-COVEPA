@@ -62,14 +62,14 @@
 }
 
 .modal-title {
-  font-size: var(--text-lg);
+  font-size: var(--text-title-section);
   font-weight: var(--fw-black);
   color: #003060;
   font-family: var(--font-sans);
 }
 
 .modal-subtitle {
-  font-size: var(--text-sm);
+  font-size: var(--text-subtitle);
   color: var(--text-secondary);
 }
 

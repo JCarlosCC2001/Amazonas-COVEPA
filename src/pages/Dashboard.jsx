@@ -705,7 +705,7 @@ export default function Dashboard() {
                     <td className="dash-td-index">{idx + 1}</td>
 
                     <td className="dash-td-site">
-                      <div className="dash-site-badge" style={{ fontWeight: 'var(--fw-bold)', fontFamily: 'var(--font-mono)' }}>
+                      <div className="dash-site-badge" style={{ fontWeight: 'var(--fw-bold)', fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums' }}>
                         <MapPin size={12} color="#003060" />
                         <span>{s.id_sitio}</span>
                       </div>

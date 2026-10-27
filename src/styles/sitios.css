@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    MÓDULO SITIOS — ESTILOS COMPLETOS
    ============================================================ */
 .sitios-container {
@@ -280,7 +280,8 @@
 
 .site-code-badge {
   display: inline-block;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-weight: var(--fw-bold);
   font-size: var(--text-sm);
   background: rgba(0, 48, 96, 0.07);
@@ -354,7 +355,8 @@
   border-radius: 8px;
   color: #065f46;
   font-size: var(--text-xs);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   text-decoration: none;
   transition: all var(--transition);
   white-space: nowrap;

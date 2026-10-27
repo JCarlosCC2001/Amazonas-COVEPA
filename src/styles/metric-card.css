@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    MEDIDORES / TARJETAS KPI REUTILIZABLES (METRIC CARD & GRID)
    ============================================================ */
 .covepa-metric-grid {
@@ -140,7 +140,7 @@
 }
 
 .metric-value {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   font-size: var(--text-xl);
   font-weight: var(--fw-black);
@@ -312,7 +312,7 @@
     padding: 0.7rem 0.85rem;
   }
   .metric-value {
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-variant-numeric: tabular-nums;
     font-size: var(--text-xl);
   }
@@ -361,7 +361,7 @@
     align-items: baseline;
   }
   .metric-value {
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-variant-numeric: tabular-nums;
     font-size: var(--text-lg);
   }
@@ -406,7 +406,7 @@
     font-weight: var(--fw-bold);
   }
   .metric-value {
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-variant-numeric: tabular-nums;
     font-size: var(--text-lg);
   }

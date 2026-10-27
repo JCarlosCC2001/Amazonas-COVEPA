@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Search, Filter, RefreshCw, FileDown, X, Eye, ChevronLeft,
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,
@@ -116,7 +116,7 @@ function ObsDrawer({ obs, sitiosMap = {}, onClose, onSaved }) {
             </div>
             <div className="obs-detail-item">
               <span className="obs-dk">Sitio y Localidad</span>
-              <span className="obs-dv" style={{fontFamily: 'var(--font-mono)',color:'var(--primary-light)'}}>
+              <span className="obs-dv" style={{fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums', color:'var(--primary-light)'}}>
                 {obs.id_sitio}{localidad ? ` · ${localidad}` : ''}
               </span>
             </div>

@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    MÓDULO OBSERVACIONES
    ============================================================ */
 .obs-container { display: flex; flex-direction: column; gap: 1.5rem; }
@@ -277,8 +277,8 @@
 .agrupada-site-headings { display: flex; flex-direction: column; gap: 2px; }
 .agrupada-site-title-line { display: flex; align-items: baseline; gap: 0.35rem; flex-wrap: wrap; }
 .agrupada-site-code {
-  font-family: var(--font-mono); font-size: var(--text-base); font-weight: var(--fw-bold);
-  color: #003060; letter-spacing: 0.02em;
+  font-family: var(--font-sans); font-size: var(--text-base); font-weight: var(--fw-bold);
+  color: #003060; letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
 }
 .agrupada-site-loc {
   font-size: var(--text-sm); font-weight: var(--fw-semibold); color: #0284c7;

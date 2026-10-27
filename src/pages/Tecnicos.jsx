@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Users, UserPlus, Search, Phone, MessageSquare, Edit2,
   Trash2, Shield, Wrench, Truck, MapPin, RefreshCw, X,
@@ -633,7 +633,7 @@ export default function Tecnicos() {
                       <td>
                         {firstPhone ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)' }}>{firstPhone.phone}</span>
+                            <span style={{ fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums', fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)' }}>{firstPhone.phone}</span>
                             {firstPhone.operator && (
                               <span className={`phone-operator-tag ${getOperatorClass(firstPhone.operator)}`} style={{ fontSize: 'var(--text-2xs)', padding: '0.05rem 0.3rem' }}>
                                 {firstPhone.operator}
@@ -1241,7 +1241,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                 <div style={{ background: '#f8fbfe', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
                   <div>
                     <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>Identificador / DNI</div>
-                    <div style={{ fontSize: 'var(--text-sm)', fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
+                    <div style={{ fontSize: 'var(--text-sm)', fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
                       {person.dni || person.documento_identidad || 'Sin DNI'}
                     </div>
                   </div>
@@ -1404,7 +1404,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Phone size={14} color="#003060" />
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-base)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
+                      <span style={{ fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums', fontSize: 'var(--text-base)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
                         {line.phone}
                       </span>
                     </div>

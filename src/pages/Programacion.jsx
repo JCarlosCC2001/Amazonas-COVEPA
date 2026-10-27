@@ -1137,7 +1137,7 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
     }
     setSelectedSite(siteId)
 
-    // Si el sitio tiene una cuadrilla designada, auto-seleccionar la cuadrilla completa (técnico + conductor)
+    // Si el sitio tiene una cuadrilla designada, auto-seleccionar ÚNICAMENTE al técnico o supervisor (NO al conductor)
     const siteObj = sitiosCatalogo.find(s => s.id_site === siteId)
     if (siteObj) {
       let siteCuad = (siteObj.cuadrilla || siteObj.grupo || '').trim().toUpperCase()
@@ -1149,16 +1149,23 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
           return tCuad === siteCuad
         })
 
-        if (cuadrillaMembers.length > 0) {
-          // Ordenar: primero técnico/supervisor, luego conductor u otros
-          const sorted = [...cuadrillaMembers].sort((a, b) => {
-            const aIsLead = (a.cargo || '').toUpperCase().includes('TÉCNICO') || (a.cargo || '').toUpperCase().includes('SUPERVISOR')
-            const bIsLead = (b.cargo || '').toUpperCase().includes('TÉCNICO') || (b.cargo || '').toUpperCase().includes('SUPERVISOR')
-            if (aIsLead && !bIsLead) return -1
-            if (!aIsLead && bIsLead) return 1
-            return (a.nombre_completo || '').localeCompare(b.nombre_completo || '')
-          })
-          setSelectedPersonalIds(sorted.map(m => m.id))
+        // Filtrar exclusivamente técnicos o supervisores (excluyendo terminantemente conductores)
+        const leads = cuadrillaMembers.filter(t => {
+          const cargo = (t.cargo || '').toUpperCase()
+          const isLead = cargo.includes('TÉCNICO') || cargo.includes('TECNICO') || cargo.includes('SUPERVISOR')
+          const isConductor = cargo.includes('CONDUCTOR')
+          return isLead && !isConductor
+        })
+
+        if (leads.length > 0) {
+          // Auto-asignar únicamente al técnico o supervisor designado
+          setSelectedPersonalIds([leads[0].id])
+        } else {
+          // Si no tiene cargo explícito pero tampoco es conductor
+          const nonConductors = cuadrillaMembers.filter(t => !(t.cargo || '').toUpperCase().includes('CONDUCTOR'))
+          if (nonConductors.length > 0) {
+            setSelectedPersonalIds([nonConductors[0].id])
+          }
         }
       }
     }

@@ -1561,7 +1561,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
   const [apellido, setApellido] = useState(member?.apellido || (member?.nombre_completo ? member.nombre_completo.split(' ').slice(1).join(' ') : ''))
   const [dni, setDni] = useState(member?.dni || member?.documento_identidad || '')
   const [email, setEmail] = useState(member?.email || '')
-  const [cargo, setCargo] = useState(member?.cargo || 'Tecnico')
+  const [cargo, setCargo] = useState(member?.cargo || 'Supervisor')
   const [empresa, setEmpresa] = useState(() => {
     if (!member?.empresa) return 'SELNET S.A.C.'
     const emp = member.empresa.toUpperCase()
@@ -1740,24 +1740,22 @@ function ModalPersonal({ member, onClose, onSaved }) {
 
               <div className="prog-form-group">
                 <label>Cargo *</label>
-                <input
-                  type="text"
+                <select
                   className="prog-form-control"
-                  list="cargos-list"
-                  placeholder="Supervisor, Tecnico..."
                   value={cargo}
                   onChange={e => setCargo(e.target.value)}
                   required
-                />
-                <datalist id="cargos-list">
-                  <option value="Supervisor" />
-                  <option value="Tecnico" />
-                  <option value="Documentador" />
-                  <option value="Conductor" />
-                  <option value="Logistica" />
-                  <option value="NOC" />
-                  <option value="Supervisor de Campo" />
-                </datalist>
+                >
+                  <option value="Supervisor">Supervisor</option>
+                  <option value="Coordinador">Coordinador</option>
+                  <option value="Calidad">Calidad</option>
+                  <option value="Empresa">Empresa</option>
+                  <option value="Tecnico">Tecnico</option>
+                  <option value="Conductor">Conductor</option>
+                  {cargo && !['Supervisor', 'Coordinador', 'Calidad', 'Empresa', 'Tecnico', 'Conductor'].includes(cargo) && (
+                    <option value={cargo}>{cargo}</option>
+                  )}
+                </select>
               </div>
             </div>
 

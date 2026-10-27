@@ -29,6 +29,9 @@ export function getCargoClass(cargo) {
   if (c.includes('TÉCNICO') || c.includes('TECNICO')) return 'tecnico'
   if (c.includes('CONDUCTOR')) return 'conductor'
   if (c.includes('SUPERVISOR')) return 'supervisor'
+  if (c.includes('COORDINADOR')) return 'coordinador'
+  if (c.includes('CALIDAD')) return 'calidad'
+  if (c.includes('EMPRESA')) return 'empresa'
   return 'tecnico'
 }
 

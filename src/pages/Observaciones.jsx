@@ -792,12 +792,12 @@ export default function Observaciones() {
   const loadKpis = useCallback(async () => {
     setLoadingKpis(true)
     try {
-      const k = await fetchObservacionesKPIs(filtrosActivos)
+      const k = await fetchObservacionesKPIs()
       setKpis(k)
     } finally {
       setLoadingKpis(false)
     }
-  }, [filtrosActivos])
+  }, [])
 
   const loadAgrupada = useCallback(async () => {
     if (vista !== 'agrupada') return
@@ -818,7 +818,8 @@ export default function Observaciones() {
     }
   }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla])
   useEffect(() => { if (vista === 'tabla' && page > 1) loadData() }, [page])
-  useEffect(() => { loadKpis() }, [search, protocolo, idSitio, estadoCovepa, cuadrilla])
+  // Los medidores son métricas globales del proyecto y NO se alteran al aplicar filtros
+  useEffect(() => { loadKpis() }, [loadKpis])
   useEffect(() => { loadAgrupada() }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla])
 
   const handleSearchChange = (val) => {

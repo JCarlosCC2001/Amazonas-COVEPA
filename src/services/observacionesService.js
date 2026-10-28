@@ -133,24 +133,20 @@ export async function fetchObservaciones({
 }
 
 // ────────────────────────────────────────────────────────────
-// 2. Obtiene los KPIs de COVEPA (Medidores / Indicadores)
+// 2. Obtiene los KPIs globales de COVEPA (Medidores / Indicadores)
+// Siempre calcula los totales globales del proyecto sin verse alterados por filtros de búsqueda o tabla
 // Utiliza head: true en paralelo -> exacto, instantáneo y sin límite de 1,000
 // ────────────────────────────────────────────────────────────
-export async function fetchObservacionesKPIs(filters = {}) {
+export async function fetchObservacionesKPIs() {
   try {
-    // Para que los contadores no se reseteen a 0 al hacer clic en un medidor,
-    // calculamos los totales ignorando el filtro estadoCovepa si estuviera activo
-    const kpiFilters = { ...filters }
-    delete kpiFilters.estadoCovepa
-
     const [qTotal, qPend, qSol, qRev, qValidadas, qRech, qDesc] = await Promise.all([
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }), kpiFilters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Pendiente,estado_covepa.is.null'), kpiFilters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión'), kpiFilters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión'), kpiFilters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Solicitando Revision,estado_covepa.neq.Solicitando Revisión,estado_covepa.neq.Rechazado)'), kpiFilters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Rechazado'), kpiFilters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Descartado'), kpiFilters),
+      supabase.from('observaciones').select('*', { count: 'exact', head: true }),
+      supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Pendiente,estado_covepa.is.null'),
+      supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión'),
+      supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión'),
+      supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Solicitando Revision,estado_covepa.neq.Solicitando Revisión,estado_covepa.neq.Rechazado)'),
+      supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Rechazado'),
+      supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Descartado'),
     ])
 
     return {
@@ -163,7 +159,7 @@ export async function fetchObservacionesKPIs(filters = {}) {
       descartadas: qDesc.count ?? 0,
     }
   } catch (err) {
-    console.error('Error al calcular KPIs:', err)
+    console.error('Error al calcular KPIs globales:', err)
     return { total: 0, pendientes: 0, solicitando: 0, enRevision: 0, validadas: 0, rechazadas: 0, descartadas: 0 }
   }
 }

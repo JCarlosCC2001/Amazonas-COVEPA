@@ -107,14 +107,15 @@ export default function Sitios() {
     setPage(1)
   }, [search, selectedGrupo, selectedZona])
 
-  // Estadísticas rápidas
+  // Estadísticas rápidas globales (no afectadas por filtros de búsqueda o zona)
   const stats = useMemo(() => {
-    const total = filteredSitios.length
-    const conGps = filteredSitios.filter(s => s.tiene_coordenadas).length
-    const zona2 = filteredSitios.filter(s => s.zona === 'ZONA 2').length
-    const zona7 = filteredSitios.filter(s => s.zona === 'ZONA 7').length
+    const list = sitios
+    const total = list.length
+    const conGps = list.filter(s => s.tiene_coordenadas).length
+    const zona2 = list.filter(s => s.zona === 'ZONA 2').length
+    const zona7 = list.filter(s => s.zona === 'ZONA 7').length
     return { total, conGps, zona2, zona7 }
-  }, [filteredSitios])
+  }, [sitios])
 
   return (
     <div className="sitios-container">
@@ -122,7 +123,7 @@ export default function Sitios() {
       <MetricGrid columns={4}>
         <MetricCard
           icon={<Database size={22} />}
-          label="Total Sitios Filtrados"
+          label="Total Sitios"
           value={stats.total}
           subtitle={soloAsignados ? '156 del proyecto' : 'Catálogo SELNET'}
           variant="navy"

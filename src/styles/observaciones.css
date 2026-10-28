@@ -717,6 +717,26 @@
   }
 }
 
+@media (max-width: 380px) {
+  .prog-toolbar-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .prog-btn-avance,
+  .prog-btn-create {
+    width: 100%;
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+  .prog-nav-title {
+    font-size: var(--text-xs);
+  }
+  .prog-btn-nav {
+    min-height: 36px;
+    padding: 0.38rem 0.5rem;
+  }
+}
+
 /* Indicador de filtro activo en Vista Hoy */
 .prog-filter-notice-banner {
   display: flex;
@@ -769,6 +789,44 @@
 @media (max-width: 960px) {
   .prog-kpi-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .prog-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.45rem;
+  }
+  .prog-kpi-item {
+    padding: 0.45rem 0.6rem;
+    gap: 0.5rem;
+  }
+  .prog-kpi-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+  }
+  .prog-kpi-label {
+    font-size: var(--text-2xs);
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .prog-kpi-val {
+    font-size: var(--text-base);
+  }
+  .prog-kpi-sub {
+    font-size: var(--text-2xs);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+@media (max-width: 360px) {
+  .prog-kpi-grid {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
   }
 }
 
@@ -1758,6 +1816,12 @@
 @media (max-width: 640px) {
   .prog-modal-overlay {
     padding: 0.4rem;
+  }
+  .prog-modal {
+    width: 98vw;
+    max-width: 98vw;
+    max-height: 96vh;
+    border-radius: 12px;
   }
   .prog-modal.prog-modal-wide {
     width: 98vw;
@@ -4397,7 +4461,10 @@
   cursor: pointer;
   transition: all var(--transition);
   user-select: none;
-  min-width: 220px;
+  min-width: 190px;
+  flex: 1 1 200px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .prog-site-2row-card:hover {
@@ -4551,6 +4618,7 @@
     box-sizing: border-box;
     padding: 0.55rem 0.7rem;
     border-radius: 8px;
+    min-height: 48px;
   }
   .site-2row-loc {
     flex: 1;
@@ -4558,6 +4626,32 @@
     max-width: none;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 480px) {
+  .prog-tech-compact-row {
+    padding: 0.55rem 0.65rem;
+  }
+  .prog-tech-summary-pill {
+    padding: 0.3rem 0.45rem;
+    gap: 0.35rem;
+    font-size: var(--text-xs);
+  }
+  .prog-tech-mini-prog-track {
+    width: 36px;
+    flex-shrink: 0;
+  }
+  .site-2row-top {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  .site-2row-bottom {
+    gap: 0.25rem;
+  }
+  .site-pill-badge {
+    font-size: var(--text-2xs);
+    padding: 0.06rem 0.3rem;
   }
 }
 
@@ -5501,6 +5595,48 @@
   }
 }
 
+@media (max-width: 480px) {
+  .prog-details-modal-header {
+    padding: 0.65rem 0.75rem;
+  }
+  .prog-details-site-title {
+    font-size: var(--text-base);
+  }
+  .prog-details-site-loc {
+    font-size: var(--text-sm);
+  }
+  .prog-obs-status-select-wrap {
+    width: 100%;
+    display: flex;
+    gap: 0.35rem;
+  }
+  .prog-obs-status-select {
+    flex: 1;
+    min-height: 38px;
+    font-size: var(--text-xs);
+  }
+  .obs-history-toggle-btn {
+    min-height: 38px;
+    padding: 0 0.6rem;
+    font-size: var(--text-xs);
+    justify-content: center;
+  }
+  .audit-col {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    width: 100%;
+  }
+  .audit-select,
+  .audit-date-input {
+    max-width: 100% !important;
+    width: 100%;
+    text-align: left !important;
+    min-height: 36px;
+    box-sizing: border-box;
+  }
+}
+
 /* ─── MODAL DE AVANCE DEL DÍA (DASHBOARD EN PROGRAMACIÓN) ─── */
 .prog-avance-modal {
   max-width: 1040px !important;
@@ -5511,6 +5647,63 @@
   padding: 1rem 1.4rem;
   gap: 1rem;
 }
+
+@media (max-width: 640px) {
+  .prog-avance-modal-body {
+    padding: 0.65rem 0.75rem;
+    gap: 0.65rem;
+  }
+  .prog-avance-table-wrap {
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .prog-avance-table {
+    min-width: 680px;
+  }
+  .prog-avance-table th {
+    padding: 0.55rem 0.6rem;
+    font-size: var(--text-2xs);
+  }
+  .prog-avance-table td {
+    padding: 0.55rem 0.6rem;
+    font-size: var(--text-xs);
+  }
+  .prog-avance-obs-code {
+    font-size: var(--text-xs);
+    padding: 0.15rem 0.35rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .prog-modal-export-cluster {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.35rem;
+    width: 100%;
+  }
+  .prog-modal-export-cluster .prog-export-btn {
+    min-width: 0;
+    width: 100%;
+    padding: 0.45rem 0.4rem;
+    font-size: var(--text-xs);
+  }
+  .prog-modal-export-cluster .prog-export-xlsx-btn {
+    grid-column: span 2;
+  }
+}
+
+.prog-avance-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+@media (max-width: 520px) {
+  .prog-avance-detail-grid {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+}
+
 
 .prog-avance-table-wrap {
   width: 100%;
@@ -6382,6 +6575,56 @@
   font-weight: var(--fw-bold) !important;
   box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.4) !important;
 }
+
+@media (max-width: 640px) {
+  .prog-obs-result-banner {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0.75rem 0.85rem;
+    gap: 0.75rem;
+  }
+  .prog-obs-result-left {
+    min-width: 0;
+    width: 100%;
+    gap: 0.65rem;
+    align-items: flex-start;
+  }
+  .prog-obs-result-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .prog-obs-result-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+  }
+  .prog-obs-action-btn-primary,
+  .prog-obs-action-btn-secondary,
+  .prog-obs-action-btn-create {
+    width: 100%;
+    justify-content: center;
+    padding: 0.52rem 0.85rem;
+    font-size: var(--text-xs);
+    min-height: 38px;
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 480px) {
+  .prog-obs-search-bar {
+    padding: 0.38rem 0.65rem;
+    border-radius: 10px;
+  }
+  .prog-obs-search-input {
+    font-size: var(--text-xs);
+  }
+  .prog-obs-chip {
+    font-size: var(--text-2xs);
+    padding: 0.18rem 0.42rem;
+  }
+}
+
 
 
 /* ==========================================================================

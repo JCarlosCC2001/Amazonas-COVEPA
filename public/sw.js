@@ -13,10 +13,10 @@ self.addEventListener('activate', (event) => {
   )
 })
 
-// Listener de fetch para cumplir con el estándar de instalación PWA de Chromium/Android/Brave
-// Al no invocar event.respondWith(), el navegador delega directamente al stack de red nativo,
-// evitando promesas rechazadas, desconexiones por inactividad y pantallas en blanco.
-self.addEventListener('fetch', () => {
-  // Passthrough nativo 100% transparente y estable
-})
+  // Listener de fetch para cumplir con el estándar de instalación PWA de Chromium/Android/Brave
+  // Al no invocar event.respondWith(), el navegador delega directamente al stack de red nativo,
+  // evitando promesas rechazadas, desconexiones por inactividad y pantallas en blanco.
+  self.addEventListener('fetch', () => {
+    // Passthrough nativo 100% transparente y estable
+  })
 

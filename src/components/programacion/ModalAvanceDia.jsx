@@ -583,7 +583,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
               </div>
 
               <div className="prog-modal-body" style={{ padding: '1rem 1.25rem', gap: '0.75rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+                <div className="prog-avance-detail-grid">
                   <div className="audit-col" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
                     <span className="stat-btn-label">Código de Sitio y Localidad:</span>
                     <strong style={{ color: '#003060', fontSize: 'var(--text-sm)' }}>

@@ -436,3 +436,17 @@
   }
 }
 
+@media (max-width: 360px) {
+  .covepa-metric-grid.cols-5,
+  .covepa-metric-grid.cols-4,
+  .covepa-metric-grid.cols-3,
+  .covepa-metric-grid.cols-2 {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+  }
+  .metric-card-inner {
+    padding: 0.55rem 0.65rem;
+  }
+}
+
+

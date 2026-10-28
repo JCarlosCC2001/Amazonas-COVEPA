@@ -49,6 +49,77 @@ export function playNotificationChime() {
 }
 
 /**
+ * Sintetizador Web Audio API: reproduce un chime distintivo de 3 tonos
+ * para alertas de acumulación y cuellos de botella en colas de espera.
+ */
+export function playAccumulationChime() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext
+    if (!AudioContextClass) return
+    const ctx = new AudioContextClass()
+    const now = ctx.currentTime
+
+    // 3 tonos armónicos ascendentes: Mi 5 (659.25 Hz), Sol# 5 (830.61 Hz), Si 5 (987.77 Hz)
+    const freqs = [659.25, 830.61, 987.77]
+    freqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      const startT = now + idx * 0.12
+      osc.type = 'triangle'
+      osc.frequency.setValueAtTime(freq, startT)
+      gain.gain.setValueAtTime(0.14, startT)
+      gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.38)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(startT)
+      osc.stop(startT + 0.38)
+    })
+  } catch {
+    // Silenciar sin error
+  }
+}
+
+/**
+ * Calcula los minutos transcurridos desde una fecha ISO.
+ * Si es nula o inválida, retorna 9999 (antigua / acumulada).
+ */
+export function calcWaitMins(isoString) {
+  if (!isoString) return 9999
+  const t = new Date(isoString).getTime()
+  if (isNaN(t)) return 9999
+  return Math.max(0, Math.floor((Date.now() - t) / 60000))
+}
+
+/**
+ * Formato legible del tiempo de espera (minutos, horas, días).
+ */
+export function formatWaitTime(mins) {
+  if (mins >= 9999) return '+12 horas'
+  if (mins < 1) return '< 1 min'
+  if (mins < 60) return `${mins} min`
+  const hours = Math.floor(mins / 60)
+  const remMins = mins % 60
+  if (hours < 24) {
+    return remMins > 0 ? `${hours}h ${remMins}m` : `${hours}h`
+  }
+  const days = Math.floor(hours / 24)
+  return `${days}d`
+}
+
+/**
+ * Determina la franja / bucket de espera de una observación:
+ * <10m | +10m | +1h | +2h | +6h | +12h
+ */
+export function getWaitTierInfo(mins) {
+  if (mins < 10) return { key: 'recent', label: '< 10m', badgeClass: 'tier-badge-recent', isOver10m: false }
+  if (mins < 60) return { key: '10m', label: '+10 min', badgeClass: 'tier-badge-10m', isOver10m: true }
+  if (mins < 120) return { key: '1h', label: '+1 hora', badgeClass: 'tier-badge-1h', isOver10m: true }
+  if (mins < 360) return { key: '2h', label: '+2 horas', badgeClass: 'tier-badge-2h', isOver10m: true }
+  if (mins < 720) return { key: '6h', label: '+6 horas', badgeClass: 'tier-badge-6h', isOver10m: true }
+  return { key: '12h', label: '+12 horas', badgeClass: 'tier-badge-12h', isOver10m: true }
+}
+
+/**
  * Helper para formatear tiempo relativo legible en español
  */
 export function formatTiempoRelativo(isoString) {
@@ -74,7 +145,8 @@ export function formatTiempoRelativo(isoString) {
 }
 
 export function NotificationProvider({ children }) {
-  const [solicitudes, setSolicitudes] = useState([])
+  const [solicitudes, setSolicitudes] = useState([]) // Técnicos: Solicitando Revisión
+  const [enRevision, setEnRevision] = useState([])     // Auditores: En Revisión
   const [readIds, setReadIds] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_READS)
@@ -102,6 +174,8 @@ export function NotificationProvider({ children }) {
   const sitiosMapRef = useRef({})
   const isFirstLoadRef = useRef(true)
   const knownIdsRef = useRef(new Set())
+  const lastAlertTecnicosRef = useRef({ time: 0, count: 0 })
+  const lastAlertAuditoresRef = useRef({ time: 0, count: 0 })
 
   // Cargar catálogo de sitios asignados para mapear localidades en notificaciones
   useEffect(() => {
@@ -184,25 +258,135 @@ export function NotificationProvider({ children }) {
     }, 8500)
   }, [])
 
-  // Consultar observaciones en Solicitando Revisión desde Supabase
+  // Evaluar alertas anti-spam por acumulación en colas de técnicos y auditores
+  const evaluarAlertasAcumulacion = useCallback((solRows, revRows) => {
+    const now = Date.now()
+    const COOLDOWN_MS = 30 * 60 * 1000 // Pausa de 30 minutos entre avisos acumulados para no spamear
+
+    // 1. Evaluar acumulación de técnicos (Solicitando Revisión)
+    const solDemoradas = (solRows || []).filter(s => calcWaitMins(s.fecha_subsanacion) >= 10)
+
+    if (solDemoradas.length >= 5) {
+      const prev = lastAlertTecnicosRef.current
+      const tiempoPasado = now - prev.time
+      const aumentoSignificativo = solDemoradas.length >= prev.count + 3
+
+      if (tiempoPasado >= COOLDOWN_MS || aumentoSignificativo) {
+        lastAlertTecnicosRef.current = { time: now, count: solDemoradas.length }
+
+        // Ordenar de más antigua a más reciente
+        const masAntigua = [...solDemoradas].sort((a, b) => {
+          const tA = new Date(a.fecha_subsanacion || 0).getTime()
+          const tB = new Date(b.fecha_subsanacion || 0).getTime()
+          return tA - tB
+        })[0]
+
+        const loc = sitiosMapRef.current[masAntigua.id_sitio] || ''
+        const minsAntigua = calcWaitMins(masAntigua.fecha_subsanacion)
+        const tiempoTxt = formatWaitTime(minsAntigua)
+
+        const titulo = `⚠️ Cola de Técnicos Acumulada (${solDemoradas.length})`
+        const mensaje = `Hay ${solDemoradas.length} observaciones esperando revisión (+10 min). La más antigua lleva ${tiempoTxt} (${masAntigua.id_sitio}${loc ? ` · ${loc}` : ''}).`
+
+        dispararToast({
+          id_obs: `ALERTA-COLA-TECNICOS-${Date.now()}`,
+          id_sitio: masAntigua.id_sitio,
+          estado_covepa: 'Solicitando Revisión',
+          revisor: 'Múltiples Técnicos',
+          detalle: mensaje,
+          isAccumulationAlert: true
+        }, loc)
+
+        playAccumulationChime()
+
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification(titulo, {
+              body: mensaje,
+              icon: '/favicon.ico',
+              tag: 'covepa-alerta-cola-tecnicos',
+              renotify: true
+            })
+          } catch {}
+        }
+      }
+    }
+
+    // 2. Evaluar acumulación de auditores (En Revisión)
+    const revDemoradas = (revRows || []).filter(s => calcWaitMins(s.fecha_subsanacion) >= 10)
+
+    if (revDemoradas.length >= 5) {
+      const prev = lastAlertAuditoresRef.current
+      const tiempoPasado = now - prev.time
+      const aumentoSignificativo = revDemoradas.length >= prev.count + 3
+
+      if (tiempoPasado >= COOLDOWN_MS || aumentoSignificativo) {
+        lastAlertAuditoresRef.current = { time: now, count: revDemoradas.length }
+
+        const masAntigua = [...revDemoradas].sort((a, b) => {
+          const tA = new Date(a.fecha_subsanacion || 0).getTime()
+          const tB = new Date(b.fecha_subsanacion || 0).getTime()
+          return tA - tB
+        })[0]
+
+        const loc = sitiosMapRef.current[masAntigua.id_sitio] || ''
+        const minsAntigua = calcWaitMins(masAntigua.fecha_subsanacion)
+        const tiempoTxt = formatWaitTime(minsAntigua)
+
+        const titulo = `🔍 Cola de Auditoría Acumulada (${revDemoradas.length})`
+        const mensaje = `Hay ${revDemoradas.length} observaciones en revisión (+10 min) sin dictamen. La más antigua lleva ${tiempoTxt} (${masAntigua.id_sitio}${loc ? ` · ${loc}` : ''}).`
+
+        dispararToast({
+          id_obs: `ALERTA-COLA-AUDITORES-${Date.now()}`,
+          id_sitio: masAntigua.id_sitio,
+          estado_covepa: 'En Revisión',
+          revisor: masAntigua.revisor || 'Auditoría Gilat',
+          detalle: mensaje,
+          isAccumulationAlert: true
+        }, loc)
+
+        playAccumulationChime()
+
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification(titulo, {
+              body: mensaje,
+              icon: '/favicon.ico',
+              tag: 'covepa-alerta-cola-auditores',
+              renotify: true
+            })
+          } catch {}
+        }
+      }
+    }
+  }, [dispararToast])
+
+  // Consultar observaciones en Solicitando Revisión y En Revisión desde Supabase
   const fetchSolicitudes = useCallback(async (isRealtimeAlert = false) => {
     try {
-      const { data, error } = await supabase
+      // 1. Solicitudes de Técnicos (Solicitando Revisión)
+      const { data: solData, error: solErr } = await supabase
         .from('observaciones')
         .select('id_obs, id_sitio, estado_covepa, revisor, fecha_subsanacion, subsistema, detalle, comentario_covepa')
         .in('estado_covepa', ['Solicitando Revisión', 'Solicitando Revision'])
-        .order('fecha_subsanacion', { ascending: false })
+        .order('fecha_subsanacion', { ascending: true }) // De más antigua a más reciente
 
-      if (error) {
-        console.warn('[NOTIF-FETCH] Error consultando observaciones:', error.message)
-        return
-      }
+      // 2. Observaciones en Auditoría (En Revisión)
+      const { data: revData, error: revErr } = await supabase
+        .from('observaciones')
+        .select('id_obs, id_sitio, estado_covepa, revisor, fecha_subsanacion, subsistema, detalle, comentario_covepa')
+        .in('estado_covepa', ['En Revisión', 'En Revision'])
+        .order('fecha_subsanacion', { ascending: true }) // De más antigua a más reciente
 
-      const rows = data || []
+      if (solErr) console.warn('[NOTIF-FETCH] Error consultando solicitudes:', solErr.message)
+      if (revErr) console.warn('[NOTIF-FETCH] Error consultando en revisión:', revErr.message)
 
-      // Si no es la primera carga y detectamos una nueva observación que no teníamos registrada
+      const solRows = solData || []
+      const revRows = revData || []
+
+      // Si no es la primera carga y detectamos una nueva solicitud entrante individual
       if (!isFirstLoadRef.current && isRealtimeAlert) {
-        for (const row of rows) {
+        for (const row of solRows) {
           if (!knownIdsRef.current.has(row.id_obs)) {
             const loc = sitiosMapRef.current[row.id_sitio] || ''
             dispararToast(row, loc)
@@ -212,15 +396,18 @@ export function NotificationProvider({ children }) {
         }
       }
 
-      // Actualizar registro de conocidos
-      knownIdsRef.current = new Set(rows.map(r => r.id_obs))
+      // Evaluar si se han acumulado (5+ con > 10 min de espera)
+      evaluarAlertasAcumulacion(solRows, revRows)
+
+      knownIdsRef.current = new Set([...solRows.map(r => r.id_obs), ...revRows.map(r => r.id_obs)])
       isFirstLoadRef.current = false
 
-      setSolicitudes(rows)
+      setSolicitudes(solRows)
+      setEnRevision(revRows)
     } catch (err) {
       console.warn('[NOTIF-FETCH] Error de red:', err)
     }
-  }, [dispararToast, dispararNotificacionEscritorio])
+  }, [dispararToast, dispararNotificacionEscritorio, evaluarAlertasAcumulacion])
 
   // Carga inicial y Polling resiliente cada 30 segundos
   useEffect(() => {
@@ -365,12 +552,15 @@ export function NotificationProvider({ children }) {
     setReadIds(prev => new Set([...prev, idObs]))
   }
 
-  // Marcar todas las solicitudes actuales como leídas
+  // Marcar todas las solicitudes actuales como leídas (ambas colas)
   const markAllAsRead = () => {
     setReadIds(prev => {
       const updated = new Set(prev)
       for (const s of solicitudes) {
         updated.add(s.id_obs)
+      }
+      for (const r of enRevision) {
+        updated.add(r.id_obs)
       }
       return updated
     })
@@ -383,20 +573,31 @@ export function NotificationProvider({ children }) {
 
   // Filtrado de solicitudes visibles en la bandeja (no descartadas/limpiadas)
   const visibleSolicitudes = solicitudes.filter(s => !dismissedIds.has(s.id_obs))
-  const unreadCount = visibleSolicitudes.filter(s => !readIds.has(s.id_obs)).length
-  const dismissedCount = solicitudes.filter(s => dismissedIds.has(s.id_obs)).length
+  const visibleEnRevision = enRevision.filter(s => !dismissedIds.has(s.id_obs))
 
-  // Limpiar todas las notificaciones de la bandeja
-  const clearAllNotifications = useCallback(() => {
+  // Conteo de observaciones demoradas (+10 min de espera) por cada cola
+  const tecnicosDemoradasCount = visibleSolicitudes.filter(s => calcWaitMins(s.fecha_subsanacion) >= 10).length
+  const auditoresDemoradasCount = visibleEnRevision.filter(s => calcWaitMins(s.fecha_subsanacion) >= 10).length
+
+  const unreadCount = visibleSolicitudes.filter(s => !readIds.has(s.id_obs)).length +
+                      visibleEnRevision.filter(s => !readIds.has(s.id_obs)).length
+  const dismissedCount = solicitudes.filter(s => dismissedIds.has(s.id_obs)).length +
+                         enRevision.filter(s => dismissedIds.has(s.id_obs)).length
+
+  // Limpiar todas las notificaciones de la bandeja (opcionalmente por cola)
+  const clearAllNotifications = useCallback((queue = 'all') => {
     setDismissedIds(prev => {
       const updated = new Set(prev)
-      for (const s of solicitudes) {
-        updated.add(s.id_obs)
+      if (queue === 'all' || queue === 'tecnicos') {
+        for (const s of solicitudes) updated.add(s.id_obs)
+      }
+      if (queue === 'all' || queue === 'auditores') {
+        for (const r of enRevision) updated.add(r.id_obs)
       }
       return updated
     })
     setToasts([])
-  }, [solicitudes])
+  }, [solicitudes, enRevision])
 
   // Descartar/limpiar una notificación individual
   const dismissNotification = useCallback((idObs) => {
@@ -414,7 +615,13 @@ export function NotificationProvider({ children }) {
     <NotificationContext.Provider
       value={{
         solicitudes: visibleSolicitudes,
+        enRevision: visibleEnRevision,
+        rawSolicitudes: solicitudes,
+        rawEnRevision: enRevision,
         totalSolicitudes: solicitudes.length,
+        totalEnRevision: enRevision.length,
+        tecnicosDemoradasCount,
+        auditoresDemoradasCount,
         unreadCount,
         dismissedCount,
         clearAllNotifications,

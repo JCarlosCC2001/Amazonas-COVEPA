@@ -28,3 +28,4 @@ FROM public.observaciones
 WHERE revisor IS NOT NULL
 GROUP BY revisor
 ORDER BY total_observaciones DESC;
+

@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell, Eye, EyeOff, Shield, ShieldAlert, CheckCircle2,
   AlertTriangle, Layers, X, ExternalLink, Clock, MapPin,
-  User, CheckCheck
+  User, CheckCheck, Trash2, RotateCcw
 } from 'lucide-react'
 import { usePresentationMode } from '../../context/PresentationContext'
 import { useNotifications, formatTiempoRelativo } from '../../context/NotificationContext'
@@ -51,6 +51,10 @@ export default function AppHeader() {
     solicitudes,
     unreadCount,
     readIds,
+    dismissedCount,
+    clearAllNotifications,
+    dismissNotification,
+    restoreDismissedNotifications,
     desktopPermission,
     requestDesktopPermission,
     markAsRead,
@@ -165,6 +169,17 @@ export default function AppHeader() {
                       Marcar vistas
                     </button>
                   )}
+                  {solicitudes.length > 0 && (
+                    <button
+                      type="button"
+                      className="notif-clear-btn"
+                      onClick={clearAllNotifications}
+                      title="Limpiar todas las notificaciones de la bandeja"
+                    >
+                      <Trash2 size={12} />
+                      <span>Limpiar</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="notif-popover-close"
@@ -180,10 +195,23 @@ export default function AppHeader() {
                 {solicitudes.length === 0 ? (
                   <div className="notif-empty-state">
                     <CheckCircle2 size={32} color="#10b981" />
-                    <span className="notif-empty-title">¡Todo al día!</span>
+                    <span className="notif-empty-title">¡Bandeja limpia!</span>
                     <span className="notif-empty-desc">
-                      No hay observaciones pendientes de revisión en este momento.
+                      {dismissedCount > 0
+                        ? `Has limpiado ${dismissedCount} ${dismissedCount === 1 ? 'notificación' : 'notificaciones'}. Las nuevas alertas aparecerán automáticamente aquí.`
+                        : 'No hay observaciones pendientes de revisión en este momento.'}
                     </span>
+                    {dismissedCount > 0 && (
+                      <button
+                        type="button"
+                        className="notif-restore-btn"
+                        onClick={restoreDismissedNotifications}
+                        title="Restaurar notificaciones limpiadas"
+                      >
+                        <RotateCcw size={12} />
+                        <span>Restaurar ({dismissedCount})</span>
+                      </button>
+                    )}
                   </div>
                 ) : (
                   solicitudes.map((obs) => {
@@ -221,6 +249,19 @@ export default function AppHeader() {
                             {formatTiempoRelativo(obs.fecha_subsanacion)}
                           </span>
                         </div>
+
+                        <button
+                          type="button"
+                          className="notif-item-dismiss-btn"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            dismissNotification(obs.id_obs)
+                          }}
+                          title="Descartar notificación"
+                          aria-label="Descartar notificación"
+                        >
+                          <X size={13} />
+                        </button>
                       </div>
                     )
                   })
@@ -247,6 +288,7 @@ export default function AppHeader() {
               <div className="notif-popover-footer">
                 <span className="notif-popover-count-text">
                   {unreadCount > 0 ? `${unreadCount} sin leer` : 'Todas leídas'}
+                  {dismissedCount > 0 ? ` · ${dismissedCount} limpiadas` : ''}
                 </span>
                 <button
                   type="button"

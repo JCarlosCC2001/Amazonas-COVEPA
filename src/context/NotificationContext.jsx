@@ -5,6 +5,7 @@ import { getCachedSitiosAsignados } from '../services/sitiosService'
 const NotificationContext = createContext(null)
 
 const STORAGE_KEY_READS = 'covepa_read_solicitudes'
+const STORAGE_KEY_DISMISSED = 'covepa_dismissed_solicitudes'
 const KNOWN_IDS_KEY = 'covepa_known_solicitud_ids'
 
 /**
@@ -81,6 +82,14 @@ export function NotificationProvider({ children }) {
       return new Set()
     }
   })
+  const [dismissedIds, setDismissedIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_DISMISSED)
+      return saved ? new Set(JSON.parse(saved)) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
   const [toasts, setToasts] = useState([])
   const [desktopPermission, setDesktopPermission] = useState(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -112,6 +121,15 @@ export function NotificationProvider({ children }) {
       console.warn('Error guardando readIds en localStorage:', e)
     }
   }, [readIds])
+
+  // Guardar IDs descartados/limpiados en localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_DISMISSED, JSON.stringify(Array.from(dismissedIds)))
+    } catch (e) {
+      console.warn('Error guardando dismissedIds en localStorage:', e)
+    }
+  }, [dismissedIds])
 
   // Despachar notificación nativa de Windows / Navegador
   const dispararNotificacionEscritorio = useCallback((obs, localidad) => {
@@ -240,11 +258,19 @@ export function NotificationProvider({ children }) {
             const loc = sitiosMapRef.current[newRow.id_sitio] || ''
             dispararToast(newRow, loc)
             dispararNotificacionEscritorio(newRow, loc)
-            // Marcar como no leída para que aumente el contador
+            // Marcar como no leída para que aumente el contador y reactivar si estaba descartada
             setReadIds(prev => {
               const updated = new Set(prev)
               updated.delete(newRow.id_obs)
               return updated
+            })
+            setDismissedIds(prev => {
+              if (prev.has(newRow.id_obs)) {
+                const updated = new Set(prev)
+                updated.delete(newRow.id_obs)
+                return updated
+              }
+              return prev
             })
             fetchSolicitudes(false)
           } else if (oldRow && (oldRow.estado_covepa === 'Solicitando Revisión' || oldRow.estado_covepa === 'Solicitando Revision')) {
@@ -270,6 +296,14 @@ export function NotificationProvider({ children }) {
             const loc = sitiosMapRef.current[row.id_sitio] || ''
             dispararToast(obsLike, loc)
             dispararNotificacionEscritorio(obsLike, loc)
+            setDismissedIds(prev => {
+              if (prev.has(row.id_obs)) {
+                const updated = new Set(prev)
+                updated.delete(row.id_obs)
+                return updated
+              }
+              return prev
+            })
             fetchSolicitudes(false)
           }
         }
@@ -327,14 +361,45 @@ export function NotificationProvider({ children }) {
     setToasts(prev => prev.filter(t => t.id !== toastId))
   }
 
-  // Cantidad de solicitudes no leídas
-  const unreadCount = solicitudes.filter(s => !readIds.has(s.id_obs)).length
+  // Filtrado de solicitudes visibles en la bandeja (no descartadas/limpiadas)
+  const visibleSolicitudes = solicitudes.filter(s => !dismissedIds.has(s.id_obs))
+  const unreadCount = visibleSolicitudes.filter(s => !readIds.has(s.id_obs)).length
+  const dismissedCount = solicitudes.filter(s => dismissedIds.has(s.id_obs)).length
+
+  // Limpiar todas las notificaciones de la bandeja
+  const clearAllNotifications = useCallback(() => {
+    setDismissedIds(prev => {
+      const updated = new Set(prev)
+      for (const s of solicitudes) {
+        updated.add(s.id_obs)
+      }
+      return updated
+    })
+    setToasts([])
+  }, [solicitudes])
+
+  // Descartar/limpiar una notificación individual
+  const dismissNotification = useCallback((idObs) => {
+    if (!idObs) return
+    setDismissedIds(prev => new Set([...prev, idObs]))
+    setToasts(prev => prev.filter(t => t.obs.id_obs !== idObs))
+  }, [])
+
+  // Restaurar todas las notificaciones limpiadas
+  const restoreDismissedNotifications = useCallback(() => {
+    setDismissedIds(new Set())
+  }, [])
 
   return (
     <NotificationContext.Provider
       value={{
-        solicitudes,
+        solicitudes: visibleSolicitudes,
+        totalSolicitudes: solicitudes.length,
         unreadCount,
+        dismissedCount,
+        clearAllNotifications,
+        dismissNotification,
+        restoreDismissedNotifications,
         readIds,
         toasts,
         desktopPermission,

@@ -462,7 +462,7 @@ export default function Tecnicos() {
                             {person.empresa || 'SELNET S.A.C.'}
                           </span>
 
-                          {isTecnico && person.cuadrilla && (
+                          {person.cuadrilla && (
                             <span className="prog-card-cuadrilla-badge">
                               {person.cuadrilla}
                             </span>
@@ -562,6 +562,7 @@ export default function Tecnicos() {
                 <th>Integrante</th>
                 <th>DNI / Documento</th>
                 <th>Cargo</th>
+                <th>Cuadrilla</th>
                 <th>Empresa</th>
                 <th>Contacto Directo</th>
                 <th>Estado BD Externa</th>
@@ -572,7 +573,7 @@ export default function Tecnicos() {
             <tbody>
               {filteredPersonal.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
                     No se encontró personal con los filtros aplicados.
                   </td>
                 </tr>
@@ -614,6 +615,26 @@ export default function Tecnicos() {
                         <span className={`role-badge ${cargoClass}`}>
                           {person.cargo}
                         </span>
+                      </td>
+                      <td>
+                        {person.cuadrilla ? (
+                          <span
+                            style={{
+                              fontSize: 'var(--text-xs)',
+                              fontWeight: 'var(--fw-bold)',
+                              padding: '0.18rem 0.5rem',
+                              borderRadius: '6px',
+                              background: '#eff6ff',
+                              border: '1px solid #bfdbfe',
+                              color: '#1d4ed8',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {person.cuadrilla}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>—</span>
+                        )}
                       </td>
                       <td>
                         <span
@@ -824,7 +845,7 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
     setSavingCuadrilla(cName)
     try {
       const { idTecnico, idConductor } = cuadrillasForm[cName] || {}
-      await updateCuadrillaAssignments(cName, { idTecnico, idConductor })
+      await updateCuadrillaAssignments(cName, { idTecnico, idConductor }, personal)
       setSavedCuadrilla(cName)
       setTimeout(() => setSavedCuadrilla(null), 2500)
       if (onCuadrillasUpdated) onCuadrillasUpdated()
@@ -1117,7 +1138,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                 <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 'var(--fw-bold)', padding: '0.12rem 0.4rem', borderRadius: '4px', background: 'rgba(0, 48, 96, 0.08)', color: '#003060', border: '1px solid rgba(0, 48, 96, 0.2)' }}>
                   {person.empresa || 'SELNET S.A.C.'}
                 </span>
-                {isTecnico && person.cuadrilla && (
+                {person.cuadrilla && (
                   <span className="prog-card-cuadrilla-badge">
                     {person.cuadrilla}
                   </span>

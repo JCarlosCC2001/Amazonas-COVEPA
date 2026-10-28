@@ -1,4 +1,4 @@
-﻿import { supabase, supabaseExt, handleSupabaseAuthError } from '../lib/supabase.js'
+import { supabase, supabaseExt, handleSupabaseAuthError } from '../lib/supabase.js'
 
 // Fallback del personal inicial del proyecto por si falla la red
 export const PERSONAL_FALLBACK = [
@@ -530,12 +530,72 @@ export async function toggleAccesoPersonal(id, activo, email, rol = 'supervisor'
 
 // ────────────────────────────────────────────────────────────
 // 7. Configurar o actualizar integrantes de una cuadrilla predefinida
+// Persiste en la tabla oficial 'personal_cuadrillas' de Supabase y en localStorage como respaldo
 // ────────────────────────────────────────────────────────────
-export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idConductor }) {
+export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idConductor }, allStaff = []) {
   const cName = cuadrillaName.trim().toUpperCase()
+
+  // 1. Guardar en localStorage para disponibilidad inmediata y fallback
   const map = getLocalCuadrillasMap()
   map[cName] = { idTecnico, idConductor }
   saveLocalCuadrillasMap(map)
+
+  // 2. Persistir en la base de datos Supabase (tabla oficial 'personal_cuadrillas')
+  try {
+    // A. Desasignar a miembros previos de esta cuadrilla que ya no formen parte de ella
+    const { data: previousRows } = await supabase
+      .from('personal_cuadrillas')
+      .select('id, id_personal')
+      .eq('cuadrilla', cName)
+
+    if (previousRows && previousRows.length > 0) {
+      const toRemove = previousRows.filter(r => r.id_personal !== idTecnico && r.id_personal !== idConductor)
+      for (const r of toRemove) {
+        await supabase
+          .from('personal_cuadrillas')
+          .update({
+            cuadrilla: 'SIN CUADRILLA',
+            activo: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', r.id)
+      }
+    }
+
+    // B. Asignar al Técnico seleccionado
+    if (idTecnico) {
+      const tec = (allStaff || []).find(p => p.id === idTecnico || p.id_personal === idTecnico)
+      await supabase
+        .from('personal_cuadrillas')
+        .upsert({
+          id_personal: idTecnico,
+          nombre_completo: tec?.nombre_completo || 'Técnico',
+          cargo: tec?.cargo || 'TÉCNICO',
+          cuadrilla: cName,
+          activo: true,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id_personal' })
+    }
+
+    // C. Asignar al Conductor seleccionado
+    if (idConductor) {
+      const cond = (allStaff || []).find(p => p.id === idConductor || p.id_personal === idConductor)
+      await supabase
+        .from('personal_cuadrillas')
+        .upsert({
+          id_personal: idConductor,
+          nombre_completo: cond?.nombre_completo || 'Conductor',
+          cargo: cond?.cargo || 'CONDUCTOR',
+          cuadrilla: cName,
+          activo: true,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id_personal' })
+    }
+  } catch (err) {
+    console.error('Error persistiendo cuadrilla en Supabase personal_cuadrillas:', err)
+    throw err
+  }
+
   return true
 }
 

@@ -3,10 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell, Eye, EyeOff, CheckCircle2,
   X, ExternalLink, Clock, MapPin,
-  User, Trash2, RotateCcw
+  User, Trash2, RotateCcw, AlertTriangle,
+  Copy, Check
 } from 'lucide-react'
 import { usePresentationMode } from '../../context/PresentationContext'
-import { useNotifications, formatTiempoRelativo } from '../../context/NotificationContext'
+import { useNotifications, formatTiempoRelativo, copyObservacionesList } from '../../context/NotificationContext'
 
 const PAGE_META = {
   '/dashboard': {
@@ -64,6 +65,7 @@ export default function AppHeader() {
   } = useNotifications()
 
   const [notifOpen, setNotifOpen] = useState(false)
+  const [copiedAccId, setCopiedAccId] = useState(null)
   const notifRef = useRef(null)
 
   // Cerrar popover de notificaciones al hacer clic afuera
@@ -227,6 +229,78 @@ export default function AppHeader() {
                   </div>
                 ) : (
                   solicitudes.map((obs) => {
+                    if (obs.isAccumulationAlert) {
+                      const isUnread = !readIds.has(obs.id_obs)
+                      const isCopied = copiedAccId === obs.id_obs
+                      const items = obs.items || []
+
+                      return (
+                        <div
+                          key={obs.id_obs}
+                          className={`notif-item notif-item-accumulation ${isUnread ? 'is-unread' : ''}`}
+                          onClick={() => {
+                            markAsRead(obs.id_obs)
+                            setNotifOpen(false)
+                            navigate('/observaciones?estado=En%20Revisi%C3%B3n')
+                          }}
+                          title="Clic para ver observaciones en revisión"
+                        >
+                          <div className="notif-item-icon icon-accumulation">
+                            <AlertTriangle size={16} />
+                          </div>
+
+                          <div className="notif-item-content">
+                            <div className="notif-solicitud-top">
+                              <span className="notif-obs-code">ALERTA DE ACUMULACIÓN</span>
+                              <span className="notif-status-badge badge-acc-pill">
+                                {obs.count || items.length} en Revisión (+10m)
+                              </span>
+                            </div>
+
+                            <p className="notif-acc-card-desc">
+                              {obs.detalle}
+                            </p>
+
+                            <div className="notif-card-actions-row">
+                              <button
+                                type="button"
+                                className={`notif-card-copy-btn ${isCopied ? 'is-copied' : ''}`}
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  const ok = await copyObservacionesList(items)
+                                  if (ok) {
+                                    setCopiedAccId(obs.id_obs)
+                                    setTimeout(() => setCopiedAccId(null), 2500)
+                                  }
+                                }}
+                                title="Copiar códigos y detalles de las observaciones demoradas al portapapeles"
+                              >
+                                {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                                <span>{isCopied ? '¡Lista copiada!' : 'Copiar lista de observaciones'}</span>
+                              </button>
+                            </div>
+
+                            <span className="notif-time-ago">
+                              {formatTiempoRelativo(obs.fecha_subsanacion)}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="notif-item-dismiss-btn"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              dismissNotification(obs.id_obs)
+                            }}
+                            title="Descartar alerta de acumulación"
+                            aria-label="Descartar notificación"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      )
+                    }
+
                     const isUnread = !readIds.has(obs.id_obs)
                     const loc = sitiosMap[obs.id_sitio] || ''
                     return (

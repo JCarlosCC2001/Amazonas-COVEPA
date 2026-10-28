@@ -120,6 +120,31 @@ export function getWaitTierInfo(mins) {
 }
 
 /**
+ * Copia al portapapeles la lista de observaciones acumuladas en un formato estructurado y limpio
+ */
+export async function copyObservacionesList(items) {
+  if (!items || items.length === 0) return false
+  const lines = items.map(it => {
+    const loc = it.localidad ? ` · ${it.localidad}` : ''
+    const espera = it.waitMins ? ` (Espera: ${formatWaitTime(it.waitMins)})` : ''
+    return `${it.id_obs} · ${it.id_sitio}${loc}${espera}`
+  }).join('\n')
+
+  const codesOnly = items.map(it => it.id_obs).join(', ')
+  const fullText = `OBSERVACIONES EN REVISIÓN DEMORADAS (${items.length}):\n\n${lines}\n\nCÓDIGOS PARA BÚSQUEDA:\n${codesOnly}`
+
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(fullText)
+      return true
+    }
+  } catch (err) {
+    console.warn('Error al copiar al portapapeles:', err)
+  }
+  return false
+}
+
+/**
  * Helper para formatear tiempo relativo legible en español
  */
 export function formatTiempoRelativo(isoString) {
@@ -147,6 +172,7 @@ export function formatTiempoRelativo(isoString) {
 export function NotificationProvider({ children }) {
   const [solicitudes, setSolicitudes] = useState([]) // Técnicos: Solicitando Revisión
   const [enRevision, setEnRevision] = useState([])     // Auditores: En Revisión
+  const [accumulationAlert, setAccumulationAlert] = useState(null) // Alerta de acumulación consolidada
   const [readIds, setReadIds] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_READS)
@@ -252,8 +278,8 @@ export function NotificationProvider({ children }) {
     // Reproducir aviso sonoro suave
     playNotificationChime()
 
-    // Auto-descartar después de un tiempo prudencial (50s para alertas de acumulación con lista)
-    const timeoutMs = obs.isAccumulationAlert ? 50000 : 8500
+    // Auto-descartar después de un tiempo prudencial: 16s para avisos de acumulación (permite copiar sin apuros) y 8.5s para solicitudes individuales
+    const timeoutMs = obs.isAccumulationAlert ? 16000 : 8500
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== toastId))
     }, timeoutMs)
@@ -328,26 +354,48 @@ export function NotificationProvider({ children }) {
     const revDemoradas = (revRows || []).filter(s => calcWaitMins(s.fecha_subsanacion) >= 10)
 
     if (revDemoradas.length >= 5) {
+      const revDemoradasOrdenadas = [...revDemoradas].sort((a, b) => {
+        const tA = new Date(a.fecha_subsanacion || 0).getTime()
+        const tB = new Date(b.fecha_subsanacion || 0).getTime()
+        return tA - tB
+      })
+      const masAntigua = revDemoradasOrdenadas[0]
+
+      const loc = sitiosMapRef.current[masAntigua.id_sitio] || ''
+      const minsAntigua = calcWaitMins(masAntigua.fecha_subsanacion)
+      const tiempoTxt = formatWaitTime(minsAntigua)
+
+      const titulo = `⚠️ Observaciones en Revisión Acumuladas (${revDemoradas.length})`
+      const mensaje = `Hay ${revDemoradas.length} observaciones en revisión (+10 min) sin dictaminar. La más antigua lleva ${tiempoTxt} (${masAntigua.id_sitio}${loc ? ` · ${loc}` : ''}).`
+
+      const alertObj = {
+        id_obs: 'ALERTA-ACUMULACION-REVISION',
+        isAccumulationAlert: true,
+        tipo: 'acumulacion_revision',
+        titulo: 'Observaciones en Revisión Demoradas',
+        count: revDemoradas.length,
+        detalle: mensaje,
+        id_sitio: masAntigua.id_sitio,
+        localidad: loc,
+        revisor: masAntigua.revisor || 'Auditoría Gilat',
+        fecha_subsanacion: masAntigua.fecha_subsanacion,
+        items: revDemoradasOrdenadas.map(item => ({
+          id_obs: item.id_obs,
+          id_sitio: item.id_sitio,
+          localidad: sitiosMapRef.current[item.id_sitio] || '',
+          revisor: item.revisor,
+          fecha_subsanacion: item.fecha_subsanacion,
+          waitMins: calcWaitMins(item.fecha_subsanacion)
+        }))
+      }
+      setAccumulationAlert(alertObj)
+
       const prev = lastAlertAuditoresRef.current
       const tiempoPasado = now - prev.time
       const aumentoSignificativo = revDemoradas.length >= prev.count + 3
 
       if (tiempoPasado >= COOLDOWN_MS || aumentoSignificativo) {
         lastAlertAuditoresRef.current = { time: now, count: revDemoradas.length }
-
-        const revDemoradasOrdenadas = [...revDemoradas].sort((a, b) => {
-          const tA = new Date(a.fecha_subsanacion || 0).getTime()
-          const tB = new Date(b.fecha_subsanacion || 0).getTime()
-          return tA - tB
-        })
-        const masAntigua = revDemoradasOrdenadas[0]
-
-        const loc = sitiosMapRef.current[masAntigua.id_sitio] || ''
-        const minsAntigua = calcWaitMins(masAntigua.fecha_subsanacion)
-        const tiempoTxt = formatWaitTime(minsAntigua)
-
-        const titulo = `⚠️ Observaciones en Revisión Acumuladas (${revDemoradas.length})`
-        const mensaje = `Hay ${revDemoradas.length} observaciones en revisión (+10 min) sin dictaminar. La más antigua lleva ${tiempoTxt} (${masAntigua.id_sitio}${loc ? ` · ${loc}` : ''}).`
 
         dispararToast({
           id_obs: `ALERTA-COLA-AUDITORES-${Date.now()}`,
@@ -357,15 +405,7 @@ export function NotificationProvider({ children }) {
           detalle: mensaje,
           isAccumulationAlert: true,
           queueType: 'auditores',
-          items: revDemoradasOrdenadas.map(item => ({
-            id_obs: item.id_obs,
-            id_sitio: item.id_sitio,
-            localidad: sitiosMapRef.current[item.id_sitio] || '',
-            revisor: item.revisor,
-            fecha_subsanacion: item.fecha_subsanacion,
-            subsistema: item.subsistema,
-            detalle: item.detalle
-          }))
+          items: alertObj.items
         }, loc)
 
         playAccumulationChime()
@@ -381,6 +421,8 @@ export function NotificationProvider({ children }) {
           } catch {}
         }
       }
+    } else {
+      setAccumulationAlert(null)
     }
   }, [dispararToast])
 
@@ -597,19 +639,29 @@ export function NotificationProvider({ children }) {
   // Filtrado de solicitudes visibles en la bandeja (no descartadas/limpiadas)
   const visibleSolicitudes = solicitudes.filter(s => !dismissedIds.has(s.id_obs))
 
-  // Conteo exclusivo de solicitudes de técnicos no leídas para el badge de la campana
-  const unreadCount = visibleSolicitudes.filter(s => !readIds.has(s.id_obs)).length
-  const dismissedCount = solicitudes.filter(s => dismissedIds.has(s.id_obs)).length
+  // Alerta de acumulación consolidada si está activa y no descartada
+  const activeAccumulation = (accumulationAlert && !dismissedIds.has(accumulationAlert.id_obs))
+    ? [accumulationAlert]
+    : []
+
+  // Bandeja unificada: la alerta de acumulación aparece al inicio como aviso prioritario, seguida de las solicitudes de técnicos
+  const unifiedNotifications = [...activeAccumulation, ...visibleSolicitudes]
+
+  // Conteo consolidado de no leídas para la campana (+1 si la alerta de acumulación está sin leer)
+  const isAccUnread = activeAccumulation.length > 0 && !readIds.has(accumulationAlert.id_obs)
+  const unreadCount = visibleSolicitudes.filter(s => !readIds.has(s.id_obs)).length + (isAccUnread ? 1 : 0)
+  const dismissedCount = solicitudes.filter(s => dismissedIds.has(s.id_obs)).length + (accumulationAlert && dismissedIds.has(accumulationAlert.id_obs) ? 1 : 0)
 
   // Limpiar todas las notificaciones de la bandeja
   const clearAllNotifications = useCallback(() => {
     setDismissedIds(prev => {
       const updated = new Set(prev)
       for (const s of solicitudes) updated.add(s.id_obs)
+      if (accumulationAlert) updated.add(accumulationAlert.id_obs)
       return updated
     })
     setToasts([])
-  }, [solicitudes])
+  }, [solicitudes, accumulationAlert])
 
   // Descartar/limpiar una notificación individual
   const dismissNotification = useCallback((idObs) => {
@@ -639,23 +691,45 @@ export function NotificationProvider({ children }) {
     const minsAntigua = calcWaitMins(masAntigua.fecha_subsanacion)
     const tiempoTxt = formatWaitTime(minsAntigua)
 
-    dispararToast({
-      id_obs: `ALERTA-PRUEBA-REVISION-${Date.now()}`,
-      id_sitio: masAntigua.id_sitio,
-      estado_covepa: 'En Revisión',
-      revisor: masAntigua.revisor || 'Auditoría Gilat',
-      detalle: `[PRUEBA] Hay ${ordenadas.length} observaciones en revisión (+10 min) en espera. La más antigua lleva ${tiempoTxt} (${masAntigua.id_sitio}${loc ? ` · ${loc}` : ''}).`,
+    const mensaje = `[PRUEBA] Hay ${ordenadas.length} observaciones en revisión (+10 min) en espera. La más antigua lleva ${tiempoTxt} (${masAntigua.id_sitio}${loc ? ` · ${loc}` : ''}).`
+
+    const alertObj = {
+      id_obs: 'ALERTA-ACUMULACION-REVISION',
       isAccumulationAlert: true,
-      queueType: 'auditores',
+      tipo: 'acumulacion_revision',
+      titulo: 'Observaciones en Revisión Demoradas',
+      count: ordenadas.length,
+      detalle: mensaje,
+      id_sitio: masAntigua.id_sitio,
+      localidad: loc,
+      revisor: masAntigua.revisor || 'Auditoría Gilat',
+      fecha_subsanacion: masAntigua.fecha_subsanacion,
       items: ordenadas.map(item => ({
         id_obs: item.id_obs,
         id_sitio: item.id_sitio,
         localidad: sitiosMapRef.current[item.id_sitio] || '',
         revisor: item.revisor,
         fecha_subsanacion: item.fecha_subsanacion,
-        subsistema: item.subsistema,
-        detalle: item.detalle
+        waitMins: calcWaitMins(item.fecha_subsanacion)
       }))
+    }
+
+    setDismissedIds(prev => {
+      const copy = new Set(prev)
+      copy.delete('ALERTA-ACUMULACION-REVISION')
+      return copy
+    })
+    setAccumulationAlert(alertObj)
+
+    dispararToast({
+      id_obs: `ALERTA-PRUEBA-REVISION-${Date.now()}`,
+      id_sitio: masAntigua.id_sitio,
+      estado_covepa: 'En Revisión',
+      revisor: masAntigua.revisor || 'Auditoría Gilat',
+      detalle: mensaje,
+      isAccumulationAlert: true,
+      queueType: 'auditores',
+      items: alertObj.items
     }, loc)
 
     playAccumulationChime()
@@ -694,14 +768,15 @@ export function NotificationProvider({ children }) {
   return (
     <NotificationContext.Provider
       value={{
-        solicitudes: visibleSolicitudes,
-        totalSolicitudes: solicitudes.length,
+        solicitudes: unifiedNotifications,
+        totalSolicitudes: unifiedNotifications.length,
         unreadCount,
         dismissedCount,
         clearAllNotifications,
         dismissNotification,
         restoreDismissedNotifications,
         dispararPruebaRevision,
+        copyObservacionesList,
         readIds,
         toasts,
         desktopPermission,

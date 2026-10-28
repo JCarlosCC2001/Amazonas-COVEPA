@@ -2,38 +2,34 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   X, CheckCircle2, Clock, MapPin, User,
-  ChevronRight, ChevronDown, ChevronUp, AlertTriangle,
-  ExternalLink
+  ChevronRight, AlertTriangle, ExternalLink,
+  Copy, Check
 } from 'lucide-react'
 import {
   useNotifications,
-  calcWaitMins,
-  formatWaitTime,
-  getWaitTierInfo
+  copyObservacionesList
 } from '../../context/NotificationContext'
 
 /**
  * Contenedor de Toasts Flotantes para Avisos en Tiempo Real
  * Muestra alertas visuales emergentes individuales o consolidadas por acumulación,
- * permitiendo desplegar la lista detallada de códigos de observaciones mediante flecha.
+ * permitiendo copiar de inmediato la lista de códigos y detalles al portapapeles.
  */
 export default function NotificationToastContainer() {
   const { toasts, dismissToast, markAsRead } = useNotifications()
   const navigate = useNavigate()
-  const [expandedToastIds, setExpandedToastIds] = useState(new Set())
+  const [copiedToastId, setCopiedToastId] = useState(null)
 
   if (!toasts || toasts.length === 0) return null
 
-  const toggleExpand = (toastId) => {
-    setExpandedToastIds(prev => {
-      const updated = new Set(prev)
-      if (updated.has(toastId)) {
-        updated.delete(toastId)
-      } else {
-        updated.add(toastId)
-      }
-      return updated
-    })
+  const handleCopyList = async (toastId, items) => {
+    const ok = await copyObservacionesList(items)
+    if (ok) {
+      setCopiedToastId(toastId)
+      setTimeout(() => {
+        setCopiedToastId(null)
+      }, 2500)
+    }
   }
 
   const handleReview = (toast, targetObsId = null) => {
@@ -59,13 +55,13 @@ export default function NotificationToastContainer() {
         const obs = toast.obs || {}
         const loc = obs.localidad ? ` · ${obs.localidad}` : ''
         const isAccumulation = Boolean(obs.isAccumulationAlert && obs.items && obs.items.length > 0)
-        const isExpanded = expandedToastIds.has(toast.id)
+        const isCopied = copiedToastId === toast.id
         const items = obs.items || []
 
         return (
           <div
             key={toast.id}
-            className={`notif-toast-card ${isAccumulation ? 'toast-accumulation-card' : ''} ${isExpanded ? 'toast-is-expanded' : ''}`}
+            className={`notif-toast-card ${isAccumulation ? 'toast-accumulation-card' : ''}`}
           >
             <div className={`notif-toast-accent ${isAccumulation ? (obs.queueType === 'auditores' ? 'accent-auditores' : 'accent-accumulation') : ''}`} />
 
@@ -116,66 +112,18 @@ export default function NotificationToastContainer() {
                       </p>
                     )}
 
-                    {/* Botón con Flecha para Desplegar la lista de observaciones demoradas */}
-                    <button
-                      type="button"
-                      className={`notif-toast-expand-btn ${isExpanded ? 'is-expanded' : ''}`}
-                      onClick={() => toggleExpand(toast.id)}
-                      aria-expanded={isExpanded}
-                      title={isExpanded ? 'Ocultar lista de observaciones' : 'Desplegar lista de observaciones'}
-                    >
-                      <span className="notif-expand-btn-text">
-                        {isExpanded ? 'Ocultar lista de observaciones' : `Ver lista de ${items.length} observaciones en espera`}
-                      </span>
-                      <span className="notif-expand-arrow-icon">
-                        {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                      </span>
-                    </button>
-
-                    {/* Lista desplegada de códigos de observaciones */}
-                    {isExpanded && (
-                      <div className="notif-toast-expanded-list">
-                        {items.map((item) => {
-                          const waitMins = calcWaitMins(item.fecha_subsanacion)
-                          const waitStr = formatWaitTime(waitMins)
-                          const tier = getWaitTierInfo(waitMins)
-                          const itemLoc = item.localidad ? ` · ${item.localidad}` : ''
-
-                          return (
-                            <div
-                              key={item.id_obs}
-                              className="notif-toast-list-item"
-                              onClick={() => handleReview(toast, item.id_obs)}
-                              title={`Clic para abrir la observación ${item.id_obs}`}
-                            >
-                              <div className="notif-toast-item-top">
-                                <span className="notif-toast-item-code">{item.id_obs}</span>
-                                <span className={`notif-toast-tier-pill ${tier.badgeClass}`}>
-                                  {tier.label}
-                                </span>
-                              </div>
-
-                              <div className="notif-toast-item-site">
-                                <MapPin size={10} />
-                                <span>{item.id_sitio}{itemLoc}</span>
-                              </div>
-
-                              {item.revisor && (
-                                <div className="notif-toast-item-user">
-                                  <User size={10} />
-                                  <span>{item.revisor}</span>
-                                </div>
-                              )}
-
-                              <div className="notif-toast-item-time">
-                                <Clock size={10} />
-                                <span>Demora: <strong>{waitStr}</strong></span>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
+                    {/* Botón para Copiar Lista de Observaciones al Portapapeles */}
+                    <div className="notif-toast-action-row">
+                      <button
+                        type="button"
+                        className={`notif-toast-copy-btn ${isCopied ? 'is-copied' : ''}`}
+                        onClick={() => handleCopyList(toast.id, items)}
+                        title="Copiar códigos y detalles de las observaciones demoradas al portapapeles"
+                      >
+                        {isCopied ? <Check size={13} /> : <Copy size={13} />}
+                        <span>{isCopied ? '¡Lista copiada al portapapeles!' : 'Copiar lista de observaciones'}</span>
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <>

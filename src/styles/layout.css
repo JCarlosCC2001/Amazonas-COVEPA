@@ -1095,6 +1095,74 @@
   background: #f0f7ff;
 }
 
+.notif-item-accumulation {
+  cursor: pointer;
+  position: relative;
+  background: #fffdf5;
+  border-left: 3.5px solid #d97706;
+}
+
+.notif-item-accumulation.is-unread {
+  background: #fefce8;
+  border-left: 3.5px solid #b45309;
+}
+
+.notif-item-accumulation:hover {
+  background: #fef9c3;
+}
+
+.notif-item-accumulation:hover .notif-item-dismiss-btn {
+  opacity: 1;
+}
+
+.notif-item-icon.icon-accumulation {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.notif-status-badge.badge-acc-pill {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.notif-acc-card-desc {
+  margin: 0.25rem 0 0.4rem 0;
+  font-size: var(--text-xs);
+  color: #78350f;
+  line-height: 1.35;
+}
+
+.notif-card-actions-row {
+  margin: 0.35rem 0 0.25rem 0;
+}
+
+.notif-card-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 5px;
+  color: #991b1b;
+  font-size: var(--text-badge);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.notif-card-copy-btn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #7f1d1d;
+}
+
+.notif-card-copy-btn.is-copied {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
 .notif-item-dismiss-btn {
   background: transparent;
   border: none;
@@ -1574,6 +1642,41 @@
   color: #7f1d1d;
   font-size: var(--text-xs);
   -webkit-line-clamp: 3;
+}
+
+/* Botón para Copiar Lista en Toast Flotante */
+.notif-toast-action-row {
+  display: flex;
+  margin-top: 0.35rem;
+}
+
+.notif-toast-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 6px;
+  color: #9f1239;
+  font-size: var(--text-badge);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.notif-toast-copy-btn:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+  color: #881337;
+}
+
+.notif-toast-copy-btn.is-copied {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
 }
 
 .notif-toast-expand-btn {

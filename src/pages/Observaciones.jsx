@@ -493,7 +493,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
 // ────────────────────────────────────────────────────────────
 // VISTA AGRUPADA POR SITIO — LAZY LOADING por acordeón
 // ────────────────────────────────────────────────────────────
-function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs }) {
+function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOptions = [] }) {
   const [isOpen, setIsOpen] = useState(false)
   const [obsData, setObsData] = useState(null)
   const [loadingObs, setLoadingObs] = useState(false)
@@ -568,70 +568,119 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs }) {
         </div>
       </button>
 
-      {/* Cuerpo: observaciones del sitio (lazy y adaptables a móvil) */}
+      {/* Cuerpo: observaciones del sitio con el mismo formato que en la vista de tabla */}
       {isOpen && (
-        <div className="agrupada-obs-list">
+        <div className="agrupada-obs-list" style={{ padding: 0 }}>
           {loadingObs ? (
-            <div className="agrupada-loading-row">
+            <div className="agrupada-loading-row" style={{ padding: '1.5rem', textAlign: 'center' }}>
               <Loader2 size={16} className="spinning"/>
               <span>Cargando observaciones de {sitio}{localidad ? ` (${localidad})` : ''}...</span>
             </div>
           ) : errorObs ? (
-            <div className="agrupada-loading-row" style={{color:'#dc2626'}}>
+            <div className="agrupada-loading-row" style={{ color: '#dc2626', padding: '1.25rem' }}>
               <AlertCircle size={15}/> {errorObs}
             </div>
           ) : obsData?.length === 0 ? (
-            <div className="agrupada-loading-row" style={{color:'var(--text-muted)'}}>
+            <div className="agrupada-loading-row" style={{ color: 'var(--text-muted)', padding: '1.5rem' }}>
               Sin observaciones con los filtros actuales
             </div>
           ) : (
-            obsData?.map(o => (
-              <div
-                key={o.id_obs}
-                className="agrupada-obs-row"
-                onClick={() => onSelectObs({ ...o, id_sitio: sitio })}
-              >
-                <div className="agrupada-obs-col-main">
-                  <div className="agrupada-obs-badges">
-                    <span className="site-code-badge" style={{fontSize:'var(--text-xs)'}}>{o.id_obs}</span>
-                    {o.protocolo && (
-                      <span className="agrupada-protocolo-tag" title={o.protocolo}>{o.protocolo}</span>
-                    )}
-                    {o.item && (
-                      <span className="agrupada-item-tag" title={o.sub_item ? `${o.item} / ${o.sub_item}` : o.item}>
-                        {o.item}
-                      </span>
-                    )}
-                  </div>
-                  <div className="agrupada-obs-detalle" title={o.detalle || ''}>
-                    {o.detalle || '—'}
-                  </div>
-                  {o.acuerdo_subsanacion && (
-                    <div className="agrupada-obs-acuerdo">
-                      <strong>Acuerdo:</strong> {o.acuerdo_subsanacion}
-                    </div>
-                  )}
-                </div>
-                <div className="agrupada-obs-col-status">
-                  <span className={`estado-badge ${estadoCovepaBadge(o.estado_covepa)}`}>
-                    {o.estado_covepa || 'Pendiente'}
-                  </span>
-                  {o.fecha_subsanacion && (
-                    <span className="agrupada-obs-fecha" title="Fecha de subsanación">
-                      <Calendar size={12}/> {o.fecha_subsanacion.split('T')[0]}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className="agrupada-view-btn"
-                    onClick={(e) => { e.stopPropagation(); onSelectObs({ ...o, id_sitio: sitio }) }}
-                    title="Ver y editar observación"
-                  >
-                    <Eye size={14}/> <span>Ver</span>
-                  </button>
-                </div>
-              </div>
-            ))
+            <div style={{ overflowX: 'auto', width: '100%' }}>
+              <table className="sitios-table" style={{ margin: 0, width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '105px' }}>Código</th>
+                    <th style={{ width: '120px' }}>Cuadrilla</th>
+                    <th style={{ width: '125px' }}>Código de Sitio</th>
+                    <th>Localidad</th>
+                    <th>Nombre del Lugar</th>
+                    <th style={{ width: '135px' }}>Estado COVEPA</th>
+                    <th style={{ width: '130px' }}>Fecha de Revisión</th>
+                    <th>Revisado por</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {obsData.map(o => {
+                    const revisorNombre = o.revisor || o.validado_por || ''
+                    return (
+                      <tr
+                        key={o.id_obs}
+                        className="sitio-row"
+                        onClick={() => onSelectObs({ ...o, id_sitio: sitio })}
+                      >
+                        <td><span className="site-code-badge">{o.id_obs}</span></td>
+                        <td>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '0.22rem 0.55rem',
+                              borderRadius: '6px',
+                              fontSize: 'var(--text-xs)',
+                              fontWeight: 'var(--fw-bold)',
+                              background: 'rgba(0, 48, 96, 0.08)',
+                              border: '1px solid rgba(0, 48, 96, 0.18)',
+                              color: '#003060',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {sitioInfo?.cuadrilla || 'Sin Cuadrilla'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="site-code-badge" style={{ color: 'var(--accent)' }}>
+                            {sitio}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
+                            {localidad || '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="site-name" style={{ color: 'var(--text-main)', fontWeight: 'var(--fw-semibold)', fontSize: 'var(--text-sm)' }}>
+                            {sitioInfo?.nombre_nodo || localidad || '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`estado-badge ${estadoCovepaBadge(o.estado_covepa)}`}>
+                            {o.estado_covepa || 'Pendiente'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: 'var(--text-sm)', color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)' }}>
+                            {o.fecha_subsanacion ? o.fecha_subsanacion.split('T')[0] : '—'}
+                          </span>
+                        </td>
+                        <td>
+                          {esRevisorGilat(revisorNombre, gilatOptions) ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                fontSize: 'var(--text-xs)',
+                                fontWeight: 'var(--fw-semibold)',
+                                padding: '0.22rem 0.6rem',
+                                borderRadius: '6px',
+                                background: '#eff6ff',
+                                color: '#1d4ed8',
+                                border: '1px solid #bfdbfe',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              <Users size={12} color="#2563eb" />
+                              {revisorNombre}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
@@ -639,7 +688,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs }) {
   )
 }
 
-function GrupadaView({ resumen, loading, filtros, sitiosMap = {}, onSelectObs }) {
+function GrupadaView({ resumen, loading, filtros, sitiosMap = {}, onSelectObs, gilatOptions = [] }) {
   const sitios = Object.keys(resumen).sort()
 
   if (loading) return (
@@ -673,6 +722,7 @@ function GrupadaView({ resumen, loading, filtros, sitiosMap = {}, onSelectObs })
           stats={resumen[sitio]}
           filtros={filtros}
           onSelectObs={onSelectObs}
+          gilatOptions={gilatOptions}
         />
       ))}
     </div>
@@ -1082,6 +1132,7 @@ export default function Observaciones() {
             filtros={filtrosActivos}
             sitiosMap={sitiosMap}
             onSelectObs={obs => setSelectedObs(obs)}
+            gilatOptions={gilatOptions}
           />
         </div>
       ) : (

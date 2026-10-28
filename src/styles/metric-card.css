@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    MEDIDORES / TARJETAS KPI REUTILIZABLES (METRIC CARD & GRID)
    ============================================================ */
 .covepa-metric-grid {
@@ -6,6 +6,9 @@
   gap: 0.85rem;
   width: 100%;
   margin-bottom: 1.25rem;
+}
+.covepa-metric-grid.cols-7 {
+  grid-template-columns: repeat(7, 1fr);
 }
 .covepa-metric-grid.cols-6 {
   grid-template-columns: repeat(6, 1fr);
@@ -22,6 +25,7 @@
 .covepa-metric-grid.cols-2 {
   grid-template-columns: repeat(2, 1fr);
 }
+
 
 .covepa-metric-card {
   position: relative;
@@ -254,6 +258,22 @@
 }
 .variant-amber:hover {
   border-color: #d97706;
+}
+
+.variant-orange {
+  --card-gradient: linear-gradient(90deg, #ea580c 0%, #fb923c 100%);
+  --card-accent: #ea580c;
+  --card-icon-bg: #ffedd5;
+  --card-icon-border: #fed7aa;
+  --card-icon-color: #ea580c;
+  --card-val-color: #ea580c;
+  --card-pill-bg: #fff7ed;
+  --card-pill-color: #9a3412;
+  --card-pill-border: #ffedd5;
+  --card-watermark-color: #ea580c;
+}
+.variant-orange:hover {
+  border-color: #ea580c;
 }
 
 .variant-purple {

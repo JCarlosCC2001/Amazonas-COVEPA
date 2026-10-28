@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Users, UserPlus, Search, Phone, MessageSquare, Edit2,
   Trash2, Shield, Wrench, Truck, MapPin, RefreshCw, X,
@@ -1560,6 +1560,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
   const [nombre, setNombre] = useState(member?.nombre || (member?.nombre_completo ? member.nombre_completo.split(' ')[0] : ''))
   const [apellido, setApellido] = useState(member?.apellido || (member?.nombre_completo ? member.nombre_completo.split(' ').slice(1).join(' ') : ''))
   const [dni, setDni] = useState(member?.dni || member?.documento_identidad || '')
+  const [email, setEmail] = useState(member?.email || member?.correo || '')
   const [empresa, setEmpresa] = useState(() => {
     if (!member?.empresa) return 'SELNET S.A.C.'
     const emp = member.empresa.toUpperCase()
@@ -1567,6 +1568,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
     if (emp.includes('GILAT')) return 'Gilat Networks'
     return 'SELNET S.A.C.'
   })
+  const [cargo, setCargo] = useState(member?.cargo || 'Tecnico')
   const [estado, setEstado] = useState(member?.estado || 'Activo')
   const [ciudadOrigen, setCiudadOrigen] = useState(member?.ciudad_origen || member?.origen || '')
 

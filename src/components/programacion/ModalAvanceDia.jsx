@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   TrendingUp, X, Search, Download, MapPin, User,
   Clock, ShieldCheck, RefreshCw, AlertCircle, Eye, FileText,
@@ -84,8 +84,11 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       if (!matchSearch) return false
 
       if (filterEstado === 'TODOS') return true
-      if (filterEstado === 'ENVIADAS_VALIDADAS') {
+      if (filterEstado === 'Validado') {
         return r.estado === 'Validado' || r.estado === 'Enviado'
+      }
+      if (filterEstado === 'Solicitando Revisión') {
+        return r.estado === 'Solicitando Revisión' || r.estado === 'Solicitando Revision'
       }
       if (filterEstado === 'En Revisión') {
         return r.estado === 'En Revision' || r.estado === 'En Revisión'
@@ -322,12 +325,12 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
 
           <button
             type="button"
-            className={`prog-modal-stat-btn stat-validado ${filterEstado === 'Validado' ? 'active' : ''}`}
-            onClick={() => setFilterEstado(prev => prev === 'Validado' ? 'TODOS' : 'Validado')}
-            title="Observaciones validadas listas para subir"
+            className={`prog-modal-stat-btn stat-solicitando ${filterEstado === 'Solicitando Revisión' ? 'active' : ''}`}
+            onClick={() => setFilterEstado(prev => prev === 'Solicitando Revisión' ? 'TODOS' : 'Solicitando Revisión')}
+            title="Observaciones solicitando revisión técnica"
           >
-            <span className="stat-btn-label text-validado">✓ Por Subir</span>
-            <span className="stat-btn-val text-validado">{stats.validadas || 0}</span>
+            <span className="stat-btn-label text-solicitando">⏳ Solicitando</span>
+            <span className="stat-btn-val text-solicitando">{stats.solicitando || 0}</span>
           </button>
 
           <button
@@ -342,12 +345,12 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
 
           <button
             type="button"
-            className={`prog-modal-stat-btn stat-enviado ${filterEstado === 'Enviado' ? 'active' : ''}`}
-            onClick={() => setFilterEstado(prev => prev === 'Enviado' ? 'TODOS' : 'Enviado')}
-            title="Observaciones enviadas a COVEPA"
+            className={`prog-modal-stat-btn stat-validado ${filterEstado === 'Validado' ? 'active' : ''}`}
+            onClick={() => setFilterEstado(prev => prev === 'Validado' ? 'TODOS' : 'Validado')}
+            title="Observaciones validadas conformes"
           >
-            <span className="stat-btn-label text-enviado">✉ Enviadas</span>
-            <span className="stat-btn-val text-enviado">{stats.enviadas || 0}</span>
+            <span className="stat-btn-label text-validado">✓ Validadas</span>
+            <span className="stat-btn-val text-validado">{stats.validadas || 0}</span>
           </button>
 
           <button

@@ -1,4 +1,4 @@
-﻿import { supabase } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import { supabaseExt } from '../lib/supabase'
 import { ASIGNACIONES_BASE } from './sitiosService'
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService.js'
@@ -38,12 +38,16 @@ async function getSitiosCatalogMap() {
  */
 export async function getGlobalMetrics() {
   try {
-    const [totalRes, valRes, revRes, descRes, envRes, rechRes] = await Promise.all([
+    const [totalRes, valRes, solRes, revRes, descRes, rechRes] = await Promise.all([
       supabase.from('observaciones').select('*', { count: 'exact', head: true }),
       supabase
         .from('observaciones')
         .select('*', { count: 'exact', head: true })
-        .or('estado_covepa.eq.Validado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Enviado,estado_covepa.neq.Rechazado)'),
+        .or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Solicitando Revision,estado_covepa.neq.Solicitando Revisión,estado_covepa.neq.Rechazado)'),
+      supabase
+        .from('observaciones')
+        .select('*', { count: 'exact', head: true })
+        .or('estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión'),
       supabase
         .from('observaciones')
         .select('*', { count: 'exact', head: true })
@@ -55,29 +59,25 @@ export async function getGlobalMetrics() {
       supabase
         .from('observaciones')
         .select('*', { count: 'exact', head: true })
-        .eq('estado_covepa', 'Enviado'),
-      supabase
-        .from('observaciones')
-        .select('*', { count: 'exact', head: true })
         .eq('estado_covepa', 'Rechazado')
     ])
 
     const total = totalRes.count || 0
     const validadas = valRes.count || 0
+    const solicitando = solRes.count || 0
     const enRevision = revRes.count || 0
     const descartadas = descRes.count || 0
-    const enviadas = envRes.count || 0
     const rechazadas = rechRes.count || 0
-    const resueltas = validadas + descartadas + enviadas
-    const pendientes = Math.max(0, total - (resueltas + enRevision + rechazadas))
+    const resueltas = validadas + descartadas
+    const pendientes = Math.max(0, total - (resueltas + solicitando + enRevision + rechazadas))
     const porcentajeGlobal = total > 0 ? ((resueltas / total) * 100).toFixed(1) : '0.0'
 
     return {
       total,
       validadas,
+      solicitando,
       enRevision,
       descartadas,
-      enviadas,
       rechazadas,
       resueltas,
       pendientes,
@@ -213,13 +213,13 @@ export async function getAvancePorFecha(fechaStr) {
 
     if (obsErr) throw obsErr
 
-    // 3. Obtener observaciones en estado 'En Revision' (que no tienen fecha_subsanacion)
+    // 3. Obtener observaciones en estado 'En Revision' o 'Solicitando Revisión' (que no tienen fecha_subsanacion)
     // Para la fecha de hoy se traen todas las que están en revisión activa en el sistema.
     // Para otras fechas, las que pertenezcan a los sitios programados en esa fecha.
     let revisionQuery = supabase
       .from('observaciones')
       .select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, detalle, subsistema, protocolo')
-      .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión')
+      .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión,estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión')
 
     if (!isToday) {
       if (programmedSiteIds.length > 0) {
@@ -298,14 +298,16 @@ export async function getAvancePorFecha(fechaStr) {
       const rawSt = (o.estado_covepa || '').trim()
       let estadoNormalizado = 'Validado'
       if (rawSt === 'Descartado') estadoNormalizado = 'Descartado'
+      else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') estadoNormalizado = 'Solicitando Revisión'
       else if (rawSt === 'En Revision' || rawSt === 'En Revisión') estadoNormalizado = 'En Revisión'
-      else if (rawSt === 'Enviado') estadoNormalizado = 'Enviado'
       else if (rawSt === 'Rechazado') estadoNormalizado = 'Rechazado'
       else if (rawSt === 'Pendiente') estadoNormalizado = 'Pendiente'
-      else if (rawSt === 'Validado') estadoNormalizado = 'Validado'
+      else if (rawSt === 'Validado' || rawSt === 'Enviado') estadoNormalizado = 'Validado'
       else if (o.fecha_subsanacion) estadoNormalizado = 'Validado'
 
       const isEnRevision = estadoNormalizado === 'En Revisión'
+      const isSolicitando = estadoNormalizado === 'Solicitando Revisión'
+      const isPendingReview = isEnRevision || isSolicitando
 
       return {
         id_obs: o.id_obs,
@@ -315,8 +317,8 @@ export async function getAvancePorFecha(fechaStr) {
         tecnico: nombreTecnico,
         cuadrilla: cuadrillaTecnico,
         estado: estadoNormalizado,
-        revisor: isEnRevision ? (o.revisor || 'En proceso') : (o.revisor || 'Sin revisor'),
-        fecha_subsanacion: isEnRevision ? (o.fecha_subsanacion || 'Pendiente') : o.fecha_subsanacion,
+        revisor: isPendingReview ? (o.revisor || 'En proceso') : (o.revisor || 'Sin revisor'),
+        fecha_subsanacion: isPendingReview ? (o.fecha_subsanacion || 'Pendiente') : o.fecha_subsanacion,
         detalle: o.detalle,
         subsistema: o.subsistema,
         protocolo: o.protocolo
@@ -325,15 +327,16 @@ export async function getAvancePorFecha(fechaStr) {
 
     // Métricas del día
     const revisionRows = rows.filter(r => r.estado === 'En Revisión')
+    const solicitandoRows = rows.filter(r => r.estado === 'Solicitando Revisión')
     const sitiosEnRevision = Array.from(new Set(revisionRows.map(r => r.id_sitio)))
 
     const statsDia = {
       total: rows.length,
       validadas: rows.filter(r => r.estado === 'Validado').length,
+      solicitando: solicitandoRows.length,
       enRevision: revisionRows.length,
       sitiosEnRevision: sitiosEnRevision,
       totalSitiosEnRevision: sitiosEnRevision.length,
-      enviadas: rows.filter(r => r.estado === 'Enviado').length,
       descartadas: rows.filter(r => r.estado === 'Descartado').length,
       rechazadas: rows.filter(r => r.estado === 'Rechazado').length,
       sitiosUnicos: new Set(rows.map(r => r.id_sitio)).size,

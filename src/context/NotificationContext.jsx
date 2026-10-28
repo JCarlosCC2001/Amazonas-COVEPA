@@ -13,11 +13,46 @@ const KNOWN_IDS_KEY = 'covepa_known_solicitud_ids'
  * Sintetizador Web Audio API: reproduce un chime armónico sutil de 2 tonos
  * Sin dependencias de archivos de audio externos, instantáneo y ligero.
  */
+// Contexto de Audio compartido y desbloqueado con interacción de usuario para evitar avisos de Autoplay Policy
+let sharedAudioCtx = null
+
+function getAudioContext() {
+  if (typeof window === 'undefined') return null
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext
+  if (!AudioContextClass) return null
+  if (!sharedAudioCtx) {
+    try {
+      sharedAudioCtx = new AudioContextClass()
+    } catch {
+      return null
+    }
+  }
+  return sharedAudioCtx
+}
+
+// Escuchar la primera interacción del usuario para desbloquear el AudioContext limpiamente
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    const ctx = getAudioContext()
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {})
+    }
+    window.removeEventListener('click', unlockAudio)
+    window.removeEventListener('keydown', unlockAudio)
+    window.removeEventListener('touchstart', unlockAudio)
+  }
+  window.addEventListener('click', unlockAudio, { passive: true })
+  window.addEventListener('keydown', unlockAudio, { passive: true })
+  window.addEventListener('touchstart', unlockAudio, { passive: true })
+}
+
+/**
+ * Sintetizador Web Audio API para campana sutil de notificación
+ */
 export function playNotificationChime() {
   try {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext
-    if (!AudioContextClass) return
-    const ctx = new AudioContextClass()
+    const ctx = getAudioContext()
+    if (!ctx || ctx.state === 'suspended') return
     const now = ctx.currentTime
 
     // Tono 1: Re 5 (587.33 Hz)
@@ -54,9 +89,8 @@ export function playNotificationChime() {
  */
 export function playAccumulationChime() {
   try {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext
-    if (!AudioContextClass) return
-    const ctx = new AudioContextClass()
+    const ctx = getAudioContext()
+    if (!ctx || ctx.state === 'suspended') return
     const now = ctx.currentTime
 
     // 3 tonos armónicos ascendentes: Mi 5 (659.25 Hz), Sol# 5 (830.61 Hz), Si 5 (987.77 Hz)
@@ -313,7 +347,7 @@ export function NotificationProvider({ children }) {
       const revisorText = obs.revisor ? `Solicitado por: ${obs.revisor}` : 'Técnico en campo solicita revisión técnica.'
       const notif = new Notification(`🔔 Solicitud de Revisión: ${obs.id_obs}`, {
         body: `${obs.id_sitio}${locText}\n${revisorText}`,
-        icon: '/favicon.ico',
+        icon: '/icon-192.png',
         tag: `covepa-solicitud-${obs.id_obs}`,
         renotify: true
       })
@@ -428,7 +462,7 @@ export function NotificationProvider({ children }) {
           try {
             new Notification(titulo, {
               body: mensaje,
-              icon: '/favicon.ico',
+              icon: '/icon-192.png',
               tag: 'covepa-alerta-acumulacion-revision',
               renotify: true
             })
@@ -615,7 +649,7 @@ export function NotificationProvider({ children }) {
         playNotificationChime()
         new Notification('🔔 Alertas COVEPA Activadas', {
           body: 'Recibirás avisos instantáneos cuando un técnico solicite revisión.',
-          icon: '/favicon.ico'
+          icon: '/icon-192.png'
         })
       }
       return perm
@@ -752,7 +786,7 @@ export function NotificationProvider({ children }) {
       try {
         new Notification(`[PRUEBA] ⚠️ Observaciones en Revisión Acumuladas (${ordenadas.length})`, {
           body: `Hay ${ordenadas.length} observaciones en revisión (+10 min) en espera.`,
-          icon: '/favicon.ico',
+          icon: '/icon-192.png',
           tag: 'covepa-alerta-acumulacion-revision-prueba',
           renotify: true
         })

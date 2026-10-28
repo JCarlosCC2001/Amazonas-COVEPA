@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './hooks/useAuth'
 import { PresentationProvider } from './context/PresentationContext'
 import { NotificationProvider } from './context/NotificationContext'
+import ErrorBoundary from './components/shared/ErrorBoundary'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
@@ -47,40 +48,42 @@ function PageLoader() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <PresentationProvider>
-        <BrowserRouter>
-          <NotificationProvider>
-            <Routes>
-              {/* Ruta pública */}
-              <Route path="/login" element={<Login />} />
+    <ErrorBoundary>
+      <AuthProvider>
+        <PresentationProvider>
+          <BrowserRouter>
+            <NotificationProvider>
+              <Routes>
+                {/* Ruta pública */}
+                <Route path="/login" element={<Login />} />
 
-              {/* Rutas protegidas bajo el Layout principal */}
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <Layout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard"     element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-                <Route path="sitios"        element={<Suspense fallback={<PageLoader />}><Sitios /></Suspense>} />
-                <Route path="observaciones" element={<Suspense fallback={<PageLoader />}><Observaciones /></Suspense>} />
-                <Route path="programacion"  element={<Suspense fallback={<PageLoader />}><Programacion /></Suspense>} />
-                <Route path="tecnicos"      element={<Suspense fallback={<PageLoader />}><Tecnicos /></Suspense>} />
-                <Route path="eficiencia"    element={<Suspense fallback={<PageLoader />}><Eficiencia /></Suspense>} />
-                <Route path="kmz"           element={<Suspense fallback={<PageLoader />}><KMZ /></Suspense>} />
-                <Route path="reportes"      element={<Suspense fallback={<PageLoader />}><Reportes /></Suspense>} />
-              </Route>
+                {/* Rutas protegidas bajo el Layout principal */}
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <Layout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<Navigate to="/dashboard" replace />} />
+                  <Route path="dashboard"     element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+                  <Route path="sitios"        element={<Suspense fallback={<PageLoader />}><Sitios /></Suspense>} />
+                  <Route path="observaciones" element={<Suspense fallback={<PageLoader />}><Observaciones /></Suspense>} />
+                  <Route path="programacion"  element={<Suspense fallback={<PageLoader />}><Programacion /></Suspense>} />
+                  <Route path="tecnicos"      element={<Suspense fallback={<PageLoader />}><Tecnicos /></Suspense>} />
+                  <Route path="eficiencia"    element={<Suspense fallback={<PageLoader />}><Eficiencia /></Suspense>} />
+                  <Route path="kmz"           element={<Suspense fallback={<PageLoader />}><KMZ /></Suspense>} />
+                  <Route path="reportes"      element={<Suspense fallback={<PageLoader />}><Reportes /></Suspense>} />
+                </Route>
 
-              {/* Fallback */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </NotificationProvider>
-        </BrowserRouter>
-      </PresentationProvider>
-    </AuthProvider>
+                {/* Fallback */}
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </NotificationProvider>
+          </BrowserRouter>
+        </PresentationProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   )
 }

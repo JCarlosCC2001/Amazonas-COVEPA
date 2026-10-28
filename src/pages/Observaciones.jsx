@@ -4,8 +4,9 @@ import {
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,
   AlertTriangle, FileText, Save, LayoutList, Table2,
   ChevronDown, ChevronUp, MapPin, Loader2, Calendar, Ban, UploadCloud, Layers, Clock,
-  Users, Check, Info
+  Users, Check, Info, History
 } from 'lucide-react'
+import HistorialEstadosTimeline from '../components/shared/HistorialEstadosTimeline'
 import {
   fetchObservaciones, fetchObservacionesKPIs, fetchFiltrosObservaciones,
   updateObservacionCovepa, exportObservacionesCSV,
@@ -33,6 +34,8 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const [commentVal, setCommentVal] = useState(obs?.comentario_covepa || '')
   const [savingComment, setSavingComment] = useState(false)
   const [savedComment, setSavedComment] = useState(false)
+  const [showHistorial, setShowHistorial] = useState(false)
+  const [historialRefreshKey, setHistorialRefreshKey] = useState(0)
   const isDirtyCommentRef = useRef(false)
   const commentValRef = useRef(commentVal)
   commentValRef.current = commentVal
@@ -102,7 +105,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleCloseWithAutoSave])
 
-  // 1. Cambio de Estado — Flujo idéntico a Programación (sincronización con Control Fotos)
+  // 1. Cambio de Estado — Flujo idéntico a Programación (sincronización con Control Fotos + Historial)
   const handleSetEstado = async (nuevoEstado) => {
     setUpdating(true)
     try {
@@ -110,7 +113,19 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       const comentarioActual = commentValRef.current ?? obsLocal.comentario_covepa ?? null
       const fechaIso = new Date().toISOString()
 
-      await sincronizarEstadoConControlFotos(obsLocal.id_obs, nuevoEstado, auditorActual, comentarioActual)
+      await sincronizarEstadoConControlFotos(
+        obsLocal.id_obs,
+        nuevoEstado,
+        auditorActual,
+        comentarioActual,
+        {
+          idSitio: obsLocal.id_sitio,
+          estadoAnterior: obsLocal.estado_covepa || (obsLocal.fecha_subsanacion ? 'Validado' : 'Pendiente'),
+          usuarioEmail: user?.email,
+          usuarioId: user?.id,
+          origen: 'observaciones'
+        }
+      )
 
       const updatedRow = {
         ...obsLocal,
@@ -121,6 +136,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       }
 
       setObsLocal(updatedRow)
+      setHistorialRefreshKey(k => k + 1)
       if (onSaved) onSaved(updatedRow)
     } catch (err) {
       alert('Error actualizando estado de observación: ' + err.message)
@@ -246,8 +262,28 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   <option value="Descartado">🚫 Descartado</option>
                   <option value="Rechazado">✕ Rechazado</option>
                 </select>
+
+                <button
+                  type="button"
+                  onClick={() => setShowHistorial(prev => !prev)}
+                  className={`obs-history-toggle-btn ${showHistorial ? 'is-active' : ''}`}
+                  title="Ver u ocultar trazabilidad de cambios de estado"
+                >
+                  <History size={12} />
+                  <span>Historial</span>
+                </button>
               </div>
             </div>
+
+            {/* Trazabilidad Cronológica de Estados */}
+            {showHistorial && (
+              <div style={{ marginBottom: '0.75rem' }}>
+                <HistorialEstadosTimeline
+                  idObs={obsLocal.id_obs}
+                  refreshKey={historialRefreshKey}
+                />
+              </div>
+            )}
 
             {/* Barra de Auditoría: Revisor GILAT y Fecha */}
             {showRevisorYFecha && (

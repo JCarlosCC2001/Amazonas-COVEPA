@@ -1,15 +1,12 @@
 // =========================================================================================
-// 🚀 PUENTE DE COMUNICACIÓN CON EL APLICATIVO DE FOTOS DE CAMPO
+// 🚀 PUENTE DE COMUNICACIÓN CON EL APLICATIVO DE FOTOS DE CAMPO Y AUDITORÍA DE ESTADOS
 // =========================================================================================
 // Archivo: src/services/auditoriaSyncService.js
 //
 // PROPÓSITO:
 // Este módulo centraliza y aísla la sincronización de auditoría y estados de observaciones
-// técnicas hacia la base de datos Supabase (`public.observaciones`).
-//
-// Permite que cuando un auditor/usuario revise, valide, rechace, descarte o actualice una
-// observación en este ERP web, el aplicativo móvil de fotos de campo reciba y sincronice
-// el dictamen y los cambios en tiempo real.
+// técnicas hacia la base de datos Supabase (`public.observaciones`), y gestiona el
+// historial de trazabilidad cronológica en `public.historial_estados_observaciones`.
 //
 // ESPECIFICACIÓN DEL PAYLOAD (4 campos oficiales requeridos):
 // 1. `estado_covepa`     : Uno de los 6 estados oficiales (respetando mayúsculas y tildes):
@@ -89,38 +86,142 @@ export function resolverNombreAuditor(user, personalMember = null, fallback = 'A
 }
 
 /**
- * Función para actualizar el dictamen de una observación y sincronizar con Control Fotos
+ * Registra un evento en la tabla de trazabilidad histórica `historial_estados_observaciones`.
+ *
+ * @param {Object} params
+ * @param {string} params.idObs - Código de la observación
+ * @param {string} [params.idSitio] - Código del sitio
+ * @param {string} [params.estadoAnterior] - Estado previo antes del cambio
+ * @param {string} params.estadoNuevo - Nuevo estado aplicado
+ * @param {string} [params.usuarioNombre] - Nombre del auditor o usuario
+ * @param {string} [params.usuarioEmail] - Correo electrónico de sesión
+ * @param {string} [params.usuarioId] - UUID de autenticación de Supabase
+ * @param {string} [params.comentario] - Motivo, sustento o nota técnica
+ * @param {string} [params.origen] - 'programacion' | 'observaciones' | 'app_fotos' | 'web_erp'
+ * @returns {Promise<Object|null>}
+ */
+export async function registrarHistorialEstado({
+  idObs,
+  idSitio = null,
+  estadoAnterior = null,
+  estadoNuevo,
+  usuarioNombre = 'Auditor COVEPA',
+  usuarioEmail = null,
+  usuarioId = null,
+  comentario = null,
+  origen = 'web_erp'
+}) {
+  if (!idObs || !estadoNuevo) return null
+  try {
+    const { data, error } = await supabase
+      .from('historial_estados_observaciones')
+      .insert({
+        id_obs: idObs,
+        id_sitio: idSitio || null,
+        estado_anterior: estadoAnterior || null,
+        estado_nuevo: normalizarEstadoOficial(estadoNuevo),
+        usuario_nombre: usuarioNombre || 'Auditor COVEPA',
+        usuario_email: usuarioEmail || null,
+        usuario_id: usuarioId || null,
+        comentario: comentario || null,
+        origen: origen,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.warn('[HISTORIAL-SYNC] Advertencia al registrar historial:', error.message)
+      return null
+    }
+    return data
+  } catch (err) {
+    console.warn('[HISTORIAL-SYNC] Error de red al registrar historial:', err)
+    return null
+  }
+}
+
+/**
+ * Consulta la lista cronológica de cambios de estado de una observación.
+ *
+ * @param {string} idObs - Código de observación
+ * @returns {Promise<Array>} Lista de registros ordenada descendentemente por fecha
+ */
+export async function fetchHistorialObservacion(idObs) {
+  if (!idObs) return []
+  try {
+    const { data, error } = await supabase
+      .from('historial_estados_observaciones')
+      .select('*')
+      .eq('id_obs', idObs)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.warn('[HISTORIAL-FETCH] Error al consultar historial:', error.message)
+      return []
+    }
+    return data || []
+  } catch (err) {
+    console.warn('[HISTORIAL-FETCH] Error de red al consultar historial:', err)
+    return []
+  }
+}
+
+/**
+ * Función para actualizar el dictamen de una observación, sincronizar con Control Fotos
+ * y registrar automáticamente el evento en el historial de trazabilidad.
+ *
  * @param {string} idObs - Código PRONATEL de la observación (ej: 'H1-OC-25-316')
  * @param {string} estado - 'Validado' | 'Rechazado' | 'En Revisión' | 'Solicitando Revisión' | 'Descartado' | 'Pendiente'
  * @param {string} revisor - Nombre del auditor o usuario logueado
  * @param {string} [comentario] - Motivo de rechazo o nota técnica (opcional)
+ * @param {Object} [extraContext] - Datos adicionales de contexto ({ idSitio, estadoAnterior, usuarioEmail, usuarioId, origen, fechaIso })
  */
-export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, comentario = null) {
+export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, comentario = null, extraContext = {}) {
   try {
+    const estadoNorm = normalizarEstadoOficial(estado)
+    const fechaIso = extraContext.fechaIso || new Date().toISOString()
     const { data, error } = await supabase
       .from('observaciones')
       .update({
-        estado_covepa: estado,
+        estado_covepa: estadoNorm,
         revisor: revisor,
-        fecha_subsanacion: new Date().toISOString(),
+        fecha_subsanacion: fechaIso,
         comentario_covepa: comentario
       })
-      .eq('id_obs', idObs);
+      .eq('id_obs', idObs)
+
     if (error) {
-      console.error('Error al actualizar observación:', error);
-      return false;
+      console.error('Error al actualizar observación:', error)
+      return false
     }
-    console.log(`[Sincronización OK] Observación ${idObs} cambiada a ${estado}`);
-    return true;
+
+    console.log(`[Sincronización OK] Observación ${idObs} cambiada a ${estadoNorm}`)
+
+    // Registro automático no bloqueante en el historial de estados
+    registrarHistorialEstado({
+      idObs,
+      idSitio: extraContext.idSitio,
+      estadoAnterior: extraContext.estadoAnterior,
+      estadoNuevo: estadoNorm,
+      usuarioNombre: revisor,
+      usuarioEmail: extraContext.usuarioEmail,
+      usuarioId: extraContext.usuarioId,
+      comentario: comentario,
+      origen: extraContext.origen || 'web_erp'
+    }).catch(err => console.warn('[HISTORIAL-WARN] Error registrando historial:', err))
+
+    return true
   } catch (err) {
-    console.error('Error de red al actualizar observación:', err);
-    return false;
+    console.error('Error de red al actualizar observación:', err)
+    return false
   }
 }
 
 /**
  * SINCRONIZACIÓN PRINCIPAL:
- * Actualiza el dictamen de una observación técnica con los 4 campos oficiales requeridos.
+ * Actualiza el dictamen de una observación técnica con los 4 campos oficiales requeridos
+ * y registra el evento en el historial de trazabilidad.
  *
  * @param {string} idObs - Código único de la observación (ej: "H1-OC-100-242" o "H1-OC-25-340")
  * @param {Object} dictamen
@@ -128,13 +229,23 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
  * @param {string} [dictamen.revisor] - Nombre completo del auditor (si se omite, se usa fallback)
  * @param {string|null} [dictamen.comentarioTexto] - Notas técnicas, motivo de rechazo o sustento
  * @param {string} [dictamen.fechaSubsanacion] - Fecha ISO (por defecto new Date().toISOString())
+ * @param {string} [dictamen.estadoAnterior] - Estado anterior
+ * @param {string} [dictamen.idSitio] - Sitio asociado
+ * @param {string} [dictamen.usuarioEmail] - Correo del usuario autenticado
+ * @param {string} [dictamen.usuarioId] - UUID del usuario autenticado
+ * @param {string} [dictamen.origen] - 'programacion' | 'observaciones' | 'app_fotos' | 'web_erp'
  * @returns {Promise<{ data: Object|null, error: Object|null }>}
  */
 export async function sincronizarAuditoriaObservacion(idObs, {
   nuevoEstado,
   revisor,
   comentarioTexto,
-  fechaSubsanacion
+  fechaSubsanacion,
+  estadoAnterior = null,
+  idSitio = null,
+  usuarioEmail = null,
+  usuarioId = null,
+  origen = 'web_erp'
 } = {}) {
   if (!idObs) {
     throw new Error('[AUDITORIA-SYNC] Se requiere el código idObs para sincronizar.')
@@ -183,6 +294,20 @@ export async function sincronizarAuditoriaObservacion(idObs, {
 
   const registroActualizado = data?.[0] || null
   console.log(`[AUDITORIA-SYNC] ✅ Observación ${idObs} sincronizada exitosamente.`)
+
+  // Registro en el historial
+  registrarHistorialEstado({
+    idObs,
+    idSitio,
+    estadoAnterior,
+    estadoNuevo: estadoNormalizado,
+    usuarioNombre: revisorFinal,
+    usuarioEmail,
+    usuarioId,
+    comentario: comentarioLimpio,
+    origen
+  }).catch(err => console.warn('[HISTORIAL-WARN] Error registrando historial:', err))
+
   return { data: registroActualizado, error: null }
 }
 

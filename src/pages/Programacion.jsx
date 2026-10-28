@@ -4,10 +4,11 @@ import {
   MapPin, CheckCircle2, Clock, AlertCircle, List,
   CalendarDays, X, Search, RefreshCw, Eye, ShieldCheck,
   Check, AlertTriangle, Users, Edit3, User, FileSpreadsheet, Download, Send,
-  TrendingUp
+  TrendingUp, History
 } from 'lucide-react'
 // M3: ExcelJS se importa dinámicamente en handleExportXLSX para no inflar el bundle inicial
 import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
+import HistorialEstadosTimeline from '../components/shared/HistorialEstadosTimeline'
 import {
   getPersonalActivo,
   getPersonalTecnico,
@@ -1923,6 +1924,8 @@ function ModalDetallesProgramacion({
   const [updatingId, setUpdatingId] = useState(null)
   const [savingCommentId, setSavingCommentId] = useState(null)
   const [savedCommentId, setSavedCommentId] = useState(null)
+  const [expandedHistorialId, setExpandedHistorialId] = useState(null)
+  const [historialRefreshKeys, setHistorialRefreshKeys] = useState({})
 
   // Ref con los comentarios modificados (dirty) para autoguardarlos al cerrar
   const dirtyCommentsRef = useRef(new Set())
@@ -1978,8 +1981,20 @@ function ModalDetallesProgramacion({
       const comentarioActual = comments[obs.id_obs] ?? obs.comentario_covepa ?? null
       const fechaIso = new Date().toISOString()
 
-      // Sincronización oficial con Control Fotos
-      await sincronizarEstadoConControlFotos(obs.id_obs, nuevoEstado, auditorActual, comentarioActual)
+      // Sincronización oficial con Control Fotos + Historial de Estados
+      await sincronizarEstadoConControlFotos(
+        obs.id_obs,
+        nuevoEstado,
+        auditorActual,
+        comentarioActual,
+        {
+          idSitio: obs.id_sitio || currentSitioId,
+          estadoAnterior: obs.estado_covepa,
+          usuarioEmail: user?.email,
+          usuarioId: user?.id,
+          origen: 'programacion'
+        }
+      )
 
       // Actualizar localmente
       setObservaciones(prev => prev.map(o => {
@@ -1993,6 +2008,12 @@ function ModalDetallesProgramacion({
           }
         }
         return o
+      }))
+
+      // Notificar refresco de la línea de tiempo si está desplegada
+      setHistorialRefreshKeys(prev => ({
+        ...prev,
+        [obs.id_obs]: (prev[obs.id_obs] || 0) + 1
       }))
 
       onObservationUpdated()
@@ -2603,6 +2624,16 @@ function ModalDetallesProgramacion({
                           <option value="Descartado">🚫 Descartado</option>
                           <option value="Rechazado">✕ Rechazado</option>
                         </select>
+
+                        <button
+                          type="button"
+                          onClick={() => setExpandedHistorialId(prev => prev === obs.id_obs ? null : obs.id_obs)}
+                          className={`obs-history-toggle-btn ${expandedHistorialId === obs.id_obs ? 'is-active' : ''}`}
+                          title="Ver u ocultar trazabilidad de cambios de estado"
+                        >
+                          <History size={12} />
+                          <span>Historial</span>
+                        </button>
                       </div>
                     </div>
 
@@ -2614,6 +2645,14 @@ function ModalDetallesProgramacion({
                       </div>
                     )}
                   </div>
+
+                  {/* Trazabilidad Cronológica de Estados */}
+                  {expandedHistorialId === obs.id_obs && (
+                    <HistorialEstadosTimeline
+                      idObs={obs.id_obs}
+                      refreshKey={historialRefreshKeys[obs.id_obs] || 0}
+                    />
+                  )}
 
                   {/* Fila de Auditoría: Revisor y Fecha de Validación */}
                   {showRevisorYFecha && (

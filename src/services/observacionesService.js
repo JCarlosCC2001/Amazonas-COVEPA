@@ -3,44 +3,20 @@ import {
   sincronizarAuditoriaObservacion,
   sincronizarComentarioObservacion,
   normalizarEstadoOficial,
-  resolverNombreAuditor
+  resolverNombreAuditor,
+  sincronizarEstadoConControlFotos,
+  fetchHistorialObservacion,
+  registrarHistorialEstado
 } from './auditoriaSyncService'
 
 export {
   sincronizarAuditoriaObservacion,
   sincronizarComentarioObservacion,
   normalizarEstadoOficial,
-  resolverNombreAuditor
-}
-
-/**
- * Función para actualizar el dictamen de una observación y sincronizar con Control Fotos
- * @param {string} idObs - Código PRONATEL de la observación (ej: 'H1-OC-25-316')
- * @param {string} estado - 'Validado' | 'Rechazado' | 'En Revisión' | 'Solicitando Revisión' | 'Descartado' | 'Pendiente'
- * @param {string} revisor - Nombre del auditor o usuario logueado
- * @param {string} [comentario] - Motivo de rechazo o nota técnica (opcional)
- */
-export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, comentario = null) {
-  try {
-    const { data, error } = await supabase
-      .from('observaciones')
-      .update({
-        estado_covepa: estado,
-        revisor: revisor,
-        fecha_subsanacion: new Date().toISOString(),
-        comentario_covepa: comentario
-      })
-      .eq('id_obs', idObs);
-    if (error) {
-      console.error('Error al actualizar observación:', error);
-      return false;
-    }
-    console.log(`[Sincronización OK] Observación ${idObs} cambiada a ${estado}`);
-    return true;
-  } catch (err) {
-    console.error('Error de red al actualizar observación:', err);
-    return false;
-  }
+  resolverNombreAuditor,
+  sincronizarEstadoConControlFotos,
+  fetchHistorialObservacion,
+  registrarHistorialEstado
 }
 
 const PAGE_SIZE_MAX = 1000

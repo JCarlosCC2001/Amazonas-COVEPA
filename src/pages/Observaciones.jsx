@@ -533,9 +533,9 @@ export default function Observaciones() {
     try {
       const data = await exportObservacionesCSV(filtrosActivos)
       const cols = [
-        'id_obs', 'cuadrilla', 'id_sitio', 'localidad', 'protocolo', 'subsistema', 'detalle', 'item', 'sub_item',
+        'id_obs', 'cuadrilla', 'id_sitio', 'localidad', 'hito', 'protocolo', 'subsistema', 'detalle', 'item', 'sub_item',
         'comentario_inicial', 'comentario_complementario', 'comentario_final',
-        'acuerdo_subsanacion', 'estado_covepa', 'fecha_subsanacion', 'comentario_covepa'
+        'acuerdo_subsanacion', 'estado_gilat', 'estado_pronatel', 'comentario_pronatel', 'estado_covepa', 'fecha_subsanacion', 'revisor', 'comentario_covepa'
       ]
       const header = cols.join(',')
       const rows = data.map(r => cols.map(c => {

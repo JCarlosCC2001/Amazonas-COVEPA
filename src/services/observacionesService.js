@@ -209,7 +209,7 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
 // 5. Exporta a CSV todas las observaciones del filtro actual
 // ────────────────────────────────────────────────────────────
 export async function exportObservacionesCSV(filters = {}) {
-  const selectCols = 'id_obs,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_covepa,fecha_subsanacion,comentario_covepa'
+  const selectCols = '*'
   const allRows = await fetchAllRowsInBatches('observaciones', selectCols, filters)
   return allRows.sort((a, b) => (a.id_obs || '').localeCompare(b.id_obs || ''))
 }

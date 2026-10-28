@@ -79,7 +79,8 @@ export default function Dashboard() {
       totalSitios: 156
     },
     grupos: [],
-    sitios: []
+    sitios: [],
+    semanaActual: { dias: [], rangoSemana: '', todayStr: '' }
   })
 
   // Filtros de la tabla de sitios
@@ -137,7 +138,21 @@ export default function Dashboard() {
     }
   }, [loadOverview])
 
-  const { kpis, grupos, sitios } = data
+  const { kpis, grupos, sitios, semanaActual } = data
+
+  const diasSemana = semanaActual?.dias || []
+
+  const totalGeneralSemana = useMemo(() => {
+    return (grupos || []).reduce((acc, g) => acc + (g.totalSemana || 0), 0)
+  }, [grupos])
+
+  const totalesPorDia = useMemo(() => {
+    const map = {}
+    diasSemana.forEach(d => {
+      map[d.dateStr] = (grupos || []).reduce((acc, g) => acc + (g.semana?.[d.dateStr] || 0), 0)
+    })
+    return map
+  }, [diasSemana, grupos])
 
   // Sitios filtrados para la tabla de monitoreo
   const filteredSitios = useMemo(() => {
@@ -341,15 +356,15 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── SECCIÓN 3: AVANCE Y BALANCE POR LAS 6 CUADRILLAS OPERATIVAS ── */}
+      {/* ── SECCIÓN 3: BALANCE POR CUADRILLA + PRODUCCIÓN SEMANAL (SPLIT LAYOUT) ── */}
       <div style={{ marginTop: '1.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.9rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div>
             <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 'var(--fw-bold)', color: '#003060', margin: 0 }}>
-              Balance por Cuadrilla Operativa
+              Balance y Producción por Cuadrilla
             </h2>
             <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-              Consolidado de observaciones y porcentaje de avance para cada una de las 6 cuadrillas operativas.
+              Avance acumulado por cuadrilla operativa y registro de producción diaria de observaciones subsanadas en la semana.
             </p>
           </div>
           <span style={{ fontSize: 'var(--text-xs)', color: '#0284c7', fontWeight: 'var(--fw-semibold)', background: 'rgba(2, 132, 199, 0.08)', padding: '0.3rem 0.65rem', borderRadius: '6px' }}>
@@ -357,150 +372,171 @@ export default function Dashboard() {
           </span>
         </div>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '1rem'
-        }}>
-          {grupos.map(g => {
-            return (
-              <div
-                key={g.grupo}
-                style={{
-                  background: '#ffffff',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '1.15rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.75rem',
-                  boxShadow: 'var(--shadow-sm)',
-                  transition: 'transform 0.2s, box-shadow 0.2s'
-                }}
-              >
-                {/* Cabecera de la cuadrilla */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                      <h4 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 'var(--fw-black)', color: '#003060', letterSpacing: '-0.01em' }}>
-                        {g.grupo}
-                      </h4>
-                      {!presentationMode && g.tecnico && (
-                        <span
-                          style={{
-                            fontSize: 'var(--text-xs)',
-                            fontWeight: 'var(--fw-bold)',
-                            padding: '1px 7px',
-                            borderRadius: '4px',
-                            background: '#e0f2fe',
-                            color: '#0369a1',
-                            border: '1px solid #bae6fd',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px'
-                          }}
-                          title={`Técnico a cargo: ${g.tecnico}`}
-                        >
-                          <User size={11} />
-                          <span>{g.tecnico}</span>
-                        </span>
-                      )}
+        <div className="dash-cuadrillas-split-layout">
+          {/* Columna Izquierda: Los 6 Cuadros de Cuadrilla (2x3 Compactos) */}
+          <div className="dash-cuadrillas-cards-grid">
+            {grupos.map(g => {
+              return (
+                <div key={g.grupo} className="dash-cuadrilla-compact-card">
+                  {/* Cabecera de la cuadrilla (sin zona) */}
+                  <div className="dash-cuadrilla-header">
+                    <div className="dash-cuadrilla-title-box">
+                      <div className="dash-cuadrilla-title-row">
+                        <h4 className="dash-cuadrilla-name">
+                          {g.grupo}
+                        </h4>
+                        {!presentationMode && g.tecnico && (
+                          <span
+                            className="dash-cuadrilla-tech-badge"
+                            title={`Técnico a cargo: ${g.tecnico}`}
+                          >
+                            <User size={10} />
+                            <span>{g.tecnico}</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
-                      {g.zona}
+                    <span className="dash-cuadrilla-sites-badge">
+                      {g.sitiosCount} Sitios
                     </span>
                   </div>
-                  <span style={{
-                    fontSize: 'var(--text-xs)',
-                    fontWeight: 'var(--fw-bold)',
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '6px',
-                    background: 'rgba(0, 48, 96, 0.06)',
-                    color: '#003060',
-                    border: '1px solid rgba(0, 48, 96, 0.15)',
-                    flexShrink: 0
-                  }}>
-                    {g.sitiosCount} Sitios
+
+                  {/* Porcentaje y barra de progreso */}
+                  <div className="dash-cuadrilla-progress-wrap">
+                    <div className="dash-cuadrilla-progress-info">
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 'var(--fw-semibold)' }}>
+                        Avance
+                      </span>
+                      <strong style={{ color: g.porcentaje > 0 ? '#10b981' : '#64748b' }}>
+                        {g.porcentaje}%
+                      </strong>
+                    </div>
+                    <div className="dash-cuadrilla-progress-bar">
+                      <div
+                        className="dash-cuadrilla-progress-fill"
+                        style={{ width: `${Math.min(100, g.porcentaje)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 4 Métricas clave (TOTAL, SUBS., REV., PEND.) */}
+                  <div className="dash-cuadrilla-kpis-grid">
+                    <div className="dash-cuadrilla-kpi-item">
+                      <span style={{ color: 'var(--text-muted)' }}>TOTAL</span>
+                      <strong style={{ color: '#003060' }}>{g.total}</strong>
+                    </div>
+                    <div className="dash-cuadrilla-kpi-item">
+                      <span style={{ color: '#059669' }}>SUBS.</span>
+                      <strong style={{ color: '#10b981' }}>{g.subsanadas}</strong>
+                    </div>
+                    <div className="dash-cuadrilla-kpi-item">
+                      <span style={{ color: '#0284c7' }}>REV.</span>
+                      <strong style={{ color: '#0284c7' }}>{g.enRevision}</strong>
+                    </div>
+                    <div className="dash-cuadrilla-kpi-item">
+                      <span style={{ color: '#d97706' }}>PEND.</span>
+                      <strong style={{ color: '#d97706' }}>{g.pendientes}</strong>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Columna Derecha: Tabla de Producción Semanal */}
+          <div className="dash-weekly-card">
+            <div className="dash-weekly-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Calendar size={18} color="#003060" />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
+                    Producción Semanal de Cuadrillas
+                  </h3>
+                  <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>
+                    {semanaActual?.rangoSemana ? `Semana: ${semanaActual.rangoSemana}` : 'Semana en curso'}
                   </span>
                 </div>
-
-                {/* Porcentaje y barra de progreso */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', fontWeight: 'var(--fw-semibold)' }}>
-                      Avance de Subsanación
-                    </span>
-                    <strong style={{ fontSize: 'var(--text-sm)', color: g.porcentaje > 0 ? '#10b981' : '#64748b' }}>
-                      {g.porcentaje}%
-                    </strong>
-                  </div>
-                  <div style={{ height: '7px', borderRadius: '4px', background: '#e2e8f0', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${Math.min(100, g.porcentaje)}%`,
-                        height: '100%',
-                        background: 'linear-gradient(90deg, #10b981, #0284c7)',
-                        borderRadius: '4px'
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Métricas clave del grupo */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: '0.4rem',
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  padding: '0.6rem 0.4rem',
-                  textAlign: 'center'
-                }}>
-                  <div>
-                    <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', display: 'block' }}>TOTAL</span>
-                    <strong style={{ fontSize: 'var(--text-sm)', color: '#003060' }}>{g.total}</strong>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: 'var(--text-2xs)', color: '#059669', display: 'block' }}>SUBS.</span>
-                    <strong style={{ fontSize: 'var(--text-sm)', color: '#10b981' }}>{g.subsanadas}</strong>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: 'var(--text-2xs)', color: '#0284c7', display: 'block' }}>REV.</span>
-                    <strong style={{ fontSize: 'var(--text-sm)', color: '#0284c7' }}>{g.enRevision}</strong>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: 'var(--text-2xs)', color: '#d97706', display: 'block' }}>PEND.</span>
-                    <strong style={{ fontSize: 'var(--text-sm)', color: '#d97706' }}>{g.pendientes}</strong>
-                  </div>
-                </div>
-
-                {/* Botón ver detalles */}
-                <button
-                  type="button"
-                  onClick={() => navigate('/observaciones')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.35rem',
-                    padding: '0.45rem',
-                    borderRadius: '6px',
-                    background: 'transparent',
-                    border: '1px solid rgba(0, 48, 96, 0.15)',
-                    color: '#003060',
-                    fontSize: 'var(--text-xs)',
-                    fontWeight: 'var(--fw-semibold)',
-                    cursor: 'pointer',
-                    marginTop: 'auto'
-                  }}
-                >
-                  <span>Ver observaciones de {g.grupo}</span>
-                  <ChevronRight size={13} />
-                </button>
               </div>
-            )
-          })}
+              <span className="dash-progreso-resueltas-badge" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {totalGeneralSemana} Obs. Levantadas
+              </span>
+            </div>
+
+            <div className="dash-weekly-table-wrap">
+              <table className="dash-weekly-table">
+                <thead>
+                  <tr>
+                    <th className="th-left">Cuadrilla</th>
+                    <th className="th-left">Técnico</th>
+                    {diasSemana.map(d => (
+                      <th
+                        key={d.dateStr}
+                        className={d.isToday ? 'th-today' : ''}
+                        title={d.diaNombre}
+                      >
+                        <div>{d.shortLabel}</div>
+                        {d.isToday && (
+                          <div style={{ fontSize: 'var(--text-2xs)', color: '#0284c7', fontWeight: 'var(--fw-black)' }}>
+                            HOY
+                          </div>
+                        )}
+                      </th>
+                    ))}
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grupos.map(g => (
+                    <tr key={g.grupo}>
+                      <td className="td-left" style={{ fontWeight: 'var(--fw-bold)', color: '#003060' }}>
+                        {g.grupo}
+                      </td>
+                      <td className="td-left" style={{ color: 'var(--text-secondary)' }}>
+                        {!presentationMode ? (g.tecnico || '—') : '—'}
+                      </td>
+                      {diasSemana.map(d => {
+                        const count = g.semana?.[d.dateStr] || 0
+                        return (
+                          <td key={d.dateStr} className={d.isToday ? 'td-today' : ''}>
+                            <span className={`dash-weekly-count-badge ${count > 0 ? 'has-val' : 'is-zero'}`}>
+                              {count > 0 ? count : '—'}
+                            </span>
+                          </td>
+                        )
+                      })}
+                      <td>
+                        <span className="dash-weekly-total-badge">
+                          {g.totalSemana || 0}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={2} className="td-left" style={{ fontWeight: 'var(--fw-black)', color: '#003060' }}>
+                      TOTAL DIARIO
+                    </td>
+                    {diasSemana.map(d => {
+                      const totDia = totalesPorDia[d.dateStr] || 0
+                      return (
+                        <td key={d.dateStr} className={d.isToday ? 'td-today' : ''}>
+                          <span className={`dash-weekly-count-badge ${totDia > 0 ? 'has-val' : 'is-zero'}`}>
+                            {totDia > 0 ? totDia : '—'}
+                          </span>
+                        </td>
+                      )
+                    })}
+                    <td>
+                      <span className="dash-weekly-foot-total">
+                        {totalGeneralSemana}
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 

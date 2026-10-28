@@ -6,6 +6,64 @@ import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService.js'
 // Cache en memoria de catálogo de sitios para no saturar la BD externa
 let cachedSitiosCatalog = null
 
+export function getDiasSemanaActual() {
+  const now = new Date()
+  let peruStr = ''
+  try {
+    peruStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(now)
+  } catch {
+    const y = now.getFullYear()
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    peruStr = `${y}-${m}-${d}`
+  }
+
+  const [y, m, d] = peruStr.split('-').map(Number)
+  const todayLima = new Date(y, m - 1, d)
+  const dayOfWeek = (todayLima.getDay() + 6) % 7 // Lunes = 0 ... Domingo = 6
+  const monday = new Date(todayLima)
+  monday.setDate(todayLima.getDate() - dayOfWeek)
+
+  const DIAS_SHORT = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+  const DIAS_FULL = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+  const dias = []
+
+  for (let i = 0; i < 7; i++) {
+    const cur = new Date(monday)
+    cur.setDate(monday.getDate() + i)
+    const yyyy = cur.getFullYear()
+    const mm = String(cur.getMonth() + 1).padStart(2, '0')
+    const dd = String(cur.getDate()).padStart(2, '0')
+    const dateStr = `${yyyy}-${mm}-${dd}`
+    dias.push({
+      dateStr,
+      diaSemana: DIAS_SHORT[i],
+      diaNombre: DIAS_FULL[i],
+      shortLabel: `${DIAS_SHORT[i]} ${dd}/${mm}`,
+      dayNum: dd,
+      monthNum: mm,
+      isToday: dateStr === peruStr
+    })
+  }
+
+  return {
+    dias,
+    todayStr: peruStr,
+    rangoSemana: `${dias[0].shortLabel} - ${dias[6].shortLabel}`
+  }
+}
+
+export function getLimaDateStr(dateVal) {
+  if (!dateVal) return null
+  try {
+    const d = new Date(dateVal)
+    if (isNaN(d.getTime())) return String(dateVal).slice(0, 10)
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(d)
+  } catch {
+    return String(dateVal).slice(0, 10)
+  }
+}
+
 async function getSitiosCatalogMap() {
   if (cachedSitiosCatalog) return cachedSitiosCatalog
 
@@ -421,10 +479,19 @@ export async function getDashboardProjectOverview() {
     })
 
     // Diccionario de las 6 Cuadrillas Operativas con técnico asignado
+    const semanaInfo = getDiasSemanaActual()
+    const semanaFechasSet = new Set(semanaInfo.dias.map(d => d.dateStr))
+
     const perGroup = {}
     for (let g = 1; g <= 6; g++) {
       const gName = `CUADRILLA ${g}`
       const cfg = DEFAULT_CUADRILLAS_CONFIG[gName] || {}
+      
+      const semanaMap = {}
+      semanaInfo.dias.forEach(d => {
+        semanaMap[d.dateStr] = 0
+      })
+
       perGroup[gName] = {
         grupo: gName,
         cuadrilla: gName,
@@ -440,7 +507,9 @@ export async function getDashboardProjectOverview() {
         rechazadas: 0,
         pendientes: 0,
         resueltas: 0,
-        porcentaje: 0
+        porcentaje: 0,
+        semana: semanaMap,
+        totalSemana: 0
       }
     }
 
@@ -515,6 +584,15 @@ export async function getDashboardProjectOverview() {
         else if (st === 'Rechazado') g.rechazadas++
         else if (st === 'Validado') g.subsanadas++
         else g.pendientes++
+
+        // Conteo de observaciones levantadas en la semana actual por cuadrilla
+        if (row.fecha_subsanacion && (st === 'Validado' || st === 'En Revisión' || st === 'Solicitando Revisión')) {
+          const fLima = getLimaDateStr(row.fecha_subsanacion)
+          if (fLima && semanaFechasSet.has(fLima)) {
+            g.semana[fLima] = (g.semana[fLima] || 0) + 1
+            g.totalSemana = (g.totalSemana || 0) + 1
+          }
+        }
       }
     })
 
@@ -555,7 +633,8 @@ export async function getDashboardProjectOverview() {
         totalSitios: asignaciones.length
       },
       grupos: Object.values(perGroup).sort((a, b) => a.numero - b.numero),
-      sitios: sitiosList
+      sitios: sitiosList,
+      semanaActual: semanaInfo
     }
   } catch (err) {
     console.error('Error en getDashboardProjectOverview:', err)

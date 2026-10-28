@@ -1,12 +1,55 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Clock, AlertTriangle, LogOut, CheckCircle2, ShieldAlert } from 'lucide-react'
+import { Clock, LogOut, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
-// Constantes de tiempo de inactividad
-const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutos de inactividad total
-const WARNING_BEFORE_LOGOUT_MS = 5 * 60 * 1000 // Alerta a los 5 minutos antes (minuto 25)
-const STORAGE_KEY = 'covepa_last_activity_time'
+// Constantes de programación fija (1:00 AM y 1:00 PM)
+const WARNING_BEFORE_LOGOUT_MS = 5 * 60 * 1000 // 5 minutos de anticipación previa (minuto :55)
+const STORAGE_KEY_EXTENDED = 'covepa_session_extended_target'
+
+/**
+ * Calcula la próxima ventana programada de cierre (1:00 AM o 1:00 PM).
+ * Si el usuario ya confirmó continuar para una ventana específica, avanza a la siguiente.
+ */
+export function getNextScheduledLogoutTarget(now = new Date(), extendedTargetTime = 0) {
+  const candidates = []
+
+  // Hoy 01:00 AM
+  const d1 = new Date(now)
+  d1.setHours(1, 0, 0, 0)
+  candidates.push(d1)
+
+  // Hoy 01:00 PM
+  const d2 = new Date(now)
+  d2.setHours(13, 0, 0, 0)
+  candidates.push(d2)
+
+  // Mañana 01:00 AM
+  const d3 = new Date(now)
+  d3.setDate(d3.getDate() + 1)
+  d3.setHours(1, 0, 0, 0)
+  candidates.push(d3)
+
+  // Mañana 01:00 PM
+  const d4 = new Date(now)
+  d4.setDate(d4.getDate() + 1)
+  d4.setHours(13, 0, 0, 0)
+  candidates.push(d4)
+
+  for (const c of candidates) {
+    if (c.getTime() > now.getTime() && c.getTime() > extendedTargetTime) {
+      return c
+    }
+  }
+
+  return candidates[candidates.length - 1]
+}
+
+export function formatTargetLabel(targetDate) {
+  if (!targetDate) return '1:00 PM'
+  const hours = targetDate.getHours()
+  return hours === 1 ? '1:00 AM' : '1:00 PM'
+}
 
 export default function SessionTimeoutModal() {
   const { user, signOut } = useAuth()
@@ -14,13 +57,15 @@ export default function SessionTimeoutModal() {
 
   const [showWarning, setShowWarning] = useState(false)
   const [secondsRemaining, setSecondsRemaining] = useState(300)
-  const isLoggingOutRef = useRef(false)
-  const lastRecordedRef = useRef(Date.now())
+  const [targetLabel, setTargetLabel] = useState('1:00 PM')
 
-  // Obtener la última actividad registrada (sincronizada en localStorage)
-  const getLastActivity = () => {
+  const isLoggingOutRef = useRef(false)
+  const notifiedTargetRef = useRef(null)
+
+  // Obtener el timestamp de extensión confirmado por el usuario en localStorage
+  const getExtendedTarget = () => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY)
+      const stored = localStorage.getItem(STORAGE_KEY_EXTENDED)
       if (stored) {
         const val = parseInt(stored, 10)
         if (!isNaN(val) && val > 0) return val
@@ -28,26 +73,8 @@ export default function SessionTimeoutModal() {
     } catch {
       // Ignorar error de acceso a storage
     }
-    return lastRecordedRef.current
+    return 0
   }
-
-  // Actualizar la última actividad
-  const recordActivity = useCallback(() => {
-    // Si la alerta ya está visible, no resetear automáticamente con movimientos leves de ratón
-    // El usuario debe hacer clic expreso en "Continuar Sesión" para confirmar que sigue ahí
-    if (showWarning) return
-
-    const now = Date.now()
-    // Limitar escritura a una vez cada 2 segundos para óptimo rendimiento
-    if (now - lastRecordedRef.current > 2000) {
-      lastRecordedRef.current = now
-      try {
-        localStorage.setItem(STORAGE_KEY, now.toString())
-      } catch {
-        // Ignorar
-      }
-    }
-  }, [showWarning])
 
   // Cierre de sesión automático o manual
   const handleLogout = useCallback(async () => {
@@ -55,89 +82,93 @@ export default function SessionTimeoutModal() {
     isLoggingOutRef.current = true
     setShowWarning(false)
     try {
-      localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(STORAGE_KEY_EXTENDED)
       await signOut()
     } catch (err) {
-      console.warn('Error en cierre de sesión por inactividad:', err)
+      console.warn('[SESSION] Error en cierre de sesión programado:', err)
     } finally {
       navigate('/login')
     }
   }, [signOut, navigate])
 
-  // Continuar sesión (el usuario confirma que sigue trabajando)
+  // Continuar trabajando (el usuario confirma que desea mantener su sesión activa)
   const handleContinue = useCallback(() => {
-    const now = Date.now()
-    lastRecordedRef.current = now
+    const now = new Date()
+    const extendedUntil = getExtendedTarget()
+    const target = getNextScheduledLogoutTarget(now, extendedUntil)
+
     try {
-      localStorage.setItem(STORAGE_KEY, now.toString())
+      localStorage.setItem(STORAGE_KEY_EXTENDED, target.getTime().toString())
     } catch {
       // Ignorar
     }
+
     setShowWarning(false)
   }, [])
 
-  // Escuchar eventos de interacción del usuario
+  // Escuchar si otra pestaña confirmó continuar sesión
   useEffect(() => {
-    if (!user) return
-
-    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'wheel']
-    const handleEvent = () => recordActivity()
-
-    events.forEach(evt => {
-      window.addEventListener(evt, handleEvent, { passive: true })
-    })
-
-    // Sincronizar actividad si el usuario interactúa en otra pestaña
-    const handleStorageChange = e => {
-      if (e.key === STORAGE_KEY && e.newValue) {
+    const handleStorageChange = (e) => {
+      if (e.key === STORAGE_KEY_EXTENDED && e.newValue) {
         const extTime = parseInt(e.newValue, 10)
         if (!isNaN(extTime)) {
-          lastRecordedRef.current = extTime
-          // Si otra pestaña actualizó la actividad, ocultar advertencia
           const now = Date.now()
-          const elapsed = now - extTime
-          if (elapsed < INACTIVITY_TIMEOUT_MS - WARNING_BEFORE_LOGOUT_MS) {
+          if (extTime > now) {
             setShowWarning(false)
           }
         }
       }
     }
     window.addEventListener('storage', handleStorageChange)
-
-    return () => {
-      events.forEach(evt => {
-        window.removeEventListener(evt, handleEvent)
-      })
-      window.removeEventListener('storage', handleStorageChange)
-    }
-  }, [user, recordActivity])
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [])
 
   // Timer de comprobación periódico (cada 1 segundo)
   useEffect(() => {
     if (!user) return
 
-    // Inicializar timestamp si no existe
-    if (!localStorage.getItem(STORAGE_KEY)) {
-      localStorage.setItem(STORAGE_KEY, Date.now().toString())
-    }
-
     const interval = setInterval(() => {
       if (isLoggingOutRef.current) return
 
-      const now = Date.now()
-      const lastActivity = getLastActivity()
-      const elapsed = now - lastActivity
-      const timeLeft = INACTIVITY_TIMEOUT_MS - elapsed
+      const now = new Date()
+      const extendedUntil = getExtendedTarget()
+      const target = getNextScheduledLogoutTarget(now, extendedUntil)
+      const label = formatTargetLabel(target)
+      setTargetLabel(label)
+
+      const timeLeft = target.getTime() - now.getTime()
 
       if (timeLeft <= 0) {
-        // Tiempo de inactividad de 30 minutos cumplido
+        // Ventana programada de cierre cumplida (1:00 AM o 1:00 PM) sin respuesta
+        console.log(`[SESSION] Ventana de cierre ${label} alcanzada. Cerrando sesión automáticamente.`)
         handleLogout()
       } else if (timeLeft <= WARNING_BEFORE_LOGOUT_MS) {
         // En los últimos 5 minutos: mostrar modal con contador
         setShowWarning(true)
         setSecondsRemaining(Math.max(0, Math.ceil(timeLeft / 1000)))
+
+        // Emitir notificación nativa si la ventana no está visible
+        if (notifiedTargetRef.current !== target.getTime()) {
+          notifiedTargetRef.current = target.getTime()
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            try {
+              const notif = new Notification(`⏰ Cierre de sesión en 5 minutos (${label})`, {
+                body: `El sistema Amazonas COVEPA cerrará tu sesión a las ${label}. Clic aquí si deseas continuar trabajando.`,
+                icon: '/favicon.ico',
+                tag: `covepa-logout-${target.getTime()}`,
+                renotify: true
+              })
+              notif.onclick = () => {
+                window.focus()
+                notif.close()
+              }
+            } catch (err) {
+              console.warn('[SESSION] Aviso de escritorio no emitido:', err)
+            }
+          }
+        }
       } else {
-        // Aún fuera de la zona de advertencia
+        // Fuera de la zona de advertencia de 5 minutos
         if (showWarning) setShowWarning(false)
       }
     }, 1000)
@@ -162,18 +193,18 @@ export default function SessionTimeoutModal() {
         </div>
 
         <h3 id="timeout-title" className="session-timeout-heading">
-          ¿Sigues ahí? Tu sesión está por expirar
+          Cierre de sesión programado ({targetLabel})
         </h3>
 
         <p className="session-timeout-desc">
-          No se ha detectado actividad reciente. Por seguridad operativa del sistema Amazonas COVEPA, tu sesión se cerrará automáticamente en:
+          El sistema Amazonas COVEPA tiene programado un cierre de sesión regular a las <strong>{targetLabel}</strong>. Si continúas trabajando, confirma a continuación:
         </p>
 
         {/* Contador digital regresivo destacado */}
         <div className="session-timeout-countdown-box">
           <div className="timeout-countdown-display">
             <span className="countdown-time-digits">{timeFormatted}</span>
-            <span className="countdown-time-unit">minutos</span>
+            <span className="countdown-time-unit">restantes</span>
           </div>
           <div className="timeout-progress-bar-wrap">
             <div
@@ -186,7 +217,7 @@ export default function SessionTimeoutModal() {
         </div>
 
         <p className="session-timeout-subtext">
-          Haz clic en <strong>Continuar Sesión</strong> para mantenerte trabajando sin interrupciones.
+          Si no confirmas antes de las <strong>{targetLabel}</strong>, la sesión se cerrará automáticamente por seguridad operativa.
         </p>
 
         {/* Botones de acción */}
@@ -198,7 +229,7 @@ export default function SessionTimeoutModal() {
             autoFocus
           >
             <CheckCircle2 size={16} />
-            <span>Continuar Sesión</span>
+            <span>Continuar Trabajando</span>
           </button>
 
           <button

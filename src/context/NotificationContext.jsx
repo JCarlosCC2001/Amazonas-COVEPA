@@ -341,87 +341,30 @@ export function NotificationProvider({ children }) {
     }
 
     setToasts(prev => {
-      // Evitar toasts duplicados para la misma observación activa
-      const filtered = prev.filter(t => t.obs.id_obs !== obs.id_obs)
+      // Evitar toasts duplicados para la misma observación activa, y si es alerta de acumulación reemplazar cualquier alerta de acumulación previa
+      const filtered = prev.filter(t => {
+        if (obs.isAccumulationAlert && t.obs.isAccumulationAlert) return false
+        return t.obs.id_obs !== obs.id_obs
+      })
       return [nuevoToast, ...filtered].slice(0, 3) // Máximo 3 toasts simultáneos
     })
 
     // Reproducir aviso sonoro suave
     playNotificationChime()
 
-    // Auto-descartar después de un tiempo prudencial: 16s para avisos de acumulación (permite copiar sin apuros) y 8.5s para solicitudes individuales
-    const timeoutMs = obs.isAccumulationAlert ? 16000 : 8500
+    // Auto-descartar después de exactamente 5 segundos a solicitud expresa del usuario
+    const timeoutMs = 5000
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== toastId))
     }, timeoutMs)
   }, [])
 
-  // Evaluar alertas anti-spam por acumulación en colas de técnicos y auditores
+  // Evaluar alertas anti-spam por acumulación exclusivamente en cola de auditores (En Revisión)
   const evaluarAlertasAcumulacion = useCallback((solRows, revRows) => {
     const now = Date.now()
     const COOLDOWN_MS = 30 * 60 * 1000 // Pausa de 30 minutos entre avisos acumulados para no spamear
 
-    // 1. Evaluar acumulación de técnicos (Solicitando Revisión)
-    const solDemoradas = (solRows || []).filter(s => calcWaitMins(s.fecha_subsanacion) >= 10)
-
-    if (solDemoradas.length >= 5) {
-      const prev = lastAlertTecnicosRef.current
-      const tiempoPasado = now - prev.time
-      const aumentoSignificativo = solDemoradas.length >= prev.count + 3
-
-      if (tiempoPasado >= COOLDOWN_MS || aumentoSignificativo) {
-        lastAlertTecnicosRef.current = { time: now, count: solDemoradas.length }
-
-        // Ordenar de más antigua a más reciente
-        const solDemoradasOrdenadas = [...solDemoradas].sort((a, b) => {
-          const tA = new Date(a.fecha_subsanacion || 0).getTime()
-          const tB = new Date(b.fecha_subsanacion || 0).getTime()
-          return tA - tB
-        })
-        const masAntigua = solDemoradasOrdenadas[0]
-
-        const loc = sitiosMapRef.current[masAntigua.id_sitio] || ''
-        const minsAntigua = calcWaitMins(masAntigua.fecha_subsanacion)
-        const tiempoTxt = formatWaitTime(minsAntigua)
-
-        const titulo = `⚠️ Cola de Técnicos Acumulada (${solDemoradas.length})`
-        const mensaje = `Hay ${solDemoradas.length} observaciones esperando revisión (+10 min). La más antigua lleva ${tiempoTxt} (${masAntigua.id_sitio}${loc ? ` · ${loc}` : ''}).`
-
-        dispararToast({
-          id_obs: `ALERTA-COLA-TECNICOS-${Date.now()}`,
-          id_sitio: masAntigua.id_sitio,
-          estado_covepa: 'Solicitando Revisión',
-          revisor: 'Múltiples Técnicos',
-          detalle: mensaje,
-          isAccumulationAlert: true,
-          queueType: 'tecnicos',
-          items: solDemoradasOrdenadas.map(item => ({
-            id_obs: item.id_obs,
-            id_sitio: item.id_sitio,
-            localidad: sitiosMapRef.current[item.id_sitio] || '',
-            revisor: item.revisor,
-            fecha_subsanacion: item.fecha_subsanacion,
-            subsistema: item.subsistema,
-            detalle: item.detalle
-          }))
-        }, loc)
-
-        playAccumulationChime()
-
-        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-          try {
-            new Notification(titulo, {
-              body: mensaje,
-              icon: '/favicon.ico',
-              tag: 'covepa-alerta-cola-tecnicos',
-              renotify: true
-            })
-          } catch {}
-        }
-      }
-    }
-
-    // 2. Evaluar acumulación de auditores (En Revisión)
+    // Evaluar acumulación de auditores (En Revisión): solo genera alerta si hay 5 o más demoradas (+10m)
     const revDemoradas = (revRows || []).filter(s => calcWaitMins(s.fecha_subsanacion) >= 10)
 
     if (revDemoradas.length >= 5) {

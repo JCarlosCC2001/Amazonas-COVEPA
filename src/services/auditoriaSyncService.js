@@ -181,14 +181,22 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
   try {
     const estadoNorm = normalizarEstadoOficial(estado)
     const fechaIso = extraContext.fechaIso || new Date().toISOString()
+
+    // Payload de actualización en la tabla observaciones
+    const updatePayload = {
+      estado_covepa: estadoNorm,
+      fecha_subsanacion: fechaIso,
+      comentario_covepa: comentario
+    }
+
+    // Regla de Negocio: Conservar siempre el Revisor que ya estaba asignado (a menos que se especifique)
+    if (revisor !== undefined) {
+      updatePayload.revisor = revisor || null
+    }
+
     const { data, error } = await supabase
       .from('observaciones')
-      .update({
-        estado_covepa: estadoNorm,
-        revisor: revisor,
-        fecha_subsanacion: fechaIso,
-        comentario_covepa: comentario
-      })
+      .update(updatePayload)
       .eq('id_obs', idObs)
 
     if (error) {
@@ -198,13 +206,16 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
 
     console.log(`[Sincronización OK] Observación ${idObs} cambiada a ${estadoNorm}`)
 
+    // El autor de la acción para el historial de trazabilidad es el usuario que ejecutó el cambio
+    const usuarioAccion = extraContext.usuarioNombre || 'Usuario del Sistema'
+
     // Registro automático no bloqueante en el historial de estados
     registrarHistorialEstado({
       idObs,
       idSitio: extraContext.idSitio,
       estadoAnterior: extraContext.estadoAnterior,
       estadoNuevo: estadoNorm,
-      usuarioNombre: revisor,
+      usuarioNombre: usuarioAccion,
       usuarioEmail: extraContext.usuarioEmail,
       usuarioId: extraContext.usuarioId,
       comentario: comentario,

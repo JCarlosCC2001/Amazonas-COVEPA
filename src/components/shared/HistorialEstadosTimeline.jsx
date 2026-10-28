@@ -146,10 +146,10 @@ export default function HistorialEstadosTimeline({ idObs, refreshKey = 0 }) {
                     )}
                   </div>
 
-                  {/* Fila 3: Auditor / Revisor responsable */}
+                  {/* Fila 3: Usuario que ejecutó la acción / cambio de estado */}
                   <div className="historial-timeline-author">
                     <User size={11} color="#0284c7" />
-                    <span>Revisor: <strong>{item.usuario_nombre || 'Auditor COVEPA'}</strong></span>
+                    <span>Modificado por: <strong>{item.usuario_nombre || 'Usuario del Sistema'}</strong></span>
                   </div>
 
                   {/* Fila 4: Comentario o Nota de Dictamen (si existe) */}

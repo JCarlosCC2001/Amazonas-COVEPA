@@ -1978,32 +1978,36 @@ function ModalDetallesProgramacion({
     setUpdatingId(obs.id_obs)
     try {
       const auditorActual = resolverNombreAuditor(user, personalMember)
+      // Conservar siempre el revisor de Gilat que ya estaba asignado
+      const revisorAsignado = obs.revisor || obs.validado_por || null
       const comentarioActual = comments[obs.id_obs] ?? obs.comentario_covepa ?? null
       const fechaIso = new Date().toISOString()
 
       // Sincronización oficial con Control Fotos + Historial de Estados
+      // Mantiene el revisor que ya estaba y registra al usuario activo como autor del cambio
       await sincronizarEstadoConControlFotos(
         obs.id_obs,
         nuevoEstado,
-        auditorActual,
+        revisorAsignado,
         comentarioActual,
         {
           idSitio: obs.id_sitio || currentSitioId,
           estadoAnterior: obs.estado_covepa,
+          usuarioNombre: auditorActual,
           usuarioEmail: user?.email,
           usuarioId: user?.id,
           origen: 'programacion'
         }
       )
 
-      // Actualizar localmente
+      // Actualizar localmente conservando el revisor asignado
       setObservaciones(prev => prev.map(o => {
         if (o.id_obs === obs.id_obs) {
           return {
             ...o,
             estado_covepa: nuevoEstado,
             fecha_subsanacion: fechaIso,
-            revisor: auditorActual,
+            revisor: revisorAsignado,
             comentario_covepa: comentarioActual
           }
         }

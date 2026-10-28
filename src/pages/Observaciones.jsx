@@ -111,17 +111,20 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     setUpdating(true)
     try {
       const auditorActual = resolverNombreAuditor(user, personalMember)
+      // Conservar siempre el revisor de Gilat que ya estaba asignado
+      const revisorAsignado = obsLocal.revisor || obsLocal.validado_por || null
       const comentarioActual = commentValRef.current ?? obsLocal.comentario_covepa ?? null
       const fechaIso = new Date().toISOString()
 
       await sincronizarEstadoConControlFotos(
         obsLocal.id_obs,
         nuevoEstado,
-        auditorActual,
+        revisorAsignado,
         comentarioActual,
         {
           idSitio: obsLocal.id_sitio,
           estadoAnterior: obsLocal.estado_covepa || (obsLocal.fecha_subsanacion ? 'Validado' : 'Pendiente'),
+          usuarioNombre: auditorActual,
           usuarioEmail: user?.email,
           usuarioId: user?.id,
           origen: 'observaciones'
@@ -132,7 +135,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
         ...obsLocal,
         estado_covepa: nuevoEstado,
         fecha_subsanacion: fechaIso,
-        revisor: auditorActual,
+        revisor: revisorAsignado,
         comentario_covepa: comentarioActual
       }
 

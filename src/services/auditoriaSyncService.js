@@ -230,14 +230,31 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
 }
 
 /**
+ * Valida si un nombre pertenece estrictamente al personal auditor de GILAT.
+ * Solo personal de GILAT puede ser asignado como Revisor de observaciones.
+ *
+ * @param {string|null} nombre
+ * @param {Array} [gilatOptions=[]]
+ * @returns {boolean}
+ */
+export function esRevisorGilat(nombre, gilatOptions = []) {
+  if (!nombre) return false
+  const n = String(nombre).trim().toUpperCase()
+  if (n.includes('GILAT')) return true
+  if (n === 'AMILCAR HANDER' || n === 'THALIA URQUIZO') return true
+  return (gilatOptions || []).some(g => (g.nombre_completo || '').toUpperCase().trim() === n)
+}
+
+/**
  * SINCRONIZACIÓN PRINCIPAL:
- * Actualiza el dictamen de una observación técnica con los 4 campos oficiales requeridos
+ * Actualiza el dictamen de una observación técnica con los campos oficiales requeridos
  * y registra el evento en el historial de trazabilidad.
  *
  * @param {string} idObs - Código único de la observación (ej: "H1-OC-100-242" o "H1-OC-25-340")
  * @param {Object} dictamen
  * @param {string} dictamen.nuevoEstado - Uno de los 6 estados oficiales
- * @param {string} [dictamen.revisor] - Nombre completo del auditor (si se omite, se usa fallback)
+ * @param {string} [dictamen.revisor] - Solo personal de GILAT
+ * @param {string} [dictamen.usuarioNombre] - Nombre del usuario activo de la sesión que realiza el cambio
  * @param {string|null} [dictamen.comentarioTexto] - Notas técnicas, motivo de rechazo o sustento
  * @param {string} [dictamen.fechaSubsanacion] - Fecha ISO (por defecto new Date().toISOString())
  * @param {string} [dictamen.estadoAnterior] - Estado anterior
@@ -249,7 +266,8 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
  */
 export async function sincronizarAuditoriaObservacion(idObs, {
   nuevoEstado,
-  revisor,
+  revisor = undefined,
+  usuarioNombre = null,
   comentarioTexto,
   fechaSubsanacion,
   estadoAnterior = null,
@@ -263,7 +281,6 @@ export async function sincronizarAuditoriaObservacion(idObs, {
   }
 
   const estadoNormalizado = normalizarEstadoOficial(nuevoEstado)
-  const revisorFinal = (revisor && String(revisor).trim()) ? String(revisor).trim() : 'Auditor COVEPA'
   const fechaFinal = fechaSubsanacion || new Date().toISOString()
   const comentarioLimpio = (comentarioTexto !== undefined && comentarioTexto !== null && String(comentarioTexto).trim() !== '')
     ? String(comentarioTexto).trim()
@@ -271,9 +288,13 @@ export async function sincronizarAuditoriaObservacion(idObs, {
 
   const payload = {
     estado_covepa: estadoNormalizado,
-    revisor: revisorFinal,
     fecha_subsanacion: fechaFinal,
     comentario_covepa: comentarioLimpio
+  }
+
+  // Regla: En revisores solo va personal de Gilat, NUNCA autocompletar con el usuario de sesión
+  if (revisor !== undefined) {
+    payload.revisor = (revisor && esRevisorGilat(revisor)) ? String(revisor).trim() : (revisor || null)
   }
 
   console.log(`[AUDITORIA-SYNC] Sincronizando observación ${idObs} con app de fotos:`, payload)
@@ -287,8 +308,9 @@ export async function sincronizarAuditoriaObservacion(idObs, {
 
   // Compatibilidad defensiva: si la columna revisor en la base de datos se llamase validado_por
   if (error && error.code === 'PGRST204' && payload.revisor !== undefined) {
+    const revVal = payload.revisor
     delete payload.revisor
-    payload.validado_por = revisorFinal
+    payload.validado_por = revVal
     const retry = await supabase
       .from('observaciones')
       .update(payload)
@@ -306,13 +328,16 @@ export async function sincronizarAuditoriaObservacion(idObs, {
   const registroActualizado = data?.[0] || null
   console.log(`[AUDITORIA-SYNC] ✅ Observación ${idObs} sincronizada exitosamente.`)
 
+  // El responsable del cambio en el historial SIEMPRE es el usuario activo de la sesión
+  const responsableSesion = usuarioNombre || 'Usuario de sesión'
+
   // Registro en el historial
   registrarHistorialEstado({
     idObs,
     idSitio,
     estadoAnterior,
     estadoNuevo: estadoNormalizado,
-    usuarioNombre: revisorFinal,
+    usuarioNombre: responsableSesion,
     usuarioEmail,
     usuarioId,
     comentario: comentarioLimpio,
@@ -325,13 +350,13 @@ export async function sincronizarAuditoriaObservacion(idObs, {
 /**
  * SINCRONIZACIÓN DE COMENTARIO:
  * Permite guardar o autoguardar notas y motivos de dictamen sin alterar el estado existente.
+ * NOTA DE SEGURIDAD: Nunca modifica ni autocompleta el campo revisor.
  *
  * @param {string} idObs
  * @param {string|null} comentarioTexto
- * @param {string} [revisor]
  * @returns {Promise<{ data: Object|null, error: Object|null }>}
  */
-export async function sincronizarComentarioObservacion(idObs, comentarioTexto, revisor = null) {
+export async function sincronizarComentarioObservacion(idObs, comentarioTexto) {
   if (!idObs) return { data: null, error: null }
 
   const comentarioLimpio = (comentarioTexto !== undefined && comentarioTexto !== null && String(comentarioTexto).trim() !== '')
@@ -340,9 +365,6 @@ export async function sincronizarComentarioObservacion(idObs, comentarioTexto, r
 
   const payload = {
     comentario_covepa: comentarioLimpio
-  }
-  if (revisor && String(revisor).trim()) {
-    payload.revisor = String(revisor).trim()
   }
 
   const { data, error } = await supabase

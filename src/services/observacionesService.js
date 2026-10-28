@@ -6,7 +6,8 @@ import {
   resolverNombreAuditor,
   sincronizarEstadoConControlFotos,
   fetchHistorialObservacion,
-  registrarHistorialEstado
+  registrarHistorialEstado,
+  esRevisorGilat
 } from './auditoriaSyncService'
 
 export {
@@ -16,7 +17,8 @@ export {
   resolverNombreAuditor,
   sincronizarEstadoConControlFotos,
   fetchHistorialObservacion,
-  registrarHistorialEstado
+  registrarHistorialEstado,
+  esRevisorGilat
 }
 
 const PAGE_SIZE_MAX = 1000

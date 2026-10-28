@@ -19,7 +19,7 @@ import {
   getSitiosObservacionesResumen,
   getObservacionesSitioDetalle
 } from '../services/programacionService'
-import { updateObservacionCovepa, sincronizarEstadoConControlFotos } from '../services/observacionesService'
+import { updateObservacionCovepa, sincronizarEstadoConControlFotos, esRevisorGilat } from '../services/observacionesService'
 import {
   sincronizarAuditoriaObservacion,
   sincronizarComentarioObservacion,
@@ -1977,23 +1977,25 @@ function ModalDetallesProgramacion({
   const handleSetEstado = async (obs, nuevoEstado) => {
     setUpdatingId(obs.id_obs)
     try {
-      const auditorActual = resolverNombreAuditor(user, personalMember)
-      // Conservar siempre el revisor de Gilat que ya estaba asignado
-      const revisorAsignado = obs.revisor || obs.validado_por || null
+      // 1. Responsable del cambio: SIEMPRE obtenido de la sesión activa
+      const responsableSesion = resolverNombreAuditor(user, personalMember)
+
+      // 2. Revisor asignado: Solo conservar si es estrictamente de GILAT, NUNCA autocompletar con la sesión
+      const revisorGilatActual = esRevisorGilat(obs.revisor, gilatOptions) ? obs.revisor : null
+
       const comentarioActual = comments[obs.id_obs] ?? obs.comentario_covepa ?? null
       const fechaIso = new Date().toISOString()
 
       // Sincronización oficial con Control Fotos + Historial de Estados
-      // Mantiene el revisor que ya estaba y registra al usuario activo como autor del cambio
       await sincronizarEstadoConControlFotos(
         obs.id_obs,
         nuevoEstado,
-        revisorAsignado,
+        revisorGilatActual,
         comentarioActual,
         {
           idSitio: obs.id_sitio || currentSitioId,
           estadoAnterior: obs.estado_covepa,
-          usuarioNombre: auditorActual,
+          usuarioNombre: responsableSesion,
           usuarioEmail: user?.email,
           usuarioId: user?.id,
           origen: 'programacion'
@@ -2007,7 +2009,7 @@ function ModalDetallesProgramacion({
             ...o,
             estado_covepa: nuevoEstado,
             fecha_subsanacion: fechaIso,
-            revisor: revisorAsignado,
+            revisor: revisorGilatActual,
             comentario_covepa: comentarioActual
           }
         }
@@ -2031,7 +2033,8 @@ function ModalDetallesProgramacion({
   // Modificar revisor
   const handleUpdateRevisor = async (obs, newRevisor) => {
     try {
-      const val = newRevisor || null
+      // Regla: En revisores solo va personal de Gilat
+      const val = (newRevisor && esRevisorGilat(newRevisor, gilatOptions)) ? newRevisor : null
       await updateObservacionCovepa(obs.id_obs, { revisor: val })
       setObservaciones(prev => prev.map(o => {
         if (o.id_obs === obs.id_obs) {
@@ -2074,8 +2077,7 @@ function ModalDetallesProgramacion({
     setSavingCommentId(obsId)
     try {
       const val = commentsRef.current[obsId] ?? ''
-      const auditorActual = resolverNombreAuditor(user, personalMember)
-      await sincronizarComentarioObservacion(obsId, val, auditorActual)
+      await sincronizarComentarioObservacion(obsId, val)
       dirtyCommentsRef.current.delete(obsId)
       setSavedCommentId(obsId)
       setTimeout(() => {
@@ -2094,10 +2096,9 @@ function ModalDetallesProgramacion({
     const dirtyIds = Array.from(dirtyCommentsRef.current)
     if (dirtyIds.length > 0) {
       try {
-        const auditorActual = resolverNombreAuditor(user, personalMember)
         await Promise.all(
           dirtyIds.map(id =>
-            sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', auditorActual)
+            sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '')
           )
         )
         dirtyCommentsRef.current.clear()
@@ -2107,7 +2108,7 @@ function ModalDetallesProgramacion({
       }
     }
     onClose()
-  }, [onClose, onObservationUpdated, user, personalMember])
+  }, [onClose, onObservationUpdated])
 
   // Listener para cerrar con tecla ESC guardando automáticamente
   useEffect(() => {
@@ -2667,7 +2668,7 @@ function ModalDetallesProgramacion({
                           <span>Revisado por:</span>
                         </label>
                         <select
-                          value={obs.revisor || obs.validado_por || ''}
+                          value={esRevisorGilat(obs.revisor || obs.validado_por, gilatOptions) ? (obs.revisor || obs.validado_por) : ''}
                           disabled={isUpdating}
                           onChange={(e) => handleUpdateRevisor(obs, e.target.value)}
                           className="audit-select"
@@ -2679,11 +2680,6 @@ function ModalDetallesProgramacion({
                               {p.nombre_completo} {p.cargo && p.cargo !== 'Empresa' ? `(${p.cargo})` : ''}
                             </option>
                           ))}
-                          {(obs.revisor || obs.validado_por) && !gilatOptions.some(g => (g.nombre_completo || '').toUpperCase().trim() === (obs.revisor || obs.validado_por).toUpperCase().trim()) && (
-                            <option value={obs.revisor || obs.validado_por}>
-                              {obs.revisor || obs.validado_por}
-                            </option>
-                          )}
                         </select>
                       </div>
 

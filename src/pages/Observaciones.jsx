@@ -12,7 +12,8 @@ import {
   fetchObservaciones, fetchObservacionesKPIs, fetchFiltrosObservaciones,
   updateObservacionCovepa, exportObservacionesCSV,
   fetchResumenPorSitio, fetchObservacionesPorSitio,
-  sincronizarEstadoConControlFotos
+  sincronizarEstadoConControlFotos,
+  esRevisorGilat
 } from '../services/observacionesService'
 import {
   sincronizarAuditoriaObservacion,
@@ -63,9 +64,9 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     if (!isDirtyCommentRef.current || !obsLocal?.id_obs) return
     setSavingComment(true)
     try {
-      const auditorActual = resolverNombreAuditor(user, personalMember)
       const val = commentValRef.current || ''
-      await sincronizarComentarioObservacion(obsLocal.id_obs, val, auditorActual)
+      // Nota: Nunca autocompleta ni modifica el campo revisor
+      await sincronizarComentarioObservacion(obsLocal.id_obs, val)
       isDirtyCommentRef.current = false
       setSavedComment(true)
       setTimeout(() => setSavedComment(false), 2500)
@@ -77,7 +78,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     } finally {
       setSavingComment(false)
     }
-  }, [obsLocal, user, personalMember, onSaved])
+  }, [obsLocal, onSaved])
 
   const handleCommentChange = (e) => {
     setCommentVal(e.target.value)
@@ -110,21 +111,24 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const handleSetEstado = async (nuevoEstado) => {
     setUpdating(true)
     try {
-      const auditorActual = resolverNombreAuditor(user, personalMember)
-      // Conservar siempre el revisor de Gilat que ya estaba asignado
-      const revisorAsignado = obsLocal.revisor || obsLocal.validado_por || null
+      // 1. Responsable del cambio: SIEMPRE obtenido de la sesión activa
+      const responsableSesion = resolverNombreAuditor(user, personalMember)
+
+      // 2. Revisor asignado: Solo conservar si es de GILAT, NUNCA autocompletar con la sesión
+      const revisorGilatActual = esRevisorGilat(obsLocal.revisor, gilatOptions) ? obsLocal.revisor : null
+
       const comentarioActual = commentValRef.current ?? obsLocal.comentario_covepa ?? null
       const fechaIso = new Date().toISOString()
 
       await sincronizarEstadoConControlFotos(
         obsLocal.id_obs,
         nuevoEstado,
-        revisorAsignado,
+        revisorGilatActual,
         comentarioActual,
         {
           idSitio: obsLocal.id_sitio,
           estadoAnterior: obsLocal.estado_covepa || (obsLocal.fecha_subsanacion ? 'Validado' : 'Pendiente'),
-          usuarioNombre: auditorActual,
+          usuarioNombre: responsableSesion,
           usuarioEmail: user?.email,
           usuarioId: user?.id,
           origen: 'observaciones'
@@ -135,7 +139,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
         ...obsLocal,
         estado_covepa: nuevoEstado,
         fecha_subsanacion: fechaIso,
-        revisor: revisorAsignado,
+        revisor: revisorGilatActual,
         comentario_covepa: comentarioActual
       }
 
@@ -153,7 +157,8 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const handleUpdateRevisor = async (newRevisor) => {
     setUpdating(true)
     try {
-      const val = newRevisor || null
+      // Regla: En revisores solo va personal de Gilat
+      const val = (newRevisor && esRevisorGilat(newRevisor, gilatOptions)) ? newRevisor : null
       await updateObservacionCovepa(obsLocal.id_obs, { revisor: val })
       const updatedRow = { ...obsLocal, revisor: val }
       setObsLocal(updatedRow)
@@ -298,7 +303,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                     <span>Revisado por:</span>
                   </label>
                   <select
-                    value={currentRevisor || ''}
+                    value={esRevisorGilat(currentRevisor, gilatOptions) ? currentRevisor : ''}
                     disabled={updating}
                     onChange={(e) => handleUpdateRevisor(e.target.value)}
                     className="audit-select"
@@ -310,11 +315,6 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                         {p.nombre_completo} {p.cargo && p.cargo !== 'Empresa' ? `(${p.cargo})` : ''}
                       </option>
                     ))}
-                    {currentRevisor && !gilatOptions.some(g => (g.nombre_completo || '').toUpperCase().trim() === currentRevisor.toUpperCase().trim()) && (
-                      <option value={currentRevisor}>
-                        {currentRevisor}
-                      </option>
-                    )}
                   </select>
                 </div>
 
@@ -1157,7 +1157,7 @@ export default function Observaciones() {
                         </span>
                       </td>
                       <td>
-                        {revisorNombre ? (
+                        {esRevisorGilat(revisorNombre, gilatOptions) ? (
                           <span
                             style={{
                               display: 'inline-flex',
@@ -1167,13 +1167,13 @@ export default function Observaciones() {
                               fontWeight: 'var(--fw-semibold)',
                               padding: '0.22rem 0.6rem',
                               borderRadius: '6px',
-                              background: revisorNombre.toUpperCase().includes('GILAT') ? '#eff6ff' : '#f8fafc',
-                              color: revisorNombre.toUpperCase().includes('GILAT') ? '#1d4ed8' : '#334155',
-                              border: revisorNombre.toUpperCase().includes('GILAT') ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
+                              background: '#eff6ff',
+                              color: '#1d4ed8',
+                              border: '1px solid #bfdbfe',
                               whiteSpace: 'nowrap'
                             }}
                           >
-                            <Users size={12} color={revisorNombre.toUpperCase().includes('GILAT') ? '#2563eb' : '#64748b'} />
+                            <Users size={12} color="#2563eb" />
                             {revisorNombre}
                           </span>
                         ) : (

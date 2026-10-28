@@ -146,10 +146,10 @@ export default function HistorialEstadosTimeline({ idObs, refreshKey = 0 }) {
                     )}
                   </div>
 
-                  {/* Fila 3: Usuario que ejecutó la acción / cambio de estado */}
+                  {/* Fila 3: Responsable de cambio (usuario de la sesión activa) */}
                   <div className="historial-timeline-author">
                     <User size={11} color="#0284c7" />
-                    <span>Modificado por: <strong>{item.usuario_nombre || 'Usuario del Sistema'}</strong></span>
+                    <span>Responsable de cambio: <strong title={item.usuario_email ? `Cuenta: ${item.usuario_email}` : ''}>{item.usuario_nombre || 'Usuario de sesión'}</strong></span>
                   </div>
 
                   {/* Fila 4: Comentario o Nota de Dictamen (si existe) */}

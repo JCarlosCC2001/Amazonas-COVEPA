@@ -9,6 +9,7 @@ import {
 // M3: ExcelJS se importa dinámicamente en handleExportXLSX para no inflar el bundle inicial
 import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
 import HistorialEstadosTimeline from '../components/shared/HistorialEstadosTimeline'
+import { getAvancePorFecha } from '../services/dashboardService'
 import {
   getPersonalActivo,
   getPersonalTecnico,
@@ -51,6 +52,30 @@ export default function Programacion() {
   const [programaciones, setProgramaciones] = useState([])
   const [tecnicos, setTecnicos] = useState([])
   const [sitiosStats, setSitiosStats] = useState({})
+
+  // Avance específico y métricas del día que se está revisando (currentDate)
+  const [dayAvance, setDayAvance] = useState({ rows: [], stats: {}, loading: false })
+
+  const loadDayAvance = useCallback(async (targetDate) => {
+    if (!targetDate) return
+    const dStr = typeof targetDate === 'string' ? targetDate : toLocalDateString(targetDate)
+    setDayAvance(prev => ({ ...prev, loading: true }))
+    try {
+      const res = await getAvancePorFecha(dStr)
+      setDayAvance({
+        rows: res?.rows || [],
+        stats: res?.stats || {},
+        loading: false
+      })
+    } catch (err) {
+      console.warn('Error cargando avance del día en Programacion:', err)
+      setDayAvance(prev => ({ ...prev, loading: false }))
+    }
+  }, [])
+
+  useEffect(() => {
+    loadDayAvance(currentDate)
+  }, [currentDate, loadDayAvance])
 
   // Catálogo enriquecido con localidades y nombres de nodos para visualización al lado de los códigos
   const [sitiosCatalogo, setSitiosCatalogo] = useState(() => {
@@ -155,12 +180,13 @@ export default function Programacion() {
       } else {
         setSitiosStats({})
       }
+      loadDayAvance(currentDate)
     } catch (err) {
       console.error('Error cargando programaciones:', err)
     } finally {
       setLoading(false)
     }
-  }, [startDateStr, endDateStr])
+  }, [startDateStr, endDateStr, currentDate, loadDayAvance])
 
   useEffect(() => {
     fetchWeekData()
@@ -217,6 +243,7 @@ export default function Programacion() {
   const weekStats = useMemo(() => {
     let totalObs = 0
     let validadas = 0
+    let solicitando = 0
     let enRevision = 0
     let enviadas = 0
     let descartadas = 0
@@ -231,6 +258,7 @@ export default function Programacion() {
           if (stat) {
             totalObs += (stat.total || 0)
             validadas += (stat.validadas || 0)
+            solicitando += (stat.solicitando || 0)
             enRevision += (stat.enRevision || 0)
             enviadas += (stat.enviadas || 0)
             descartadas += (stat.descartadas || 0) + (stat.rechazadas || 0)
@@ -243,6 +271,7 @@ export default function Programacion() {
     return {
       totalObs,
       validadas,
+      solicitando,
       enRevision,
       enviadas,
       descartadas,
@@ -308,9 +337,24 @@ export default function Programacion() {
   const filterProgsByStatus = useCallback((progsList) => {
     if (!progsList) return []
     if (statusFilter === 'ALL') return progsList
+
+    // Sitios que tienen observaciones en el estado seleccionado para la fecha en revisión
+    const matchingSites = new Set(
+      (dayAvance.rows || [])
+        .filter(r => {
+          if (statusFilter === 'SOLICITANDO') return r.estado === 'Solicitando Revisión'
+          if (statusFilter === 'EN_REVISION') return r.estado === 'En Revisión'
+          if (statusFilter === 'VALIDADO') return r.estado === 'Validado' || r.estado === 'Enviado'
+          if (statusFilter === 'DESCARTADA') return r.estado === 'Descartado' || r.estado === 'Rechazado'
+          return false
+        })
+        .map(r => r.id_sitio)
+    )
+
     return progsList.filter(prog => {
       const sitios = prog.sitios || []
       return sitios.some(s => {
+        if (matchingSites.has(s.id_sitio)) return true
         const stat = sitiosStats[s.id_sitio]
         if (!stat) return false
         if (statusFilter === 'SOLICITANDO') return (stat.solicitando || 0) > 0
@@ -320,7 +364,7 @@ export default function Programacion() {
         return true
       })
     })
-  }, [statusFilter, sitiosStats])
+  }, [statusFilter, dayAvance.rows, sitiosStats])
 
   // Filtrado de cuadrillas de hoy según el estado seleccionado
   const filteredTodayProgs = useMemo(() => {
@@ -581,42 +625,46 @@ export default function Programacion() {
         <MetricCard
           icon={<Clock size={20} />}
           label="Solicitando Revisión"
-          value={viewMode === 'today' ? todayStats.solicitando : weekStats.solicitando}
+          value={viewMode === 'today' ? (dayAvance.stats?.solicitando ?? 0) : (weekStats.solicitando ?? 0)}
           subtitle={viewMode === 'today' ? 'esperando validación' : 'en la semana'}
           variant="orange"
           onClick={() => setStatusFilter(prev => prev === 'SOLICITANDO' ? 'ALL' : 'SOLICITANDO')}
           active={statusFilter === 'SOLICITANDO'}
           badge={statusFilter === 'SOLICITANDO' ? 'Filtrando' : null}
+          loading={viewMode === 'today' && dayAvance.loading}
         />
         <MetricCard
           icon={<Search size={20} />}
           label="En Revisión"
-          value={viewMode === 'today' ? todayStats.enRevision : weekStats.enRevision}
+          value={viewMode === 'today' ? (dayAvance.stats?.enRevision ?? 0) : (weekStats.enRevision ?? 0)}
           subtitle={viewMode === 'today' ? 'en auditoría técnica' : 'en la semana'}
           variant="sky"
           onClick={() => setStatusFilter(prev => prev === 'EN_REVISION' ? 'ALL' : 'EN_REVISION')}
           active={statusFilter === 'EN_REVISION'}
           badge={statusFilter === 'EN_REVISION' ? 'Filtrando' : null}
+          loading={viewMode === 'today' && dayAvance.loading}
         />
         <MetricCard
           icon={<CheckCircle2 size={20} />}
           label="Validados (Por Subir)"
-          value={viewMode === 'today' ? todayStats.validadas : weekStats.validadas}
+          value={viewMode === 'today' ? (dayAvance.stats?.validadas ?? 0) : (weekStats.validadas ?? 0)}
           subtitle={viewMode === 'today' ? 'listos para cargar' : 'en la semana'}
           variant="emerald"
           onClick={() => setStatusFilter(prev => prev === 'VALIDADO' ? 'ALL' : 'VALIDADO')}
           active={statusFilter === 'VALIDADO'}
           badge={statusFilter === 'VALIDADO' ? 'Filtrando' : null}
+          loading={viewMode === 'today' && dayAvance.loading}
         />
         <MetricCard
           icon={<AlertTriangle size={20} />}
           label="Descartadas / Rech."
-          value={viewMode === 'today' ? todayStats.descartadas : weekStats.descartadas}
+          value={viewMode === 'today' ? ((dayAvance.stats?.descartadas || 0) + (dayAvance.stats?.rechazadas || 0)) : (weekStats.descartadas ?? 0)}
           subtitle={viewMode === 'today' ? 'cerradas o rechazadas' : 'en la semana'}
           variant="rose"
           onClick={() => setStatusFilter(prev => prev === 'DESCARTADA' ? 'ALL' : 'DESCARTADA')}
           active={statusFilter === 'DESCARTADA'}
           badge={statusFilter === 'DESCARTADA' ? 'Filtrando' : null}
+          loading={viewMode === 'today' && dayAvance.loading}
         />
       </MetricGrid>
 
@@ -1275,6 +1323,7 @@ export default function Programacion() {
           onObservationUpdated={() => {
             // Refrescar conteos de observaciones y avances
             fetchWeekData()
+            loadDayAvance(currentDate)
           }}
         />
       )}

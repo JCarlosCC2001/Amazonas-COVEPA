@@ -44,7 +44,10 @@ export function PresentationProvider({ children }) {
 export function usePresentationMode() {
   const context = useContext(PresentationContext)
   if (!context) {
-    throw new Error('usePresentationMode debe usarse dentro de un PresentationProvider')
+    return {
+      presentationMode: false,
+      togglePresentationMode: () => {}
+    }
   }
   return context
 }

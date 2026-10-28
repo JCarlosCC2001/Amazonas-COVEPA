@@ -20,10 +20,11 @@ function getAudioContext() {
   if (typeof window === 'undefined') return null
   const AudioContextClass = window.AudioContext || window.webkitAudioContext
   if (!AudioContextClass) return null
-  if (!sharedAudioCtx) {
+  if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
     try {
       sharedAudioCtx = new AudioContextClass()
     } catch {
+      sharedAudioCtx = null
       return null
     }
   }
@@ -79,7 +80,8 @@ export function playNotificationChime() {
     osc2.start(now + 0.11)
     osc2.stop(now + 0.55)
   } catch {
-    // Si el navegador bloquea audio por políticas de interacción, silenciar sin error
+    // Si el contexto de audio se rompió por cambio de dispositivo o renderizador, liberar referencia
+    sharedAudioCtx = null
   }
 }
 
@@ -109,7 +111,8 @@ export function playAccumulationChime() {
       osc.stop(startT + 0.38)
     })
   } catch {
-    // Silenciar sin error
+    // Si el contexto de audio se rompió por cambio de dispositivo o renderizador, liberar referencia
+    sharedAudioCtx = null
   }
 }
 
@@ -844,7 +847,26 @@ export function NotificationProvider({ children }) {
 export function useNotifications() {
   const context = useContext(NotificationContext)
   if (!context) {
-    throw new Error('useNotifications debe usarse dentro de un NotificationProvider')
+    return {
+      solicitudes: [],
+      enRevision: [],
+      unreadCount: 0,
+      unreadRevisionCount: 0,
+      unreadTotalCount: 0,
+      accumulationAlert: null,
+      toasts: [],
+      desktopPermission: 'default',
+      isDropdownOpen: false,
+      setIsDropdownOpen: () => {},
+      markAsRead: () => {},
+      markAllAsRead: () => {},
+      dismissIndividual: () => {},
+      dismissAllPending: () => {},
+      restoreDismissed: () => {},
+      dismissedIdsCount: 0,
+      dismissToast: () => {},
+      requestDesktopPermission: async () => 'default'
+    }
   }
   return context
 }

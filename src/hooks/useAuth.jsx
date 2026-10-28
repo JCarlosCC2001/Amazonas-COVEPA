@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
+import { AuthContext } from '../context/AuthContext'
 import { supabase, supabaseExt } from '../lib/supabase'
 import { mapExternalPerson } from '../services/personalService'
 
-const AuthContext = createContext(null)
+export { AuthContext }
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -259,6 +260,21 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth debe usarse dentro de <AuthProvider>')
+  if (!ctx) {
+    // Si ocurre durante recarga en caliente (HMR) o transición de Providers,
+    // proveer un fallback seguro para evitar que la aplicación crashee.
+    return {
+      user: null,
+      session: null,
+      profile: null,
+      personalMember: null,
+      isAdmin: false,
+      loading: true,
+      signIn: async () => ({ error: new Error('Auth no disponible') }),
+      signOut: async () => {},
+      updatePassword: async () => ({ error: new Error('Auth no disponible') }),
+      refreshProfile: async () => {}
+    }
+  }
   return ctx
 }

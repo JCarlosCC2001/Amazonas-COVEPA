@@ -75,18 +75,7 @@ export default function AppHeader() {
   const [activeQueueTab, setActiveQueueTab] = useState('tecnicos') // 'tecnicos' | 'auditores'
   const [filterTier, setFilterTier] = useState('ALL') // 'ALL' | '10m' | '1h' | '2h' | '6h' | '12h'
   const [showDelayedCodesQuick, setShowDelayedCodesQuick] = useState(false)
-  const [expandedItemDetails, setExpandedItemDetails] = useState(new Set())
   const notifRef = useRef(null)
-
-  const toggleItemDetail = (e, idObs) => {
-    e.stopPropagation()
-    setExpandedItemDetails(prev => {
-      const next = new Set(prev)
-      if (next.has(idObs)) next.delete(idObs)
-      else next.add(idObs)
-      return next
-    })
-  }
 
   // Cerrar popover de notificaciones al hacer clic afuera
   useEffect(() => {
@@ -461,7 +450,6 @@ export default function AppHeader() {
                     const waitMins = calcWaitMins(obs.fecha_subsanacion)
                     const waitTimeStr = formatWaitTime(waitMins)
                     const tier = getWaitTierInfo(waitMins)
-                    const isItemExpanded = expandedItemDetails.has(obs.id_obs)
 
                     return (
                       <div
@@ -507,31 +495,6 @@ export default function AppHeader() {
                               {formatTiempoRelativo(obs.fecha_subsanacion)}
                             </span>
                           </div>
-
-                          {/* Flecha para desplegar detalle de la observación */}
-                          {obs.detalle && (
-                            <div className="notif-item-detail-toggle-wrap">
-                              <button
-                                type="button"
-                                className="notif-item-detail-toggle-btn"
-                                onClick={(e) => toggleItemDetail(e, obs.id_obs)}
-                                title={isItemExpanded ? 'Ocultar detalle' : 'Desplegar detalle'}
-                                aria-expanded={isItemExpanded}
-                              >
-                                <span>{isItemExpanded ? 'Ocultar detalle' : 'Ver detalle'}</span>
-                                {isItemExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                              </button>
-                            </div>
-                          )}
-
-                          {isItemExpanded && obs.detalle && (
-                            <div className="notif-item-unfolded-detail">
-                              <p className="notif-unfolded-desc">{obs.detalle}</p>
-                              {obs.subsistema && (
-                                <span className="notif-unfolded-meta">Subsistema: <strong>{obs.subsistema}</strong></span>
-                              )}
-                            </div>
-                          )}
                         </div>
 
                         <button

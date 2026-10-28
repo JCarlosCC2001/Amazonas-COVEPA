@@ -199,31 +199,6 @@ export default function NotificationToastContainer() {
                         <span>Técnico: <strong>{obs.revisor}</strong></span>
                       </div>
                     )}
-
-                    {/* Flecha para desplegar detalles de la observación */}
-                    {obs.subsistema && (
-                      <button
-                        type="button"
-                        className={`notif-toast-expand-btn single-obs ${isExpanded ? 'is-expanded' : ''}`}
-                        onClick={() => toggleExpand(toast.id)}
-                        aria-expanded={isExpanded}
-                      >
-                        <span className="notif-expand-btn-text">
-                          {isExpanded ? 'Ocultar detalle técnico' : 'Desplegar detalle técnico'}
-                        </span>
-                        <span className="notif-expand-arrow-icon">
-                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </span>
-                      </button>
-                    )}
-
-                    {isExpanded && obs.subsistema && (
-                      <div className="notif-toast-expanded-single-detail">
-                        <div className="notif-toast-subsystem-line">
-                          <span>Subsistema: <strong>{obs.subsistema}</strong></span>
-                        </div>
-                      </div>
-                    )}
                   </>
                 )}
               </div>

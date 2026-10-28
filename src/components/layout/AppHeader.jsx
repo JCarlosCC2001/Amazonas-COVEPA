@@ -77,8 +77,12 @@ export default function AppHeader() {
     }
     if (notifOpen) {
       document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('touchstart', handleClickOutside)
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
   }, [notifOpen])
 
   // Obtener metadata de la ruta actual
@@ -194,14 +198,6 @@ export default function AppHeader() {
                       <span>Limpiar</span>
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className="notif-popover-close"
-                    onClick={() => setNotifOpen(false)}
-                    title="Cerrar menú"
-                  >
-                    <X size={14} />
-                  </button>
                 </div>
               </div>
 

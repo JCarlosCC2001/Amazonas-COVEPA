@@ -416,7 +416,7 @@ export async function getSitiosObservacionesResumen(sitiosIds = []) {
 
   ;(data || []).forEach(row => {
     if (!resumen[row.id_sitio]) {
-      resumen[row.id_sitio] = { total: 0, validadas: 0, subsanadas: 0, descartadas: 0, enRevision: 0, enviadas: 0, rechazadas: 0, pendientes: 0 }
+      resumen[row.id_sitio] = { total: 0, validadas: 0, subsanadas: 0, descartadas: 0, solicitando: 0, enRevision: 0, rechazadas: 0, pendientes: 0 }
     }
     const s = resumen[row.id_sitio]
     s.total++
@@ -424,22 +424,22 @@ export async function getSitiosObservacionesResumen(sitiosIds = []) {
     const rawSt = row.estado_covepa ? row.estado_covepa.trim() : null
     let st = 'Pendiente'
     if (rawSt === 'Descartado') st = 'Descartado'
+    else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') st = 'Solicitando Revisión'
     else if (rawSt === 'En Revision' || rawSt === 'En Revisión') st = 'En Revision'
-    else if (rawSt === 'Validado') st = 'Validado'
-    else if (rawSt === 'Enviado') st = 'Enviado'
+    else if (rawSt === 'Validado' || rawSt === 'Enviado') st = 'Validado'
     else if (rawSt === 'Rechazado') st = 'Rechazado'
     else if (rawSt === 'Pendiente') st = 'Pendiente'
     else if (row.fecha_subsanacion) st = 'Validado'
 
     if (st === 'Descartado') {
       s.descartadas++
+    } else if (st === 'Solicitando Revisión') {
+      s.solicitando++
     } else if (st === 'En Revision') {
       s.enRevision++
     } else if (st === 'Validado') {
       s.validadas++
       s.subsanadas++
-    } else if (st === 'Enviado') {
-      s.enviadas++
     } else if (st === 'Rechazado') {
       s.rechazadas++
     } else {

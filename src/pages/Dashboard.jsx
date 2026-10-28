@@ -204,8 +204,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── SECCIÓN 1: MEDIDORES GENERALES DE TODO EL PROYECTO (6 MÉTRICAS OPERATIVAS) ── */}
-      <MetricGrid columns={6}>
+      {/* ── SECCIÓN 1: MEDIDORES GENERALES DE TODO EL PROYECTO (7 MÉTRICAS OPERATIVAS) ── */}
+      <MetricGrid columns={7}>
         <MetricCard
           icon={<ClipboardList size={22} />}
           label="Total Observaciones"
@@ -227,20 +227,30 @@ export default function Dashboard() {
         />
 
         <MetricCard
+          icon={<Clock size={22} />}
+          label="Solicitando Revisión"
+          value={loading ? '—' : (kpis.solicitando || 0).toLocaleString()}
+          subtitle="En espera de revisión"
+          variant="orange"
+          onClick={() => navigate('/observaciones')}
+          title="Observaciones que solicitan revisión técnica"
+        />
+
+        <MetricCard
           icon={<UploadCloud size={22} />}
-          label="Subidas"
-          value={loading ? '—' : (kpis.enviadas || 0).toLocaleString()}
-          subtitle="Enviadas a supervisión"
+          label="En Revisión"
+          value={loading ? '—' : (kpis.enRevision || 0).toLocaleString()}
+          subtitle="Auditoría en proceso"
           variant="sky"
           onClick={() => navigate('/observaciones')}
-          title="Observaciones subidas y enviadas por COVEPA"
+          title="Observaciones en proceso de auditoría"
         />
 
         <MetricCard
           icon={<CheckCircle2 size={22} />}
           label="Validadas"
           value={loading ? '—' : (kpis.validadas || 0).toLocaleString()}
-          subtitle="Aprobadas por Pronatel"
+          subtitle="Subsanación conforme"
           variant="emerald"
           onClick={() => navigate('/observaciones')}
           title="Observaciones acreditadas y validadas"

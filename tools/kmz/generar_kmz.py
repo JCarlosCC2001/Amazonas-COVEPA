@@ -207,6 +207,8 @@ def generar_popup_html_ligero(sitio, obs_list):
         st_style = "font-weight:bold;"
         if st == "Validado":
             st_style += "color:#059669;"
+        elif st in ("Solicitando Revision", "Solicitando Revisión"):
+            st_style += "color:#ea580c;"
         elif st in ("En Revision", "En Revisión"):
             st_style += "color:#0284c7;"
         elif st == "Descartado":

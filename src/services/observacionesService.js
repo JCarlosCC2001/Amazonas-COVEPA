@@ -1,4 +1,47 @@
 import { supabase } from '../lib/supabase'
+import {
+  sincronizarAuditoriaObservacion,
+  sincronizarComentarioObservacion,
+  normalizarEstadoOficial,
+  resolverNombreAuditor
+} from './auditoriaSyncService'
+
+export {
+  sincronizarAuditoriaObservacion,
+  sincronizarComentarioObservacion,
+  normalizarEstadoOficial,
+  resolverNombreAuditor
+}
+
+/**
+ * Función para actualizar el dictamen de una observación y sincronizar con Control Fotos
+ * @param {string} idObs - Código PRONATEL de la observación (ej: 'H1-OC-25-316')
+ * @param {string} estado - 'Validado' | 'Rechazado' | 'En Revisión' | 'Solicitando Revisión' | 'Descartado' | 'Pendiente'
+ * @param {string} revisor - Nombre del auditor o usuario logueado
+ * @param {string} [comentario] - Motivo de rechazo o nota técnica (opcional)
+ */
+export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, comentario = null) {
+  try {
+    const { data, error } = await supabase
+      .from('observaciones')
+      .update({
+        estado_covepa: estado,
+        revisor: revisor,
+        fecha_subsanacion: new Date().toISOString(),
+        comentario_covepa: comentario
+      })
+      .eq('id_obs', idObs);
+    if (error) {
+      console.error('Error al actualizar observación:', error);
+      return false;
+    }
+    console.log(`[Sincronización OK] Observación ${idObs} cambiada a ${estado}`);
+    return true;
+  } catch (err) {
+    console.error('Error de red al actualizar observación:', err);
+    return false;
+  }
+}
 
 const PAGE_SIZE_MAX = 1000
 
@@ -97,7 +140,7 @@ export async function fetchObservaciones({
 } = {}) {
   let query = supabase
     .from('observaciones')
-    .select('id_obs,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_covepa,fecha_subsanacion,comentario_covepa,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion', { count: 'exact' })
+    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor', { count: 'exact' })
 
   query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio })
 
@@ -122,11 +165,12 @@ export async function fetchObservacionesKPIs(filters = {}) {
     const kpiFilters = { ...filters }
     delete kpiFilters.estadoCovepa
 
-    const [qTotal, qPend, qSubidas, qValidadas, qRech, qDesc] = await Promise.all([
+    const [qTotal, qPend, qSol, qRev, qValidadas, qRech, qDesc] = await Promise.all([
       applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }), kpiFilters),
       applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Pendiente,estado_covepa.is.null'), kpiFilters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Enviado'), kpiFilters),
-      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Enviado,estado_covepa.neq.Rechazado)'), kpiFilters),
+      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión'), kpiFilters),
+      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión'), kpiFilters),
+      applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Solicitando Revision,estado_covepa.neq.Solicitando Revisión,estado_covepa.neq.Rechazado)'), kpiFilters),
       applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Rechazado'), kpiFilters),
       applyQueryFilters(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Descartado'), kpiFilters),
     ])
@@ -134,14 +178,15 @@ export async function fetchObservacionesKPIs(filters = {}) {
     return {
       total: qTotal.count ?? 0,
       pendientes: qPend.count ?? 0,
-      subidas: qSubidas.count ?? 0,
+      solicitando: qSol.count ?? 0,
+      enRevision: qRev.count ?? 0,
       validadas: qValidadas.count ?? 0,
       rechazadas: qRech.count ?? 0,
       descartadas: qDesc.count ?? 0,
     }
   } catch (err) {
     console.error('Error al calcular KPIs:', err)
-    return { total: 0, pendientes: 0, subidas: 0, validadas: 0, rechazadas: 0, descartadas: 0 }
+    return { total: 0, pendientes: 0, solicitando: 0, enRevision: 0, validadas: 0, rechazadas: 0, descartadas: 0 }
   }
 }
 
@@ -168,15 +213,32 @@ export async function fetchFiltrosObservaciones() {
 }
 
 // ────────────────────────────────────────────────────────────
-// 4. Actualiza los campos editables de COVEPA en una observación
+// 4. Actualiza y sincroniza los campos de auditoría COVEPA
+// (Conectado con el puente de auditoría para la app de fotos de campo)
 // ────────────────────────────────────────────────────────────
 export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subsanacion, comentario_covepa, revisor, validado_por }) {
+  const rev = revisor !== undefined ? revisor : validado_por
+
+  // Si se actualiza el estado de la observación, delegar al puente oficial de auditoría
+  if (estado_covepa !== undefined) {
+    const res = await sincronizarAuditoriaObservacion(idObs, {
+      nuevoEstado: estado_covepa,
+      revisor: rev,
+      comentarioTexto: comentario_covepa,
+      fechaSubsanacion: fecha_subsanacion
+    })
+    return res.data
+  }
+
+  // Si sólo se actualiza el comentario sin alterar estado
+  if (comentario_covepa !== undefined && estado_covepa === undefined && fecha_subsanacion === undefined) {
+    const res = await sincronizarComentarioObservacion(idObs, comentario_covepa, rev)
+    return res.data
+  }
+
   const payload = {}
-  if (estado_covepa !== undefined) payload.estado_covepa = estado_covepa
   if (fecha_subsanacion !== undefined) payload.fecha_subsanacion = fecha_subsanacion || null
   if (comentario_covepa !== undefined) payload.comentario_covepa = comentario_covepa
-  
-  const rev = revisor !== undefined ? revisor : validado_por
   if (rev !== undefined) payload.revisor = rev || null
 
   const { data, error } = await supabase
@@ -205,11 +267,12 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
   return data
 }
 
+
 // ────────────────────────────────────────────────────────────
 // 5. Exporta a CSV todas las observaciones del filtro actual
 // ────────────────────────────────────────────────────────────
 export async function exportObservacionesCSV(filters = {}) {
-  const selectCols = '*'
+  const selectCols = 'id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor'
   const allRows = await fetchAllRowsInBatches('observaciones', selectCols, filters)
   return allRows.sort((a, b) => (a.id_obs || '').localeCompare(b.id_obs || ''))
 }
@@ -223,7 +286,7 @@ export async function fetchResumenPorSitio(filters = {}) {
   const resumen = {}
   for (const row of data) {
     if (!resumen[row.id_sitio]) {
-      resumen[row.id_sitio] = { total: 0, pendientes: 0, descartadas: 0, subsanadas: 0, validadas: 0, enRevision: 0, enviadas: 0, rechazadas: 0 }
+      resumen[row.id_sitio] = { total: 0, pendientes: 0, solicitando: 0, descartadas: 0, subsanadas: 0, validadas: 0, enRevision: 0, rechazadas: 0 }
     }
     const r = resumen[row.id_sitio]
     r.total++
@@ -231,28 +294,29 @@ export async function fetchResumenPorSitio(filters = {}) {
     const rawSt = row.estado_covepa ? row.estado_covepa.trim() : null
     let st = 'Pendiente'
     if (rawSt === 'Descartado') st = 'Descartado'
+    else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') st = 'Solicitando Revisión'
     else if (rawSt === 'En Revision' || rawSt === 'En Revisión') st = 'En Revision'
-    else if (rawSt === 'Validado') st = 'Validado'
-    else if (rawSt === 'Enviado') st = 'Enviado'
+    else if (rawSt === 'Validado' || rawSt === 'Enviado') st = 'Validado'
     else if (rawSt === 'Rechazado') st = 'Rechazado'
     else if (rawSt === 'Pendiente') st = 'Pendiente'
     else if (row.fecha_subsanacion) st = 'Validado'
 
     if (st === 'Descartado') {
       r.descartadas++
+    } else if (st === 'Solicitando Revisión') {
+      r.solicitando++
     } else if (st === 'En Revision') {
       r.enRevision++
     } else if (st === 'Validado') {
       r.subsanadas++
       r.validadas++
-    } else if (st === 'Enviado') {
-      r.enviadas++
     } else if (st === 'Rechazado') {
       r.rechazadas++
     } else {
       r.pendientes++
     }
   }
+
   return resumen
 }
 
@@ -262,7 +326,7 @@ export async function fetchResumenPorSitio(filters = {}) {
 export async function fetchObservacionesPorSitio(idSitio, filters = {}) {
   let query = supabase
     .from('observaciones')
-    .select('id_obs,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_covepa,fecha_subsanacion,comentario_covepa,acuerdo_subsanacion,comentario_inicial,comentario_complementario,comentario_final')
+    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor')
     .eq('id_sitio', idSitio)
 
   query = applyQueryFilters(query, filters)

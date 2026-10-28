@@ -16,6 +16,10 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   }
 })
 
+// Cliente Supabase — Base de Datos Aplicativo (Control Fotos)
+// URL: https://byywikicdvmmmndhkooe.supabase.co
+export const supabaseAplicativo = supabase
+
 // Cliente Supabase — Base de datos EXTERNA (Amazonas-SELNET)
 const supabaseExtUrl = import.meta.env.VITE_SUPABASE_EXT_URL
 const supabaseExtKey = import.meta.env.VITE_SUPABASE_EXT_ANON_KEY

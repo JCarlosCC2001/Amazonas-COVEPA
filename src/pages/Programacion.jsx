@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2,
   MapPin, CheckCircle2, Clock, AlertCircle, List,
@@ -18,12 +18,18 @@ import {
   getSitiosObservacionesResumen,
   getObservacionesSitioDetalle
 } from '../services/programacionService'
-import { updateObservacionCovepa } from '../services/observacionesService'
+import { updateObservacionCovepa, sincronizarEstadoConControlFotos } from '../services/observacionesService'
+import {
+  sincronizarAuditoriaObservacion,
+  sincronizarComentarioObservacion,
+  resolverNombreAuditor
+} from '../services/auditoriaSyncService'
 import { ASIGNACIONES_BASE, getCachedSitiosAsignados } from '../services/sitiosService'
 import { useAuth } from '../hooks/useAuth'
 import { usePresentationMode } from '../context/PresentationContext'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 import { hasMeaningfulText, toLocalDateString, getInitials, getCargoClass } from '../utils/helpers'
+import { supabase } from '../lib/supabase'
 
 // Helper para obtener el lunes de la semana actual
 function getMonday(d) {
@@ -82,9 +88,16 @@ export default function Programacion() {
   // Modales y edición
   const [modalNewOpen, setModalNewOpen] = useState(false)
   const [modalNewDate, setModalNewDate] = useState('')
+  const [modalNewInitialSite, setModalNewInitialSite] = useState(null)
   const [editingProg, setEditingProg] = useState(null)
   const [selectedProgModal, setSelectedProgModal] = useState(null) // { id_sitio, programacion, allSitios }
   const [modalAvanceOpen, setModalAvanceOpen] = useState(false)
+
+  // Buscador de Observación e Intersección Operativa
+  const [searchObsQuery, setSearchObsQuery] = useState('')
+  const [searchObsResult, setSearchObsResult] = useState(null) // { status: 'SCHEDULED' | 'NOT_SCHEDULED' | 'NOT_FOUND', obs, allMatches, siteId, siteObj, prog, assignedLead, leadTecnico, cuadrillaName }
+  const [isSearchingObs, setIsSearchingObs] = useState(false)
+  const searchObsTimeoutRef = useRef(null)
 
   // Calcular rango de la semana (Lunes a Domingo)
   const weekDays = useMemo(() => {
@@ -235,8 +248,8 @@ export default function Programacion() {
     let totalObs = 0
     let resueltas = 0
     let validadas = 0
+    let solicitando = 0
     let enRevision = 0
-    let enviadas = 0
     let descartadas = 0
     let pendientes = 0
     let totalPersonal = 0
@@ -254,11 +267,11 @@ export default function Programacion() {
           if (stat) {
             totalObs += (stat.total || 0)
             validadas += (stat.validadas || 0)
+            solicitando += (stat.solicitando || 0)
             enRevision += (stat.enRevision || 0)
-            enviadas += (stat.enviadas || 0)
             descartadas += (stat.descartadas || 0) + (stat.rechazadas || 0)
             pendientes += (stat.pendientes || 0)
-            resueltas += (stat.validadas || stat.subsanadas || 0) + (stat.descartadas || 0) + (stat.rechazadas || 0) + (stat.enviadas || 0)
+            resueltas += (stat.validadas || stat.subsanadas || 0) + (stat.descartadas || 0) + (stat.rechazadas || 0)
           }
         }
       })
@@ -272,8 +285,8 @@ export default function Programacion() {
       totalObs,
       resueltas,
       validadas,
+      solicitando,
       enRevision,
-      enviadas,
       descartadas,
       pendientes,
       progs
@@ -289,9 +302,9 @@ export default function Programacion() {
       return sitios.some(s => {
         const stat = sitiosStats[s.id_sitio]
         if (!stat) return false
-        if (statusFilter === 'VALIDADO') return (stat.validadas || 0) > 0
+        if (statusFilter === 'SOLICITANDO') return (stat.solicitando || 0) > 0
         if (statusFilter === 'EN_REVISION') return (stat.enRevision || 0) > 0
-        if (statusFilter === 'ENVIADO') return (stat.enviadas || 0) > 0
+        if (statusFilter === 'VALIDADO') return (stat.validadas || 0) > 0
         if (statusFilter === 'DESCARTADA') return ((stat.descartadas || 0) + (stat.rechazadas || 0)) > 0
         return true
       })
@@ -391,10 +404,164 @@ export default function Programacion() {
     })
   }, [])
 
+  // Búsqueda de observación en Supabase y verificación de intersección con la jornada activa
+  const handleSearchObservation = useCallback(async (queryText, selectedObsItem = null) => {
+    const q = (queryText || '').trim()
+    if (!q || q.length < 2) {
+      setSearchObsResult(null)
+      setIsSearchingObs(false)
+      return
+    }
+
+    setIsSearchingObs(true)
+    try {
+      let obsRecord = selectedObsItem
+      let matches = []
+
+      if (!obsRecord) {
+        // Consultar Supabase en la tabla observaciones
+        const { data, error } = await supabase
+          .from('observaciones')
+          .select('id_obs, id_sitio, protocolo, subsistema, detalle, estado_covepa, revisor, fecha_subsanacion')
+          .ilike('id_obs', `%${q}%`)
+          .limit(10)
+
+        if (error) {
+          console.error('Error buscando observación en Supabase:', error)
+          setIsSearchingObs(false)
+          return
+        }
+
+        matches = data || []
+        if (matches.length === 0) {
+          setSearchObsResult({
+            status: 'NOT_FOUND',
+            query: q,
+            allMatches: []
+          })
+          setIsSearchingObs(false)
+          return
+        }
+
+        // Si hay coincidencia exacta de código, priorizarla; de lo contrario tomar la primera
+        obsRecord = matches.find(m => (m.id_obs || '').toUpperCase() === q.toUpperCase()) || matches[0]
+      } else {
+        matches = [obsRecord]
+      }
+
+      const siteId = obsRecord.id_sitio
+      const siteObj = sitiosMap[siteId] || sitiosCatalogo.find(s => s.id_site === siteId) || {
+        id_site: siteId,
+        localidad: '',
+        cuadrilla: '',
+        grupo: ''
+      }
+
+      // Verificar si el sitio está programado para la fecha activa (currentDate)
+      const activeDateStr = toLocalDateString(currentDate)
+      const progToday = programaciones.find(p =>
+        p.fecha === activeDateStr && (p.sitios || []).some(s => s.id_sitio === siteId)
+      )
+
+      // Identificar cuadrilla y técnico sugerido de base para el sitio
+      let cuadrillaName = (siteObj.cuadrilla || siteObj.grupo || '').trim().toUpperCase().replace(/GRUPO/gi, 'CUADRILLA')
+      let leadTecnico = null
+
+      if (cuadrillaName && !cuadrillaName.includes('SIN CUADRILLA')) {
+        const teamForCuad = tecnicos.filter(t => {
+          const tCuad = (t.cuadrilla || '').trim().toUpperCase().replace(/GRUPO/gi, 'CUADRILLA')
+          return tCuad === cuadrillaName
+        })
+        const leads = teamForCuad.filter(t => {
+          const cargo = (t.cargo || '').toUpperCase()
+          return (cargo.includes('TÉCN') || cargo.includes('TECN') || cargo.includes('SUPERVISOR')) && !cargo.includes('CONDUCTOR')
+        })
+        leadTecnico = leads[0] || teamForCuad.find(t => !(t.cargo || '').toUpperCase().includes('CONDUCTOR')) || teamForCuad[0] || null
+      }
+
+      if (progToday) {
+        // Encontrado y programado hoy
+        const progTeam = progToday.equipo && progToday.equipo.length > 0 ? progToday.equipo : [progToday.personal || {}]
+        const assignedLead = progTeam.find(m => {
+          const c = (m.cargo || '').toUpperCase()
+          return c.includes('TÉCN') || c.includes('TECN') || c.includes('SUPERVISOR')
+        }) || progToday.personal || progTeam[0]
+
+        setSearchObsResult({
+          status: 'SCHEDULED',
+          obs: obsRecord,
+          allMatches: matches,
+          siteId,
+          siteObj,
+          prog: progToday,
+          assignedLead,
+          leadTecnico: assignedLead || leadTecnico,
+          cuadrillaName: assignedLead?.cuadrilla || cuadrillaName
+        })
+      } else {
+        // Encontrado pero NO programado hoy
+        setSearchObsResult({
+          status: 'NOT_SCHEDULED',
+          obs: obsRecord,
+          allMatches: matches,
+          siteId,
+          siteObj,
+          leadTecnico,
+          cuadrillaName
+        })
+      }
+    } catch (err) {
+      console.error('Error en búsqueda de observación:', err)
+    } finally {
+      setIsSearchingObs(false)
+    }
+  }, [sitiosMap, sitiosCatalogo, currentDate, programaciones, tecnicos])
+
+  // Re-evaluar automáticamente si cambia la jornada activa o se actualizan las programaciones
+  useEffect(() => {
+    if (searchObsResult?.obs) {
+      handleSearchObservation(searchObsQuery, searchObsResult.obs)
+    }
+  }, [currentDate, programaciones])
+
+  const handleQueryChange = e => {
+    const val = e.target.value
+    setSearchObsQuery(val)
+    if (searchObsTimeoutRef.current) {
+      clearTimeout(searchObsTimeoutRef.current)
+    }
+    if (!val.trim()) {
+      setSearchObsResult(null)
+      return
+    }
+    searchObsTimeoutRef.current = setTimeout(() => {
+      handleSearchObservation(val)
+    }, 350)
+  }
+
+  const handleClearSearch = () => {
+    setSearchObsQuery('')
+    setSearchObsResult(null)
+    if (searchObsTimeoutRef.current) {
+      clearTimeout(searchObsTimeoutRef.current)
+    }
+  }
+
   // Agrupación de programaciones de hoy por técnico
   const todayByTecnicos = useMemo(() => {
     return groupProgsByTecnico(filteredTodayProgs, sitiosStats)
   }, [filteredTodayProgs, sitiosStats, groupProgsByTecnico])
+
+  // Cuadrillas mostradas en Hoy: si hay una observación buscada y programada hoy, filtrar exclusivamente a esa cuadrilla/técnico
+  const displayedTodayByTecnicos = useMemo(() => {
+    if (searchObsResult?.status === 'SCHEDULED' && searchObsResult.siteId) {
+      const match = todayByTecnicos.filter(item =>
+        item.sitios.some(s => s.id_sitio === searchObsResult.siteId)
+      )
+      return match.length > 0 ? match : todayByTecnicos
+    }
+    return todayByTecnicos
+  }, [todayByTecnicos, searchObsResult])
 
   return (
     <div className="prog-container">
@@ -402,9 +569,19 @@ export default function Programacion() {
       <MetricGrid columns={4}>
         <MetricCard
           icon={<Clock size={20} />}
+          label="Solicitando Revisión"
+          value={viewMode === 'today' ? todayStats.solicitando : weekStats.solicitando}
+          subtitle={viewMode === 'today' ? 'esperando validación' : 'en la semana'}
+          variant="orange"
+          onClick={() => setStatusFilter(prev => prev === 'SOLICITANDO' ? 'ALL' : 'SOLICITANDO')}
+          active={statusFilter === 'SOLICITANDO'}
+          badge={statusFilter === 'SOLICITANDO' ? 'Filtrando' : null}
+        />
+        <MetricCard
+          icon={<Search size={20} />}
           label="En Revisión"
           value={viewMode === 'today' ? todayStats.enRevision : weekStats.enRevision}
-          subtitle={viewMode === 'today' ? 'pendientes por validar' : 'en la semana'}
+          subtitle={viewMode === 'today' ? 'en auditoría técnica' : 'en la semana'}
           variant="sky"
           onClick={() => setStatusFilter(prev => prev === 'EN_REVISION' ? 'ALL' : 'EN_REVISION')}
           active={statusFilter === 'EN_REVISION'}
@@ -421,20 +598,10 @@ export default function Programacion() {
           badge={statusFilter === 'VALIDADO' ? 'Filtrando' : null}
         />
         <MetricCard
-          icon={<Send size={20} />}
-          label="Enviados por COVEPA"
-          value={viewMode === 'today' ? todayStats.enviadas : weekStats.enviadas}
-          subtitle={viewMode === 'today' ? 'cargados con éxito' : 'en la semana'}
-          variant="purple"
-          onClick={() => setStatusFilter(prev => prev === 'ENVIADO' ? 'ALL' : 'ENVIADO')}
-          active={statusFilter === 'ENVIADO'}
-          badge={statusFilter === 'ENVIADO' ? 'Filtrando' : null}
-        />
-        <MetricCard
           icon={<AlertTriangle size={20} />}
           label="Descartadas / Rech."
           value={viewMode === 'today' ? todayStats.descartadas : weekStats.descartadas}
-          subtitle={viewMode === 'today' ? 'desestimadas en campo' : 'en la semana'}
+          subtitle={viewMode === 'today' ? 'cerradas o rechazadas' : 'en la semana'}
           variant="rose"
           onClick={() => setStatusFilter(prev => prev === 'DESCARTADA' ? 'ALL' : 'DESCARTADA')}
           active={statusFilter === 'DESCARTADA'}
@@ -530,6 +697,180 @@ export default function Programacion() {
         </div>
       </div>
 
+      {/* ── BUSCADOR DE OBSERVACIÓN E INTERSECCIÓN OPERATIVA ── */}
+      <div className="prog-obs-search-section">
+        <div className="prog-obs-search-bar">
+          <Search size={17} className="prog-obs-search-icon" />
+          <input
+            type="text"
+            className="prog-obs-search-input"
+            placeholder="Buscar por código de observación (ej: H1-OC-100-242, C-4175) para ubicar cuadrilla y sitio..."
+            value={searchObsQuery}
+            onChange={handleQueryChange}
+          />
+          {isSearchingObs && (
+            <RefreshCw size={15} className="spin" style={{ color: '#0284c7', marginRight: '8px' }} />
+          )}
+          {searchObsQuery && (
+            <button
+              type="button"
+              className="prog-obs-search-clear-btn"
+              onClick={handleClearSearch}
+              title="Limpiar búsqueda"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        {/* Coincidencias múltiples encontradas (Chips rápidos) */}
+        {searchObsResult?.allMatches && searchObsResult.allMatches.length > 1 && (
+          <div className="prog-obs-matches-chips">
+            <span className="prog-obs-matches-label">
+              Coincidencias ({searchObsResult.allMatches.length}):
+            </span>
+            {searchObsResult.allMatches.map(m => {
+              const isSelected = searchObsResult.obs?.id_obs === m.id_obs
+              return (
+                <button
+                  key={m.id_obs}
+                  type="button"
+                  className={`prog-obs-chip ${isSelected ? 'active' : ''}`}
+                  onClick={() => handleSearchObservation(m.id_obs, m)}
+                >
+                  <span>{m.id_obs}</span>
+                  <span className="prog-obs-chip-site">({m.id_sitio})</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* BANNER 1: Observación programada para hoy */}
+        {searchObsResult?.status === 'SCHEDULED' && (
+          <div className="prog-obs-result-banner scheduled">
+            <div className="prog-obs-result-left">
+              <div className="prog-obs-result-icon">
+                <CheckCircle2 size={20} />
+              </div>
+              <div className="prog-obs-result-info">
+                <div className="prog-obs-result-title">
+                  <strong>Observación {searchObsResult.obs.id_obs}</strong> programada hoy en{' '}
+                  <span className="prog-obs-code-highlight">
+                    {searchObsResult.siteId}
+                  </span>
+                  {searchObsResult.siteObj?.localidad ? ` · ${searchObsResult.siteObj.localidad}` : ''}
+                </div>
+                <div className="prog-obs-result-sub">
+                  Asignada a: <strong>{searchObsResult.assignedLead?.nombre_completo || 'Técnico asignado'}</strong>
+                  {searchObsResult.cuadrillaName ? ` (${searchObsResult.cuadrillaName})` : ''} ·
+                  Estado COVEPA: <strong>{searchObsResult.obs.estado_covepa || 'Pendiente'}</strong>
+                  {searchObsResult.obs.detalle ? ` · ${searchObsResult.obs.detalle.slice(0, 75)}...` : ''}
+                </div>
+              </div>
+            </div>
+            <div className="prog-obs-result-actions">
+              <button
+                type="button"
+                className="prog-obs-action-btn-primary"
+                onClick={() => setSelectedProgModal({
+                  id_sitio: searchObsResult.siteId,
+                  programacion: searchObsResult.prog,
+                  allSitios: searchObsResult.prog?.sitios || []
+                })}
+              >
+                <Eye size={14} />
+                <span>Ver Detalles del Sitio</span>
+              </button>
+              <button
+                type="button"
+                className="prog-obs-action-btn-secondary"
+                onClick={handleClearSearch}
+              >
+                <X size={14} />
+                <span>Quitar Filtro</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* BANNER 2: Observación NO programada para hoy */}
+        {searchObsResult?.status === 'NOT_SCHEDULED' && (
+          <div className="prog-obs-result-banner not-scheduled">
+            <div className="prog-obs-result-left">
+              <div className="prog-obs-result-icon">
+                <AlertCircle size={20} />
+              </div>
+              <div className="prog-obs-result-info">
+                <div className="prog-obs-result-title">
+                  <strong>Observación {searchObsResult.obs.id_obs}</strong> pertenece al sitio{' '}
+                  <span className="prog-obs-code-highlight">
+                    {searchObsResult.siteId}
+                  </span>
+                  {searchObsResult.siteObj?.localidad ? ` · ${searchObsResult.siteObj.localidad}` : ''}
+                </div>
+                <div className="prog-obs-result-sub">
+                  Este sitio <strong>NO está programado para hoy</strong> ({currentDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}).
+                  {searchObsResult.cuadrillaName ? ` Cuadrilla base: ${searchObsResult.cuadrillaName}` : ''}
+                  {searchObsResult.leadTecnico ? ` · Técnico sugerido: ${searchObsResult.leadTecnico.nombre_completo}` : ''}
+                </div>
+              </div>
+            </div>
+            <div className="prog-obs-result-actions">
+              <button
+                type="button"
+                className="prog-obs-action-btn-create"
+                onClick={() => {
+                  setModalNewInitialSite(searchObsResult.siteId)
+                  setModalNewDate(toLocalDateString(currentDate))
+                  setModalNewOpen(true)
+                }}
+              >
+                <Plus size={14} />
+                <span>Programar Sitio para Hoy</span>
+              </button>
+              <button
+                type="button"
+                className="prog-obs-action-btn-secondary"
+                onClick={handleClearSearch}
+              >
+                <X size={14} />
+                <span>Cerrar</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* BANNER 3: Observación NO encontrada en la base de datos */}
+        {searchObsResult?.status === 'NOT_FOUND' && (
+          <div className="prog-obs-result-banner not-found">
+            <div className="prog-obs-result-left">
+              <div className="prog-obs-result-icon">
+                <Search size={18} />
+              </div>
+              <div className="prog-obs-result-info">
+                <div className="prog-obs-result-title">
+                  No se encontró ninguna observación con el código "<strong>{searchObsResult.query}</strong>"
+                </div>
+                <div className="prog-obs-result-sub">
+                  Verifica que el código esté bien escrito o prueba con los últimos dígitos (ej: 100-242).
+                </div>
+              </div>
+            </div>
+            <div className="prog-obs-result-actions">
+              <button
+                type="button"
+                className="prog-obs-action-btn-secondary"
+                onClick={handleClearSearch}
+              >
+                <X size={14} />
+                <span>Limpiar</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── CONTENIDO PRINCIPAL: VISTA HOY ── */}
       {viewMode === 'today' && (
         <div className="prog-today-container">
@@ -538,9 +879,9 @@ export default function Programacion() {
             <div className="prog-filter-notice-banner">
               <span>
                 Filtrando cuadrillas con observaciones en estado: <strong>{
+                  statusFilter === 'SOLICITANDO' ? 'Solicitando Revisión' :
                   statusFilter === 'EN_REVISION' ? 'En Revisión' :
                   statusFilter === 'VALIDADO' ? 'Validados (Por subir)' :
-                  statusFilter === 'ENVIADO' ? 'Enviados por COVEPA' :
                   'Descartadas / Rechazadas'
                 }</strong>
               </span>
@@ -608,7 +949,7 @@ export default function Programacion() {
           ) : (
             /* ── DISEÑO POR TÉCNICOS (COMPACTO Y SCROLL INDEPENDIENTE) ── */
             <div className="prog-tech-list-wrap">
-              {todayByTecnicos.map(tGroup => {
+              {displayedTodayByTecnicos.map(tGroup => {
                 const tec = tGroup.tecnico
                 const pDonePct = tGroup.totalObs > 0 ? (tGroup.resueltas / tGroup.totalObs) * 100 : 0
 
@@ -705,10 +1046,11 @@ export default function Programacion() {
                         const isComplete = sDone === sStat.total && sStat.total > 0
                         const localidad = sitiosMap[siteItem.id_sitio]?.localidad
 
+                        const isMatchObs = searchObsResult?.siteId === siteItem.id_sitio
                         return (
                           <div
                             key={siteItem.id_sitio}
-                            className={`prog-site-2row-card ${isComplete ? 'is-complete' : ''}`}
+                            className={`prog-site-2row-card ${isComplete ? 'is-complete' : ''} ${isMatchObs ? 'is-searched-match' : ''}`}
                             onClick={() => setSelectedProgModal({ id_sitio: siteItem.id_sitio, programacion: siteItem.programacion, allSitios: siteItem.allSitios })}
                             title="Clic para ver detalle y observaciones en el modal"
                           >
@@ -839,10 +1181,11 @@ export default function Programacion() {
                             {tDay.sitios.map(sItem => {
                               const localidad = sitiosMap[sItem.id_sitio]?.localidad
 
+                              const isMatchObs = searchObsResult?.siteId === sItem.id_sitio
                               return (
                                 <div
                                   key={sItem.id_sitio}
-                                  className="week-site-pill"
+                                  className={`week-site-pill ${isMatchObs ? 'is-searched-match' : ''}`}
                                   onClick={() => setSelectedProgModal({ id_sitio: sItem.id_sitio, programacion: sItem.programacion, allSitios: sItem.allSitios })}
                                   title="Clic para ver detalle y observaciones"
                                 >
@@ -884,15 +1227,18 @@ export default function Programacion() {
         <ModalProgramacionForm
           initialDate={modalNewDate}
           editingProg={editingProg}
+          initialSiteId={modalNewInitialSite}
           tecnicos={tecnicos}
           programacionesExistentes={programaciones}
           onClose={() => {
             setModalNewOpen(false)
             setEditingProg(null)
+            setModalNewInitialSite(null)
           }}
           onSaved={() => {
             setModalNewOpen(false)
             setEditingProg(null)
+            setModalNewInitialSite(null)
             fetchWeekData()
           }}
         />
@@ -937,7 +1283,7 @@ export default function Programacion() {
 // ────────────────────────────────────────────────────────────
 // SUBCOMPONENTE: Modal Formulario de Programación (Crear / Editar)
 // ────────────────────────────────────────────────────────────
-function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacionesExistentes, onClose, onSaved }) {
+function ModalProgramacionForm({ initialDate, editingProg, initialSiteId = null, tecnicos, programacionesExistentes, onClose, onSaved }) {
   const isEditing = Boolean(editingProg)
 
   const fecha = useMemo(() => {
@@ -975,7 +1321,7 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
       const first = editingProg.sitios[0]
       return first?.id_sitio || first || ''
     }
-    return ''
+    return initialSiteId || ''
   })
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -1109,8 +1455,8 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
     }
   }, [selectedTechCuadrilla, selectedSite, sitiosCatalogo])
 
-  const handleSelectSite = siteId => {
-    if (selectedSite === siteId) {
+  const applySiteSelection = useCallback(siteId => {
+    if (!siteId) {
       setSelectedSite('')
       return
     }
@@ -1148,7 +1494,24 @@ function ModalProgramacionForm({ initialDate, editingProg, tecnicos, programacio
         }
       }
     }
+  }, [sitiosCatalogo, tecnicos])
+
+  const handleSelectSite = siteId => {
+    if (selectedSite === siteId) {
+      setSelectedSite('')
+      return
+    }
+    applySiteSelection(siteId)
   }
+
+  // Preselección automática cuando se abre para un sitio específico desde el buscador de observaciones
+  const autoAppliedRef = useRef(false)
+  useEffect(() => {
+    if (initialSiteId && !editingProg && !autoAppliedRef.current && sitiosCatalogo.length > 0 && tecnicos.length > 0) {
+      applySiteSelection(initialSiteId)
+      autoAppliedRef.current = true
+    }
+  }, [initialSiteId, editingProg, sitiosCatalogo, tecnicos, applySiteSelection])
 
   const handleSubmit = async e => {
     e.preventDefault()
@@ -1551,7 +1914,7 @@ function ModalDetallesProgramacion({
   onDeleteProg,
   onObservationUpdated
 }) {
-  const { user } = useAuth()
+  const { user, personalMember } = useAuth()
   const [currentSitioId, setCurrentSitioId] = useState(sitioId || '')
   const [observaciones, setObservaciones] = useState([])
   const [comments, setComments] = useState({})
@@ -1574,9 +1937,7 @@ function ModalDetallesProgramacion({
       .filter(t => {
         if (!t || !t.nombre_completo) return false
         const emp = (t.empresa || '').toUpperCase()
-        const isGilat = emp.includes('GILAT')
-        const isPersona = (t.cargo || '').toUpperCase() !== 'EMPRESA'
-        return isGilat && isPersona
+        return emp.includes('GILAT')
       })
       .sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo))
   }, [tecnicos])
@@ -1609,26 +1970,26 @@ function ModalDetallesProgramacion({
     loadObs()
   }, [loadObs])
 
-  // Acción rápida: Marcar observación
+  // Acción rápida: Marcar observación (Puente con App de fotos de campo)
   const handleSetEstado = async (obs, nuevoEstado) => {
     setUpdatingId(obs.id_obs)
     try {
-      const isSinRevision = nuevoEstado === 'Pendiente' || nuevoEstado === 'En Revision' || nuevoEstado === 'En Revisión'
-      const payload = {
-        estado_covepa: nuevoEstado,
-        fecha_subsanacion: isSinRevision ? null : (obs.fecha_subsanacion || toLocalDateString(new Date())),
-        revisor: isSinRevision ? null : (obs.revisor || obs.validado_por || null)
-      }
-      await updateObservacionCovepa(obs.id_obs, payload)
+      const auditorActual = resolverNombreAuditor(user, personalMember)
+      const comentarioActual = comments[obs.id_obs] ?? obs.comentario_covepa ?? null
+      const fechaIso = new Date().toISOString()
+
+      // Sincronización oficial con Control Fotos
+      await sincronizarEstadoConControlFotos(obs.id_obs, nuevoEstado, auditorActual, comentarioActual)
 
       // Actualizar localmente
       setObservaciones(prev => prev.map(o => {
         if (o.id_obs === obs.id_obs) {
           return {
             ...o,
-            estado_covepa: payload.estado_covepa,
-            fecha_subsanacion: payload.fecha_subsanacion,
-            revisor: payload.revisor
+            estado_covepa: nuevoEstado,
+            fecha_subsanacion: fechaIso,
+            revisor: auditorActual,
+            comentario_covepa: comentarioActual
           }
         }
         return o
@@ -1688,7 +2049,8 @@ function ModalDetallesProgramacion({
     setSavingCommentId(obsId)
     try {
       const val = commentsRef.current[obsId] ?? ''
-      await updateObservacionCovepa(obsId, { comentario_covepa: val })
+      const auditorActual = resolverNombreAuditor(user, personalMember)
+      await sincronizarComentarioObservacion(obsId, val, auditorActual)
       dirtyCommentsRef.current.delete(obsId)
       setSavedCommentId(obsId)
       setTimeout(() => {
@@ -1707,9 +2069,10 @@ function ModalDetallesProgramacion({
     const dirtyIds = Array.from(dirtyCommentsRef.current)
     if (dirtyIds.length > 0) {
       try {
+        const auditorActual = resolverNombreAuditor(user, personalMember)
         await Promise.all(
           dirtyIds.map(id =>
-            updateObservacionCovepa(id, { comentario_covepa: commentsRef.current[id] ?? '' })
+            sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', auditorActual)
           )
         )
         dirtyCommentsRef.current.clear()
@@ -1719,7 +2082,7 @@ function ModalDetallesProgramacion({
       }
     }
     onClose()
-  }, [onClose, onObservationUpdated])
+  }, [onClose, onObservationUpdated, user, personalMember])
 
   // Listener para cerrar con tecla ESC guardando automáticamente
   useEffect(() => {
@@ -1737,8 +2100,9 @@ function ModalDetallesProgramacion({
     const handleBeforeUnload = () => {
       const dirtyIds = Array.from(dirtyCommentsRef.current)
       if (dirtyIds.length > 0) {
+        const auditorActual = resolverNombreAuditor(user, personalMember)
         dirtyIds.forEach(id => {
-          updateObservacionCovepa(id, { comentario_covepa: commentsRef.current[id] ?? '' })
+          sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', auditorActual)
             .catch(err => console.error('Error autoguardando al cerrar página:', err))
         })
         dirtyCommentsRef.current.clear()
@@ -1749,14 +2113,15 @@ function ModalDetallesProgramacion({
       window.removeEventListener('beforeunload', handleBeforeUnload)
       const dirtyIds = Array.from(dirtyCommentsRef.current)
       if (dirtyIds.length > 0) {
+        const auditorActual = resolverNombreAuditor(user, personalMember)
         dirtyIds.forEach(id => {
-          updateObservacionCovepa(id, { comentario_covepa: commentsRef.current[id] ?? '' })
+          sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', auditorActual)
             .catch(err => console.error('Error autoguardando al desmontar modal:', err))
         })
         dirtyCommentsRef.current.clear()
       }
     }
-  }, [])
+  }, [user, personalMember])
 
   // Cambiar de sitio guardando automáticamente comentarios pendientes
   const handleSwitchSitio = async (newSitioId) => {
@@ -1764,9 +2129,10 @@ function ModalDetallesProgramacion({
     const dirtyIds = Array.from(dirtyCommentsRef.current)
     if (dirtyIds.length > 0) {
       try {
+        const auditorActual = resolverNombreAuditor(user, personalMember)
         await Promise.all(
           dirtyIds.map(id =>
-            updateObservacionCovepa(id, { comentario_covepa: commentsRef.current[id] ?? '' })
+            sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', auditorActual)
           )
         )
         dirtyCommentsRef.current.clear()
@@ -1784,20 +2150,21 @@ function ModalDetallesProgramacion({
     let validadas = 0
     let descartadas = 0
     let pendientes = 0
+    let solicitando = 0
     let enRevision = 0
     let rechazadas = 0
-    let enviadas = 0
 
     observaciones.forEach(o => {
-      const st = o.estado_covepa || (o.fecha_subsanacion ? 'Validado' : 'Pendiente')
-      if (st === 'Validado') validadas++
+      const raw = o.estado_covepa ? o.estado_covepa.trim() : null
+      const st = raw || (o.fecha_subsanacion ? 'Validado' : 'Pendiente')
+      if (st === 'Validado' || st === 'Enviado') validadas++
       else if (st === 'Descartado') descartadas++
-      else if (st === 'En Revision') enRevision++
+      else if (st === 'Solicitando Revision' || st === 'Solicitando Revisión') solicitando++
+      else if (st === 'En Revision' || st === 'En Revisión') enRevision++
       else if (st === 'Rechazado') rechazadas++
-      else if (st === 'Enviado') enviadas++
       else pendientes++
     })
-    return { tot, validadas, descartadas, pendientes, enRevision, rechazadas, enviadas }
+    return { tot, validadas, descartadas, pendientes, solicitando, enRevision, rechazadas }
   }, [observaciones])
 
   // Info del sitio actual (enriquecida con localidad, distrito y grupo)
@@ -1813,8 +2180,17 @@ function ModalDetallesProgramacion({
     let list = observaciones
     if (filtroModal !== 'ALL') {
       list = list.filter(o => {
-        const st = o.estado_covepa || (o.fecha_subsanacion ? 'Validado' : 'Pendiente')
-        return st === filtroModal
+        const raw = o.estado_covepa ? o.estado_covepa.trim() : null
+        let st = raw || (o.fecha_subsanacion ? 'Validado' : 'Pendiente')
+        if (st === 'En Revision') st = 'En Revisión'
+        if (st === 'Solicitando Revision') st = 'Solicitando Revisión'
+        if (st === 'Enviado') st = 'Validado'
+
+        let target = filtroModal
+        if (target === 'En Revision') target = 'En Revisión'
+        if (target === 'Solicitando Revision') target = 'Solicitando Revisión'
+
+        return st === target
       })
     }
     if (searchObs.trim()) {
@@ -2048,22 +2424,32 @@ function ModalDetallesProgramacion({
 
           <button
             type="button"
-            className={`prog-modal-stat-btn stat-validado ${filtroModal === 'Validado' ? 'active' : ''}`}
-            onClick={() => setFiltroModal(prev => prev === 'Validado' ? 'ALL' : 'Validado')}
-            title="Observaciones validadas listas para subir"
+            className={`prog-modal-stat-btn stat-solicitando ${filtroModal === 'Solicitando Revisión' ? 'active' : ''}`}
+            onClick={() => setFiltroModal(prev => prev === 'Solicitando Revisión' ? 'ALL' : 'Solicitando Revisión')}
+            title="Observaciones solicitando revisión"
           >
-            <span className="stat-btn-label text-validado">✓ Por Subir</span>
-            <span className="stat-btn-val text-validado">{stats.validadas}</span>
+            <span className="stat-btn-label text-solicitando">⏳ Solicitando</span>
+            <span className="stat-btn-val text-solicitando">{stats.solicitando}</span>
           </button>
 
           <button
             type="button"
-            className={`prog-modal-stat-btn stat-revision ${filtroModal === 'En Revision' ? 'active' : ''}`}
-            onClick={() => setFiltroModal(prev => prev === 'En Revision' ? 'ALL' : 'En Revision')}
+            className={`prog-modal-stat-btn stat-revision ${(filtroModal === 'En Revisión' || filtroModal === 'En Revision') ? 'active' : ''}`}
+            onClick={() => setFiltroModal(prev => (prev === 'En Revisión' || prev === 'En Revision') ? 'ALL' : 'En Revisión')}
             title="Observaciones en proceso de revisión"
           >
             <span className="stat-btn-label text-revision">🔍 En Revisión</span>
             <span className="stat-btn-val text-revision">{stats.enRevision}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`prog-modal-stat-btn stat-validado ${filtroModal === 'Validado' ? 'active' : ''}`}
+            onClick={() => setFiltroModal(prev => prev === 'Validado' ? 'ALL' : 'Validado')}
+            title="Observaciones validadas listas para subir"
+          >
+            <span className="stat-btn-label text-validado">✓ Validadas</span>
+            <span className="stat-btn-val text-validado">{stats.validadas}</span>
           </button>
 
           <button
@@ -2084,16 +2470,6 @@ function ModalDetallesProgramacion({
           >
             <span className="stat-btn-label text-descartado">🚫 Descartadas</span>
             <span className="stat-btn-val text-descartado">{stats.descartadas}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`prog-modal-stat-btn stat-enviado ${filtroModal === 'Enviado' ? 'active' : ''}`}
-            onClick={() => setFiltroModal(prev => prev === 'Enviado' ? 'ALL' : 'Enviado')}
-            title="Observaciones enviadas a COVEPA"
-          >
-            <span className="stat-btn-label text-enviado">✉ Enviadas</span>
-            <span className="stat-btn-val text-enviado">{stats.enviadas}</span>
           </button>
 
           {stats.rechazadas > 0 && (
@@ -2188,9 +2564,13 @@ function ModalDetallesProgramacion({
             </div>
           ) : (
             filteredObservaciones.map(obs => {
-              const currentEstado = obs.estado_covepa || (obs.fecha_subsanacion ? 'Validado' : 'Pendiente')
+              const rawEstado = obs.estado_covepa ? obs.estado_covepa.trim() : null
+              let currentEstado = rawEstado || (obs.fecha_subsanacion ? 'Validado' : 'Pendiente')
+              if (currentEstado === 'En Revision') currentEstado = 'En Revisión'
+              if (currentEstado === 'Solicitando Revision') currentEstado = 'Solicitando Revisión'
+              if (currentEstado === 'Enviado') currentEstado = 'Validado'
               const isUpdating = updatingId === obs.id_obs
-              const showRevisorYFecha = currentEstado !== 'Pendiente' && currentEstado !== 'En Revision' && currentEstado !== 'En Revisión'
+              const showRevisorYFecha = currentEstado !== 'Pendiente' && currentEstado !== 'Solicitando Revisión' && currentEstado !== 'En Revisión' && currentEstado !== 'En Revision'
 
               return (
                 <div key={obs.id_obs} className="prog-obs-card-item">
@@ -2221,9 +2601,9 @@ function ModalDetallesProgramacion({
                         className={`prog-obs-status-select status-${(currentEstado || '').toLowerCase().replace(/\s+/g, '-')}`}
                       >
                         <option value="Pendiente">● Pendiente</option>
-                        <option value="En Revision">🔍 En Revisión</option>
-                        <option value="Validado">✓ Validado (Por Subir)</option>
-                        <option value="Enviado">✉ Enviado (COVEPA)</option>
+                        <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
+                        <option value="En Revisión">🔍 En Revisión</option>
+                        <option value="Validado">✓ Validado</option>
                         <option value="Descartado">🚫 Descartado</option>
                         <option value="Rechazado">✕ Rechazado</option>
                       </select>

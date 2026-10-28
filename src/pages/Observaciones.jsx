@@ -3,217 +3,446 @@ import {
   Search, Filter, RefreshCw, FileDown, X, Eye, ChevronLeft,
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,
   AlertTriangle, FileText, Save, LayoutList, Table2,
-  ChevronDown, ChevronUp, MapPin, Loader2, Calendar, Ban, UploadCloud, Layers
+  ChevronDown, ChevronUp, MapPin, Loader2, Calendar, Ban, UploadCloud, Layers, Clock,
+  Users, Check, Info
 } from 'lucide-react'
 import {
   fetchObservaciones, fetchObservacionesKPIs, fetchFiltrosObservaciones,
   updateObservacionCovepa, exportObservacionesCSV,
-  fetchResumenPorSitio, fetchObservacionesPorSitio
+  fetchResumenPorSitio, fetchObservacionesPorSitio,
+  sincronizarEstadoConControlFotos
 } from '../services/observacionesService'
+import {
+  sincronizarAuditoriaObservacion,
+  sincronizarComentarioObservacion,
+  resolverNombreAuditor
+} from '../services/auditoriaSyncService'
+import { getPersonalActivo } from '../services/programacionService'
+import { useAuth } from '../hooks/useAuth'
 import { getCachedSitiosAsignados } from '../services/sitiosService'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
-import { estadoCovepaBadge } from '../utils/helpers'
+import { estadoCovepaBadge, hasMeaningfulText } from '../utils/helpers'
 
 // ────────────────────────────────────────────────────────────
-// DRAWER — detalle completo + edición campos COVEPA
+// VENTANA EMERGENTE — Detalle Completo de Observación (Flujo Programación)
 // ────────────────────────────────────────────────────────────
-function ObsDrawer({ obs, sitiosMap = {}, onClose, onSaved }) {
-  const [estadoCovepa, setEstadoCovepa] = useState(obs?.estado_covepa || '')
-  const [fechaSubsanacion, setFechaSubsanacion] = useState(
-    obs?.fecha_subsanacion ? obs.fecha_subsanacion.split('T')[0] : ''
-  )
-  const [comentarioCovepa, setComentarioCovepa] = useState(obs?.comentario_covepa || '')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [saveError, setSaveError] = useState('')
+function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClose, onSaved }) {
+  const { user, personalMember } = useAuth()
+  const [obsLocal, setObsLocal] = useState(obs)
+  const [updating, setUpdating] = useState(false)
+  const [commentVal, setCommentVal] = useState(obs?.comentario_covepa || '')
+  const [savingComment, setSavingComment] = useState(false)
+  const [savedComment, setSavedComment] = useState(false)
+  const isDirtyCommentRef = useRef(false)
+  const commentValRef = useRef(commentVal)
+  commentValRef.current = commentVal
 
-  const sitioInfo = sitiosMap[obs?.id_sitio] || {}
+  const sitioInfo = sitiosMap[obsLocal?.id_sitio] || {}
   const localidad = sitioInfo.localidad || sitioInfo.nombre_nodo || ''
+  const cuadrilla = sitioInfo.cuadrilla || ''
 
   useEffect(() => {
     if (obs) {
-      setEstadoCovepa(obs.estado_covepa || '')
-      setFechaSubsanacion(obs.fecha_subsanacion ? obs.fecha_subsanacion.split('T')[0] : '')
-      setComentarioCovepa(obs.comentario_covepa || '')
-      setSaved(false)
-      setSaveError('')
+      setObsLocal(obs)
+      setCommentVal(obs.comentario_covepa || '')
+      isDirtyCommentRef.current = false
     }
   }, [obs?.id_obs])
 
-  // Cerrar drawer con tecla Escape
+  const currentEstado = obsLocal?.estado_covepa || (obsLocal?.fecha_subsanacion ? 'Validado' : 'Pendiente')
+  const currentRevisor = obsLocal?.revisor || obsLocal?.validado_por || ''
+  const currentFecha = obsLocal?.fecha_subsanacion || ''
+  const showRevisorYFecha = currentEstado !== 'Pendiente' && currentEstado !== 'Solicitando Revisión' && currentEstado !== 'En Revision' && currentEstado !== 'En Revisión'
+
+  // Guardado de comentario en tiempo real (COVEPA)
+  const saveCommentNow = useCallback(async () => {
+    if (!isDirtyCommentRef.current || !obsLocal?.id_obs) return
+    setSavingComment(true)
+    try {
+      const auditorActual = resolverNombreAuditor(user, personalMember)
+      const val = commentValRef.current || ''
+      await sincronizarComentarioObservacion(obsLocal.id_obs, val, auditorActual)
+      isDirtyCommentRef.current = false
+      setSavedComment(true)
+      setTimeout(() => setSavedComment(false), 2500)
+      if (onSaved) {
+        onSaved({ ...obsLocal, comentario_covepa: val })
+      }
+    } catch (err) {
+      console.error('Error al guardar comentario COVEPA:', err)
+    } finally {
+      setSavingComment(false)
+    }
+  }, [obsLocal, user, personalMember, onSaved])
+
+  const handleCommentChange = (e) => {
+    setCommentVal(e.target.value)
+    isDirtyCommentRef.current = true
+  }
+
+  const handleBlurComment = () => {
+    saveCommentNow()
+  }
+
+  const handleCloseWithAutoSave = useCallback(async () => {
+    if (isDirtyCommentRef.current) {
+      await saveCommentNow()
+    }
+    onClose()
+  }, [onClose, saveCommentNow])
+
+  // Cerrar con tecla Escape
   useEffect(() => {
-    const handleKeyDown = e => {
-      if (e.key === 'Escape') onClose()
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        handleCloseWithAutoSave()
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  }, [handleCloseWithAutoSave])
 
-  if (!obs) return null
-
-  const handleSave = async () => {
-    setSaving(true)
-    setSaveError('')
+  // 1. Cambio de Estado — Flujo idéntico a Programación (sincronización con Control Fotos)
+  const handleSetEstado = async (nuevoEstado) => {
+    setUpdating(true)
     try {
-      const updated = await updateObservacionCovepa(obs.id_obs, {
-        estado_covepa: estadoCovepa,
-        fecha_subsanacion: fechaSubsanacion || null,
-        comentario_covepa: comentarioCovepa,
-      })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-      if (onSaved) onSaved(updated)
+      const auditorActual = resolverNombreAuditor(user, personalMember)
+      const comentarioActual = commentValRef.current ?? obsLocal.comentario_covepa ?? null
+      const fechaIso = new Date().toISOString()
+
+      await sincronizarEstadoConControlFotos(obsLocal.id_obs, nuevoEstado, auditorActual, comentarioActual)
+
+      const updatedRow = {
+        ...obsLocal,
+        estado_covepa: nuevoEstado,
+        fecha_subsanacion: fechaIso,
+        revisor: auditorActual,
+        comentario_covepa: comentarioActual
+      }
+
+      setObsLocal(updatedRow)
+      if (onSaved) onSaved(updatedRow)
     } catch (err) {
-      setSaveError(err.message)
+      alert('Error actualizando estado de observación: ' + err.message)
     } finally {
-      setSaving(false)
+      setUpdating(false)
     }
   }
 
-  const TextBlock = ({ label, value }) => (
-    value ? (
-      <div className="obs-text-block">
-        <div className="obs-text-label">{label}</div>
-        <pre className="obs-text-content">{value}</pre>
-      </div>
-    ) : null
-  )
+  // 2. Modificar Revisor — Flujo idéntico a Programación
+  const handleUpdateRevisor = async (newRevisor) => {
+    setUpdating(true)
+    try {
+      const val = newRevisor || null
+      await updateObservacionCovepa(obsLocal.id_obs, { revisor: val })
+      const updatedRow = { ...obsLocal, revisor: val }
+      setObsLocal(updatedRow)
+      if (onSaved) onSaved(updatedRow)
+    } catch (err) {
+      alert('Error actualizando revisor: ' + err.message)
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  // 3. Modificar Fecha — Flujo idéntico a Programación
+  const handleUpdateFecha = async (newFecha) => {
+    setUpdating(true)
+    try {
+      const valFecha = newFecha ? new Date(newFecha + 'T12:00:00Z').toISOString() : null
+      await updateObservacionCovepa(obsLocal.id_obs, { fecha_subsanacion: valFecha })
+      const updatedRow = { ...obsLocal, fecha_subsanacion: valFecha }
+      setObsLocal(updatedRow)
+      if (onSaved) onSaved(updatedRow)
+    } catch (err) {
+      alert('Error actualizando fecha: ' + err.message)
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  if (!obsLocal) return null
 
   return (
-    <div className="obs-drawer-overlay">
-      <div className="obs-drawer">
-        {/* Header del drawer */}
-        <div className="obs-drawer-header">
-          <div className="obs-drawer-title-wrap">
-            <div className="obs-drawer-icon">
-              <FileText size={22} />
-            </div>
-            <div>
-              <div className="obs-drawer-code">{obs.id_obs}</div>
-              <div className="obs-drawer-meta">
-                <span style={{ fontWeight: 'var(--fw-bold)', color: '#003060' }}>{obs.id_sitio}</span>
-                {localidad ? <span style={{ color: '#0284c7' }}> · {localidad}</span> : ''} · {obs.protocolo || 'Sin protocolo'}
+    <div className="prog-details-modal-overlay" onClick={handleCloseWithAutoSave}>
+      <div className="prog-details-modal" style={{ maxWidth: '920px', width: '95%' }} onClick={e => e.stopPropagation()}>
+        {/* Cabecera de la Ventana Emergente */}
+        <div className="prog-details-modal-header">
+          <div className="prog-details-header-main">
+            <div className="prog-details-site-title-row">
+              <div className="prog-details-site-badge-icon">
+                <FileText size={20} />
+              </div>
+              <div className="prog-details-site-texts">
+                <div className="prog-details-title-line">
+                  <span className="prog-details-site-title">{obsLocal.id_obs}</span>
+                  <span className="prog-details-site-loc">· {obsLocal.id_sitio}{localidad ? ` · ${localidad}` : ''}</span>
+                </div>
+                <div className="prog-details-site-meta-pills">
+                  {cuadrilla && (
+                    <span className="meta-pill" style={{ color: '#003060', fontWeight: 'var(--fw-bold)' }}>
+                      {cuadrilla}
+                    </span>
+                  )}
+                  {obsLocal.hito && (
+                    <span className="meta-pill" style={{ color: '#0369a1' }}>
+                      Hito: <strong>{obsLocal.hito}</strong>
+                    </span>
+                  )}
+                  {obsLocal.protocolo && (
+                    <span className="meta-pill">
+                      Protocolo: <strong>{obsLocal.protocolo}</strong>
+                    </span>
+                  )}
+                  {obsLocal.subsistema && (
+                    <span className="meta-pill">
+                      Subsistema: <strong>{obsLocal.subsistema}</strong>
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-          <div className="obs-drawer-badges-wrap">
-            <span className={`estado-badge ${estadoCovepaBadge(obs.estado_covepa)}`}>
-              {obs.estado_covepa || 'Pendiente'}
-            </span>
-            <button className="obs-close-btn" onClick={onClose}><X size={18} /></button>
+
+          <div className="prog-details-modal-actions">
+            <button
+              type="button"
+              className="prog-modal-close-btn"
+              onClick={handleCloseWithAutoSave}
+              title="Cerrar ventana emergente (Esc)"
+              aria-label="Cerrar"
+            >
+              <X size={16} />
+            </button>
           </div>
         </div>
 
-        <div className="obs-drawer-body">
-          {/* IDENTIFICACIÓN */}
-          <div className="obs-section-title">Identificación de la Observación</div>
-          <div className="obs-grid-3">
-            <div className="obs-detail-item">
-              <span className="obs-dk">Cuadrilla</span>
-              <span className="obs-dv" style={{fontWeight: 'var(--fw-bold)', color: '#003060'}}>
-                {sitioInfo.cuadrilla || 'Sin Cuadrilla'}
-              </span>
-            </div>
-            <div className="obs-detail-item">
-              <span className="obs-dk">Sitio y Localidad</span>
-              <span className="obs-dv" style={{fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums', color:'var(--primary-light)'}}>
-                {obs.id_sitio}{localidad ? ` · ${localidad}` : ''}
-              </span>
-            </div>
-            <div className="obs-detail-item"><span className="obs-dk">Protocolo</span><span className="obs-dv">{obs.protocolo || '—'}</span></div>
-            <div className="obs-detail-item"><span className="obs-dk">Subsistema</span><span className="obs-dv">{obs.subsistema || '—'}</span></div>
-            <div className="obs-detail-item"><span className="obs-dk">Ítem</span><span className="obs-dv">{obs.item || '—'}</span></div>
-            <div className="obs-detail-item"><span className="obs-dk">Sub-ítem</span><span className="obs-dv">{obs.sub_item || '—'}</span></div>
-            <div className="obs-detail-item">
-              <span className="obs-dk">F. Subsanación</span>
-              <span className="obs-dv" style={{color: obs.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)'}}>
-                {obs.fecha_subsanacion ? obs.fecha_subsanacion.split('T')[0] : 'Sin fecha'}
-              </span>
-            </div>
-          </div>
-
-          <div className="obs-detail-item" style={{marginTop:'0.75rem'}}>
-            <span className="obs-dk">Detalle de la Observación</span>
-            <span className="obs-dv" style={{fontSize:'var(--text-base)',color:'var(--text-primary)'}}>{obs.detalle || '—'}</span>
-          </div>
-
-          {/* ACUERDO DE SUBSANACIÓN */}
-          {obs.acuerdo_subsanacion && (
-            <>
-              <div className="obs-section-title" style={{marginTop:'1.25rem'}}>Acuerdo de Subsanación</div>
-              <div className="obs-detail-item">
-                <span className="obs-dv" style={{color:'var(--accent)'}}>{obs.acuerdo_subsanacion}</span>
+        {/* Cuerpo con Scroll de la Ventana Emergente */}
+        <div className="prog-details-modal-body">
+          {/* 1. SECCIÓN PRINCIPAL: GESTIÓN DE AUDITORÍA COVEPA (IDÉNTICO A PROGRAMACIÓN) */}
+          <div className="prog-obs-card-item" style={{ border: '1px solid #bae6fd', background: '#f8fbfe', borderRadius: '12px', padding: '1rem' }}>
+            <div className="prog-obs-card-header" style={{ marginBottom: '0.65rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-bold)', color: '#003060', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Auditoría COVEPA:
+                </span>
+                <span className={`estado-badge ${estadoCovepaBadge(currentEstado)}`}>
+                  {currentEstado}
+                </span>
               </div>
-            </>
-          )}
 
-          {/* COMENTARIOS DEL EXPEDIENTE */}
-          <div className="obs-section-title" style={{marginTop:'1.25rem'}}>Comentarios del Expediente</div>
-          <TextBlock label="Comentario Inicial" value={obs.comentario_inicial} />
-          <TextBlock label="Comentario Complementario" value={obs.comentario_complementario === '0' ? null : obs.comentario_complementario} />
-          <TextBlock label="Comentario Final" value={obs.comentario_final} />
-
-          {/* GESTIÓN COVEPA — Editable */}
-          <div className="obs-section-title" style={{marginTop:'1.5rem'}}>Gestión COVEPA</div>
-          <div className="obs-covepa-form">
-            <div className="obs-form-row">
-              <div className="obs-form-group">
-                <label className="obs-form-label">Estado COVEPA</label>
+              {/* Selector de Estado interactivo idéntico al de Programación */}
+              <div className="prog-obs-status-select-wrap">
                 <select
-                  className="obs-form-select"
-                  value={estadoCovepa}
-                  onChange={e => {
-                    const val = e.target.value
-                    setEstadoCovepa(val)
-                    if (val !== 'Pendiente') {
-                      if (!fechaSubsanacion) {
-                        setFechaSubsanacion(new Date().toISOString().split('T')[0])
-                      }
-                    } else {
-                      setFechaSubsanacion('')
-                    }
-                  }}
+                  value={currentEstado}
+                  disabled={updating}
+                  onChange={(e) => handleSetEstado(e.target.value)}
+                  className={`prog-obs-status-select status-${(currentEstado || '').toLowerCase().replace(/\s+/g, '-')}`}
                 >
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Rechazado">Rechazado</option>
-                  <option value="Descartado">Descartado</option>
-                  <option value="En Revision">En Revision</option>
-                  <option value="Validado">Validado</option>
-                  <option value="Enviado">Enviado</option>
+                  <option value="Pendiente">● Pendiente</option>
+                  <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
+                  <option value="En Revisión">🔍 En Revisión</option>
+                  <option value="Validado">✓ Validado</option>
+                  <option value="Descartado">🚫 Descartado</option>
+                  <option value="Rechazado">✕ Rechazado</option>
                 </select>
               </div>
-              <div className="obs-form-group">
-                <label className="obs-form-label">Fecha de Subsanación</label>
-                <input
-                  type="date"
-                  className="obs-form-input"
-                  value={fechaSubsanacion}
-                  onChange={e => setFechaSubsanacion(e.target.value)}
-                />
-              </div>
             </div>
-            <div className="obs-form-group" style={{width:'100%'}}>
-              <label className="obs-form-label">Comentario COVEPA</label>
+
+            {/* Barra de Auditoría: Revisor GILAT y Fecha */}
+            {showRevisorYFecha && (
+              <div className="prog-obs-audit-bar" style={{ marginBottom: '0.75rem' }}>
+                <div className="audit-col">
+                  <label className="audit-label">
+                    <Users size={12} color="#0284c7" />
+                    <span>Revisado por:</span>
+                  </label>
+                  <select
+                    value={currentRevisor || ''}
+                    disabled={updating}
+                    onChange={(e) => handleUpdateRevisor(e.target.value)}
+                    className="audit-select"
+                    title="Persona de GILAT que revisó esta observación"
+                  >
+                    <option value="">-- Seleccionar Revisor (GILAT) --</option>
+                    {gilatOptions.map(p => (
+                      <option key={p.id || p.nombre_completo} value={p.nombre_completo}>
+                        {p.nombre_completo} {p.cargo && p.cargo !== 'Empresa' ? `(${p.cargo})` : ''}
+                      </option>
+                    ))}
+                    {currentRevisor && !gilatOptions.some(g => (g.nombre_completo || '').toUpperCase().trim() === currentRevisor.toUpperCase().trim()) && (
+                      <option value={currentRevisor}>
+                        {currentRevisor}
+                      </option>
+                    )}
+                  </select>
+                </div>
+
+                <div className="audit-col">
+                  <label className="audit-label">
+                    <Clock size={12} color="#0284c7" />
+                    <span>
+                      {currentEstado === 'Validado' ? 'F. Validación:' :
+                       currentEstado === 'Descartado' ? 'F. Descarte:' :
+                       currentEstado === 'Rechazado' ? 'F. Rechazo:' :
+                       currentEstado === 'Enviado' ? 'F. Envío:' : 'Fecha:'}
+                    </span>
+                  </label>
+                  <input
+                    type="date"
+                    value={currentFecha ? String(currentFecha).split('T')[0].split(' ')[0] : ''}
+                    disabled={updating}
+                    onChange={(e) => handleUpdateFecha(e.target.value)}
+                    className="audit-date-input"
+                    title="Modificar fecha de subsanación/revisión"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Caja de Comentario COVEPA con autoguardado */}
+            <div className="obs-content-box box-covepa" style={{ margin: 0 }}>
+              <div className="box-covepa-top">
+                <span className="box-label">💬 Comentario / Evidencias COVEPA:</span>
+                <div className="covepa-save-cluster">
+                  {savingComment && (
+                    <span className="save-tag saving">
+                      <RefreshCw size={11} className="spin" /> Guardando...
+                    </span>
+                  )}
+                  {savedComment && (
+                    <span className="save-tag saved">
+                      <Check size={12} /> Guardado
+                    </span>
+                  )}
+                </div>
+              </div>
               <textarea
-                className="obs-form-textarea"
-                value={comentarioCovepa}
-                onChange={e => setComentarioCovepa(e.target.value)}
-                placeholder="Agregar comentario interno de COVEPA..."
-                rows={4}
+                value={commentVal}
+                onChange={handleCommentChange}
+                onBlur={handleBlurComment}
+                placeholder="Escribe comentarios de subsanación, evidencias o notas técnicas COVEPA..."
+                className="covepa-comment-textarea"
+                rows={3}
               />
             </div>
-            {saveError && (
-              <div className="obs-save-error"><AlertCircle size={15}/> {saveError}</div>
+          </div>
+
+          {/* 2. INFORMACIÓN COMPLETA DE LA BASE DE DATOS */}
+          <div className="obs-modal-section-title">
+            <Info size={14} /> Ficha Técnica Completa de la Observación
+          </div>
+
+          <div className="obs-modal-meta-grid">
+            <div className="obs-meta-card">
+              <span className="obs-meta-label">Código Obs</span>
+              <span className="obs-meta-value" style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
+                {obsLocal.id_obs}
+              </span>
+            </div>
+            <div className="obs-meta-card">
+              <span className="obs-meta-label">Hito</span>
+              <span className="obs-meta-value">{obsLocal.hito || '—'}</span>
+            </div>
+            <div className="obs-meta-card">
+              <span className="obs-meta-label">Sitio</span>
+              <span className="obs-meta-value" style={{ fontFamily: 'var(--font-mono)' }}>
+                {obsLocal.id_sitio}
+              </span>
+            </div>
+            <div className="obs-meta-card">
+              <span className="obs-meta-label">Localidad</span>
+              <span className="obs-meta-value">{localidad || '—'}</span>
+            </div>
+            <div className="obs-meta-card">
+              <span className="obs-meta-label">Cuadrilla</span>
+              <span className="obs-meta-value">{cuadrilla || 'Sin Cuadrilla'}</span>
+            </div>
+            <div className="obs-meta-card">
+              <span className="obs-meta-label">Protocolo</span>
+              <span className="obs-meta-value">{obsLocal.protocolo || '—'}</span>
+            </div>
+            <div className="obs-meta-card">
+              <span className="obs-meta-label">Subsistema</span>
+              <span className="obs-meta-value">{obsLocal.subsistema || '—'}</span>
+            </div>
+            <div className="obs-meta-card">
+              <span className="obs-meta-label">Ítem</span>
+              <span className="obs-meta-value">{obsLocal.item || '—'}</span>
+            </div>
+            <div className="obs-meta-card">
+              <span className="obs-meta-label">Sub-ítem</span>
+              <span className="obs-meta-value">{obsLocal.sub_item || '—'}</span>
+            </div>
+            <div className="obs-meta-card">
+              <span className="obs-meta-label">Estado GILAT</span>
+              <span className="obs-meta-value" style={{ fontWeight: 'var(--fw-bold)', color: '#0369a1' }}>
+                {obsLocal.estado_gilat || '—'}
+              </span>
+            </div>
+            <div className="obs-meta-card">
+              <span className="obs-meta-label">Estado PRONATEL</span>
+              <span className="obs-meta-value" style={{ fontWeight: 'var(--fw-bold)', color: '#6b21a8' }}>
+                {obsLocal.estado_pronatel || '—'}
+              </span>
+            </div>
+            <div className="obs-meta-card">
+              <span className="obs-meta-label">F. Subsanación</span>
+              <span className="obs-meta-value" style={{ fontFamily: 'var(--font-mono)', color: obsLocal.fecha_subsanacion ? '#059669' : '#64748b' }}>
+                {obsLocal.fecha_subsanacion ? String(obsLocal.fecha_subsanacion).split('T')[0] : 'Sin fecha'}
+              </span>
+            </div>
+          </div>
+
+          {/* Cajas de Detalle y Acuerdos */}
+          <div className="prog-obs-blocks-wrap">
+            {/* Detalle */}
+            {hasMeaningfulText(obsLocal.detalle) && (
+              <div className="obs-content-box box-detalle">
+                <span className="box-label">Detalle de la Observación:</span>
+                <div className="box-body-text">{obsLocal.detalle}</div>
+              </div>
             )}
-            <button
-              className={`obs-save-btn ${saved ? 'saved' : ''}`}
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? <><span className="btn-spinner"/> Guardando...</>
-               : saved ? <><CheckCircle2 size={16}/> ¡Guardado!</>
-               : <><Save size={16}/> Guardar cambios</>}
-            </button>
+
+            {/* Acuerdo de Subsanación */}
+            {hasMeaningfulText(obsLocal.acuerdo_subsanacion) && (
+              <div className="obs-content-box box-acuerdo">
+                <span className="box-label">Acuerdo de Subsanación:</span>
+                <div className="box-body-text">{obsLocal.acuerdo_subsanacion}</div>
+              </div>
+            )}
+
+            {/* Comentario Inicial */}
+            {hasMeaningfulText(obsLocal.comentario_inicial) && (
+              <div className="obs-content-box box-inicial">
+                <span className="box-label">Comentario Inicial (Expediente):</span>
+                <div className="box-body-text">{obsLocal.comentario_inicial}</div>
+              </div>
+            )}
+
+            {/* Comentario Complementario */}
+            {hasMeaningfulText(obsLocal.comentario_complementario) && obsLocal.comentario_complementario !== '0' && (
+              <div className="obs-content-box box-complementario">
+                <span className="box-label">Comentario Complementario:</span>
+                <div className="box-body-text">{obsLocal.comentario_complementario}</div>
+              </div>
+            )}
+
+            {/* Comentario Final */}
+            {hasMeaningfulText(obsLocal.comentario_final) && (
+              <div className="obs-content-box box-final">
+                <span className="box-label">Comentario Final:</span>
+                <div className="box-body-text">{obsLocal.comentario_final}</div>
+              </div>
+            )}
+
+            {/* Comentario PRONATEL */}
+            {hasMeaningfulText(obsLocal.comentario_pronatel) && (
+              <div className="obs-content-box box-pronatel">
+                <span className="box-label">Comentario PRONATEL:</span>
+                <div className="box-body-text">{obsLocal.comentario_pronatel}</div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -427,6 +656,18 @@ export default function Observaciones() {
   const [vista, setVista] = useState('agrupada') // 'agrupada' (por sitio) es la vista principal predeterminada
   const [gruposData, setGruposData] = useState({})
   const [sitiosMap, setSitiosMap] = useState({})
+  const [tecnicos, setTecnicos] = useState([])
+
+  // Personal auditor y revisor oficial de GILAT (100% desde la Base de Datos)
+  const gilatOptions = useMemo(() => {
+    return (tecnicos || [])
+      .filter(t => {
+        if (!t || !t.nombre_completo) return false
+        const emp = (t.empresa || '').toUpperCase()
+        return emp.includes('GILAT')
+      })
+      .sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo))
+  }, [tecnicos])
 
   // Filtros activos (COVEPA)
   const [search, setSearch] = useState('')
@@ -454,7 +695,7 @@ export default function Observaciones() {
     idSitios: siteIdsForCuadrilla
   }), [search, protocolo, estadoCovepa, idSitio, siteIdsForCuadrilla])
 
-  // Carga inicial de filtros disponibles y catálogo de localidades
+  // Carga inicial de filtros disponibles, catálogo de localidades y personal
   useEffect(() => {
     fetchFiltrosObservaciones().then(setFiltros)
     getCachedSitiosAsignados().then(list => {
@@ -464,6 +705,7 @@ export default function Observaciones() {
       }
       setSitiosMap(map)
     })
+    getPersonalActivo().then(list => setTecnicos(list || [])).catch(() => {})
   }, [])
 
   // Carga de datos
@@ -564,6 +806,9 @@ export default function Observaciones() {
     setObservaciones(prev => prev.map(o => o.id_obs === updated.id_obs ? { ...o, ...updated } : o))
     if (selectedObs?.id_obs === updated.id_obs) setSelectedObs(prev => ({ ...prev, ...updated }))
     loadKpis()
+    if (vista === 'agrupada') {
+      loadAgrupada()
+    }
   }
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1
@@ -571,8 +816,8 @@ export default function Observaciones() {
 
   return (
     <div className="obs-container">
-      {/* ── MEDIDORES / KPIs REUTILIZABLES COVEPA (6 MÉTRICAS OPERATIVAS) ── */}
-      <MetricGrid columns={6}>
+      {/* ── MEDIDORES / KPIs REUTILIZABLES COVEPA (7 MÉTRICAS OPERATIVAS) ── */}
+      <MetricGrid columns={7}>
         <MetricCard
           icon={<ClipboardList size={22} />}
           label="Total Observaciones"
@@ -594,20 +839,30 @@ export default function Observaciones() {
           title="Filtrar por observaciones pendientes de subsanar"
         />
         <MetricCard
+          icon={<Clock size={22} />}
+          label="Solicitando Revisión"
+          value={loadingKpis ? '—' : (kpis.solicitando || 0).toLocaleString()}
+          subtitle="En espera de revisión"
+          variant="orange"
+          onClick={() => setEstadoCovepa(prev => (prev === 'Solicitando Revisión' || prev === 'Solicitando Revision') ? '' : 'Solicitando Revisión')}
+          active={estadoCovepa === 'Solicitando Revisión' || estadoCovepa === 'Solicitando Revision'}
+          title="Filtrar por observaciones que solicitan revisión"
+        />
+        <MetricCard
           icon={<UploadCloud size={22} />}
-          label="Subidas"
-          value={loadingKpis ? '—' : (kpis.subidas || 0).toLocaleString()}
-          subtitle="Enviadas a supervisión"
+          label="En Revisión"
+          value={loadingKpis ? '—' : (kpis.enRevision || 0).toLocaleString()}
+          subtitle="Auditoría en proceso"
           variant="sky"
-          onClick={() => setEstadoCovepa(prev => prev === 'Enviado' ? '' : 'Enviado')}
-          active={estadoCovepa === 'Enviado'}
-          title="Filtrar por observaciones subidas / enviadas a COVEPA/Pronatel"
+          onClick={() => setEstadoCovepa(prev => (prev === 'En Revision' || prev === 'En Revisión') ? '' : 'En Revisión')}
+          active={estadoCovepa === 'En Revision' || estadoCovepa === 'En Revisión'}
+          title="Filtrar por observaciones en proceso de auditoría"
         />
         <MetricCard
           icon={<CheckCircle2 size={22} />}
           label="Validadas"
           value={loadingKpis ? '—' : (kpis.validadas || 0).toLocaleString()}
-          subtitle="Aprobadas por Pronatel"
+          subtitle="Subsanación conforme"
           variant="emerald"
           onClick={() => setEstadoCovepa(prev => prev === 'Validado' ? '' : 'Validado')}
           active={estadoCovepa === 'Validado'}
@@ -627,7 +882,7 @@ export default function Observaciones() {
           icon={<Ban size={22} />}
           label="Descartadas"
           value={loadingKpis ? '—' : (kpis.descartadas || 0).toLocaleString()}
-          subtitle="Cerradas en campo"
+          subtitle="Cerradas / no procede"
           variant="purple"
           onClick={() => setEstadoCovepa(prev => prev === 'Descartado' ? '' : 'Descartado')}
           active={estadoCovepa === 'Descartado'}
@@ -780,19 +1035,18 @@ export default function Observaciones() {
                 <tr>
                   <th style={{ width: '105px' }}>Código</th>
                   <th style={{ width: '120px' }}>Cuadrilla</th>
-                  <th>Sitio / Localidad</th>
-                  <th>Protocolo</th>
-                  <th>Subsistema</th>
-                  <th>Detalle</th>
-                  <th>Ítem</th>
-                  <th>Estado COVEPA</th>
-                  <th>F. Subsanación</th>
-                  <th style={{textAlign:'center'}}>Acción</th>
+                  <th style={{ width: '125px' }}>Código de Sitio</th>
+                  <th>Localidad</th>
+                  <th>Nombre del Lugar</th>
+                  <th style={{ width: '135px' }}>Estado COVEPA</th>
+                  <th style={{ width: '130px' }}>Fecha de Revisión</th>
+                  <th>Revisado por</th>
                 </tr>
               </thead>
               <tbody>
                 {observaciones.map(o => {
                   const sInfo = sitiosMap[o.id_sitio] || {}
+                  const revisorNombre = o.revisor || o.validado_por || ''
                   return (
                     <tr key={o.id_obs} className="sitio-row" onClick={() => setSelectedObs(o)}>
                       <td><span className="site-code-badge">{o.id_obs}</span></td>
@@ -814,47 +1068,55 @@ export default function Observaciones() {
                         </span>
                       </td>
                       <td>
-                        <div className="table-site-cell">
-                          <span className="site-code-badge" style={{color:'var(--accent)'}}>{o.id_sitio}</span>
-                          {sInfo.localidad && (
-                            <span className="table-site-loc">{sInfo.localidad}</span>
-                          )}
-                        </div>
+                        <span className="site-code-badge" style={{ color: 'var(--accent)' }}>
+                          {o.id_sitio}
+                        </span>
                       </td>
-                    <td>
-                      <span className="site-name" style={{fontSize:'var(--text-sm)'}}>{o.protocolo || '—'}</span>
-                    </td>
-                    <td>
-                      <span style={{color:'var(--text-secondary)',fontSize:'var(--text-sm)'}}>{o.subsistema || '—'}</span>
-                    </td>
-                    <td>
-                      <span className="obs-detalle-cell" title={o.detalle || ''}>
-                        {o.detalle ? (o.detalle.length > 60 ? o.detalle.substring(0, 60) + '…' : o.detalle) : '—'}
-                      </span>
-                    </td>
-                    <td style={{color:'var(--text-muted)',fontSize:'var(--text-sm)'}}>
-                      {o.item}{o.sub_item ? ` / ${o.sub_item}` : ''}
-                    </td>
-                    <td>
-                      <span className={`estado-badge ${estadoCovepaBadge(o.estado_covepa)}`}>
-                        {o.estado_covepa || 'Pendiente'}
-                      </span>
-                    </td>
-                    <td>
-                      <span style={{fontSize:'var(--text-sm)',color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)'}}>
-                        {o.fecha_subsanacion ? o.fecha_subsanacion.split('T')[0] : '—'}
-                      </span>
-                    </td>
-                    <td style={{textAlign:'center'}}>
-                      <button
-                        className="view-site-btn"
-                        onClick={e => { e.stopPropagation(); setSelectedObs(o) }}
-                        title="Ver y editar observación"
-                      >
-                        <Eye size={15}/>
-                      </button>
-                    </td>
-                  </tr>
+                      <td>
+                        <span style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
+                          {sInfo.localidad || '—'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="site-name" style={{ color: 'var(--text-main)', fontWeight: 'var(--fw-semibold)', fontSize: 'var(--text-sm)' }}>
+                          {sInfo.nombre_nodo || sInfo.localidad || '—'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`estado-badge ${estadoCovepaBadge(o.estado_covepa)}`}>
+                          {o.estado_covepa || 'Pendiente'}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: 'var(--text-sm)', color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)' }}>
+                          {o.fecha_subsanacion ? o.fecha_subsanacion.split('T')[0] : '—'}
+                        </span>
+                      </td>
+                      <td>
+                        {revisorNombre ? (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              fontSize: 'var(--text-xs)',
+                              fontWeight: 'var(--fw-semibold)',
+                              padding: '0.22rem 0.6rem',
+                              borderRadius: '6px',
+                              background: revisorNombre.toUpperCase().includes('GILAT') ? '#eff6ff' : '#f8fafc',
+                              color: revisorNombre.toUpperCase().includes('GILAT') ? '#1d4ed8' : '#334155',
+                              border: revisorNombre.toUpperCase().includes('GILAT') ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            <Users size={12} color={revisorNombre.toUpperCase().includes('GILAT') ? '#2563eb' : '#64748b'} />
+                            {revisorNombre}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+                    </tr>
                   )
                 })}
               </tbody>
@@ -882,11 +1144,12 @@ export default function Observaciones() {
         </div>
       )}
 
-      {/* DRAWER */}
+      {/* VENTANA EMERGENTE — DETALLE COMPLETO DE OBSERVACIÓN */}
       {selectedObs && (
-        <ObsDrawer
+        <ModalDetalleObservacion
           obs={selectedObs}
           sitiosMap={sitiosMap}
+          gilatOptions={gilatOptions}
           onClose={() => setSelectedObs(null)}
           onSaved={handleObsSaved}
         />

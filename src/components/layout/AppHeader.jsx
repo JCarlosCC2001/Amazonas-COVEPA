@@ -55,6 +55,7 @@ export default function AppHeader() {
     clearAllNotifications,
     dismissNotification,
     restoreDismissedNotifications,
+    dispararPruebaRevision,
     desktopPermission,
     requestDesktopPermission,
     markAsRead,
@@ -169,6 +170,17 @@ export default function AppHeader() {
                       Marcar vistas
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className="notif-test-btn"
+                    onClick={() => {
+                      dispararPruebaRevision()
+                      setNotifOpen(false)
+                    }}
+                    title="Disparar notificación de prueba de observaciones en revisión"
+                  >
+                    Probar Alerta
+                  </button>
                   {solicitudes.length > 0 && (
                     <button
                       type="button"

@@ -252,8 +252,8 @@ export function NotificationProvider({ children }) {
     // Reproducir aviso sonoro suave
     playNotificationChime()
 
-    // Auto-descartar después de un tiempo prudencial (25s para alertas de acumulación con lista)
-    const timeoutMs = obs.isAccumulationAlert ? 25000 : 8500
+    // Auto-descartar después de un tiempo prudencial (50s para alertas de acumulación con lista)
+    const timeoutMs = obs.isAccumulationAlert ? 50000 : 8500
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== toastId))
     }, timeoutMs)
@@ -623,6 +623,74 @@ export function NotificationProvider({ children }) {
     setDismissedIds(new Set())
   }, [])
 
+  // Disparar manualmente una notificación de prueba con las observaciones actualmente en revisión
+  const dispararPruebaRevision = useCallback(() => {
+    const demoradas = enRevision.filter(s => calcWaitMins(s.fecha_subsanacion) >= 10)
+    const listado = demoradas.length > 0 ? demoradas : enRevision
+    if (listado.length === 0) return
+
+    const ordenadas = [...listado].sort((a, b) => {
+      const tA = new Date(a.fecha_subsanacion || 0).getTime()
+      const tB = new Date(b.fecha_subsanacion || 0).getTime()
+      return tA - tB
+    })
+    const masAntigua = ordenadas[0]
+    const loc = sitiosMapRef.current[masAntigua.id_sitio] || ''
+    const minsAntigua = calcWaitMins(masAntigua.fecha_subsanacion)
+    const tiempoTxt = formatWaitTime(minsAntigua)
+
+    dispararToast({
+      id_obs: `ALERTA-PRUEBA-REVISION-${Date.now()}`,
+      id_sitio: masAntigua.id_sitio,
+      estado_covepa: 'En Revisión',
+      revisor: masAntigua.revisor || 'Auditoría Gilat',
+      detalle: `[PRUEBA] Hay ${ordenadas.length} observaciones en revisión (+10 min) en espera. La más antigua lleva ${tiempoTxt} (${masAntigua.id_sitio}${loc ? ` · ${loc}` : ''}).`,
+      isAccumulationAlert: true,
+      queueType: 'auditores',
+      items: ordenadas.map(item => ({
+        id_obs: item.id_obs,
+        id_sitio: item.id_sitio,
+        localidad: sitiosMapRef.current[item.id_sitio] || '',
+        revisor: item.revisor,
+        fecha_subsanacion: item.fecha_subsanacion,
+        subsistema: item.subsistema,
+        detalle: item.detalle
+      }))
+    }, loc)
+
+    playAccumulationChime()
+
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(`[PRUEBA] ⚠️ Observaciones en Revisión Acumuladas (${ordenadas.length})`, {
+          body: `Hay ${ordenadas.length} observaciones en revisión (+10 min) en espera.`,
+          icon: '/favicon.ico',
+          tag: 'covepa-alerta-acumulacion-revision-prueba',
+          renotify: true
+        })
+      } catch {}
+    }
+  }, [enRevision, dispararToast])
+
+  // Exponer globalmente en window para pruebas en cualquier momento
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.probarNotificacionRevision = dispararPruebaRevision
+    }
+  }, [dispararPruebaRevision])
+
+  // Auto-disparar una vez como prueba activa para que el usuario verifique la notificación en pantalla
+  const hasTriggeredTestRef = useRef(false)
+  useEffect(() => {
+    if (enRevision.length > 0 && !hasTriggeredTestRef.current) {
+      hasTriggeredTestRef.current = true
+      const timer = setTimeout(() => {
+        dispararPruebaRevision()
+      }, 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [enRevision, dispararPruebaRevision])
+
   return (
     <NotificationContext.Provider
       value={{
@@ -633,6 +701,7 @@ export function NotificationProvider({ children }) {
         clearAllNotifications,
         dismissNotification,
         restoreDismissedNotifications,
+        dispararPruebaRevision,
         readIds,
         toasts,
         desktopPermission,

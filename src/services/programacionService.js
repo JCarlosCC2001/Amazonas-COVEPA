@@ -1,5 +1,7 @@
 import { supabase, handleSupabaseAuthError } from '../lib/supabase.js'
-import { fetchPersonal } from './personalService.js'
+import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService.js'
+import { ASIGNACIONES_BASE } from './sitiosService.js'
+import { toLocalDateString } from '../utils/helpers.js'
 
 // ────────────────────────────────────────────────────────────
 // 1. Obtener la lista de todo el personal activo (técnicos, conductores, supervisores)
@@ -492,4 +494,248 @@ export async function getObservacionesSitioDetalle(idSitio) {
 
   if (error) throw new Error(error.message)
   return data || []
+}
+
+
+// ────────────────────────────────────────────────────────────
+// 9. Asegurar Programación de Sitio (Auto-Programación)
+//
+// Cada vez que una observación tiene un cambio de estado:
+// 1. Verifica si existe una programación para ese día/fecha que incluya ese sitio.
+// 2. Si ya existe, continúa con el proceso normal.
+// 3. Si NO existe:
+//    - Determina la cuadrilla oficial del sitio y su técnico titular.
+//    - Si el técnico ya tiene programación ese día, agrega el sitio a su jornada.
+//    - Si no tiene programación ese día, genera una nueva programación con ese sitio.
+// ────────────────────────────────────────────────────────────
+export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, fecha = null } = {}) {
+  try {
+    let siteId = idSitio ? String(idSitio).trim().toUpperCase() : null
+
+    // Si no se proporcionó idSitio, obtenerlo de la observación
+    if (!siteId && idObs) {
+      const { data: obsData } = await supabase
+        .from('observaciones')
+        .select('id_sitio, fecha_subsanacion')
+        .eq('id_obs', idObs)
+        .maybeSingle()
+
+      if (obsData?.id_sitio) {
+        siteId = obsData.id_sitio.trim().toUpperCase()
+      }
+    }
+
+    if (!siteId) {
+      console.warn('[AUTO-PROG] No se pudo determinar id_sitio para asegurar programación.')
+      return { success: false, reason: 'site_not_found' }
+    }
+
+    // Normalizar la fecha a formato YYYY-MM-DD (hora local)
+    let fechaYmd = null
+    if (fecha) {
+      if (typeof fecha === 'string') {
+        const trimmed = fecha.trim()
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+          fechaYmd = trimmed
+        } else {
+          const parsed = new Date(trimmed)
+          if (!isNaN(parsed.getTime())) fechaYmd = toLocalDateString(parsed)
+        }
+      } else if (fecha instanceof Date && !isNaN(fecha.getTime())) {
+        fechaYmd = toLocalDateString(fecha)
+      }
+    }
+    if (!fechaYmd) {
+      fechaYmd = toLocalDateString(new Date())
+    }
+
+    // 1. Consultar programaciones existentes en esa fecha
+    const { data: progsFecha, error: errProgs } = await supabase
+      .from('programaciones')
+      .select(`
+        id,
+        id_tecnico,
+        fecha,
+        sitios:programacion_sitios (
+          id,
+          id_sitio,
+          orden
+        )
+      `)
+      .eq('fecha', fechaYmd)
+
+    if (errProgs) {
+      console.error('[AUTO-PROG] Error consultando programaciones de la fecha:', errProgs)
+      return { success: false, error: errProgs.message }
+    }
+
+    // 2. Verificar si el sitio ya está en alguna programación de esa fecha
+    const yaExiste = (progsFecha || []).some(prog =>
+      (prog.sitios || []).some(s => (s.id_sitio || '').toUpperCase().trim() === siteId)
+    )
+
+    if (yaExiste) {
+      console.log(`[AUTO-PROG] El sitio ${siteId} ya existe en la programación del día ${fechaYmd}. Continuando normal.`)
+      return { success: true, yaExiste: true, fecha: fechaYmd, idSitio: siteId }
+    }
+
+    console.log(`[AUTO-PROG] ⚡ El sitio ${siteId} NO existe en la programación de ${fechaYmd}. Generando...`)
+
+    // 3. Determinar la cuadrilla oficial del sitio
+    let cuadrillaName = null
+    try {
+      const { data: scData } = await supabase
+        .from('sitios_cuadrillas')
+        .select('cuadrilla')
+        .eq('id_site', siteId)
+        .eq('activo', true)
+        .maybeSingle()
+
+      if (scData?.cuadrilla) {
+        cuadrillaName = scData.cuadrilla.toUpperCase().trim().replace(/GRUPO/gi, 'CUADRILLA')
+      }
+    } catch {}
+
+    if (!cuadrillaName) {
+      const fallbackSite = (ASIGNACIONES_BASE || []).find(s => s.id_site === siteId)
+      if (fallbackSite?.cuadrilla) {
+        cuadrillaName = fallbackSite.cuadrilla.toUpperCase().trim().replace(/GRUPO/gi, 'CUADRILLA')
+      }
+    }
+
+    if (!cuadrillaName) {
+      cuadrillaName = 'CUADRILLA 1'
+    }
+
+    // 4. Determinar los integrantes oficiales de esa cuadrilla
+    const defaultCfg = DEFAULT_CUADRILLAS_CONFIG[cuadrillaName] || DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 1']
+    let idTecnico = defaultCfg?.idTecnico
+    let idConductor = defaultCfg?.idConductor
+
+    try {
+      const { data: pcRows } = await supabase
+        .from('personal_cuadrillas')
+        .select('id_personal, cargo, cuadrilla')
+        .eq('cuadrilla', cuadrillaName)
+        .eq('activo', true)
+
+      if (pcRows && pcRows.length > 0) {
+        const tec = pcRows.find(p => {
+          const c = (p.cargo || '').toUpperCase()
+          return c.includes('TÉCN') || c.includes('TECN') || c.includes('SUPERVISOR')
+        })
+        const cond = pcRows.find(p => (p.cargo || '').toUpperCase().includes('CONDUCTOR'))
+        if (tec?.id_personal) idTecnico = tec.id_personal
+        if (cond?.id_personal) idConductor = cond.id_personal
+      }
+    } catch {}
+
+    if (!idTecnico) {
+      idTecnico = '8359c281-33ce-423e-9823-0e9e09663889' // Carlos Cóndor (Supervisor) fallback
+    }
+
+    // 5. Verificar si el técnico titular ya tiene una jornada iniciada en esa fecha
+    const progExistenteTecnico = (progsFecha || []).find(p => p.id_tecnico === idTecnico)
+
+    if (progExistenteTecnico) {
+      // Caso A: El técnico ya tiene programación, agregamos el sitio a su jornada
+      const sitiosExistentes = progExistenteTecnico.sitios || []
+      const yaEnLista = sitiosExistentes.some(s => (s.id_sitio || '').toUpperCase().trim() === siteId)
+
+      if (!yaEnLista) {
+        const maxOrden = sitiosExistentes.reduce((max, s) => Math.max(max, s.orden || 0), 0)
+
+        const { error: insSitioErr } = await supabase
+          .from('programacion_sitios')
+          .insert([{
+            id_programacion: progExistenteTecnico.id,
+            id_sitio: siteId,
+            orden: maxOrden + 1
+          }])
+
+        if (insSitioErr) {
+          console.error('[AUTO-PROG] Error agregando sitio a programación:', insSitioErr)
+          return { success: false, error: insSitioErr.message }
+        }
+      }
+
+      console.log(`[AUTO-PROG] ✅ Sitio ${siteId} agregado a jornada de ${cuadrillaName} para ${fechaYmd}.`)
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('covepa-programacion-actualizada', {
+          detail: { idSitio: siteId, fecha: fechaYmd, programacionId: progExistenteTecnico.id }
+        }))
+      }
+
+      return {
+        success: true,
+        generado: true,
+        tipo: 'sitio_agregado',
+        cuadrilla: cuadrillaName,
+        fecha: fechaYmd,
+        programacionId: progExistenteTecnico.id
+      }
+    } else {
+      // Caso B: El técnico no tiene programación esa fecha, creamos una nueva jornada
+      const personalIds = [idTecnico]
+      if (idConductor) personalIds.push(idConductor)
+
+      let nuevaProg = null
+      try {
+        nuevaProg = await createProgramacion({
+          personal_ids: personalIds,
+          id_tecnico: idTecnico,
+          fecha: fechaYmd,
+          notas: `Auto-generada por actualización técnica en sitio ${siteId}`,
+          sitios: [siteId]
+        })
+      } catch (createErr) {
+        // En caso de concurrencia (código 23505), intentar agregar a la creada en paralelo
+        if (createErr.message?.includes('Ya existe una programación') || createErr.code === '23505') {
+          const { data: retryProg } = await supabase
+            .from('programaciones')
+            .select('id, sitios:programacion_sitios(id, id_sitio, orden)')
+            .eq('fecha', fechaYmd)
+            .eq('id_tecnico', idTecnico)
+            .maybeSingle()
+
+          if (retryProg) {
+            const sitiosRetry = retryProg.sitios || []
+            const yaEnRetry = sitiosRetry.some(s => (s.id_sitio || '').toUpperCase().trim() === siteId)
+            if (!yaEnRetry) {
+              const maxOrden = sitiosRetry.reduce((max, s) => Math.max(max, s.orden || 0), 0)
+              await supabase.from('programacion_sitios').insert([{
+                id_programacion: retryProg.id,
+                id_sitio: siteId,
+                orden: maxOrden + 1
+              }])
+            }
+            nuevaProg = retryProg
+          }
+        } else {
+          throw createErr
+        }
+      }
+
+      console.log(`[AUTO-PROG] ✅ Nueva jornada creada para ${cuadrillaName} en ${fechaYmd} con sitio ${siteId}.`)
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('covepa-programacion-actualizada', {
+          detail: { idSitio: siteId, fecha: fechaYmd, programacionId: nuevaProg?.id }
+        }))
+      }
+
+      return {
+        success: true,
+        generado: true,
+        tipo: 'nueva_programacion',
+        cuadrilla: cuadrillaName,
+        fecha: fechaYmd,
+        programacion: nuevaProg
+      }
+    }
+  } catch (err) {
+    console.error('[AUTO-PROG] Error inesperado en asegurarProgramacionSitio:', err)
+    return { success: false, error: err.message }
+  }
 }

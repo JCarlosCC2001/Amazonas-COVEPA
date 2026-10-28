@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCachedSitiosAsignados } from '../services/sitiosService'
+import { asegurarProgramacionSitio } from '../services/programacionService'
 
 const NotificationContext = createContext(null)
 
@@ -254,6 +255,15 @@ export function NotificationProvider({ children }) {
           const newRow = payload.new
           const oldRow = payload.old
 
+          // Regla: Auto-programar sitio si hubo cambio de estado y no está programado en la fecha
+          if (newRow && newRow.estado_covepa && newRow.estado_covepa !== oldRow?.estado_covepa) {
+            asegurarProgramacionSitio({
+              idSitio: newRow.id_sitio,
+              idObs: newRow.id_obs,
+              fecha: newRow.fecha_subsanacion
+            }).catch(err => console.warn('[NOTIF-AUTO-PROG] Error asegurando programación:', err))
+          }
+
           if (newRow && (newRow.estado_covepa === 'Solicitando Revisión' || newRow.estado_covepa === 'Solicitando Revision')) {
             const loc = sitiosMapRef.current[newRow.id_sitio] || ''
             dispararToast(newRow, loc)
@@ -284,6 +294,16 @@ export function NotificationProvider({ children }) {
         { event: 'INSERT', schema: 'public', table: 'historial_estados_observaciones' },
         (payload) => {
           const row = payload.new
+
+          // Regla: Auto-programar sitio ante cualquier cambio de estado registrado en historial
+          if (row && row.id_sitio) {
+            asegurarProgramacionSitio({
+              idSitio: row.id_sitio,
+              idObs: row.id_obs,
+              fecha: row.created_at
+            }).catch(err => console.warn('[NOTIF-AUTO-PROG] Error asegurando programación:', err))
+          }
+
           if (row && (row.estado_nuevo === 'Solicitando Revisión' || row.estado_nuevo === 'Solicitando Revision')) {
             const obsLike = {
               id_obs: row.id_obs,

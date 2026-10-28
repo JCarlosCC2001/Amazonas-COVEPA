@@ -166,6 +166,16 @@ export default function Programacion() {
     fetchWeekData()
   }, [fetchWeekData])
 
+  // Recargar datos automáticamente si el sistema auto-genera o actualiza una programación
+  useEffect(() => {
+    const handleAutoProgUpdated = (e) => {
+      console.log('[PROGRAMACION] Evento de auto-programación detectado:', e.detail)
+      fetchWeekData()
+    }
+    window.addEventListener('covepa-programacion-actualizada', handleAutoProgUpdated)
+    return () => window.removeEventListener('covepa-programacion-actualizada', handleAutoProgUpdated)
+  }, [fetchWeekData])
+
   // Navegación de período (día en 'today', semana en 'week' / 'list')
   const prevPeriod = () => {
     const d = new Date(currentDate)

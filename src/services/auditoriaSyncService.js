@@ -19,6 +19,7 @@
 // =========================================================================================
 
 import { supabase } from '../lib/supabase'
+import { asegurarProgramacionSitio } from './programacionService'
 
 /**
  * Catálogo estricto de los 6 estados oficiales permitidos por la integración
@@ -182,6 +183,18 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
     const estadoNorm = normalizarEstadoOficial(estado)
     const fechaIso = extraContext.fechaIso || new Date().toISOString()
 
+    // Regla de Auto-Programación:
+    // Verificar si existe programación para esa fecha; de no existir, primero genera la programación y luego continúa.
+    try {
+      await asegurarProgramacionSitio({
+        idSitio: extraContext.idSitio,
+        idObs,
+        fecha: fechaIso
+      })
+    } catch (autoProgErr) {
+      console.warn('[AUTO-PROG-WARN] Error verificando/generando programación:', autoProgErr)
+    }
+
     // Payload de actualización en la tabla observaciones
     const updatePayload = {
       estado_covepa: estadoNorm,
@@ -282,6 +295,19 @@ export async function sincronizarAuditoriaObservacion(idObs, {
 
   const estadoNormalizado = normalizarEstadoOficial(nuevoEstado)
   const fechaFinal = fechaSubsanacion || new Date().toISOString()
+
+  // Regla de Auto-Programación:
+  // Verificar si existe programación para esa fecha; de no existir, primero genera la programación y luego continúa.
+  try {
+    await asegurarProgramacionSitio({
+      idSitio,
+      idObs,
+      fecha: fechaFinal
+    })
+  } catch (autoProgErr) {
+    console.warn('[AUTO-PROG-WARN] Error verificando/generando programación:', autoProgErr)
+  }
+
   const comentarioLimpio = (comentarioTexto !== undefined && comentarioTexto !== null && String(comentarioTexto).trim() !== '')
     ? String(comentarioTexto).trim()
     : null

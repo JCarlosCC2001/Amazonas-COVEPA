@@ -2574,40 +2574,45 @@ function ModalDetallesProgramacion({
 
               return (
                 <div key={obs.id_obs} className="prog-obs-card-item">
-                  {/* Fila Superior: Código de Observación, Subsistema, Protocolo y Selector de Estado */}
+                  {/* Fila Superior: Código de Observación, Protocolo, Selector de Estado y Subsistema */}
                   <div className="prog-obs-card-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                      <div className="prog-obs-code-badge">
-                        <span className="obs-code-tag">CÓDIGO:</span>
-                        <span className="obs-code-val">{obs.id_obs}</span>
+                    <div className="prog-obs-card-header-top">
+                      <div className="prog-obs-card-tags">
+                        <div className="prog-obs-code-badge">
+                          <span className="obs-code-tag">CÓDIGO:</span>
+                          <span className="obs-code-val">{obs.id_obs}</span>
+                        </div>
+                        {obs.protocolo && (
+                          <span className="meta-pill" title={`Protocolo: ${obs.protocolo}`}>
+                            Protocolo: <strong>{obs.protocolo}</strong>
+                          </span>
+                        )}
                       </div>
-                      {obs.protocolo && (
-                        <span className="meta-pill" title={`Protocolo: ${obs.protocolo}`}>
-                          Protocolo: <strong>{obs.protocolo}</strong>
-                        </span>
-                      )}
-                      {obs.subsistema && (
-                        <span className="meta-pill" title={`Subsistema: ${obs.subsistema}`}>
-                          Subsistema: <strong>{obs.subsistema}</strong>
-                        </span>
-                      )}
+
+                      <div className="prog-obs-status-select-wrap">
+                        <select
+                          value={currentEstado}
+                          disabled={isUpdating}
+                          onChange={(e) => handleSetEstado(obs, e.target.value)}
+                          className={`prog-obs-status-select status-${(currentEstado || '').toLowerCase().replace(/\s+/g, '-')}`}
+                        >
+                          <option value="Pendiente">● Pendiente</option>
+                          <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
+                          <option value="En Revisión">🔍 En Revisión</option>
+                          <option value="Validado">✓ Validado</option>
+                          <option value="Descartado">🚫 Descartado</option>
+                          <option value="Rechazado">✕ Rechazado</option>
+                        </select>
+                      </div>
                     </div>
 
-                    <div className="prog-obs-status-select-wrap">
-                      <select
-                        value={currentEstado}
-                        disabled={isUpdating}
-                        onChange={(e) => handleSetEstado(obs, e.target.value)}
-                        className={`prog-obs-status-select status-${(currentEstado || '').toLowerCase().replace(/\s+/g, '-')}`}
-                      >
-                        <option value="Pendiente">● Pendiente</option>
-                        <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
-                        <option value="En Revisión">🔍 En Revisión</option>
-                        <option value="Validado">✓ Validado</option>
-                        <option value="Descartado">🚫 Descartado</option>
-                        <option value="Rechazado">✕ Rechazado</option>
-                      </select>
-                    </div>
+                    {obs.subsistema && (
+                      <div className="prog-obs-card-meta-row">
+                        <span className="meta-pill meta-pill-subsistema" title={`Subsistema: ${obs.subsistema}`}>
+                          Subsistema: <strong>{obs.subsistema}</strong>
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Fila de Auditoría: Revisor y Fecha de Validación */}

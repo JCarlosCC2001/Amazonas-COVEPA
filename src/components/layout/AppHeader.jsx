@@ -1,18 +1,12 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell, Eye, EyeOff, CheckCircle2,
-  AlertTriangle, X, ExternalLink, Clock, MapPin,
-  User, Trash2, RotateCcw, Flame, ChevronDown, ChevronUp
+  X, ExternalLink, Clock, MapPin,
+  User, Trash2, RotateCcw
 } from 'lucide-react'
 import { usePresentationMode } from '../../context/PresentationContext'
-import {
-  useNotifications,
-  formatTiempoRelativo,
-  calcWaitMins,
-  formatWaitTime,
-  getWaitTierInfo
-} from '../../context/NotificationContext'
+import { useNotifications, formatTiempoRelativo } from '../../context/NotificationContext'
 
 const PAGE_META = {
   '/dashboard': {
@@ -55,11 +49,8 @@ export default function AppHeader() {
   const { presentationMode, togglePresentationMode } = usePresentationMode()
   const {
     solicitudes,
-    enRevision,
     unreadCount,
     readIds,
-    tecnicosDemoradasCount,
-    auditoresDemoradasCount,
     dismissedCount,
     clearAllNotifications,
     dismissNotification,
@@ -72,9 +63,6 @@ export default function AppHeader() {
   } = useNotifications()
 
   const [notifOpen, setNotifOpen] = useState(false)
-  const [activeQueueTab, setActiveQueueTab] = useState('tecnicos') // 'tecnicos' | 'auditores'
-  const [filterTier, setFilterTier] = useState('ALL') // 'ALL' | '10m' | '1h' | '2h' | '6h' | '12h'
-  const [showDelayedCodesQuick, setShowDelayedCodesQuick] = useState(false)
   const notifRef = useRef(null)
 
   // Cerrar popover de notificaciones al hacer clic afuera
@@ -97,39 +85,6 @@ export default function AppHeader() {
     subtitle: 'Gestión Operativa de Telecomunicaciones Amazonas'
   }
 
-  // Lista activa según la pestaña seleccionada
-  const currentQueueItems = activeQueueTab === 'tecnicos' ? (solicitudes || []) : (enRevision || [])
-  const currentDemoradas = activeQueueTab === 'tecnicos' ? tecnicosDemoradasCount : auditoresDemoradasCount
-  const activeUnreadCount = currentQueueItems.filter(s => !readIds.has(s.id_obs)).length
-
-  // Conteo por franjas de tiempo de espera para los chips de filtro
-  const tierCounts = useMemo(() => {
-    const counts = { ALL: currentQueueItems.length, '10m': 0, '1h': 0, '2h': 0, '6h': 0, '12h': 0 }
-    for (const item of currentQueueItems) {
-      const mins = calcWaitMins(item.fecha_subsanacion)
-      if (mins >= 10) counts['10m']++
-      if (mins >= 60) counts['1h']++
-      if (mins >= 120) counts['2h']++
-      if (mins >= 360) counts['6h']++
-      if (mins >= 720) counts['12h']++
-    }
-    return counts
-  }, [currentQueueItems])
-
-  // Filtrado de la lista según la franja seleccionada
-  const filteredList = useMemo(() => {
-    if (filterTier === 'ALL') return currentQueueItems
-    return currentQueueItems.filter(item => {
-      const mins = calcWaitMins(item.fecha_subsanacion)
-      if (filterTier === '10m') return mins >= 10
-      if (filterTier === '1h') return mins >= 60
-      if (filterTier === '2h') return mins >= 120
-      if (filterTier === '6h') return mins >= 360
-      if (filterTier === '12h') return mins >= 720
-      return true
-    })
-  }, [currentQueueItems, filterTier])
-
   const handleSelectNotif = (obs) => {
     markAsRead(obs.id_obs)
     setNotifOpen(false)
@@ -138,8 +93,7 @@ export default function AppHeader() {
 
   const handleViewAll = () => {
     setNotifOpen(false)
-    const targetEstado = activeQueueTab === 'tecnicos' ? 'Solicitando Revisión' : 'En Revisión'
-    navigate(`/observaciones?estado=${encodeURIComponent(targetEstado)}`)
+    navigate('/observaciones?estado=Solicitando Revisión')
   }
 
   return (
@@ -185,7 +139,7 @@ export default function AppHeader() {
             type="button"
             onClick={() => setNotifOpen(prev => !prev)}
             className={`app-header-action-btn btn-notif ${notifOpen ? 'open' : ''} ${unreadCount > 0 ? 'has-unread' : ''}`}
-            title={`Notificaciones (${unreadCount} pendientes entre Técnicos y En Revisión)`}
+            title={`Notificaciones (${unreadCount} solicitudes de revisión pendientes)`}
             aria-label="Ver notificaciones"
           >
             <Bell size={18} />
@@ -196,16 +150,13 @@ export default function AppHeader() {
             )}
           </button>
 
-          {/* Menú desplegable de notificaciones */}
+          {/* Menú desplegable normal de notificaciones */}
           {notifOpen && (
             <div className="notif-popover-card">
-              {/* Encabezado del Popover */}
               <div className="notif-popover-header">
                 <div className="notif-popover-title">
-                  <Bell size={15} color={activeQueueTab === 'tecnicos' ? '#ea580c' : '#0284c7'} />
-                  <span>
-                    Bandeja: {activeQueueTab === 'tecnicos' ? 'Técnicos' : 'En Revisión'} ({currentQueueItems.length})
-                  </span>
+                  <Bell size={15} color="#ea580c" />
+                  <span>Solicitudes de Revisión ({solicitudes.length})</span>
                 </div>
                 <div className="notif-header-actions">
                   {unreadCount > 0 && (
@@ -213,17 +164,17 @@ export default function AppHeader() {
                       type="button"
                       className="notif-mark-read-btn"
                       onClick={markAllAsRead}
-                      title="Marcar todas como vistas"
+                      title="Marcar todas como leídas"
                     >
                       Marcar vistas
                     </button>
                   )}
-                  {currentQueueItems.length > 0 && (
+                  {solicitudes.length > 0 && (
                     <button
                       type="button"
                       className="notif-clear-btn"
-                      onClick={() => clearAllNotifications(activeQueueTab)}
-                      title={`Limpiar cola de ${activeQueueTab === 'tecnicos' ? 'Técnicos' : 'En Revisión'}`}
+                      onClick={clearAllNotifications}
+                      title="Limpiar todas las notificaciones de la bandeja"
                     >
                       <Trash2 size={12} />
                       <span>Limpiar</span>
@@ -240,198 +191,17 @@ export default function AppHeader() {
                 </div>
               </div>
 
-              {/* Barra de Pestañas: Técnicos vs En Revisión */}
-              <div className="notif-tabs-bar" role="tablist">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeQueueTab === 'tecnicos'}
-                  className={`notif-tab-btn notif-tab-btn-tecnicos ${activeQueueTab === 'tecnicos' ? 'active' : ''}`}
-                  onClick={() => {
-                    setActiveQueueTab('tecnicos')
-                    setFilterTier('ALL')
-                  }}
-                >
-                  <span className="notif-tab-icon">👷</span>
-                  <span className="notif-tab-name">Técnicos</span>
-                  <span className="notif-tab-count-pill">{solicitudes.length}</span>
-                  {tecnicosDemoradasCount > 0 && (
-                    <span
-                      className="notif-tab-demora-pill"
-                      title={`${tecnicosDemoradasCount} observaciones llevan más de 10 minutos esperando`}
-                    >
-                      <Flame size={11} />
-                      {tecnicosDemoradasCount}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeQueueTab === 'auditores'}
-                  className={`notif-tab-btn notif-tab-btn-auditores ${activeQueueTab === 'auditores' ? 'active' : ''}`}
-                  onClick={() => {
-                    setActiveQueueTab('auditores')
-                    setFilterTier('ALL')
-                  }}
-                >
-                  <span className="notif-tab-icon">🔍</span>
-                  <span className="notif-tab-name">En Revisión</span>
-                  <span className="notif-tab-count-pill">{enRevision.length}</span>
-                  {auditoresDemoradasCount > 0 && (
-                    <span
-                      className="notif-tab-demora-pill notif-demora-auditores"
-                      title={`${auditoresDemoradasCount} observaciones llevan más de 10 minutos en auditoría`}
-                    >
-                      <Flame size={11} />
-                      {auditoresDemoradasCount}
-                    </span>
-                  )}
-                </button>
-              </div>
-
-              {/* Chips de filtro por franjas de tiempo de espera */}
-              {currentQueueItems.length > 0 && (
-                <div className="notif-tier-chips" aria-label="Filtro por tiempo de espera">
-                  <button
-                    type="button"
-                    className={`tier-chip ${filterTier === 'ALL' ? 'active' : ''}`}
-                    onClick={() => setFilterTier('ALL')}
-                  >
-                    Todas ({tierCounts.ALL})
-                  </button>
-                  {tierCounts['10m'] > 0 && (
-                    <button
-                      type="button"
-                      className={`tier-chip tier-chip-10m ${filterTier === '10m' ? 'active' : ''}`}
-                      onClick={() => setFilterTier('10m')}
-                      title="Esperando más de 10 minutos"
-                    >
-                      +10 min ({tierCounts['10m']})
-                    </button>
-                  )}
-                  {tierCounts['1h'] > 0 && (
-                    <button
-                      type="button"
-                      className={`tier-chip tier-chip-1h ${filterTier === '1h' ? 'active' : ''}`}
-                      onClick={() => setFilterTier('1h')}
-                      title="Esperando más de 1 hora"
-                    >
-                      +1h ({tierCounts['1h']})
-                    </button>
-                  )}
-                  {tierCounts['2h'] > 0 && (
-                    <button
-                      type="button"
-                      className={`tier-chip tier-chip-2h ${filterTier === '2h' ? 'active' : ''}`}
-                      onClick={() => setFilterTier('2h')}
-                      title="Esperando más de 2 horas"
-                    >
-                      +2h ({tierCounts['2h']})
-                    </button>
-                  )}
-                  {tierCounts['6h'] > 0 && (
-                    <button
-                      type="button"
-                      className={`tier-chip tier-chip-6h ${filterTier === '6h' ? 'active' : ''}`}
-                      onClick={() => setFilterTier('6h')}
-                      title="Esperando más de 6 horas"
-                    >
-                      +6h ({tierCounts['6h']})
-                    </button>
-                  )}
-                  {tierCounts['12h'] > 0 && (
-                    <button
-                      type="button"
-                      className={`tier-chip tier-chip-12h ${filterTier === '12h' ? 'active' : ''}`}
-                      onClick={() => setFilterTier('12h')}
-                      title="Esperando más de 12 horas"
-                    >
-                      +12h ({tierCounts['12h']})
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Banner de alerta de acumulación (cuello de botella con 5 o más demoradas) */}
-              {currentDemoradas >= 5 && (
-                <div className="notif-accumulation-banner-container">
-                  <div className="notif-accumulation-banner">
-                    <AlertTriangle size={15} className="notif-acc-icon" />
-                    <div className="notif-acc-text">
-                      <strong>¡Alerta de acumulación ({currentDemoradas})!</strong>
-                      <span>
-                        Hay {currentDemoradas} observaciones con más de 10 min de espera en{' '}
-                        {activeQueueTab === 'tecnicos' ? 'Técnicos' : 'En Revisión'}.
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className="notif-acc-toggle-arrow-btn"
-                      onClick={() => setShowDelayedCodesQuick(prev => !prev)}
-                      title={showDelayedCodesQuick ? 'Ocultar lista de códigos demorados' : 'Desplegar lista de códigos demorados'}
-                      aria-expanded={showDelayedCodesQuick}
-                    >
-                      <span>{showDelayedCodesQuick ? 'Ocultar' : 'Ver códigos'}</span>
-                      {showDelayedCodesQuick ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    </button>
-                  </div>
-
-                  {showDelayedCodesQuick && (
-                    <div className="notif-delayed-codes-quicklist">
-                      <span className="notif-delayed-codes-title">
-                        Observaciones con mayor tiempo de espera (+10m):
-                      </span>
-                      <div className="notif-delayed-chips-wrap">
-                        {currentQueueItems
-                          .filter(item => calcWaitMins(item.fecha_subsanacion) >= 10)
-                          .map(item => {
-                            const mins = calcWaitMins(item.fecha_subsanacion)
-                            const tier = getWaitTierInfo(mins)
-                            const loc = sitiosMap[item.id_sitio] || ''
-
-                            return (
-                              <button
-                                key={item.id_obs}
-                                type="button"
-                                className="notif-delayed-chip-btn"
-                                onClick={() => handleSelectNotif(item)}
-                                title={`Abrir ${item.id_obs} (${item.id_sitio}${loc ? ` · ${loc}` : ''}) · Demora: ${formatWaitTime(mins)}`}
-                              >
-                                <span className="delayed-chip-code">{item.id_obs}</span>
-                                <span className={`delayed-chip-tier ${tier.badgeClass}`}>
-                                  {formatWaitTime(mins)}
-                                </span>
-                              </button>
-                            )
-                          })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Lista de observaciones filtradas y ordenadas */}
               <div className="notif-popover-list">
-                {filteredList.length === 0 ? (
+                {solicitudes.length === 0 ? (
                   <div className="notif-empty-state">
                     <CheckCircle2 size={32} color="#10b981" />
-                    <span className="notif-empty-title">
-                      {filterTier !== 'ALL'
-                        ? 'Sin observaciones en este rango de espera'
-                        : activeQueueTab === 'tecnicos'
-                        ? '¡Sin solicitudes de técnicos pendientes!'
-                        : '¡Sin observaciones pendientes en auditoría!'}
-                    </span>
+                    <span className="notif-empty-title">¡Bandeja limpia!</span>
                     <span className="notif-empty-desc">
-                      {filterTier !== 'ALL'
-                        ? 'No hay registros en esta cola que cumplan con la franja seleccionada.'
-                        : dismissedCount > 0
-                        ? `Has limpiado notificaciones de la bandeja. Las nuevas alertas aparecerán automáticamente.`
-                        : 'El flujo operativo está al día en esta cola.'}
+                      {dismissedCount > 0
+                        ? `Has limpiado ${dismissedCount} ${dismissedCount === 1 ? 'notificación' : 'notificaciones'}. Las nuevas alertas aparecerán automáticamente aquí.`
+                        : 'No hay observaciones pendientes de revisión en este momento.'}
                     </span>
-                    {dismissedCount > 0 && filterTier === 'ALL' && (
+                    {dismissedCount > 0 && (
                       <button
                         type="button"
                         className="notif-restore-btn"
@@ -444,34 +214,23 @@ export default function AppHeader() {
                     )}
                   </div>
                 ) : (
-                  filteredList.map((obs) => {
+                  solicitudes.map((obs) => {
                     const isUnread = !readIds.has(obs.id_obs)
                     const loc = sitiosMap[obs.id_sitio] || ''
-                    const waitMins = calcWaitMins(obs.fecha_subsanacion)
-                    const waitTimeStr = formatWaitTime(waitMins)
-                    const tier = getWaitTierInfo(waitMins)
-
                     return (
                       <div
                         key={obs.id_obs}
-                        className={`notif-item notif-item-solicitud ${activeQueueTab === 'auditores' ? 'item-auditores' : ''} ${isUnread ? 'is-unread' : ''}`}
+                        className={`notif-item notif-item-solicitud ${isUnread ? 'is-unread' : ''}`}
                         onClick={() => handleSelectNotif(obs)}
                         title="Clic para ver detalle de la observación"
                       >
-                        <div className={`notif-item-icon ${activeQueueTab === 'tecnicos' ? 'icon-solicitud' : 'icon-auditores'}`}>
-                          {activeQueueTab === 'tecnicos' ? <Clock size={16} /> : <AlertTriangle size={16} />}
+                        <div className="notif-item-icon icon-solicitud">
+                          <Clock size={16} />
                         </div>
                         <div className="notif-item-content">
                           <div className="notif-solicitud-top">
-                            <div className="notif-code-tier-group">
-                              <span className="notif-obs-code">{obs.id_obs}</span>
-                              <span className={`notif-wait-tier-badge ${tier.badgeClass}`}>
-                                {tier.label}
-                              </span>
-                            </div>
-                            <span className={`notif-status-badge ${activeQueueTab === 'tecnicos' ? 'status-tecnico' : 'status-revision'}`}>
-                              {activeQueueTab === 'tecnicos' ? 'Solicita Revisión' : 'En Revisión'}
-                            </span>
+                            <span className="notif-obs-code">{obs.id_obs}</span>
+                            <span className="notif-status-badge">Solicita Revisión</span>
                           </div>
 
                           <div className="notif-site-line">
@@ -486,15 +245,9 @@ export default function AppHeader() {
                             </div>
                           )}
 
-                          <div className="notif-time-row">
-                            <span className={`notif-wait-time-text ${tier.isOver10m ? 'is-delayed' : ''}`}>
-                              <Clock size={10} />
-                              Espera: {waitTimeStr}
-                            </span>
-                            <span className="notif-time-ago">
-                              {formatTiempoRelativo(obs.fecha_subsanacion)}
-                            </span>
-                          </div>
+                          <span className="notif-time-ago">
+                            {formatTiempoRelativo(obs.fecha_subsanacion)}
+                          </span>
                         </div>
 
                         <button
@@ -515,7 +268,7 @@ export default function AppHeader() {
                 )}
               </div>
 
-              {/* Banner para activar notificaciones de escritorio / PWA si aún no están concedidas */}
+              {/* Banner para activar notificaciones de escritorio si aún no están concedidas */}
               {desktopPermission === 'default' && (
                 <div className="notif-permission-banner">
                   <div className="notif-perm-texts">
@@ -532,10 +285,9 @@ export default function AppHeader() {
                 </div>
               )}
 
-              {/* Pie del Popover */}
               <div className="notif-popover-footer">
                 <span className="notif-popover-count-text">
-                  {activeUnreadCount > 0 ? `${activeUnreadCount} sin leer` : 'Al día'}
+                  {unreadCount > 0 ? `${unreadCount} sin leer` : 'Todas leídas'}
                   {dismissedCount > 0 ? ` · ${dismissedCount} limpiadas` : ''}
                 </span>
                 <button
@@ -543,7 +295,7 @@ export default function AppHeader() {
                   className="notif-view-all-btn"
                   onClick={handleViewAll}
                 >
-                  <span>Ver {activeQueueTab === 'tecnicos' ? 'Solicitudes' : 'En Revisión'}</span>
+                  <span>Ver todas en Observaciones</span>
                   <ExternalLink size={12} />
                 </button>
               </div>

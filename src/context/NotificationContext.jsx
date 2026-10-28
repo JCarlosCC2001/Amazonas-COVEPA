@@ -346,8 +346,8 @@ export function NotificationProvider({ children }) {
         const minsAntigua = calcWaitMins(masAntigua.fecha_subsanacion)
         const tiempoTxt = formatWaitTime(minsAntigua)
 
-        const titulo = `🔍 Cola de Auditoría Acumulada (${revDemoradas.length})`
-        const mensaje = `Hay ${revDemoradas.length} observaciones en revisión (+10 min) sin dictamen. La más antigua lleva ${tiempoTxt} (${masAntigua.id_sitio}${loc ? ` · ${loc}` : ''}).`
+        const titulo = `⚠️ Observaciones en Revisión Acumuladas (${revDemoradas.length})`
+        const mensaje = `Hay ${revDemoradas.length} observaciones en revisión (+10 min) sin dictaminar. La más antigua lleva ${tiempoTxt} (${masAntigua.id_sitio}${loc ? ` · ${loc}` : ''}).`
 
         dispararToast({
           id_obs: `ALERTA-COLA-AUDITORES-${Date.now()}`,
@@ -375,7 +375,7 @@ export function NotificationProvider({ children }) {
             new Notification(titulo, {
               body: mensaje,
               icon: '/favicon.ico',
-              tag: 'covepa-alerta-cola-auditores',
+              tag: 'covepa-alerta-acumulacion-revision',
               renotify: true
             })
           } catch {}
@@ -596,31 +596,20 @@ export function NotificationProvider({ children }) {
 
   // Filtrado de solicitudes visibles en la bandeja (no descartadas/limpiadas)
   const visibleSolicitudes = solicitudes.filter(s => !dismissedIds.has(s.id_obs))
-  const visibleEnRevision = enRevision.filter(s => !dismissedIds.has(s.id_obs))
 
-  // Conteo de observaciones demoradas (+10 min de espera) por cada cola
-  const tecnicosDemoradasCount = visibleSolicitudes.filter(s => calcWaitMins(s.fecha_subsanacion) >= 10).length
-  const auditoresDemoradasCount = visibleEnRevision.filter(s => calcWaitMins(s.fecha_subsanacion) >= 10).length
+  // Conteo exclusivo de solicitudes de técnicos no leídas para el badge de la campana
+  const unreadCount = visibleSolicitudes.filter(s => !readIds.has(s.id_obs)).length
+  const dismissedCount = solicitudes.filter(s => dismissedIds.has(s.id_obs)).length
 
-  const unreadCount = visibleSolicitudes.filter(s => !readIds.has(s.id_obs)).length +
-                      visibleEnRevision.filter(s => !readIds.has(s.id_obs)).length
-  const dismissedCount = solicitudes.filter(s => dismissedIds.has(s.id_obs)).length +
-                         enRevision.filter(s => dismissedIds.has(s.id_obs)).length
-
-  // Limpiar todas las notificaciones de la bandeja (opcionalmente por cola)
-  const clearAllNotifications = useCallback((queue = 'all') => {
+  // Limpiar todas las notificaciones de la bandeja
+  const clearAllNotifications = useCallback(() => {
     setDismissedIds(prev => {
       const updated = new Set(prev)
-      if (queue === 'all' || queue === 'tecnicos') {
-        for (const s of solicitudes) updated.add(s.id_obs)
-      }
-      if (queue === 'all' || queue === 'auditores') {
-        for (const r of enRevision) updated.add(r.id_obs)
-      }
+      for (const s of solicitudes) updated.add(s.id_obs)
       return updated
     })
     setToasts([])
-  }, [solicitudes, enRevision])
+  }, [solicitudes])
 
   // Descartar/limpiar una notificación individual
   const dismissNotification = useCallback((idObs) => {
@@ -638,13 +627,7 @@ export function NotificationProvider({ children }) {
     <NotificationContext.Provider
       value={{
         solicitudes: visibleSolicitudes,
-        enRevision: visibleEnRevision,
-        rawSolicitudes: solicitudes,
-        rawEnRevision: enRevision,
         totalSolicitudes: solicitudes.length,
-        totalEnRevision: enRevision.length,
-        tecnicosDemoradasCount,
-        auditoresDemoradasCount,
         unreadCount,
         dismissedCount,
         clearAllNotifications,

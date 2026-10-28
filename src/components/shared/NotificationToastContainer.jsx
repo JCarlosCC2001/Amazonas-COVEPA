@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   X, CheckCircle2, Clock, MapPin, User,
   ChevronRight, ChevronDown, ChevronUp, AlertTriangle,
-  Flame, ExternalLink
+  ExternalLink
 } from 'lucide-react'
 import {
   useNotifications,
@@ -74,9 +74,9 @@ export default function NotificationToastContainer() {
               <div className="notif-toast-header">
                 <div className="notif-toast-title-cluster">
                   {isAccumulation ? (
-                    <span className={`notif-toast-badge-pill ${obs.queueType === 'auditores' ? 'badge-auditores' : 'badge-accumulation'}`}>
-                      <Flame size={12} />
-                      <span>{obs.queueType === 'auditores' ? 'Cola En Revisión' : 'Cola Técnicos'} (+10m)</span>
+                    <span className="notif-toast-badge-pill badge-accumulation">
+                      <AlertTriangle size={12} />
+                      <span>Observaciones en Revisión (+10m)</span>
                     </span>
                   ) : (
                     <span className="notif-toast-badge-pill badge-solicitud">
@@ -103,10 +103,10 @@ export default function NotificationToastContainer() {
                   <>
                     <div className="notif-toast-code-row">
                       <span className="notif-toast-acc-title">
-                        ¡{items.length} Observaciones Demoradas!
+                        ¡{items.length} Observaciones en Revisión Demoradas!
                       </span>
                       <span className="notif-toast-count-tag">
-                        {items.length} pendientes
+                        {items.length} acumuladas
                       </span>
                     </div>
 
@@ -116,16 +116,16 @@ export default function NotificationToastContainer() {
                       </p>
                     )}
 
-                    {/* Botón con Flecha para Desplegar la lista de códigos de observaciones */}
+                    {/* Botón con Flecha para Desplegar la lista de observaciones demoradas */}
                     <button
                       type="button"
                       className={`notif-toast-expand-btn ${isExpanded ? 'is-expanded' : ''}`}
                       onClick={() => toggleExpand(toast.id)}
                       aria-expanded={isExpanded}
-                      title={isExpanded ? 'Ocultar lista de códigos' : 'Desplegar lista de códigos demorados'}
+                      title={isExpanded ? 'Ocultar lista de observaciones' : 'Desplegar lista de observaciones'}
                     >
                       <span className="notif-expand-btn-text">
-                        {isExpanded ? 'Ocultar lista de observaciones' : `Ver lista de ${items.length} códigos en espera`}
+                        {isExpanded ? 'Ocultar lista de observaciones' : `Ver lista de ${items.length} observaciones en espera`}
                       </span>
                       <span className="notif-expand-arrow-icon">
                         {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
@@ -209,9 +209,9 @@ export default function NotificationToastContainer() {
                   <button
                     type="button"
                     className="notif-toast-action-btn btn-view-queue"
-                    onClick={() => handleViewAllQueue(obs.queueType)}
+                    onClick={() => handleViewAllQueue('auditores')}
                   >
-                    <span>Ir a Observaciones</span>
+                    <span>Ver en Observaciones</span>
                     <ExternalLink size={12} />
                   </button>
                 ) : (

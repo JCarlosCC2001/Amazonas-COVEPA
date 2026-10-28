@@ -562,8 +562,8 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 410px;
-  max-width: 94vw;
+  width: 380px;
+  max-width: 92vw;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;

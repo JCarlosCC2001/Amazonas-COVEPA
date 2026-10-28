@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import {
-  Download, Globe, Layers, MapPin, CheckCircle2,
+  Download, Globe, Layers, CheckCircle2,
   FileArchive, HelpCircle, ExternalLink, ShieldCheck,
   Smartphone, Folder, ChevronDown, ChevronUp, Copy, Check,
   Radio, RefreshCw, Zap, FileSpreadsheet, Loader2, Sparkles,
   Info
 } from 'lucide-react'
-import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 import { exportObservacionesGrupoExcel, exportTodasObservacionesExcel } from '../services/exportService'
 
 // Metadata de los 7 archivos KMZ y KML por Grupo
@@ -247,42 +246,6 @@ export default function KMZ() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.4rem', paddingBottom: '3rem' }}>
       
-      {/* 1. MEDIDORES SUPERIORES */}
-      <MetricGrid columns={4}>
-        <MetricCard
-          icon={<MapPin size={22} />}
-          label="Sitios Georreferenciados"
-          value={156}
-          subtitle="100% con GPS satelital"
-          variant="navy"
-          badge="GPS Listo"
-        />
-        <MetricCard
-          icon={<FileSpreadsheet size={22} />}
-          label="Observaciones Mapeadas"
-          value="4,116"
-          subtitle="Hito 1, civil y torres"
-          variant="sky"
-          badge="100% Sincronizado"
-        />
-        <MetricCard
-          icon={<Layers size={22} />}
-          label="Cuadrillas Operativas"
-          value={6}
-          subtitle="Cuadrilla 1 a Cuadrilla 6"
-          variant="emerald"
-          badge="6 Cuadrillas"
-        />
-        <MetricCard
-          icon={<Download size={22} />}
-          label="Formatos Disponibles"
-          value="KMZ · KML · XLSX"
-          subtitle="Mapas y Tablas oficiales"
-          variant="amber"
-          badge="Offline y Online"
-        />
-      </MetricGrid>
-
       {/* FEEDBACK TOAST / BANNER */}
       {feedbackMsg && (
         <div style={{

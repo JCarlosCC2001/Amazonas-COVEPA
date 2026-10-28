@@ -3308,18 +3308,36 @@
   font-size: var(--text-sm);
 }
 
-/* ── SPLIT LAYOUT SUPERIOR (MEDIDORES 2x3 + PROGRESO GENERAL) ── */
+/* ── LAYOUT SUPERIOR EJECUTIVO (MEDIDORES 2x3 + PROGRESO GENERAL + COBERTURA TERRITORIAL) ── */
 .dash-top-split-layout {
   display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 1.25rem;
+  grid-template-columns: minmax(360px, 1.25fr) minmax(310px, 1.05fr) minmax(250px, 0.82fr);
+  gap: 1.15rem;
   align-items: stretch;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1220px) {
+  .dash-top-split-layout {
+    grid-template-columns: 1.15fr 0.95fr;
+  }
+  .dash-top-split-layout .dash-cobertura-panel {
+    grid-column: 1 / -1;
+  }
+  .dash-top-split-layout .dash-cobertura-zones-col {
+    flex-direction: row;
+  }
+}
+
+@media (max-width: 860px) {
   .dash-top-split-layout {
     grid-template-columns: 1fr;
     gap: 1rem;
+  }
+  .dash-top-split-layout .dash-cobertura-panel {
+    grid-column: auto;
+  }
+  .dash-top-split-layout .dash-cobertura-zones-col {
+    flex-direction: column;
   }
 }
 
@@ -3372,37 +3390,58 @@
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 1.15rem 1.4rem;
+  padding: 1.25rem 1.4rem;
   box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
-.dash-cobertura-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto auto;
-  gap: 0.85rem;
-  align-items: stretch;
+.dash-cobertura-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.85rem;
+  flex-wrap: wrap;
+  gap: 0.45rem;
 }
 
-@media (max-width: 860px) {
-  .dash-cobertura-grid {
-    grid-template-columns: 1fr 1fr;
-  }
+.dash-cobertura-total-badge {
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-bold);
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  background: rgba(0, 48, 96, 0.08);
+  color: #003060;
+  border: 1px solid rgba(0, 48, 96, 0.2);
 }
 
-@media (max-width: 480px) {
-  .dash-cobertura-grid {
-    grid-template-columns: 1fr;
-  }
+.dash-cobertura-zones-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
 }
+
 
 .dash-cobertura-zone-card {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 0.75rem 1rem;
+  padding: 0.85rem 1.1rem;
   display: flex;
   flex-direction: column;
   justifyContent: center;
+  flex: 1;
+  transition: all var(--transition);
+}
+
+.dash-cobertura-zone-card:hover {
+  border-color: #93c5fd;
+  background: #f0f7ff;
+  box-shadow: 0 2px 8px rgba(0, 48, 96, 0.06);
 }
 
 /* ── GRID DE MEDIDORES Y GAUGES ── */

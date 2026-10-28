@@ -7,3 +7,4 @@ import { createContext } from 'react'
  * recargas en caliente (HMR) en desarrollo.
  */
 export const AuthContext = createContext(null)
+

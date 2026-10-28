@@ -4,7 +4,7 @@ import {
   ClipboardList, CheckCircle2, Clock, AlertTriangle, XCircle,
   Ban, MapPin, Layers, Award, TrendingUp, RefreshCw, Search,
   ArrowRight, ExternalLink, Calendar, ChevronRight, ShieldCheck,
-  Radio, Sparkles, Filter, Users, Globe, FileSpreadsheet, UploadCloud, User
+  Radio, Sparkles, Filter, Users, Globe, UploadCloud, User
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { usePresentationMode } from '../context/PresentationContext'
@@ -276,92 +276,68 @@ export default function Dashboard() {
             />
           </div>
         </div>
-      </div>
 
-      {/* ── COBERTURA TERRITORIAL Y ACCESOS RÁPIDOS ── */}
-      <div className="dash-cobertura-panel">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: '0.65rem', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Globe size={17} color="#003060" />
-            <h3 style={{ margin: 0, fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
-              Cobertura Territorial y Despliegue
-            </h3>
-          </div>
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-semibold)' }}>
-            Región Amazonas · 156 Sitios Totales
-          </span>
-        </div>
-
-        <div className="dash-cobertura-grid">
-          <div className="dash-cobertura-zone-card">
-            <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-bold)', textTransform: 'uppercase' }}>
-              ZONA 2 · Norte
-            </span>
-            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 'var(--fw-black)', color: '#003060', margin: '0.15rem 0' }}>
-              53 Sitios
+        {/* Columna 3 (Derecha): Cobertura Territorial (Zona 2 arriba, Zona 7 abajo) */}
+        <div className="dash-cobertura-panel">
+          <div className="dash-cobertura-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Globe size={18} color="#003060" />
+              <h3 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
+                Cobertura Territorial
+              </h3>
             </div>
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-              Utcubamba, Bagua, Condorcanqui
+            <span className="dash-cobertura-total-badge">
+              156 Sitios Totales
             </span>
           </div>
 
-          <div className="dash-cobertura-zone-card">
-            <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-bold)', textTransform: 'uppercase' }}>
-              ZONA 7 · Sur
-            </span>
-            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 'var(--fw-black)', color: '#003060', margin: '0.15rem 0' }}>
-              103 Sitios
+          <div className="dash-cobertura-zones-col">
+            {/* Zona 2 Arriba */}
+            <div
+              className="dash-cobertura-zone-card"
+              onClick={() => navigate('/sitios')}
+              title="Ver sitios en Zona 2 (Norte)"
+              style={{ cursor: 'pointer' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-bold)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  ZONA 2 · Norte
+                </span>
+                <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 'var(--fw-bold)', color: '#0369a1', background: '#e0f2fe', padding: '0.12rem 0.45rem', borderRadius: '4px', border: '1px solid #bae6fd' }}>
+                  34% Sitios
+                </span>
+              </div>
+              <div style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--fw-black)', color: '#003060', margin: '0.2rem 0 0.1rem 0', fontVariantNumeric: 'tabular-nums' }}>
+                53 Sitios
+              </div>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                Utcubamba, Bagua, Condorcanqui
+              </span>
             </div>
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-              Chachapoyas, Luya, Bongará, Mendoza
-            </span>
+
+            {/* Zona 7 Abajo */}
+            <div
+              className="dash-cobertura-zone-card"
+              onClick={() => navigate('/sitios')}
+              title="Ver sitios en Zona 7 (Sur)"
+              style={{ cursor: 'pointer' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-bold)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  ZONA 7 · Sur
+                </span>
+                <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 'var(--fw-bold)', color: '#0369a1', background: '#e0f2fe', padding: '0.12rem 0.45rem', borderRadius: '4px', border: '1px solid #bae6fd' }}>
+                  66% Sitios
+                </span>
+              </div>
+              <div style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--fw-black)', color: '#003060', margin: '0.2rem 0 0.1rem 0', fontVariantNumeric: 'tabular-nums' }}>
+                103 Sitios
+              </div>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                Chachapoyas, Luya, Bongará, Mendoza
+              </span>
+            </div>
           </div>
-
-          <button
-            type="button"
-            className="prog-btn-secondary"
-            onClick={() => navigate('/kmz')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.45rem',
-              padding: '0.65rem 0.85rem',
-              borderRadius: '8px',
-              fontSize: 'var(--text-sm)',
-              fontWeight: 'var(--fw-semibold)',
-              background: '#f0fdf4',
-              border: '1px solid #bbf7d0',
-              color: '#166534',
-              cursor: 'pointer'
-            }}
-          >
-            <FileSpreadsheet size={14} color="#166534" />
-            <span>Centro Descargas KMZ</span>
-          </button>
-
-          <button
-            type="button"
-            className="prog-btn-secondary"
-            onClick={() => navigate('/sitios')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.45rem',
-              padding: '0.65rem 0.85rem',
-              borderRadius: '8px',
-              fontSize: 'var(--text-sm)',
-              fontWeight: 'var(--fw-semibold)',
-              background: '#eff6ff',
-              border: '1px solid #bfdbfe',
-              color: '#1d4ed8',
-              cursor: 'pointer'
-            }}
-          >
-            <MapPin size={14} color="#1d4ed8" />
-            <span>Catálogo 156 Nodos</span>
-          </button>
         </div>
       </div>
 

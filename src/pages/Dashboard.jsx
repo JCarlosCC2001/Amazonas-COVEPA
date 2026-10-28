@@ -6,8 +6,9 @@ import {
   ArrowRight, ExternalLink, Calendar, ChevronRight, ShieldCheck,
   Radio, Sparkles, Filter, Users, Globe, FileSpreadsheet, UploadCloud, User
 } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 import { usePresentationMode } from '../context/PresentationContext'
-import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
+import MetricCard from '../components/shared/MetricCard'
 import SegmentedProgressBar from '../components/shared/SegmentedProgressBar'
 import { getDashboardProjectOverview } from '../services/dashboardService'
 
@@ -67,7 +68,9 @@ export default function Dashboard() {
     kpis: {
       total: 4116,
       pendientes: 0,
+      solicitando: 0,
       subsanadas: 0,
+      validadas: 0,
       enRevision: 0,
       descartadas: 0,
       rechazadas: 0,
@@ -100,6 +103,38 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadOverview()
+
+    // Suscripción Realtime a cambios en observaciones para mantener actualizados los medidores
+    let debounceTimer = null
+    const debouncedReload = () => {
+      clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        loadOverview()
+      }, 500)
+    }
+
+    const channel = supabase
+      .channel('covepa-dashboard-live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'observaciones' },
+        debouncedReload
+      )
+      .subscribe()
+
+    // Recargar al volver a la pestaña
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadOverview()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      clearTimeout(debounceTimer)
+      supabase.removeChannel(channel)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [loadOverview])
 
   const { kpis, grupos, sitios } = data
@@ -123,80 +158,6 @@ export default function Dashboard() {
 
   return (
     <div className="dash-page-container">
-      {/* ── CABECERA PRINCIPAL DEL DASHBOARD ── */}
-      <div className="dash-header-card">
-        <div className="dash-header-title-box">
-          <div className="dash-header-badge">
-            <span className="dash-live-dot" />
-            <span>ESTADO GLOBAL DEL PROYECTO · EN VIVO</span>
-          </div>
-          <h1 className="dash-main-title">Dashboard Ejecutivo — Amazonas COVEPA</h1>
-          <p className="dash-main-sub">
-            Monitoreo general de todo el proyecto: avance consolidado de subsanación técnica en los 156 sitios de la Región Amazonas (ZONA 2 y ZONA 7).
-          </p>
-        </div>
-
-        {/* Acciones directas de la barra */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="prog-btn-secondary"
-            onClick={() => navigate('/programacion')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              padding: '0.5rem 0.95rem',
-              borderRadius: '8px',
-              fontSize: 'var(--text-sm)',
-              fontWeight: 'var(--fw-semibold)',
-              background: 'rgba(0, 48, 96, 0.05)',
-              border: '1px solid rgba(0, 48, 96, 0.2)',
-              color: '#003060',
-              cursor: 'pointer'
-            }}
-            title="Abrir módulo de Programación y revisar el Avance Diario"
-          >
-            <Calendar size={15} color="#003060" />
-            <span>Avance Diario (Programación)</span>
-          </button>
-
-          <button
-            type="button"
-            className="prog-btn-secondary"
-            onClick={() => navigate('/observaciones')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              padding: '0.5rem 0.95rem',
-              borderRadius: '8px',
-              fontSize: 'var(--text-sm)',
-              fontWeight: 'var(--fw-semibold)',
-              background: 'rgba(14, 165, 233, 0.08)',
-              border: '1px solid rgba(14, 165, 233, 0.3)',
-              color: '#0284c7',
-              cursor: 'pointer'
-            }}
-            title="Ir al listado completo de observaciones"
-          >
-            <ClipboardList size={15} color="#0284c7" />
-            <span>Ver Observaciones</span>
-          </button>
-
-          <button
-            type="button"
-            className={`dash-refresh-btn ${loading ? 'is-spinning' : ''}`}
-            onClick={loadOverview}
-            disabled={loading}
-            title="Recargar métricas consolidadas"
-          >
-            <RefreshCw size={15} />
-            <span>Actualizar</span>
-          </button>
-        </div>
-      </div>
-
       {errorMsg && (
         <div className="dash-error-banner">
           <AlertTriangle size={16} />
@@ -204,122 +165,103 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── SECCIÓN 1: MEDIDORES GENERALES DE TODO EL PROYECTO (7 MÉTRICAS OPERATIVAS) ── */}
-      <MetricGrid columns={7}>
-        <MetricCard
-          icon={<ClipboardList size={22} />}
-          label="Total Observaciones"
-          value={loading ? '—' : kpis.total.toLocaleString()}
-          subtitle="100% registros proyecto"
-          variant="navy"
-          onClick={() => navigate('/observaciones')}
-          title="Ver todas las observaciones del proyecto"
-        />
+      {/* ── SECCIÓN SUPERIOR: MEDIDORES (2x3) A LA IZQUIERDA Y PROGRESO GENERAL A LA DERECHA ── */}
+      <div className="dash-top-split-layout">
+        {/* Columna Izquierda: 6 Medidores en 2 Columnas x 3 Filas */}
+        <div className="dash-metrics-grid-2x3">
+          <MetricCard
+            icon={<AlertTriangle size={20} />}
+            label="Pendientes"
+            value={loading ? '—' : kpis.pendientes.toLocaleString()}
+            subtitle="Por subsanar en campo"
+            variant="amber"
+            onClick={() => navigate('/observaciones?estado=Pendiente')}
+            title="Observaciones pendientes de atención"
+          />
 
-        <MetricCard
-          icon={<AlertTriangle size={22} />}
-          label="Pendientes"
-          value={loading ? '—' : kpis.pendientes.toLocaleString()}
-          subtitle="Por subsanar en campo"
-          variant="amber"
-          onClick={() => navigate('/observaciones')}
-          title="Observaciones pendientes de atención"
-        />
+          <MetricCard
+            icon={<Clock size={20} />}
+            label="Solicitando Revisión"
+            value={loading ? '—' : (kpis.solicitando || 0).toLocaleString()}
+            subtitle="En espera de revisión"
+            variant="orange"
+            onClick={() => navigate('/observaciones?estado=Solicitando Revisión')}
+            title="Observaciones que solicitan revisión técnica"
+          />
 
-        <MetricCard
-          icon={<Clock size={22} />}
-          label="Solicitando Revisión"
-          value={loading ? '—' : (kpis.solicitando || 0).toLocaleString()}
-          subtitle="En espera de revisión"
-          variant="orange"
-          onClick={() => navigate('/observaciones')}
-          title="Observaciones que solicitan revisión técnica"
-        />
+          <MetricCard
+            icon={<UploadCloud size={20} />}
+            label="En Revisión"
+            value={loading ? '—' : (kpis.enRevision || 0).toLocaleString()}
+            subtitle="Auditoría en proceso"
+            variant="sky"
+            onClick={() => navigate('/observaciones?estado=En Revisión')}
+            title="Observaciones en proceso de auditoría"
+          />
 
-        <MetricCard
-          icon={<UploadCloud size={22} />}
-          label="En Revisión"
-          value={loading ? '—' : (kpis.enRevision || 0).toLocaleString()}
-          subtitle="Auditoría en proceso"
-          variant="sky"
-          onClick={() => navigate('/observaciones')}
-          title="Observaciones en proceso de auditoría"
-        />
+          <MetricCard
+            icon={<CheckCircle2 size={20} />}
+            label="Validadas"
+            value={loading ? '—' : (kpis.validadas || 0).toLocaleString()}
+            subtitle="Subsanación conforme"
+            variant="emerald"
+            onClick={() => navigate('/observaciones?estado=Validado')}
+            title="Observaciones acreditadas y validadas"
+          />
 
-        <MetricCard
-          icon={<CheckCircle2 size={22} />}
-          label="Validadas"
-          value={loading ? '—' : (kpis.validadas || 0).toLocaleString()}
-          subtitle="Subsanación conforme"
-          variant="emerald"
-          onClick={() => navigate('/observaciones')}
-          title="Observaciones acreditadas y validadas"
-        />
+          <MetricCard
+            icon={<XCircle size={20} />}
+            label="Rechazadas"
+            value={loading ? '—' : (kpis.rechazadas || 0).toLocaleString()}
+            subtitle="Observadas por calidad"
+            variant="rose"
+            onClick={() => navigate('/observaciones?estado=Rechazado')}
+            title="Observaciones rechazadas que requieren nueva visita"
+          />
 
-        <MetricCard
-          icon={<XCircle size={22} />}
-          label="Rechazadas"
-          value={loading ? '—' : (kpis.rechazadas || 0).toLocaleString()}
-          subtitle="Observadas por calidad"
-          variant="rose"
-          onClick={() => navigate('/observaciones')}
-          title="Observaciones rechazadas que requieren nueva visita"
-        />
+          <MetricCard
+            icon={<Ban size={20} />}
+            label="Descartadas"
+            value={loading ? '—' : (kpis.descartadas || 0).toLocaleString()}
+            subtitle="Cerradas / No aplican"
+            variant="purple"
+            onClick={() => navigate('/observaciones?estado=Descartado')}
+            title="Observaciones descartadas en campo"
+          />
+        </div>
 
-        <MetricCard
-          icon={<Ban size={22} />}
-          label="Descartadas"
-          value={loading ? '—' : (kpis.descartadas || 0).toLocaleString()}
-          subtitle="Cerradas / No aplican"
-          variant="purple"
-          onClick={() => navigate('/observaciones')}
-          title="Observaciones descartadas en campo"
-        />
-      </MetricGrid>
-
-      {/* ── SECCIÓN 2: BALANCE Y CONTROL GLOBAL DE OPERACIONES ── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-        gap: '1.25rem',
-        marginTop: '0.25rem'
-      }}>
-        {/* Panel 1: Tacómetro & Balance de Resolución */}
-        <div style={{
-          background: '#ffffff',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)',
-          padding: '1.4rem',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          boxShadow: 'var(--shadow-sm)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: '0.75rem' }}>
+        {/* Columna Derecha: Progreso General de Levantamiento */}
+        <div className="dash-progreso-panel">
+          <div className="dash-progreso-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <TrendingUp size={18} color="#003060" />
               <h3 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
                 Progreso General de Levantamiento
               </h3>
             </div>
-            <span style={{
-              fontSize: 'var(--text-2xs)',
-              fontWeight: 'var(--fw-bold)',
-              padding: '0.2rem 0.55rem',
-              borderRadius: '6px',
-              background: 'rgba(16, 185, 129, 0.12)',
-              color: '#059669',
-              border: '1px solid rgba(16, 185, 129, 0.25)'
-            }}>
-              {kpis.resueltas} Obs. Resueltas
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <span className="dash-progreso-resueltas-badge">
+                {kpis.resueltas} Obs. Resueltas
+              </span>
+              <button
+                type="button"
+                className={`dash-refresh-btn ${loading ? 'is-spinning' : ''}`}
+                onClick={loadOverview}
+                disabled={loading}
+                title="Recargar métricas consolidadas"
+                style={{ padding: '0.25rem 0.55rem', fontSize: 'var(--text-xs)' }}
+              >
+                <RefreshCw size={13} />
+                <span>Actualizar</span>
+              </button>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '1rem 0 0.5rem 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.85rem 0 0.35rem 0' }}>
             <SemicircleGauge percentage={kpis.porcentajeGlobal} color="#10b981" size={190} />
           </div>
 
-          <div style={{ marginTop: '0.5rem' }}>
+          <div style={{ marginTop: '0.4rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '0.35rem', fontWeight: 'var(--fw-semibold)' }}>
               <span>Distribución de Observaciones</span>
               <span>{kpis.total.toLocaleString()} Registros Totales</span>
@@ -327,127 +269,99 @@ export default function Dashboard() {
             <SegmentedProgressBar
               total={kpis.total}
               subsanadas={kpis.subsanadas}
-              enRevision={kpis.enRevision}
+              enRevision={(kpis.enRevision || 0) + (kpis.solicitando || 0)}
               descartadas={kpis.descartadas}
               rechazadas={kpis.rechazadas}
               pendientes={kpis.pendientes}
             />
           </div>
         </div>
+      </div>
 
-        {/* Panel 2: Cobertura Territorial y Recursos Activos */}
-        <div style={{
-          background: '#ffffff',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)',
-          padding: '1.4rem',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          boxShadow: 'var(--shadow-sm)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Globe size={18} color="#003060" />
-              <h3 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
-                Cobertura Territorial y Despliegue
-              </h3>
+      {/* ── COBERTURA TERRITORIAL Y ACCESOS RÁPIDOS ── */}
+      <div className="dash-cobertura-panel">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: '0.65rem', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Globe size={17} color="#003060" />
+            <h3 style={{ margin: 0, fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
+              Cobertura Territorial y Despliegue
+            </h3>
+          </div>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-semibold)' }}>
+            Región Amazonas · 156 Sitios Totales
+          </span>
+        </div>
+
+        <div className="dash-cobertura-grid">
+          <div className="dash-cobertura-zone-card">
+            <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-bold)', textTransform: 'uppercase' }}>
+              ZONA 2 · Norte
+            </span>
+            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 'var(--fw-black)', color: '#003060', margin: '0.15rem 0' }}>
+              53 Sitios
             </div>
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-semibold)' }}>
-              Región Amazonas
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+              Utcubamba, Bagua, Condorcanqui
             </span>
           </div>
 
-          {/* Estadísticas de Zonas y Recursos */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '0.85rem',
-            margin: '1rem 0'
-          }}>
-            <div style={{
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '10px',
-              padding: '0.85rem'
-            }}>
-              <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-bold)', textTransform: 'uppercase' }}>
-                ZONA 2 · Norte
-              </span>
-              <div style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--fw-black)', color: '#003060', marginTop: '0.2rem' }}>
-                53 Sitios
-              </div>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-                Utcubamba, Bagua, Condorcanqui
-              </span>
+          <div className="dash-cobertura-zone-card">
+            <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-bold)', textTransform: 'uppercase' }}>
+              ZONA 7 · Sur
+            </span>
+            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 'var(--fw-black)', color: '#003060', margin: '0.15rem 0' }}>
+              103 Sitios
             </div>
-
-            <div style={{
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '10px',
-              padding: '0.85rem'
-            }}>
-              <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-bold)', textTransform: 'uppercase' }}>
-                ZONA 7 · Sur
-              </span>
-              <div style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--fw-black)', color: '#003060', marginTop: '0.2rem' }}>
-                103 Sitios
-              </div>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-                Chachapoyas, Luya, Bongará, Mendoza
-              </span>
-            </div>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+              Chachapoyas, Luya, Bongará, Mendoza
+            </span>
           </div>
 
-          {/* Accesos Rápidos a Módulos Operativos */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
-            <button
-              type="button"
-              className="prog-btn-secondary"
-              onClick={() => navigate('/kmz')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.45rem',
-                padding: '0.65rem',
-                borderRadius: '8px',
-                fontSize: 'var(--text-sm)',
-                fontWeight: 'var(--fw-semibold)',
-                background: '#f0fdf4',
-                border: '1px solid #bbf7d0',
-                color: '#166534',
-                cursor: 'pointer'
-              }}
-            >
-              <FileSpreadsheet size={14} color="#166534" />
-              <span>Centro Descargas KMZ</span>
-            </button>
+          <button
+            type="button"
+            className="prog-btn-secondary"
+            onClick={() => navigate('/kmz')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.45rem',
+              padding: '0.65rem 0.85rem',
+              borderRadius: '8px',
+              fontSize: 'var(--text-sm)',
+              fontWeight: 'var(--fw-semibold)',
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              color: '#166534',
+              cursor: 'pointer'
+            }}
+          >
+            <FileSpreadsheet size={14} color="#166534" />
+            <span>Centro Descargas KMZ</span>
+          </button>
 
-            <button
-              type="button"
-              className="prog-btn-secondary"
-              onClick={() => navigate('/sitios')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.45rem',
-                padding: '0.65rem',
-                borderRadius: '8px',
-                fontSize: 'var(--text-sm)',
-                fontWeight: 'var(--fw-semibold)',
-                background: '#eff6ff',
-                border: '1px solid #bfdbfe',
-                color: '#1d4ed8',
-                cursor: 'pointer'
-              }}
-            >
-              <MapPin size={14} color="#1d4ed8" />
-              <span>Catálogo 156 Nodos</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            className="prog-btn-secondary"
+            onClick={() => navigate('/sitios')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.45rem',
+              padding: '0.65rem 0.85rem',
+              borderRadius: '8px',
+              fontSize: 'var(--text-sm)',
+              fontWeight: 'var(--fw-semibold)',
+              background: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              color: '#1d4ed8',
+              cursor: 'pointer'
+            }}
+          >
+            <MapPin size={14} color="#1d4ed8" />
+            <span>Catálogo 156 Nodos</span>
+          </button>
         </div>
       </div>
 

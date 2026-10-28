@@ -378,6 +378,7 @@ export async function getDashboardProjectOverview() {
         supabase
           .from('observaciones')
           .select('id_sitio, estado_covepa, fecha_subsanacion')
+          .order('id_obs', { ascending: true })
           .range(i * 1000, (i + 1) * 1000 - 1)
       )
     }
@@ -389,6 +390,7 @@ export async function getDashboardProjectOverview() {
     let validadas = 0
     let enviadas = 0
     let subsanadas = 0
+    let solicitando = 0
     let enRevision = 0
     let descartadas = 0
     let rechazadas = 0
@@ -408,6 +410,7 @@ export async function getDashboardProjectOverview() {
         zona: a.zona || 'ZONA 2',
         total: 0,
         subsanadas: 0,
+        solicitando: 0,
         enRevision: 0,
         descartadas: 0,
         rechazadas: 0,
@@ -431,6 +434,7 @@ export async function getDashboardProjectOverview() {
         sitiosCount: asignaciones.filter(a => (a.cuadrilla || a.grupo || '').replace(/GRUPO/gi, 'CUADRILLA') === gName).length,
         total: 0,
         subsanadas: 0,
+        solicitando: 0,
         enRevision: 0,
         descartadas: 0,
         rechazadas: 0,
@@ -459,24 +463,30 @@ export async function getDashboardProjectOverview() {
       // Mantener fallback de DEFAULT_CUADRILLAS_CONFIG
     }
 
-    // Procesar observaciones
+    // Procesar observaciones con normalización consistente
     allRows.forEach(row => {
-      const st = row.estado_covepa ? row.estado_covepa.trim() : null
-      const isSub = st === 'Validado' || st === 'Enviado' || (row.fecha_subsanacion && st !== 'Descartado' && st !== 'Rechazado')
-      const isRev = st === 'En Revision' || st === 'En Revisión'
-      const isDesc = st === 'Descartado'
-      const isRech = st === 'Rechazado'
+      const rawSt = (row.estado_covepa || '').trim()
+      let st = 'Pendiente'
+      if (rawSt === 'Descartado') st = 'Descartado'
+      else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') st = 'Solicitando Revisión'
+      else if (rawSt === 'En Revision' || rawSt === 'En Revisión') st = 'En Revisión'
+      else if (rawSt === 'Rechazado') st = 'Rechazado'
+      else if (rawSt === 'Validado' || rawSt === 'Enviado') st = 'Validado'
+      else if (row.fecha_subsanacion) st = 'Validado'
+      else st = 'Pendiente'
 
-      if (isSub) {
-        subsanadas++
-        if (st === 'Enviado') enviadas++
-        else validadas++
-      } else if (isRev) {
+      if (st === 'Solicitando Revisión') {
+        solicitando++
+      } else if (st === 'En Revisión') {
         enRevision++
-      } else if (isDesc) {
+      } else if (st === 'Descartado') {
         descartadas++
-      } else if (isRech) {
+      } else if (st === 'Rechazado') {
         rechazadas++
+      } else if (st === 'Validado') {
+        subsanadas++
+        if (rawSt === 'Enviado') enviadas++
+        else validadas++
       } else {
         pendientes++
       }
@@ -485,10 +495,11 @@ export async function getDashboardProjectOverview() {
       if (perSite[row.id_sitio]) {
         const s = perSite[row.id_sitio]
         s.total++
-        if (isSub) s.subsanadas++
-        else if (isRev) s.enRevision++
-        else if (isDesc) s.descartadas++
-        else if (isRech) s.rechazadas++
+        if (st === 'Solicitando Revisión') s.solicitando++
+        else if (st === 'En Revisión') s.enRevision++
+        else if (st === 'Descartado') s.descartadas++
+        else if (st === 'Rechazado') s.rechazadas++
+        else if (st === 'Validado') s.subsanadas++
         else s.pendientes++
       }
 
@@ -498,10 +509,11 @@ export async function getDashboardProjectOverview() {
       if (gName && perGroup[gName]) {
         const g = perGroup[gName]
         g.total++
-        if (isSub) g.subsanadas++
-        else if (isRev) g.enRevision++
-        else if (isDesc) g.descartadas++
-        else if (isRech) g.rechazadas++
+        if (st === 'Solicitando Revisión') g.solicitando++
+        else if (st === 'En Revisión') g.enRevision++
+        else if (st === 'Descartado') g.descartadas++
+        else if (st === 'Rechazado') g.rechazadas++
+        else if (st === 'Validado') g.subsanadas++
         else g.pendientes++
       }
     })
@@ -531,6 +543,7 @@ export async function getDashboardProjectOverview() {
       kpis: {
         total,
         pendientes,
+        solicitando,
         subsanadas,
         validadas,
         enviadas,

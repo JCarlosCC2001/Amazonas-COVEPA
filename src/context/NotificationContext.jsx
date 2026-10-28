@@ -397,7 +397,7 @@ export function NotificationProvider({ children }) {
   }, [])
 
   // Evaluar alertas anti-spam por acumulación exclusivamente en cola de auditores (En Revisión)
-  const evaluarAlertasAcumulacion = useCallback((solRows, revRows) => {
+  const evaluarAlertasAcumulacion = useCallback((solRows, revRows, isRealtimeAlert = false) => {
     const now = Date.now()
     const COOLDOWN_MS = 30 * 60 * 1000 // Pausa de 30 minutos entre avisos acumulados para no spamear
 
@@ -445,32 +445,39 @@ export function NotificationProvider({ children }) {
       const tiempoPasado = now - prev.time
       const aumentoSignificativo = revDemoradas.length >= prev.count + 3
 
-      if (tiempoPasado >= COOLDOWN_MS || aumentoSignificativo) {
-        lastAlertAuditoresRef.current = { time: now, count: revDemoradas.length }
+      // REGLA CLAVE: Solo disparar toast emergente si es un evento real en tiempo real durante la sesión
+      // NUNCA al abrir o refrescar la página (evita que las notificaciones salten al iniciar la app)
+      if (isRealtimeAlert) {
+        if (tiempoPasado >= COOLDOWN_MS || aumentoSignificativo) {
+          lastAlertAuditoresRef.current = { time: now, count: revDemoradas.length }
 
-        dispararToast({
-          id_obs: `ALERTA-COLA-AUDITORES-${Date.now()}`,
-          id_sitio: masAntigua.id_sitio,
-          estado_covepa: 'En Revisión',
-          revisor: masAntigua.revisor || 'Auditoría Gilat',
-          detalle: mensaje,
-          isAccumulationAlert: true,
-          queueType: 'auditores',
-          items: alertObj.items
-        }, loc)
+          dispararToast({
+            id_obs: `ALERTA-COLA-AUDITORES-${Date.now()}`,
+            id_sitio: masAntigua.id_sitio,
+            estado_covepa: 'En Revisión',
+            revisor: masAntigua.revisor || 'Auditoría Gilat',
+            detalle: mensaje,
+            isAccumulationAlert: true,
+            queueType: 'auditores',
+            items: alertObj.items
+          }, loc)
 
-        playAccumulationChime()
+          playAccumulationChime()
 
-        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-          try {
-            new Notification(titulo, {
-              body: mensaje,
-              icon: '/icon-192.png',
-              tag: 'covepa-alerta-acumulacion-revision',
-              renotify: true
-            })
-          } catch {}
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification(titulo, {
+                body: mensaje,
+                icon: '/icon-192.png',
+                tag: 'covepa-alerta-acumulacion-revision',
+                renotify: true
+              })
+            } catch {}
+          }
         }
+      } else {
+        // En carga inicial, establecer la línea base silenciosamente sin molestar al usuario con popups
+        lastAlertAuditoresRef.current = { time: now, count: revDemoradas.length }
       }
     } else {
       setAccumulationAlert(null)
@@ -512,8 +519,8 @@ export function NotificationProvider({ children }) {
         }
       }
 
-      // Evaluar si se han acumulado (5+ con > 10 min de espera)
-      evaluarAlertasAcumulacion(solRows, revRows)
+      // Evaluar si se han acumulado (5+ con > 10 min de espera) de forma silenciosa en carga inicial
+      evaluarAlertasAcumulacion(solRows, revRows, isRealtimeAlert && !isFirstLoadRef.current)
 
       knownIdsRef.current = new Set([...solRows.map(r => r.id_obs), ...revRows.map(r => r.id_obs)])
       isFirstLoadRef.current = false
@@ -803,18 +810,6 @@ export function NotificationProvider({ children }) {
       window.probarNotificacionRevision = dispararPruebaRevision
     }
   }, [dispararPruebaRevision])
-
-  // Auto-disparar una vez como prueba activa para que el usuario verifique la notificación en pantalla
-  const hasTriggeredTestRef = useRef(false)
-  useEffect(() => {
-    if (enRevision.length > 0 && !hasTriggeredTestRef.current) {
-      hasTriggeredTestRef.current = true
-      const timer = setTimeout(() => {
-        dispararPruebaRevision()
-      }, 1500)
-      return () => clearTimeout(timer)
-    }
-  }, [enRevision, dispararPruebaRevision])
 
   return (
     <NotificationContext.Provider

@@ -120,27 +120,98 @@ export function getWaitTierInfo(mins) {
 }
 
 /**
- * Copia al portapapeles la lista de observaciones acumuladas en un formato estructurado y limpio
+ * Copia al portapapeles exclusivamente los códigos de observación agrupados
+ * por los rangos de tiempo de espera requeridos (+12h, +6h, +2h, +1h, +10min),
+ * sin código de sitio, nombre ni localidad.
  */
 export async function copyObservacionesList(items) {
   if (!items || items.length === 0) return false
-  const lines = items.map(it => {
-    const loc = it.localidad ? ` · ${it.localidad}` : ''
-    const espera = it.waitMins ? ` (Espera: ${formatWaitTime(it.waitMins)})` : ''
-    return `${it.id_obs} · ${it.id_sitio}${loc}${espera}`
-  }).join('\n')
 
-  const codesOnly = items.map(it => it.id_obs).join(', ')
-  const fullText = `OBSERVACIONES EN REVISIÓN DEMORADAS (${items.length}):\n\n${lines}\n\nCÓDIGOS PARA BÚSQUEDA:\n${codesOnly}`
+  const tiers = [
+    { label: 'MÁS DE 12 HORAS', min: 720, max: Infinity },
+    { label: 'MÁS DE 6 HORAS', min: 360, max: 720 },
+    { label: 'MÁS DE 2 HORAS', min: 120, max: 360 },
+    { label: 'MÁS DE 1 HORA', min: 60, max: 120 },
+    { label: 'MÁS DE 10 MINUTOS', min: 10, max: 60 }
+  ]
 
+  const groups = []
+
+  for (const tier of tiers) {
+    const matching = items.filter(it => {
+      const wait = typeof it === 'object'
+        ? (it.waitMins !== undefined ? it.waitMins : calcWaitMins(it.fecha_subsanacion))
+        : 0
+      return wait >= tier.min && wait < tier.max
+    })
+
+    if (matching.length > 0) {
+      // Filtrar y deduplicar únicamente los códigos de observación
+      const codes = Array.from(
+        new Set(
+          matching
+            .map(it => (typeof it === 'object' ? it.id_obs : String(it)))
+            .filter(Boolean)
+        )
+      )
+      if (codes.length > 0) {
+        groups.push(`${tier.label} (${codes.length}):\n${codes.join(', ')}`)
+      }
+    }
+  }
+
+  // Si hubiera observaciones con menos de 10 minutos
+  const recent = items.filter(it => {
+    const wait = typeof it === 'object'
+      ? (it.waitMins !== undefined ? it.waitMins : calcWaitMins(it.fecha_subsanacion))
+      : 0
+    return wait < 10
+  })
+  if (recent.length > 0) {
+    const codes = Array.from(
+      new Set(
+        recent
+          .map(it => (typeof it === 'object' ? it.id_obs : String(it)))
+          .filter(Boolean)
+      )
+    )
+    if (codes.length > 0) {
+      groups.push(`MENOS DE 10 MINUTOS (${codes.length}):\n${codes.join(', ')}`)
+    }
+  }
+
+  const fullText = groups.length > 0
+    ? groups.join('\n\n')
+    : items.map(it => (typeof it === 'object' ? it.id_obs : String(it))).filter(Boolean).join(', ')
+
+  // 1. Intento primario con API Clipboard moderna
   try {
     if (navigator?.clipboard?.writeText) {
       await navigator.clipboard.writeText(fullText)
       return true
     }
   } catch (err) {
-    console.warn('Error al copiar al portapapeles:', err)
+    console.warn('Error con navigator.clipboard.writeText, recurriendo a fallback:', err)
   }
+
+  // 2. Fallback robusto con textarea para compatibilidad móvil universal (Brave, Chrome, Safari)
+  try {
+    const textArea = document.createElement('textarea')
+    textArea.value = fullText
+    textArea.style.position = 'fixed'
+    textArea.style.left = '-999999px'
+    textArea.style.top = '-999999px'
+    textArea.setAttribute('readonly', '')
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    const successful = document.execCommand('copy')
+    document.body.removeChild(textArea)
+    if (successful) return true
+  } catch (fallbackErr) {
+    console.warn('Error en fallback execCommand del portapapeles:', fallbackErr)
+  }
+
   return false
 }
 

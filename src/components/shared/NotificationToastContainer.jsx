@@ -112,16 +112,16 @@ export default function NotificationToastContainer() {
                       </p>
                     )}
 
-                    {/* Botón para Copiar Lista de Observaciones al Portapapeles */}
+                    {/* Botón para Copiar Códigos de Observaciones al Portapapeles */}
                     <div className="notif-toast-action-row">
                       <button
                         type="button"
                         className={`notif-toast-copy-btn ${isCopied ? 'is-copied' : ''}`}
                         onClick={() => handleCopyList(toast.id, items)}
-                        title="Copiar códigos y detalles de las observaciones demoradas al portapapeles"
+                        title="Copiar exclusivamente los códigos de observación agrupados por tiempo de espera"
                       >
                         {isCopied ? <Check size={13} /> : <Copy size={13} />}
-                        <span>{isCopied ? '¡Lista copiada al portapapeles!' : 'Copiar lista de observaciones'}</span>
+                        <span>{isCopied ? '¡Códigos copiados al portapapeles!' : 'Copiar códigos de observaciones'}</span>
                       </button>
                     </div>
                   </>

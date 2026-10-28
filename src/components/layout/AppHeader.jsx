@@ -273,10 +273,10 @@ export default function AppHeader() {
                                     setTimeout(() => setCopiedAccId(null), 2500)
                                   }
                                 }}
-                                title="Copiar códigos y detalles de las observaciones demoradas al portapapeles"
+                                title="Copiar exclusivamente los códigos de observación agrupados por tiempo de espera"
                               >
                                 {isCopied ? <Check size={12} /> : <Copy size={12} />}
-                                <span>{isCopied ? '¡Lista copiada!' : 'Copiar lista de observaciones'}</span>
+                                <span>{isCopied ? '¡Códigos copiados!' : 'Copiar códigos de observaciones'}</span>
                               </button>
                             </div>
 

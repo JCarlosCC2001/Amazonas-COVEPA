@@ -168,3 +168,4 @@ export default function HistorialEstadosTimeline({ idObs, refreshKey = 0 }) {
     </div>
   )
 }
+

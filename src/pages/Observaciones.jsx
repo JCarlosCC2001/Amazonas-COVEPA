@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Search, Filter, RefreshCw, FileDown, X, Eye, ChevronLeft,
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,
@@ -706,15 +707,29 @@ export default function Observaciones() {
   }, [tecnicos])
 
   // Filtros activos (COVEPA)
-  const [search, setSearch] = useState('')
+  const [searchParams] = useSearchParams()
+  const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [protocolo, setProtocolo] = useState('')
-  const [estadoCovepa, setEstadoCovepa] = useState('')
+  const [estadoCovepa, setEstadoCovepa] = useState(() => searchParams.get('estado') || '')
   const [idSitio, setIdSitio] = useState('')
   const [cuadrilla, setCuadrilla] = useState('')
   const [page, setPage] = useState(1)
   const pageSize = 20
 
   const searchTimeout = useRef(null)
+
+  // Sincronizar parámetros de URL provenientes de notificaciones
+  useEffect(() => {
+    const q = searchParams.get('search')
+    const est = searchParams.get('estado')
+    if (q !== null && q !== undefined) {
+      setSearch(q)
+      setVista('lista')
+    }
+    if (est !== null && est !== undefined) {
+      setEstadoCovepa(est)
+    }
+  }, [searchParams])
 
   const siteIdsForCuadrilla = useMemo(() => {
     if (!cuadrilla) return null
@@ -754,6 +769,16 @@ export default function Observaciones() {
       const result = await fetchObservaciones({ ...filtrosActivos, page: currentPage, pageSize })
       setObservaciones(result.data)
       setTotalCount(result.count)
+
+      // Si viene una observación específica por URL (desde notificación), abrir su modal directamente
+      const targetQuery = searchParams.get('search')
+      if (targetQuery && result.data && result.data.length > 0) {
+        const cleanTarget = targetQuery.trim().toLowerCase()
+        const match = result.data.find(o => o.id_obs.toLowerCase() === cleanTarget)
+        if (match) {
+          setSelectedObs(match)
+        }
+      }
     } catch (err) {
       setError(err.message)
     } finally {

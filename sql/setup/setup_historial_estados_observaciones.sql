@@ -72,3 +72,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- CREATE TRIGGER trg_registrar_cambio_estado_obs
 -- AFTER UPDATE OF estado_covepa ON public.observaciones
 -- FOR EACH ROW EXECUTE FUNCTION public.trg_fn_registrar_cambio_estado_obs();
+

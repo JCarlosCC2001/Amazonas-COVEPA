@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell, Eye, EyeOff, CheckCircle2,
   AlertTriangle, X, ExternalLink, Clock, MapPin,
-  User, Trash2, RotateCcw, Flame
+  User, Trash2, RotateCcw, Flame, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { usePresentationMode } from '../../context/PresentationContext'
 import {
@@ -74,7 +74,19 @@ export default function AppHeader() {
   const [notifOpen, setNotifOpen] = useState(false)
   const [activeQueueTab, setActiveQueueTab] = useState('tecnicos') // 'tecnicos' | 'auditores'
   const [filterTier, setFilterTier] = useState('ALL') // 'ALL' | '10m' | '1h' | '2h' | '6h' | '12h'
+  const [showDelayedCodesQuick, setShowDelayedCodesQuick] = useState(false)
+  const [expandedItemDetails, setExpandedItemDetails] = useState(new Set())
   const notifRef = useRef(null)
+
+  const toggleItemDetail = (e, idObs) => {
+    e.stopPropagation()
+    setExpandedItemDetails(prev => {
+      const next = new Set(prev)
+      if (next.has(idObs)) next.delete(idObs)
+      else next.add(idObs)
+      return next
+    })
+  }
 
   // Cerrar popover de notificaciones al hacer clic afuera
   useEffect(() => {
@@ -355,15 +367,59 @@ export default function AppHeader() {
 
               {/* Banner de alerta de acumulación (cuello de botella con 5 o más demoradas) */}
               {currentDemoradas >= 5 && (
-                <div className="notif-accumulation-banner">
-                  <AlertTriangle size={15} className="notif-acc-icon" />
-                  <div className="notif-acc-text">
-                    <strong>¡Alerta de acumulación ({currentDemoradas})!</strong>
-                    <span>
-                      Hay {currentDemoradas} observaciones con más de 10 min de espera en{' '}
-                      {activeQueueTab === 'tecnicos' ? 'Técnicos' : 'En Revisión'}.
-                    </span>
+                <div className="notif-accumulation-banner-container">
+                  <div className="notif-accumulation-banner">
+                    <AlertTriangle size={15} className="notif-acc-icon" />
+                    <div className="notif-acc-text">
+                      <strong>¡Alerta de acumulación ({currentDemoradas})!</strong>
+                      <span>
+                        Hay {currentDemoradas} observaciones con más de 10 min de espera en{' '}
+                        {activeQueueTab === 'tecnicos' ? 'Técnicos' : 'En Revisión'}.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="notif-acc-toggle-arrow-btn"
+                      onClick={() => setShowDelayedCodesQuick(prev => !prev)}
+                      title={showDelayedCodesQuick ? 'Ocultar lista de códigos demorados' : 'Desplegar lista de códigos demorados'}
+                      aria-expanded={showDelayedCodesQuick}
+                    >
+                      <span>{showDelayedCodesQuick ? 'Ocultar' : 'Ver códigos'}</span>
+                      {showDelayedCodesQuick ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
                   </div>
+
+                  {showDelayedCodesQuick && (
+                    <div className="notif-delayed-codes-quicklist">
+                      <span className="notif-delayed-codes-title">
+                        Observaciones con mayor tiempo de espera (+10m):
+                      </span>
+                      <div className="notif-delayed-chips-wrap">
+                        {currentQueueItems
+                          .filter(item => calcWaitMins(item.fecha_subsanacion) >= 10)
+                          .map(item => {
+                            const mins = calcWaitMins(item.fecha_subsanacion)
+                            const tier = getWaitTierInfo(mins)
+                            const loc = sitiosMap[item.id_sitio] || ''
+
+                            return (
+                              <button
+                                key={item.id_obs}
+                                type="button"
+                                className="notif-delayed-chip-btn"
+                                onClick={() => handleSelectNotif(item)}
+                                title={`Abrir ${item.id_obs} (${item.id_sitio}${loc ? ` · ${loc}` : ''}) · Demora: ${formatWaitTime(mins)}`}
+                              >
+                                <span className="delayed-chip-code">{item.id_obs}</span>
+                                <span className={`delayed-chip-tier ${tier.badgeClass}`}>
+                                  {formatWaitTime(mins)}
+                                </span>
+                              </button>
+                            )
+                          })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -405,6 +461,7 @@ export default function AppHeader() {
                     const waitMins = calcWaitMins(obs.fecha_subsanacion)
                     const waitTimeStr = formatWaitTime(waitMins)
                     const tier = getWaitTierInfo(waitMins)
+                    const isItemExpanded = expandedItemDetails.has(obs.id_obs)
 
                     return (
                       <div
@@ -450,6 +507,31 @@ export default function AppHeader() {
                               {formatTiempoRelativo(obs.fecha_subsanacion)}
                             </span>
                           </div>
+
+                          {/* Flecha para desplegar detalle de la observación */}
+                          {obs.detalle && (
+                            <div className="notif-item-detail-toggle-wrap">
+                              <button
+                                type="button"
+                                className="notif-item-detail-toggle-btn"
+                                onClick={(e) => toggleItemDetail(e, obs.id_obs)}
+                                title={isItemExpanded ? 'Ocultar detalle' : 'Desplegar detalle'}
+                                aria-expanded={isItemExpanded}
+                              >
+                                <span>{isItemExpanded ? 'Ocultar detalle' : 'Ver detalle'}</span>
+                                {isItemExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                              </button>
+                            </div>
+                          )}
+
+                          {isItemExpanded && obs.detalle && (
+                            <div className="notif-item-unfolded-detail">
+                              <p className="notif-unfolded-desc">{obs.detalle}</p>
+                              {obs.subsistema && (
+                                <span className="notif-unfolded-meta">Subsistema: <strong>{obs.subsistema}</strong></span>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         <button

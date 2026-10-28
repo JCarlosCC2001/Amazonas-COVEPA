@@ -252,10 +252,11 @@ export function NotificationProvider({ children }) {
     // Reproducir aviso sonoro suave
     playNotificationChime()
 
-    // Auto-descartar después de 8 segundos
+    // Auto-descartar después de un tiempo prudencial (25s para alertas de acumulación con lista)
+    const timeoutMs = obs.isAccumulationAlert ? 25000 : 8500
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== toastId))
-    }, 8500)
+    }, timeoutMs)
   }, [])
 
   // Evaluar alertas anti-spam por acumulación en colas de técnicos y auditores
@@ -275,11 +276,12 @@ export function NotificationProvider({ children }) {
         lastAlertTecnicosRef.current = { time: now, count: solDemoradas.length }
 
         // Ordenar de más antigua a más reciente
-        const masAntigua = [...solDemoradas].sort((a, b) => {
+        const solDemoradasOrdenadas = [...solDemoradas].sort((a, b) => {
           const tA = new Date(a.fecha_subsanacion || 0).getTime()
           const tB = new Date(b.fecha_subsanacion || 0).getTime()
           return tA - tB
-        })[0]
+        })
+        const masAntigua = solDemoradasOrdenadas[0]
 
         const loc = sitiosMapRef.current[masAntigua.id_sitio] || ''
         const minsAntigua = calcWaitMins(masAntigua.fecha_subsanacion)
@@ -294,7 +296,17 @@ export function NotificationProvider({ children }) {
           estado_covepa: 'Solicitando Revisión',
           revisor: 'Múltiples Técnicos',
           detalle: mensaje,
-          isAccumulationAlert: true
+          isAccumulationAlert: true,
+          queueType: 'tecnicos',
+          items: solDemoradasOrdenadas.map(item => ({
+            id_obs: item.id_obs,
+            id_sitio: item.id_sitio,
+            localidad: sitiosMapRef.current[item.id_sitio] || '',
+            revisor: item.revisor,
+            fecha_subsanacion: item.fecha_subsanacion,
+            subsistema: item.subsistema,
+            detalle: item.detalle
+          }))
         }, loc)
 
         playAccumulationChime()
@@ -323,11 +335,12 @@ export function NotificationProvider({ children }) {
       if (tiempoPasado >= COOLDOWN_MS || aumentoSignificativo) {
         lastAlertAuditoresRef.current = { time: now, count: revDemoradas.length }
 
-        const masAntigua = [...revDemoradas].sort((a, b) => {
+        const revDemoradasOrdenadas = [...revDemoradas].sort((a, b) => {
           const tA = new Date(a.fecha_subsanacion || 0).getTime()
           const tB = new Date(b.fecha_subsanacion || 0).getTime()
           return tA - tB
-        })[0]
+        })
+        const masAntigua = revDemoradasOrdenadas[0]
 
         const loc = sitiosMapRef.current[masAntigua.id_sitio] || ''
         const minsAntigua = calcWaitMins(masAntigua.fecha_subsanacion)
@@ -342,7 +355,17 @@ export function NotificationProvider({ children }) {
           estado_covepa: 'En Revisión',
           revisor: masAntigua.revisor || 'Auditoría Gilat',
           detalle: mensaje,
-          isAccumulationAlert: true
+          isAccumulationAlert: true,
+          queueType: 'auditores',
+          items: revDemoradasOrdenadas.map(item => ({
+            id_obs: item.id_obs,
+            id_sitio: item.id_sitio,
+            localidad: sitiosMapRef.current[item.id_sitio] || '',
+            revisor: item.revisor,
+            fecha_subsanacion: item.fecha_subsanacion,
+            subsistema: item.subsistema,
+            detalle: item.detalle
+          }))
         }, loc)
 
         playAccumulationChime()

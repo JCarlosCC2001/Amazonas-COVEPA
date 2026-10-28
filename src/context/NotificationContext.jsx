@@ -189,7 +189,7 @@ export async function copyObservacionesList(items) {
         )
       )
       if (codes.length > 0) {
-        groups.push(`${tier.label} (${codes.length}):\n${codes.join(', ')}`)
+        groups.push(`${tier.label} (${codes.length}):\n${codes.join('\n')}`)
       }
     }
   }
@@ -210,13 +210,13 @@ export async function copyObservacionesList(items) {
       )
     )
     if (codes.length > 0) {
-      groups.push(`MENOS DE 10 MINUTOS (${codes.length}):\n${codes.join(', ')}`)
+      groups.push(`MENOS DE 10 MINUTOS (${codes.length}):\n${codes.join('\n')}`)
     }
   }
 
   const fullText = groups.length > 0
     ? groups.join('\n\n')
-    : items.map(it => (typeof it === 'object' ? it.id_obs : String(it))).filter(Boolean).join(', ')
+    : items.map(it => (typeof it === 'object' ? it.id_obs : String(it))).filter(Boolean).join('\n')
 
   // 1. Intento primario con API Clipboard moderna
   try {

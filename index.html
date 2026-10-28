@@ -2,14 +2,29 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="COVEPA — Sistema ERP para el control y levantamiento de observaciones técnicas por sitio. Gestión de técnicos, programación y métricas de eficiencia." />
-    <meta name="theme-color" content="#080c14" />
+    <meta name="theme-color" content="#003060" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="COVEPA" />
     <title>COVEPA · Sistema de Observaciones Técnicas</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // Registro de Service Worker para PWA instalable
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.warn('[PWA] ServiceWorker no registrado:', err)
+          })
+        })
+      }
+    </script>
   </body>
 </html>

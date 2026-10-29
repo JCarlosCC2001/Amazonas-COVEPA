@@ -227,3 +227,101 @@ export async function getTimelineActividadTecnico({
     }
   }
 }
+
+/**
+ * Obtiene el mapa del último reporte registrado por sitio y cuadrilla para una fecha dada.
+ * Retorna { bySite: { [id_sitio]: { ts, hora, timeAgo, obs, user } }, byCuadrilla: { [cuadrilla]: { ts, hora, timeAgo, obs, user } }, byUser: { [nombre]: { ts, hora, timeAgo, obs, user } } }
+ */
+export async function fetchUltimosReportesDelDia(fecha) {
+  if (!fecha) return { bySite: {}, byCuadrilla: {}, byUser: {} }
+
+  const startIso = `${fecha}T00:00:00`
+  const endIso = `${fecha}T23:59:59`
+
+  try {
+    const [hRes, oRes] = await Promise.all([
+      supabase
+        .from('historial_estados_observaciones')
+        .select('id_obs, id_sitio, created_at, usuario_nombre')
+        .gte('created_at', startIso)
+        .lte('created_at', endIso)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('observaciones')
+        .select('id_obs, id_sitio, fecha_subsanacion, revisor')
+        .gte('fecha_subsanacion', startIso)
+        .lte('fecha_subsanacion', endIso)
+        .order('fecha_subsanacion', { ascending: false })
+    ])
+
+    const bySite = {}
+    const byCuadrilla = {}
+    const byUser = {}
+
+    // Mapeo sitio -> cuadrilla base
+    const siteCuadMap = {}
+    ASIGNACIONES_BASE.forEach(s => {
+      const c = (s.cuadrilla || s.grupo || '').toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
+      siteCuadMap[s.id_site] = c
+    })
+
+    const recordEvent = (siteId, ts, obs, user) => {
+      if (!ts) return
+
+      // 1. Indexar por sitio
+      if (siteId) {
+        const existing = bySite[siteId]
+        if (!existing || new Date(ts) > new Date(existing.ts)) {
+          bySite[siteId] = {
+            ts,
+            hora: formatHoraPeru(ts),
+            timeAgo: getTiempoRelativo(ts),
+            obs,
+            user,
+            siteId
+          }
+        }
+
+        const cName = siteCuadMap[siteId]
+        if (cName) {
+          const existingCuad = byCuadrilla[cName]
+          if (!existingCuad || new Date(ts) > new Date(existingCuad.ts)) {
+            byCuadrilla[cName] = {
+              ts,
+              hora: formatHoraPeru(ts),
+              timeAgo: getTiempoRelativo(ts),
+              obs,
+              user,
+              siteId
+            }
+          }
+        }
+      }
+
+      // 2. Indexar por usuario / técnico
+      if (user) {
+        const uKey = String(user).trim().toUpperCase()
+        const existingUser = byUser[uKey]
+        if (!existingUser || new Date(ts) > new Date(existingUser.ts)) {
+          byUser[uKey] = {
+            ts,
+            hora: formatHoraPeru(ts),
+            timeAgo: getTiempoRelativo(ts),
+            obs,
+            user,
+            siteId
+          }
+        }
+      }
+    }
+
+    ;(hRes.data || []).forEach(h => recordEvent(h.id_sitio, h.created_at, h.id_obs, h.usuario_nombre))
+    ;(oRes.data || []).forEach(o => recordEvent(o.id_sitio, o.fecha_subsanacion, o.id_obs, o.revisor))
+
+    return { bySite, byCuadrilla, byUser }
+  } catch (err) {
+    console.error('[REPORTES-ERROR] Error al consultar últimos reportes del día:', err)
+    return { bySite: {}, byCuadrilla: {}, byUser: {} }
+  }
+}
+

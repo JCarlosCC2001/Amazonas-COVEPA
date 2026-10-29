@@ -7667,3 +7667,96 @@
   padding: 0.75rem 1rem;
 }
 
+/* Píldora del último reporte al lado de Actividad (En el frente de la tarjeta) */
+.prog-tech-last-report-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  border-radius: 6px;
+  padding: 0.22rem 0.55rem;
+  font-size: var(--text-2xs);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.prog-tech-last-report-pill:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+  transform: translateY(-1px);
+}
+
+.prog-tech-last-report-pill.is-recent {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.prog-tech-last-report-pill.empty {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+  cursor: default;
+}
+
+.prog-tech-last-report-pill .last-report-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  flex-shrink: 0;
+}
+
+.prog-tech-last-report-pill.is-recent .last-report-dot {
+  background: #059669;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+  animation: pulseGreenDot 2s infinite;
+}
+
+@keyframes pulseGreenDot {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+  70% { transform: scale(1); box-shadow: 0 0 0 4px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.prog-tech-last-report-pill .last-report-dot.empty {
+  background: #cbd5e1;
+}
+
+.prog-tech-last-report-pill .last-report-label {
+  color: #475569;
+  font-weight: var(--fw-normal);
+}
+
+.prog-tech-last-report-pill.empty .last-report-label {
+  color: #94a3b8;
+}
+
+.prog-tech-last-report-pill .last-report-time {
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  color: #003060;
+}
+
+.prog-tech-last-report-pill .last-report-hour {
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.week-tech-last-report-mini {
+  font-size: var(--text-3xs);
+  color: #059669;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+

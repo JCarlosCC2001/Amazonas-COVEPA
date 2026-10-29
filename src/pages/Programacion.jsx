@@ -11,6 +11,7 @@ import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
 import ModalTimelineTecnico from '../components/programacion/ModalTimelineTecnico'
 import HistorialEstadosTimeline from '../components/shared/HistorialEstadosTimeline'
 import { getAvancePorFecha } from '../services/dashboardService'
+import { fetchUltimosReportesDelDia } from '../services/actividadService'
 import {
   getPersonalActivo,
   getPersonalTecnico,
@@ -57,6 +58,9 @@ export default function Programacion() {
   // Avance específico y métricas del día que se está revisando (currentDate)
   const [dayAvance, setDayAvance] = useState({ rows: [], stats: {}, loading: false })
 
+  // Registro de últimos reportes de campo por sitio y cuadrilla para la fecha activa
+  const [ultimosReportes, setUltimosReportes] = useState({ bySite: {}, byCuadrilla: {} })
+
   const loadDayAvance = useCallback(async (targetDate) => {
     if (!targetDate) return
     const dStr = typeof targetDate === 'string' ? targetDate : toLocalDateString(targetDate)
@@ -74,9 +78,29 @@ export default function Programacion() {
     }
   }, [])
 
+  const loadUltimosReportes = useCallback(async (targetDate) => {
+    if (!targetDate) return
+    const dStr = typeof targetDate === 'string' ? targetDate : toLocalDateString(targetDate)
+    try {
+      const res = await fetchUltimosReportesDelDia(dStr)
+      setUltimosReportes(res || { bySite: {}, byCuadrilla: {} })
+    } catch (err) {
+      console.warn('Error cargando últimos reportes en Programación:', err)
+    }
+  }, [])
+
   useEffect(() => {
     loadDayAvance(currentDate)
-  }, [currentDate, loadDayAvance])
+    loadUltimosReportes(currentDate)
+  }, [currentDate, loadDayAvance, loadUltimosReportes])
+
+  // Refrescar automáticamente los minutos relativos cada 60 segundos
+  useEffect(() => {
+    const timer = setInterval(() => {
+      loadUltimosReportes(currentDate)
+    }, 60000)
+    return () => clearInterval(timer)
+  }, [currentDate, loadUltimosReportes])
 
   // Catálogo enriquecido con localidades y nombres de nodos para visualización al lado de los códigos
   const [sitiosCatalogo, setSitiosCatalogo] = useState(() => {
@@ -132,6 +156,37 @@ export default function Programacion() {
       siteIds
     })
   }, [currentDate])
+
+  // Resolver el último reporte de un grupo de técnico para la jornada activa
+  const getUltimoReporteTecnico = useCallback((tGroup) => {
+    let latest = null
+
+    // 1. Por sitios asignados al técnico en la jornada
+    ;(tGroup?.sitios || []).forEach(s => {
+      const rep = ultimosReportes.bySite?.[s.id_sitio]
+      if (rep && (!latest || new Date(rep.ts) > new Date(latest.ts))) {
+        latest = rep
+      }
+    })
+
+    // 2. Por nombre del técnico responsable
+    const tecName = (tGroup?.tecnico?.nombre_completo || '').trim().toUpperCase()
+    if (tecName && ultimosReportes.byUser) {
+      const repUser = ultimosReportes.byUser[tecName] ||
+        Object.entries(ultimosReportes.byUser).find(([name]) => name.includes(tecName) || tecName.includes(name))?.[1]
+      if (repUser && (!latest || new Date(repUser.ts) > new Date(latest.ts))) {
+        latest = repUser
+      }
+    }
+
+    // 3. Fallback por cuadrilla asignada
+    if (!latest && tGroup?.cuadrilla) {
+      const repCuad = ultimosReportes.byCuadrilla?.[tGroup.cuadrilla]
+      if (repCuad) latest = repCuad
+    }
+
+    return latest
+  }, [ultimosReportes])
 
   // Buscador de Observación e Intersección Operativa
   const [searchObsQuery, setSearchObsQuery] = useState('')
@@ -1058,6 +1113,37 @@ export default function Programacion() {
                                 👥 {tGroup.companions.map(c => c.nombre_completo).join(' · ')}
                               </span>
                             )}
+                            {/* Píldora del Último Reporte al lado de Actividad */}
+                            {(() => {
+                              const ultRep = getUltimoReporteTecnico(tGroup)
+                              const isRecent = ultRep?.ts ? (new Date() - new Date(ultRep.ts)) < 45 * 60 * 1000 : false
+
+                              if (ultRep) {
+                                return (
+                                  <span
+                                    className={`prog-tech-last-report-pill ${isRecent ? 'is-recent' : ''}`}
+                                    title={`Último reporte registrado a las ${ultRep.hora}${ultRep.obs ? ` (Obs: ${ultRep.obs})` : ''}${ultRep.user ? ` · ${ultRep.user}` : ''}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleOpenTimelineTecnico(tec, tGroup)
+                                    }}
+                                  >
+                                    <span className="last-report-dot" />
+                                    <span className="last-report-label">Últ. reporte:</span>
+                                    <strong className="last-report-time">{ultRep.timeAgo}</strong>
+                                    <span className="last-report-hour">· {ultRep.hora}</span>
+                                  </span>
+                                )
+                              }
+
+                              return (
+                                <span className="prog-tech-last-report-pill empty" title="Sin reportes registrados para la fecha seleccionada">
+                                  <span className="last-report-dot empty" />
+                                  <span className="last-report-label">Sin reportes hoy</span>
+                                </span>
+                              )
+                            })()}
+
                             {/* Botón para ver Línea de Actividad Horizontal */}
                             <button
                               type="button"
@@ -1260,6 +1346,23 @@ export default function Programacion() {
                                 {tDay.cuadrilla && (
                                   <span className="week-tech-badge">{tDay.cuadrilla}</span>
                                 )}
+                                {(() => {
+                                  const ultRep = getUltimoReporteTecnico(tDay)
+                                  if (!ultRep) return null
+                                  return (
+                                    <span
+                                      className="week-tech-last-report-mini"
+                                      title={`Último reporte: ${ultRep.timeAgo} (${ultRep.hora})`}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleOpenTimelineTecnico(tec, tDay, day.dateStr)
+                                      }}
+                                      style={{ cursor: 'pointer' }}
+                                    >
+                                      {ultRep.timeAgo}
+                                    </span>
+                                  )
+                                })()}
                                 <button
                                   type="button"
                                   className="week-tech-timeline-mini-btn"

@@ -93,11 +93,16 @@ async function main() {
     return
   }
 
-  // 4.1 Comprobar coincidencia de hora si es ejecución programada
-  const horaConfig = (config.hora_envio || '21:00:00').slice(0, 2)
-  const horaActual = horaMinuto.slice(0, 2)
-  if (!isManualRun && horaConfig !== horaActual) {
-    console.log(`[CRON-REPORTE] ⏳ Hora programada es ${horaConfig}:00 y la hora actual Perú es ${horaActual}:00. Omitiendo hasta el horario designado.`)
+  // 4.1 Comprobar coincidencia de hora y minuto si es ejecución programada
+  const [cfgH, cfgM] = (config.hora_envio || '21:00:00').split(':').map(Number)
+  const [curH, curM] = horaMinuto.split(':').map(Number)
+  const cfgTotalMins = (cfgH || 0) * 60 + (cfgM || 0)
+  const curTotalMins = (curH || 0) * 60 + (curM || 0)
+  const diffMins = curTotalMins - cfgTotalMins
+
+  // Si no es ejecución manual, verificar si estamos en la ventana de envío (desde la hora programada hasta 25 min después)
+  if (!isManualRun && (diffMins < 0 || diffMins > 25)) {
+    console.log(`[CRON-REPORTE] ⏳ Hora programada es ${config.hora_envio} y la hora actual Perú es ${horaMinuto}. Fuera de ventana (dif: ${diffMins} min). Omitiendo.`)
     return
   }
 
@@ -105,7 +110,7 @@ async function main() {
   if (!isManualRun && config.ultimo_envio_at) {
     const ultimoEnvioStr = new Date(config.ultimo_envio_at).toISOString().slice(0, 10)
     if (ultimoEnvioStr === fechaIso) {
-      console.log(`[CRON-REPORTE] ℹ️ El reporte de la fecha ${fechaIso} ya fue enviado hoy. Omitiendo envío duplicado.`)
+      console.log(`[CRON-REPORTE] ℹ️ El reporte de la fecha ${fechaIso} ya fue enviado hoy a las ${config.ultimo_envio_at}. Omitiendo envío duplicado.`)
       return
     }
   }

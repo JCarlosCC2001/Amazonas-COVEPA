@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 // M3: ExcelJS se importa dinámicamente en handleExportXLSX para no inflar el bundle inicial
 import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
+import ModalTimelineTecnico from '../components/programacion/ModalTimelineTecnico'
 import HistorialEstadosTimeline from '../components/shared/HistorialEstadosTimeline'
 import { getAvancePorFecha } from '../services/dashboardService'
 import {
@@ -118,6 +119,19 @@ export default function Programacion() {
   const [editingProg, setEditingProg] = useState(null)
   const [selectedProgModal, setSelectedProgModal] = useState(null) // { id_sitio, programacion, allSitios }
   const [modalAvanceOpen, setModalAvanceOpen] = useState(false)
+  const [selectedTimelineTecnico, setSelectedTimelineTecnico] = useState(null) // { tecnico, cuadrilla, fecha, siteIds }
+
+  // Abrir la línea de actividad horizontal del técnico
+  const handleOpenTimelineTecnico = useCallback((tec, groupOrDay, customFecha = null) => {
+    const fechaVal = customFecha || toLocalDateString(currentDate)
+    const siteIds = (groupOrDay?.sitios || []).map(s => s.id_sitio).filter(Boolean)
+    setSelectedTimelineTecnico({
+      tecnico: tec,
+      cuadrilla: groupOrDay?.cuadrilla || tec?.cuadrilla,
+      fecha: fechaVal,
+      siteIds
+    })
+  }, [currentDate])
 
   // Buscador de Observación e Intersección Operativa
   const [searchObsQuery, setSearchObsQuery] = useState('')
@@ -1044,6 +1058,19 @@ export default function Programacion() {
                                 👥 {tGroup.companions.map(c => c.nombre_completo).join(' · ')}
                               </span>
                             )}
+                            {/* Botón para ver Línea de Actividad Horizontal */}
+                            <button
+                              type="button"
+                              className="prog-tech-timeline-btn"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleOpenTimelineTecnico(tec, tGroup)
+                              }}
+                              title="Ver línea de actividad horizontal y solicitudes de validación de este técnico"
+                            >
+                              <Clock size={11} />
+                              <span>Actividad</span>
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1229,9 +1256,22 @@ export default function Programacion() {
                                   {tec.nombre_completo || 'Sin asignar'}
                                 </span>
                               )}
-                              {tDay.cuadrilla && (
-                                <span className="week-tech-badge">{tDay.cuadrilla}</span>
-                              )}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                {tDay.cuadrilla && (
+                                  <span className="week-tech-badge">{tDay.cuadrilla}</span>
+                                )}
+                                <button
+                                  type="button"
+                                  className="week-tech-timeline-mini-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleOpenTimelineTecnico(tec, tDay, day.dateStr)
+                                  }}
+                                  title={`Ver actividad y validaciones de ${tec.nombre_completo || 'este técnico'} el ${day.dateStr}`}
+                                >
+                                  <Clock size={11} />
+                                </button>
+                              </div>
                             </div>
                           </div>
 
@@ -1334,6 +1374,25 @@ export default function Programacion() {
           fecha={toLocalDateString(currentDate)}
           sitiosMap={sitiosMap}
           onClose={() => setModalAvanceOpen(false)}
+        />
+      )}
+
+      {/* Modal de Línea de Actividad y Solicitudes de Validación (Horizontal) */}
+      {selectedTimelineTecnico && (
+        <ModalTimelineTecnico
+          tecnico={selectedTimelineTecnico.tecnico}
+          cuadrilla={selectedTimelineTecnico.cuadrilla}
+          fecha={selectedTimelineTecnico.fecha}
+          siteIds={selectedTimelineTecnico.siteIds}
+          onClose={() => setSelectedTimelineTecnico(null)}
+          onOpenObservationDetail={(event) => {
+            setSelectedProgModal({
+              id_sitio: event.id_sitio,
+              programacion: null,
+              allSitios: null,
+              initialObsId: event.id_obs
+            })
+          }}
         />
       )}
     </div>

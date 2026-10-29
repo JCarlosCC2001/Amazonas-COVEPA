@@ -7328,3 +7328,342 @@
   flex: 1;
   word-break: break-word;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   LÍNEA DE ACTIVIDAD HORIZONTAL DEL TÉCNICO (TIMELINE HORIZONTAL)
+   ══════════════════════════════════════════════════════════════ */
+
+/* Botón en cabecera del técnico (Vista Hoy) */
+.prog-tech-timeline-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #003060;
+  border-radius: 6px;
+  padding: 0.22rem 0.5rem;
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.prog-tech-timeline-btn:hover {
+  background: #f0f9ff;
+  border-color: #0284c7;
+  color: #0284c7;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(0, 48, 96, 0.08);
+}
+
+/* Botón mini en Vista Semanal */
+.week-tech-timeline-mini-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #003060;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.week-tech-timeline-mini-btn:hover {
+  background: #003060;
+  color: #ffffff;
+  border-color: #003060;
+}
+
+/* Barra de controles del modal de timeline */
+.prog-timeline-ctrl-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.4rem;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.prog-timeline-btn-group {
+  display: inline-flex;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.prog-timeline-toggle-btn {
+  background: none;
+  border: none;
+  border-radius: 4px;
+  padding: 0.25rem 0.55rem;
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  font-family: var(--font-sans);
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.prog-timeline-toggle-btn:hover {
+  color: #003060;
+}
+
+.prog-timeline-toggle-btn.active {
+  background: #003060;
+  color: #ffffff;
+}
+
+.prog-timeline-arrow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #003060;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.prog-timeline-arrow-btn:hover {
+  background: #eff6ff;
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
+/* Contenedor del Carril Horizontal */
+.prog-timeline-modal-body {
+  padding: 1rem 1.4rem 1.4rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.prog-timeline-h-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.prog-timeline-h-track {
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+  padding: 1.5rem 0.5rem 1rem 0.5rem;
+  position: relative;
+  scroll-behavior: smooth;
+  min-height: 270px;
+}
+
+/* Línea / Eje Horizontal continuo que conecta todos los hitos */
+.prog-timeline-h-axis {
+  position: absolute;
+  top: 52px;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  background: #cbd5e1;
+  z-index: 1;
+}
+
+/* Hito Individual en el carril */
+.prog-timeline-h-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 0 0 270px;
+  min-width: 270px;
+  max-width: 270px;
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+}
+
+/* Caja superior de la hora */
+.prog-timeline-time-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  min-height: 34px;
+}
+
+.prog-timeline-hour-text {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  color: #003060;
+}
+
+.prog-timeline-rel-text {
+  font-size: var(--text-2xs);
+  color: #64748b;
+}
+
+/* Nodo conector */
+.prog-timeline-node-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 3;
+}
+
+.prog-timeline-node-pin {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #003060;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  transition: transform 0.15s ease;
+}
+
+.prog-timeline-h-item:hover .prog-timeline-node-pin,
+.prog-timeline-h-item.is-selected .prog-timeline-node-pin {
+  transform: scale(1.2);
+}
+
+.prog-timeline-node-pin.pulse {
+  animation: pulseAmber 1.8s infinite;
+}
+
+@keyframes pulseAmber {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
+  70% { box-shadow: 0 0 0 7px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.prog-timeline-stalk {
+  width: 2px;
+  height: 12px;
+  background: #cbd5e1;
+}
+
+/* Tarjeta del Evento */
+.prog-timeline-card {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+}
+
+.prog-timeline-h-item:hover .prog-timeline-card {
+  border-color: #0284c7;
+  box-shadow: 0 4px 10px rgba(2, 132, 199, 0.12);
+  transform: translateY(-2px);
+}
+
+.prog-timeline-card.active {
+  border-color: #003060;
+  border-width: 1.5px;
+  box-shadow: 0 4px 12px rgba(0, 48, 96, 0.15);
+  background: #fafcfe;
+}
+
+.prog-timeline-card.is-solicitud {
+  border-left: 3px solid #f59e0b;
+}
+
+.prog-timeline-card-site {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--text-2xs);
+  color: #003060;
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prog-timeline-site-code {
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.prog-timeline-site-loc {
+  color: var(--text-secondary);
+  font-weight: var(--fw-normal);
+}
+
+.prog-timeline-card-mid {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.prog-timeline-card-subsys {
+  font-size: var(--text-2xs);
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prog-timeline-card-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  font-size: var(--text-2xs);
+  color: #1e293b;
+  background: #f8fafc;
+  border-radius: 4px;
+  padding: 0.3rem 0.45rem;
+  line-height: 1.35;
+  max-height: 48px;
+  overflow: hidden;
+}
+
+.prog-timeline-card-comment-empty {
+  font-size: var(--text-2xs);
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.prog-timeline-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.3rem;
+  font-size: var(--text-2xs);
+  color: #64748b;
+}
+
+.prog-timeline-user-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Panel Inferior de Inspección */
+.prog-timeline-detail-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+

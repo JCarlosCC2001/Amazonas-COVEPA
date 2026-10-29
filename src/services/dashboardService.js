@@ -64,7 +64,7 @@ export function getLimaDateStr(dateVal) {
   }
 }
 
-async function getSitiosCatalogMap() {
+export async function getSitiosCatalogMap() {
   if (cachedSitiosCatalog) return cachedSitiosCatalog
 
   const map = {}

@@ -1705,8 +1705,8 @@ function ModalPersonal({ member, onClose, onSaved }) {
 
   return (
     <div className="prog-modal-overlay">
-      <div className="prog-modal" style={{ maxWidth: '540px' }}>
-        <div className="prog-modal-header">
+      <div className="prog-modal" style={{ maxWidth: '580px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="prog-modal-header" style={{ flexShrink: 0 }}>
           <h3>
             <Users size={18} color="#003060" />
             {isEditing ? 'Editar Integrante de Personal' : 'Nuevo Integrante de Personal'}
@@ -1714,8 +1714,8 @@ function ModalPersonal({ member, onClose, onSaved }) {
           <button className="btn-close" onClick={onClose}><X size={18} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
-          <div className="prog-modal-body">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div className="prog-modal-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '1.2rem 1.4rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             {errorMsg && (
               <div style={{
                 background: 'rgba(239, 68, 68, 0.15)',
@@ -1759,7 +1759,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
               </div>
             </div>
 
-            {/* Fila 2: DNI y Correo Principal */}
+            {/* Fila 2: DNI y Ciudad de Origen */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
               <div className="prog-form-group">
                 <label>DNI / Documento (8 dígitos)</label>
@@ -1774,6 +1774,20 @@ function ModalPersonal({ member, onClose, onSaved }) {
               </div>
 
               <div className="prog-form-group">
+                <label>Ciudad de Origen / Base</label>
+                <input
+                  type="text"
+                  className="prog-form-control"
+                  placeholder="ej: CHACHAPOYAS, BAGUA..."
+                  value={ciudadOrigen}
+                  onChange={e => setCiudadOrigen(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Fila 3: Correos Electrónicos 1 y 2 (Ambos en 1 fila) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+              <div className="prog-form-group">
                 <label>Correo Electrónico 1 (Principal)</label>
                 <input
                   type="email"
@@ -1783,21 +1797,20 @@ function ModalPersonal({ member, onClose, onSaved }) {
                   onChange={e => setEmail(e.target.value)}
                 />
               </div>
+
+              <div className="prog-form-group">
+                <label>Correo Electrónico 2 (Secundario)</label>
+                <input
+                  type="email"
+                  className="prog-form-control"
+                  placeholder="secundario@gmail.com"
+                  value={email2}
+                  onChange={e => setEmail2(e.target.value)}
+                />
+              </div>
             </div>
 
-            {/* Fila 2b: Correo Electrónico 2 (Secundario) */}
-            <div className="prog-form-group">
-              <label>Correo Electrónico 2 (Secundario / Opcional)</label>
-              <input
-                type="email"
-                className="prog-form-control"
-                placeholder="secundario@gmail.com"
-                value={email2}
-                onChange={e => setEmail2(e.target.value)}
-              />
-            </div>
-
-            {/* Fila 3: Empresa y Cargo */}
+            {/* Fila 4: Empresa y Cargo */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
               <div className="prog-form-group">
                 <label>Empresa *</label>
@@ -1834,31 +1847,18 @@ function ModalPersonal({ member, onClose, onSaved }) {
               </div>
             </div>
 
-            {/* Fila 4: Estado en Base Externa y Ciudad de Origen */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
-              <div className="prog-form-group">
-                <label>Estado en BD Externa *</label>
-                <select
-                  className="prog-form-control"
-                  value={estado}
-                  onChange={e => setEstado(e.target.value)}
-                  required
-                >
-                  <option value="Activo">Activo (Disponible en operación)</option>
-                  <option value="Inactivo">Inactivo (Deshabilitado)</option>
-                </select>
-              </div>
-
-              <div className="prog-form-group">
-                <label>Ciudad de Origen / Base</label>
-                <input
-                  type="text"
-                  className="prog-form-control"
-                  placeholder="ej: CHACHAPOYAS, BAGUA..."
-                  value={ciudadOrigen}
-                  onChange={e => setCiudadOrigen(e.target.value)}
-                />
-              </div>
+            {/* Fila 5: Estado en Base Externa */}
+            <div className="prog-form-group">
+              <label>Estado en BD Externa *</label>
+              <select
+                className="prog-form-control"
+                value={estado}
+                onChange={e => setEstado(e.target.value)}
+                required
+              >
+                <option value="Activo">Activo (Disponible en operación)</option>
+                <option value="Inactivo">Inactivo (Deshabilitado)</option>
+              </select>
             </div>
 
             {/* Fila 5: Teléfono 1 y Operador */}
@@ -2000,7 +2000,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
 
           </div>
 
-          <div className="prog-modal-footer">
+          <div className="prog-modal-footer" style={{ flexShrink: 0, background: '#ffffff', borderTop: '1px solid var(--border)' }}>
             <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>
               Cancelar
             </button>

@@ -7,14 +7,12 @@
 const nodemailer = require('nodemailer')
 const { createClient } = require('@supabase/supabase-js')
 
-// 1. Conexión a Supabase
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
+// 1. Conexión a Supabase (con respaldo directo al proyecto oficial)
+const DEFAULT_SUPABASE_URL = 'https://byywikicdvmmmndhkooe.supabase.co'
+const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5eXdpa2ljZHZtbW1uZGhrb29lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1MTIxODgsImV4cCI6MjEwODA4ODE4OH0.KnBrlx7KmH6OelDv9k7EstHhuFCTGcgtgarLvHh4epk'
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('[CRON-REPORTE] ❌ Error: Faltan variables de conexión a Supabase (SUPABASE_URL, SUPABASE_KEY).')
-  process.exit(1)
-}
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 

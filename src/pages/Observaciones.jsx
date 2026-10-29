@@ -670,16 +670,26 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
           ) : (
             <div style={{ overflowX: 'auto', width: '100%' }}>
               <table className="sitios-table" style={{ margin: 0, width: '100%' }}>
+                <colgroup>
+                  <col className="col-obs-cod" />
+                  <col className="col-obs-cuadrilla" />
+                  <col className="col-obs-sitio" />
+                  <col className="col-obs-localidad" />
+                  <col className="col-obs-estado" />
+                  <col className="col-obs-fecha" />
+                  <col className="col-obs-revisor" />
+                  <col className="col-obs-demora" />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th style={{ width: '105px' }}>Código</th>
-                    <th style={{ width: '120px' }}>Cuadrilla</th>
-                    <th style={{ width: '125px' }}>Código de Sitio</th>
-                    <th>Localidad</th>
-                    <th style={{ width: '135px' }}>Estado COVEPA</th>
-                    <th style={{ width: '130px' }}>Fecha de Revisión</th>
-                    <th>Revisado por</th>
-                    <th style={{ width: '130px' }}>¿Tuvo Demora?</th>
+                    <th className="col-obs-cod">Código</th>
+                    <th className="col-obs-cuadrilla">Cuadrilla</th>
+                    <th className="col-obs-sitio">Código de Sitio</th>
+                    <th className="col-obs-localidad">Localidad</th>
+                    <th className="col-obs-estado">Estado COVEPA</th>
+                    <th className="col-obs-fecha">Fecha de Revisión</th>
+                    <th className="col-obs-revisor">Revisado por</th>
+                    <th className="col-obs-demora" style={{ textAlign: 'center' }}>¿Tuvo Demora?</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -715,7 +725,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                           </span>
                         </td>
                         <td>
-                          <span style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
+                          <span className="obs-localidad-text" title={localidad || ''}>
                             {localidad || '—'}
                           </span>
                         </td>
@@ -725,50 +735,26 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                           </span>
                         </td>
                         <td>
-                          <span style={{ fontSize: 'var(--text-sm)', color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)' }}>
+                          <span style={{ fontSize: 'var(--text-sm)', color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                             {o.fecha_subsanacion ? o.fecha_subsanacion.split('T')[0] : '—'}
                           </span>
                         </td>
                         <td>
                           {esRevisorGilat(revisorNombre, gilatOptions) ? (
-                            <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                fontSize: 'var(--text-xs)',
-                                fontWeight: 'var(--fw-semibold)',
-                                padding: '0.22rem 0.6rem',
-                                borderRadius: '6px',
-                                background: '#eff6ff',
-                                color: '#1d4ed8',
-                                border: '1px solid #bfdbfe',
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              <Users size={12} color="#2563eb" />
-                              {revisorNombre}
+                            <span className="obs-revisor-pill" title={revisorNombre}>
+                              <Users size={12} color="#2563eb" style={{ flexShrink: 0 }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {revisorNombre}
+                              </span>
                             </span>
                           ) : (
                             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
                           )}
                         </td>
-                        <td>
+                        <td className="cell-obs-demora" style={{ textAlign: 'center' }}>
                           {o.justificacion_demora && o.justificacion_demora.trim() ? (
                             <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '0.22rem 0.6rem',
-                                borderRadius: '6px',
-                                fontSize: 'var(--text-xs)',
-                                fontWeight: 'var(--fw-semibold)',
-                                background: '#fffbeb',
-                                color: '#b45309',
-                                border: '1px solid #fde68a',
-                                whiteSpace: 'nowrap'
-                              }}
+                              className="obs-demora-pill"
                               title={`Justificación:\n${o.justificacion_demora}`}
                             >
                               <AlertTriangle size={12} color="#d97706" style={{ flexShrink: 0 }} />
@@ -1267,16 +1253,26 @@ export default function Observaciones() {
             </div>
           ) : (
             <table className="sitios-table">
+              <colgroup>
+                <col className="col-obs-cod" />
+                <col className="col-obs-cuadrilla" />
+                <col className="col-obs-sitio" />
+                <col className="col-obs-localidad" />
+                <col className="col-obs-estado" />
+                <col className="col-obs-fecha" />
+                <col className="col-obs-revisor" />
+                <col className="col-obs-demora" />
+              </colgroup>
               <thead>
                 <tr>
-                  <th style={{ width: '105px' }}>Código</th>
-                  <th style={{ width: '120px' }}>Cuadrilla</th>
-                  <th style={{ width: '125px' }}>Código de Sitio</th>
-                  <th>Localidad</th>
-                  <th style={{ width: '135px' }}>Estado COVEPA</th>
-                  <th style={{ width: '130px' }}>Fecha de Revisión</th>
-                  <th>Revisado por</th>
-                  <th style={{ width: '130px' }}>¿Tuvo Demora?</th>
+                  <th className="col-obs-cod">Código</th>
+                  <th className="col-obs-cuadrilla">Cuadrilla</th>
+                  <th className="col-obs-sitio">Código de Sitio</th>
+                  <th className="col-obs-localidad">Localidad</th>
+                  <th className="col-obs-estado">Estado COVEPA</th>
+                  <th className="col-obs-fecha">Fecha de Revisión</th>
+                  <th className="col-obs-revisor">Revisado por</th>
+                  <th className="col-obs-demora" style={{ textAlign: 'center' }}>¿Tuvo Demora?</th>
                 </tr>
               </thead>
               <tbody>
@@ -1309,7 +1305,7 @@ export default function Observaciones() {
                         </span>
                       </td>
                       <td>
-                        <span style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
+                        <span className="obs-localidad-text" title={sInfo.localidad || ''}>
                           {sInfo.localidad || '—'}
                         </span>
                       </td>
@@ -1319,50 +1315,26 @@ export default function Observaciones() {
                         </span>
                       </td>
                       <td>
-                        <span style={{ fontSize: 'var(--text-sm)', color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)' }}>
+                        <span style={{ fontSize: 'var(--text-sm)', color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                           {o.fecha_subsanacion ? o.fecha_subsanacion.split('T')[0] : '—'}
                         </span>
                       </td>
                       <td>
                         {esRevisorGilat(revisorNombre, gilatOptions) ? (
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                              fontSize: 'var(--text-xs)',
-                              fontWeight: 'var(--fw-semibold)',
-                              padding: '0.22rem 0.6rem',
-                              borderRadius: '6px',
-                              background: '#eff6ff',
-                              color: '#1d4ed8',
-                              border: '1px solid #bfdbfe',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            <Users size={12} color="#2563eb" />
-                            {revisorNombre}
+                          <span className="obs-revisor-pill" title={revisorNombre}>
+                            <Users size={12} color="#2563eb" style={{ flexShrink: 0 }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {revisorNombre}
+                            </span>
                           </span>
                         ) : (
                           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
                         )}
                       </td>
-                      <td>
+                      <td className="cell-obs-demora" style={{ textAlign: 'center' }}>
                         {o.justificacion_demora && o.justificacion_demora.trim() ? (
                           <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              padding: '0.22rem 0.6rem',
-                              borderRadius: '6px',
-                              fontSize: 'var(--text-xs)',
-                              fontWeight: 'var(--fw-semibold)',
-                              background: '#fffbeb',
-                              color: '#b45309',
-                              border: '1px solid #fde68a',
-                              whiteSpace: 'nowrap'
-                            }}
+                            className="obs-demora-pill"
                             title={`Justificación:\n${o.justificacion_demora}`}
                           >
                             <AlertTriangle size={12} color="#d97706" style={{ flexShrink: 0 }} />

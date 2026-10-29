@@ -7,14 +7,21 @@
 const nodemailer = require('nodemailer')
 const { createClient } = require('@supabase/supabase-js')
 
-// 1. Conexión a Supabase (con respaldo directo al proyecto oficial)
+// 1. Conexión a Supabase Local y Externa (con respaldo directo al proyecto oficial)
 const DEFAULT_SUPABASE_URL = 'https://byywikicdvmmmndhkooe.supabase.co'
 const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5eXdpa2ljZHZtbW1uZGhrb29lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1MTIxODgsImV4cCI6MjEwODA4ODE4OH0.KnBrlx7KmH6OelDv9k7EstHhuFCTGcgtgarLvHh4epk'
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY
+const DEFAULT_EXT_URL = 'https://iiwmqvnjjhaapyolaity.supabase.co'
+const DEFAULT_EXT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpd21xdm5qamhhYXB5b2xhaXR5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mjk5OTM3MCwiZXhwIjoyMDk4NTc1MzcwfQ.Q6YLBY_HWLQP3pGNyDtq1SYqTTBtjYQQqvGiVkcIVSw'
+
+const rawUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim()
+const supabaseUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) ? rawUrl : DEFAULT_SUPABASE_URL
+
+const rawKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim()
+const supabaseKey = (rawKey.length > 20) ? rawKey : DEFAULT_SUPABASE_KEY
 
 const supabase = createClient(supabaseUrl, supabaseKey)
+const supabaseExt = createClient(DEFAULT_EXT_URL, DEFAULT_EXT_KEY)
 
 // 2. Helper de fecha en hora Perú (UTC-5)
 function getPeruDateInfo() {
@@ -58,10 +65,12 @@ function escapeHtml(str) {
 
 async function main() {
   const { fechaIso, horaMinuto, fechaFormateada } = getPeruDateInfo()
-  const isManualRun = process.env.IS_MANUAL_RUN === 'true'
+  const isManualRun = process.env.IS_MANUAL_RUN === 'true' ||
+                      process.env.IS_MANUAL_RUN === true ||
+                      process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
 
   console.log(`[CRON-REPORTE] 🚀 Iniciando verificación de reporte diario COVEPA.`)
-  console.log(`[CRON-REPORTE] 🕒 Hora actual Perú: ${horaMinuto} · Fecha: ${fechaIso}`)
+  console.log(`[CRON-REPORTE] 🕒 Hora actual Perú: ${horaMinuto} · Fecha: ${fechaIso} | Modo: ${isManualRun ? 'MANUAL FORZADO' : 'PROGRAMADO'}`)
 
   // 3. Leer Configuración desde Supabase
   let config = {
@@ -89,7 +98,7 @@ async function main() {
 
   // 4. Si el envío automático está desactivado y no es corrida manual, salir
   if (!config.activo && !isManualRun) {
-    console.log('[CRON-REPORTE] ⏸️ El envío automático está marcado como inactivo. Finalizando.')
+    console.log('[CRON-REPORTE] ⏸️ El envío automático está marcado como inactivo en la base de datos. Finalizando.')
     return
   }
 
@@ -106,7 +115,7 @@ async function main() {
     return
   }
 
-  // 4.2 Evitar envíos duplicados en la misma fecha
+  // 4.2 Evitar envíos duplicados en la misma fecha (solo en modo programado)
   if (!isManualRun && config.ultimo_envio_at) {
     const ultimoEnvioStr = new Date(config.ultimo_envio_at).toISOString().slice(0, 10)
     if (ultimoEnvioStr === fechaIso) {
@@ -124,14 +133,32 @@ async function main() {
 
   console.log(`[CRON-REPORTE] 📬 Destinatarios: ${recipients.join(', ')} | CC: ${recipientsCC.join(', ') || 'Ninguno'}`)
 
-  // 6. Consultar mapa de localidades (Regla 2.1)
+  // 6. Consultar mapa de localidades y cuadrillas (Regla 2.1)
   let sitiosMap = {}
   try {
-    const { data: sitiosData } = await supabase.from('sitios_asignados').select('id_site, localidad, nombre_nodo, grupo').eq('activo', true)
-    if (sitiosData) {
-      sitiosData.forEach(s => { sitiosMap[s.id_site] = s })
+    const [extRes, localRes] = await Promise.all([
+      supabaseExt.from('sitios').select('id_site, localidad, nombre_nodo'),
+      supabase.from('sitios_asignados').select('id_site, grupo, zona')
+    ])
+
+    const asignacionesMap = {}
+    if (localRes.data) {
+      localRes.data.forEach(a => { asignacionesMap[a.id_site] = a })
     }
-  } catch (_) {}
+
+    if (extRes.data) {
+      extRes.data.forEach(s => {
+        const asig = asignacionesMap[s.id_site] || {}
+        sitiosMap[s.id_site] = {
+          ...s,
+          grupo: asig.grupo || 'Sin Cuadrilla',
+          zona: asig.zona || ''
+        }
+      })
+    }
+  } catch (errSitios) {
+    console.warn('[CRON-REPORTE] ⚠️ Aviso consultando catálogo de sitios:', errSitios.message)
+  }
 
   // 7. Consultar observaciones de la base de datos
   const { data: rows, error: obsErr } = await supabase
@@ -251,7 +278,7 @@ async function main() {
                     </div>
                   </td>
                   <td width="25%" style="padding:4px;">
-                    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 8px;text-align:center;">
+                    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 8px;text-align:center;">
                       <div style="font-size:22px;font-weight:bold;color:#0284c7;line-height:1;">${enEspera.length}</div>
                       <div style="font-size:11px;font-weight:bold;color:#0369a1;text-transform:uppercase;margin-top:4px;">⏳ En Espera</div>
                     </div>
@@ -261,15 +288,13 @@ async function main() {
             </td>
           </tr>
 
-          ${notas.trim() ? `
+          ${notas ? `
           <!-- Notas de la Jornada -->
           <tr>
-            <td style="padding:10px 28px;">
-              <div style="background:#fffbeb;border-left:4px solid #f59e0b;border:1px solid #fde68a;border-left-width:4px;border-radius:6px;padding:12px 14px;">
-                <div style="font-size:12px;font-weight:bold;color:#b45309;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">
-                  📌 Notas y Consideraciones de la Jornada:
-                </div>
-                <div style="font-size:13px;color:#451a03;line-height:1.45;white-space:pre-wrap;">${escapeHtml(notas)}</div>
+            <td style="padding:10px 28px 16px 28px;">
+              <div style="background-color:#f8fafc;border-left:4px solid #0284c7;padding:12px 16px;border-radius:4px;">
+                <div style="font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Nota Operativa:</div>
+                <div style="font-size:13px;color:#334155;line-height:1.5;">${escapeHtml(notas)}</div>
               </div>
             </td>
           </tr>
@@ -277,11 +302,11 @@ async function main() {
 
           <!-- Desglose Validadas -->
           <tr>
-            <td style="padding:14px 28px 6px 28px;">
+            <td style="padding:6px 28px 18px 28px;">
               <h2 style="margin:0 0 8px 0;font-size:14px;color:#003060;font-weight:bold;">
                 <span style="color:#16a34a;margin-right:6px;">✓</span> Observaciones Validadas Hoy (${validadas.length})
               </h2>
-              ${validadas.length === 0 ? `<div style="font-size:12px;color:#64748b;font-style:italic;padding:6px 0;">No se registraron validaciones formales en la jornada.</div>` : `
+              ${validadas.length === 0 ? `<div style="font-size:12px;color:#64748b;font-style:italic;padding:6px 0;">No se registraron observaciones validadas en esta jornada.</div>` : `
                 <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:12px;">
                   <thead style="background:#f8fafc;font-size:11px;color:#475569;text-transform:uppercase;">
                     <tr>
@@ -299,11 +324,11 @@ async function main() {
 
           <!-- Desglose Rechazadas -->
           <tr>
-            <td style="padding:6px 28px;">
+            <td style="padding:6px 28px 18px 28px;">
               <h2 style="margin:0 0 8px 0;font-size:14px;color:#003060;font-weight:bold;">
-                <span style="color:#e11d48;margin-right:6px;">✕</span> Observaciones Rechazadas (${rechazadas.length})
+                <span style="color:#e11d48;margin-right:6px;">✕</span> Observaciones Rechazadas Hoy (${rechazadas.length})
               </h2>
-              ${rechazadas.length === 0 ? `<div style="font-size:12px;color:#64748b;font-style:italic;padding:6px 0;">Ninguna observación rechazada en la fecha.</div>` : `
+              ${rechazadas.length === 0 ? `<div style="font-size:12px;color:#64748b;font-style:italic;padding:6px 0;">No hubo observaciones rechazadas en esta jornada.</div>` : `
                 <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:12px;">
                   <thead style="background:#f8fafc;font-size:11px;color:#475569;text-transform:uppercase;">
                     <tr>
@@ -322,7 +347,7 @@ async function main() {
           <!-- Desglose Descartadas -->
           ${descartadas.length > 0 ? `
           <tr>
-            <td style="padding:6px 28px;">
+            <td style="padding:6px 28px 18px 28px;">
               <h2 style="margin:0 0 8px 0;font-size:14px;color:#003060;font-weight:bold;">
                 <span style="color:#7e22ce;margin-right:6px;">🚫</span> Observaciones Descartadas (${descartadas.length})
               </h2>
@@ -332,7 +357,7 @@ async function main() {
                     <th style="padding:7px 12px;text-align:left;">Código</th>
                     <th style="padding:7px 12px;text-align:left;">Sitio · Localidad</th>
                     <th style="padding:7px 12px;text-align:left;">Cuadrilla</th>
-                    <th style="padding:7px 12px;text-align:left;">Motivo</th>
+                    <th style="padding:7px 12px;text-align:left;">Detalle</th>
                   </tr>
                 </thead>
                 <tbody>${descartadas.map(o => renderFila(o, '#7e22ce')).join('')}</tbody>
@@ -384,11 +409,13 @@ async function main() {
   `
 
   // 9. Configuración del Transportador SMTP
-  const smtpUser = process.env.SMTP_USER || 'ccondor@covepa.pe'
-  const smtpPass = process.env.SMTP_PASS
+  const rawSmtpUser = (process.env.SMTP_USER || '').trim()
+  const smtpUser = rawSmtpUser.includes('@') ? rawSmtpUser : 'ccondor@covepa.pe'
+  const smtpPass = (process.env.SMTP_PASS || '').trim()
 
   if (!smtpPass) {
     console.error('[CRON-REPORTE] ❌ Error: Falta la variable de entorno SMTP_PASS con la contraseña de ccondor@covepa.pe.')
+    console.error('[CRON-REPORTE] 👉 Para solucionarlo: ve a GitHub -> Settings -> Secrets and variables -> Actions y agrega el secreto SMTP_PASS.')
     process.exit(1)
   }
 
@@ -406,12 +433,12 @@ async function main() {
   })
 
   // 10. Despachar Correo (con copia oculta de notificación al remitente para confirmación inmediata en Outlook)
-  console.log(`[CRON-REPORTE] 📤 Enviando correo a través de mail.covepa.pe...`)
+  console.log(`[CRON-REPORTE] 📤 Enviando correo a través de mail.covepa.pe (desde ${smtpUser})...`)
   const info = await transporter.sendMail({
     from: `"COVEPA - Gestión de Calidad" <${smtpUser}>`,
     to: recipients,
     cc: recipientsCC.length > 0 ? recipientsCC : undefined,
-    bcc: [smtpUser], // Asegura notificación inmediata en Outlook para ccondor@covepa.pe
+    bcc: [smtpUser], // Notificación inmediata en Outlook para ccondor@covepa.pe
     subject: subjectFinal,
     html: htmlBody
   })
@@ -420,10 +447,16 @@ async function main() {
 
   // 11. Actualizar ultimo_envio_at en Supabase
   try {
-    await supabase
+    const { error: updErr } = await supabase
       .from('configuracion_reportes_correo')
       .update({ ultimo_envio_at: new Date().toISOString() })
       .eq('id', 'config_diario')
+
+    if (updErr) {
+      console.warn('[CRON-REPORTE] ⚠️ Aviso al actualizar ultimo_envio_at en Supabase:', updErr.message)
+    } else {
+      console.log('[CRON-REPORTE] 📝 Base de datos actualizada con la marca de tiempo de envío.')
+    }
   } catch (_) {}
 
   console.log(`[CRON-REPORTE] 🏁 Proceso finalizado satisfactoriamente.`)

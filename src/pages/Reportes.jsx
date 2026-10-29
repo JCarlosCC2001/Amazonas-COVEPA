@@ -325,7 +325,29 @@ export default function Reportes() {
             Programa el despacho nocturno de observaciones consolidadas desde <code>ccondor@covepa.pe</code>. Selecciona destinatarios de tu lista de personal o agrégalos manualmente.
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <a
+            href="https://github.com/JCarlosCC2001/Amazonas-COVEPA/actions/workflows/reporte-diario.yml"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 0.95rem',
+              background: '#0284c7',
+              color: '#ffffff',
+              borderRadius: '8px',
+              textDecoration: 'none',
+              fontWeight: 'var(--fw-semibold)',
+              fontSize: 'var(--text-body)',
+              boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
+            }}
+            title="Abrir consola de GitHub Actions para despachar un envío inmediato con un solo clic"
+          >
+            <span>🚀</span>
+            <span>Despachar Envío de Prueba</span>
+          </a>
           <button
             type="button"
             className="btn-reporte-save"
@@ -390,6 +412,39 @@ export default function Reportes() {
               </span>
             </div>
           )}
+
+          {/* Card explicativa y botón de prueba rápida */}
+          <div style={{
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            padding: '0.85rem 1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <span className="t-name" style={{ color: '#003060', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span>⚡</span> Despacho Inmediato vs Programado
+              </span>
+              <a
+                href="https://github.com/JCarlosCC2001/Amazonas-COVEPA/actions/workflows/reporte-diario.yml"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  color: '#0284c7',
+                  fontWeight: 'var(--fw-semibold)',
+                  textDecoration: 'underline'
+                }}
+              >
+                Abrir GitHub Actions ↗
+              </a>
+            </div>
+            <p className="t-meta" style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+              El despacho programado se ejecuta de forma autónoma en la nube cada noche. Si deseas recibir o verificar un correo de prueba de inmediato sin esperar el cron de GitHub, haz clic en el botón superior <strong>[ 🚀 Despachar Envío de Prueba ]</strong> y luego pulsa <strong>Run workflow</strong> en GitHub.
+            </p>
+          </div>
 
           {/* Toggle Activo / Pausado */}
           <div className="reporte-toggle-box">

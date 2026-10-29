@@ -607,10 +607,9 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
       cuadrillaName = 'CUADRILLA 1'
     }
 
-    // 4. Determinar los integrantes oficiales de esa cuadrilla
+    // 4. Determinar el técnico oficial de esa cuadrilla (excluyendo terminantemente conductores)
     const defaultCfg = DEFAULT_CUADRILLAS_CONFIG[cuadrillaName] || DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 1']
     let idTecnico = defaultCfg?.idTecnico
-    let idConductor = defaultCfg?.idConductor
 
     try {
       const { data: pcRows } = await supabase
@@ -622,11 +621,9 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
       if (pcRows && pcRows.length > 0) {
         const tec = pcRows.find(p => {
           const c = (p.cargo || '').toUpperCase()
-          return c.includes('TÉCN') || c.includes('TECN') || c.includes('SUPERVISOR')
+          return (c.includes('TÉCN') || c.includes('TECN') || c.includes('SUPERVISOR')) && !c.includes('CONDUCTOR')
         })
-        const cond = pcRows.find(p => (p.cargo || '').toUpperCase().includes('CONDUCTOR'))
         if (tec?.id_personal) idTecnico = tec.id_personal
-        if (cond?.id_personal) idConductor = cond.id_personal
       }
     } catch {}
 
@@ -676,9 +673,8 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
         programacionId: progExistenteTecnico.id
       }
     } else {
-      // Caso B: El técnico no tiene programación esa fecha, creamos una nueva jornada
+      // Caso B: El técnico no tiene programación esa fecha, creamos una nueva jornada ÚNICAMENTE con el técnico (sin conductor)
       const personalIds = [idTecnico]
-      if (idConductor) personalIds.push(idConductor)
 
       let nuevaProg = null
       try {

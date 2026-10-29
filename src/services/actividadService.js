@@ -65,8 +65,9 @@ export async function getTimelineActividadTecnico({
 }) {
   if (!fecha) return { events: [], summary: { total: 0, solicitudes: 0, sitiosCount: 0, ultimaHora: '—' } }
 
-  const startIso = `${fecha}T00:00:00`
-  const endIso = `${fecha}T23:59:59`
+  // Rango del día calibrado en horario Perú (UTC-5)
+  const startIso = new Date(`${fecha}T00:00:00-05:00`).toISOString()
+  const endIso = new Date(`${fecha}T23:59:59-05:00`).toISOString()
 
   // 1. Determinar lista de sitios asociados
   let resolvedSiteIds = Array.isArray(siteIds) ? [...siteIds] : []
@@ -124,8 +125,10 @@ export async function getTimelineActividadTecnico({
     const histRows = histRes.data || []
     const obsRows = (obsRes && obsRes.data) ? obsRes.data : []
 
+    const obsMap = new Map()
+    obsRows.forEach(o => obsMap.set(o.id_obs, o))
+
     // 4. Reconstrucción integral de la trazabilidad (Ciclo de Vida) por observación
-    // Etapas: 1. Solicitó Revisión -> 2. En Revisión -> 3. Validada / Rechazada
     const lifecycleMap = new Map()
     const getOrCreateLc = (idObs) => {
       if (!lifecycleMap.has(idObs)) {
@@ -134,14 +137,14 @@ export async function getTimelineActividadTecnico({
       return lifecycleMap.get(idObs)
     }
 
-    // 4.1. Registrar transiciones desde el historial oficial de estados
+    // 4.1. Mapear ciclo de vida desde historial
     histRows.forEach(h => {
       const lc = getOrCreateLc(h.id_obs)
       const item = {
         ts: h.created_at,
         hora: formatHoraPeru(h.created_at),
         timeAgo: getTiempoRelativo(h.created_at),
-        usuario: h.usuario_nombre || 'Auditor / Técnico',
+        usuario: h.usuario_nombre || 'Auditor COVEPA',
         comentario: h.comentario || null
       }
       const stNuevo = String(h.estado_nuevo || '').trim()
@@ -152,7 +155,16 @@ export async function getTimelineActividadTecnico({
           lc.solicitado = item
         }
       } else if ((stAnt === 'Solicitando Revisión' || stAnt === 'Solicitando Revision') && !lc.solicitado) {
-        lc.solicitado = item
+        const o = obsMap.get(h.id_obs)
+        const tsSol = (o && o.fecha_subsanacion && new Date(o.fecha_subsanacion) <= new Date(h.created_at))
+          ? o.fecha_subsanacion
+          : new Date(new Date(h.created_at).getTime() - 60 * 1000).toISOString()
+        lc.solicitado = {
+          ts: tsSol,
+          hora: formatHoraPeru(tsSol),
+          timeAgo: getTiempoRelativo(tsSol),
+          usuario: nombreTecnico || 'Técnico de Cuadrilla'
+        }
       }
 
       if (stNuevo === 'En Revisión' || stNuevo === 'En Revision') {
@@ -174,7 +186,7 @@ export async function getTimelineActividadTecnico({
       }
     })
 
-    // 4.2. Enriquecer con registros activos de observaciones
+    // Enriquecer con registros activos de observaciones
     obsRows.forEach(o => {
       const lc = getOrCreateLc(o.id_obs)
       const stNorm = String(o.estado_covepa || '').trim()
@@ -189,104 +201,147 @@ export async function getTimelineActividadTecnico({
           usuario: nombreTecnico || 'Técnico de Cuadrilla'
         }
       }
-
-      if ((stNorm === 'En Revisión' || stNorm === 'En Revision') && !lc.enRevision) {
-        const ts = o.fecha_subsanacion || new Date().toISOString()
-        lc.enRevision = {
-          ts,
-          hora: formatHoraPeru(ts),
-          timeAgo: getTiempoRelativo(ts),
-          usuario: o.revisor || 'Auditor COVEPA'
-        }
-      }
-
-      if (stNorm === 'Validado' && o.fecha_subsanacion && !lc.validado) {
-        lc.validado = {
-          ts: o.fecha_subsanacion,
-          hora: formatHoraPeru(o.fecha_subsanacion),
-          timeAgo: getTiempoRelativo(o.fecha_subsanacion),
-          usuario: o.revisor || 'Auditor COVEPA'
-        }
-      }
     })
 
-    // 4.3. Consolidar eventos de línea de tiempo evitando duplicados
-    const eventMap = new Map()
+    // 4.2. Construir lista cronológica de eventos distinguiendo Solicitud vs Paso a Revisión vs Dictamen
+    const events = []
+    const addedSolObs = new Set()
 
     histRows.forEach(h => {
-      const isSolicitud = h.estado_nuevo === 'Solicitando Revisión' ||
-        h.estado_anterior === 'Solicitando Revisión' ||
-        h.estado_nuevo === 'En Revisión'
+      const o = obsMap.get(h.id_obs)
+      const stAnt = String(h.estado_anterior || '').trim()
+      const stNue = String(h.estado_nuevo || '').trim()
+      const lc = lifecycleMap.get(h.id_obs)
 
-      const uniqueKey = `hist-${h.id_obs}-${h.created_at}`
-      eventMap.set(uniqueKey, {
-        id: h.id || uniqueKey,
+      // 4.2.1. Si venía de Solicitando Revisión o es una solicitud explícita, registrar hito de SOLICITUD
+      const veniaDeSolicitud = stAnt === 'Solicitando Revisión' || stAnt === 'Solicitando Revision'
+      const esNuevaSolicitud = stNue === 'Solicitando Revisión' || stNue === 'Solicitando Revision'
+
+      if ((veniaDeSolicitud || esNuevaSolicitud) && !addedSolObs.has(h.id_obs)) {
+        addedSolObs.add(h.id_obs)
+        let tsSol = (o && o.fecha_subsanacion) ? o.fecha_subsanacion : null
+        if (!tsSol || new Date(tsSol) > new Date(h.created_at)) {
+          tsSol = new Date(new Date(h.created_at).getTime() - 60 * 1000).toISOString()
+        }
+
+        events.push({
+          id: `sol-${h.id_obs}-${tsSol}`,
+          id_obs: h.id_obs,
+          id_sitio: h.id_sitio,
+          localidad: getLoc(h.id_sitio),
+          tipo: 'SOLICITUD',
+          estado: 'Solicitando Revisión',
+          estadoAnterior: 'Pendiente',
+          timestamp: tsSol,
+          hora: formatHoraPeru(tsSol),
+          timeAgo: getTiempoRelativo(tsSol),
+          comentario: (o && o.comentario_covepa) || null,
+          usuario: nombreTecnico || 'Técnico de Cuadrilla',
+          origen: 'campo',
+          isSolicitud: true,
+          accionLabel: 'Solicitó revisión de campo',
+          badgeLabel: '⏳ Solicitó Revisión',
+          badgeClass: 'solicitud',
+          detalle: o?.detalle || '',
+          subsistema: o?.subsistema || '',
+          protocolo: o?.protocolo || '',
+          lifecycle: lc
+        })
+      }
+
+      // 4.2.2. Evento del cambio actual registrado en el historial
+      const horaEv = formatHoraPeru(h.created_at)
+      const timeAgoEv = getTiempoRelativo(h.created_at)
+      let tipo = 'CAMBIO'
+      let accionLabel = `Se actualizó a: ${stNue}`
+      let badgeLabel = stNue
+      let badgeClass = 'pendiente'
+
+      if (stNue === 'En Revisión' || stNue === 'En Revision') {
+        tipo = 'EN_REVISION'
+        accionLabel = 'Pasó a En Revisión (Auditoría)'
+        badgeLabel = '🔍 Pasó a En Revisión'
+        badgeClass = 'revision'
+      } else if (stNue === 'Validado') {
+        tipo = 'VALIDADO'
+        accionLabel = 'Dictamen: Validada'
+        badgeLabel = '✓ Validada'
+        badgeClass = 'validado'
+      } else if (stNue === 'Rechazado') {
+        tipo = 'RECHAZADO'
+        accionLabel = 'Dictamen: Rechazada'
+        badgeLabel = '✕ Rechazada'
+        badgeClass = 'rechazado'
+      } else if (stNue === 'Solicitando Revisión' || stNue === 'Solicitando Revision') {
+        tipo = 'SOLICITUD'
+        accionLabel = 'Solicitó revisión de campo'
+        badgeLabel = '⏳ Solicitó Revisión'
+        badgeClass = 'solicitud'
+      }
+
+      events.push({
+        id: h.id || `hist-${h.id_obs}-${h.created_at}`,
         id_obs: h.id_obs,
         id_sitio: h.id_sitio,
         localidad: getLoc(h.id_sitio),
-        estado: h.estado_nuevo,
-        estadoAnterior: h.estado_anterior,
+        tipo,
+        estado: stNue,
+        estadoAnterior: stAnt,
         timestamp: h.created_at,
-        hora: formatHoraPeru(h.created_at),
-        timeAgo: getTiempoRelativo(h.created_at),
-        comentario: h.comentario || null,
-        usuario: h.usuario_nombre || nombreTecnico || 'Técnico de Cuadrilla',
-        origen: h.origen || 'app_fotos',
-        isSolicitud,
-        detalle: null,
-        subsistema: null,
-        lifecycle: lifecycleMap.get(h.id_obs) || { solicitado: null, enRevision: null, validado: null, rechazado: null }
+        hora: horaEv,
+        timeAgo: timeAgoEv,
+        comentario: h.comentario || (o && o.comentario_covepa) || null,
+        usuario: h.usuario_nombre || 'Auditor COVEPA',
+        origen: h.origen || 'observaciones',
+        isSolicitud: tipo === 'SOLICITUD',
+        accionLabel,
+        badgeLabel,
+        badgeClass,
+        detalle: o?.detalle || '',
+        subsistema: o?.subsistema || '',
+        protocolo: o?.protocolo || '',
+        lifecycle: lc
       })
     })
 
-    // 4.4. Observaciones activas que están actualmente solicitando revisión o fueron subsanadas en el día
+    // 4.3. Observaciones activas que están actualmente solicitando revisión y no estaban en el historial de hoy
     obsRows.forEach(o => {
       const stNorm = String(o.estado_covepa || '').trim()
-      const isSolicitandoActiva = stNorm === 'Solicitando Revisión' || stNorm === 'Solicitando Revision'
+      const isSol = stNorm === 'Solicitando Revisión' || stNorm === 'Solicitando Revision'
 
-      // Si ya tenemos un evento del historial reciente para esta obs a la misma fecha, enriquecerlo
-      let matched = false
-      for (const [k, ev] of eventMap.entries()) {
-        if (ev.id_obs === o.id_obs) {
-          ev.detalle = o.detalle
-          ev.subsistema = o.subsistema
-          ev.protocolo = o.protocolo
-          if (o.comentario_covepa && !ev.comentario) {
-            ev.comentario = o.comentario_covepa
-          }
-          matched = true
-          break
-        }
-      }
-
-      // Si no estaba en historial pero tiene fecha_subsanacion o está solicitando activamente, agregar hito
-      if (!matched && (isSolicitandoActiva || o.fecha_subsanacion)) {
+      if (isSol && !addedSolObs.has(o.id_obs)) {
+        addedSolObs.add(o.id_obs)
         const ts = o.fecha_subsanacion || new Date().toISOString()
-        const uniqueKey = `obs-${o.id_obs}-${ts}`
-        eventMap.set(uniqueKey, {
-          id: uniqueKey,
+        const lc = lifecycleMap.get(o.id_obs)
+
+        events.push({
+          id: `obs-sol-${o.id_obs}-${ts}`,
           id_obs: o.id_obs,
           id_sitio: o.id_sitio,
           localidad: getLoc(o.id_sitio),
-          estado: isSolicitandoActiva ? 'Solicitando Revisión' : (stNorm || 'Validado'),
+          tipo: 'SOLICITUD',
+          estado: 'Solicitando Revisión',
           estadoAnterior: 'Pendiente',
           timestamp: ts,
           hora: formatHoraPeru(ts),
           timeAgo: getTiempoRelativo(ts),
           comentario: o.comentario_covepa || null,
-          usuario: o.revisor || nombreTecnico || 'Técnico de Cuadrilla',
+          usuario: nombreTecnico || 'Técnico de Cuadrilla',
           origen: 'campo',
-          isSolicitud: isSolicitandoActiva,
+          isSolicitud: true,
+          accionLabel: 'Solicitó revisión de campo',
+          badgeLabel: '⏳ Solicitó Revisión',
+          badgeClass: 'solicitud',
           detalle: o.detalle || '',
           subsistema: o.subsistema || '',
           protocolo: o.protocolo || '',
-          lifecycle: lifecycleMap.get(o.id_obs) || { solicitado: null, enRevision: null, validado: null, rechazado: null }
+          lifecycle: lc
         })
       }
     })
 
-    // 5. Ordenar cronológicamente (de la mañana a la tarde: ascendente por timestamp)
-    const events = Array.from(eventMap.values()).sort((a, b) => {
+    // 5. Ordenar cronológicamente (ascendente por timestamp)
+    events.sort((a, b) => {
       const ta = new Date(a.timestamp).getTime() || 0
       const tb = new Date(b.timestamp).getTime() || 0
       return ta - tb
@@ -343,8 +398,8 @@ export async function fetchUltimosReportesDelDia(fecha) {
     }
   }
 
-  const startIso = `${fecha}T00:00:00`
-  const endIso = `${fecha}T23:59:59`
+  const startIso = new Date(`${fecha}T00:00:00-05:00`).toISOString()
+  const endIso = new Date(`${fecha}T23:59:59-05:00`).toISOString()
 
   try {
     const [hRes, oRes] = await Promise.all([

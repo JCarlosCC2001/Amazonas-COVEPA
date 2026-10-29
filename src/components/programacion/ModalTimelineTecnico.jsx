@@ -139,67 +139,73 @@ export default function ModalTimelineTecnico({
   }, [fecha])
 
   // Renderizador de badge semántico de estado
-  const renderEstadoBadge = (st) => {
+  const renderEstadoBadge = (st, customLabel = null, customClass = null) => {
+    if (customLabel) {
+      const cls = customClass || (st === 'Validado' ? 'validado' : st === 'Rechazado' ? 'rechazado' : 'pendiente')
+      return <span className={`prog-avance-badge ${cls}`}>{customLabel}</span>
+    }
+
     switch (st) {
       case 'Validado':
       case 'Enviado':
-        return <span className="prog-avance-badge validado">✓ Validado</span>
+        return <span className="prog-avance-badge validado">✓ Validada</span>
       case 'En Revision':
       case 'En Revisión':
-        return <span className="prog-avance-badge revision">🔍 En Revisión</span>
+        return <span className="prog-avance-badge revision">🔍 Pasó a En Revisión</span>
       case 'Solicitando Revision':
       case 'Solicitando Revisión':
-        return <span className="prog-avance-badge pendiente" style={{ background: '#fef3c7', color: '#b45309', borderColor: '#fde68a' }}>⏳ Solicitando</span>
+        return <span className="prog-avance-badge solicitud">⏳ Solicitó Revisión</span>
       case 'Rechazado':
-        return <span className="prog-avance-badge rechazado">✕ Rechazado</span>
+        return <span className="prog-avance-badge rechazado">✕ Rechazada</span>
       case 'Descartado':
-        return <span className="prog-avance-badge descartado">🚫 Descartado</span>
+        return <span className="prog-avance-badge descartado">🚫 Descartada</span>
       default:
         return <span className="prog-avance-badge pendiente">● {st || 'Pendiente'}</span>
     }
   }
 
-  // Color e ícono del nodo conector según el estado
-  const getNodeIndicator = (estado) => {
-    switch (estado) {
-      case 'Solicitando Revisión':
-      case 'Solicitando Revision':
-        return {
-          bg: '#fef3c7',
-          border: '#f59e0b',
-          iconColor: '#d97706',
-          label: 'Solicitud'
-        }
-      case 'En Revisión':
-      case 'En Revision':
-        return {
-          bg: '#e0f2fe',
-          border: '#0284c7',
-          iconColor: '#0284c7',
-          label: 'Revisión'
-        }
-      case 'Validado':
-      case 'Enviado':
-        return {
-          bg: '#dcfce7',
-          border: '#10b981',
-          iconColor: '#059669',
-          label: 'Validado'
-        }
-      case 'Rechazado':
-        return {
-          bg: '#ffe4e6',
-          border: '#f43f5e',
-          iconColor: '#e11d48',
-          label: 'Rechazado'
-        }
-      default:
-        return {
-          bg: '#f1f5f9',
-          border: '#94a3b8',
-          iconColor: '#475569',
-          label: 'Cambio'
-        }
+  // Color e ícono del nodo conector según el evento
+  const getNodeIndicator = (ev) => {
+    const st = typeof ev === 'string' ? ev : (ev?.estado || '')
+    const isSol = typeof ev === 'object' && (ev?.isSolicitud || ev?.tipo === 'SOLICITUD' || st === 'Solicitando Revisión' || st === 'Solicitando Revision')
+
+    if (isSol) {
+      return {
+        bg: '#fef3c7',
+        border: '#f59e0b',
+        iconColor: '#d97706',
+        label: 'Solicitud'
+      }
+    }
+    if ((typeof ev === 'object' && ev?.tipo === 'EN_REVISION') || st === 'En Revisión' || st === 'En Revision') {
+      return {
+        bg: '#e0f2fe',
+        border: '#0284c7',
+        iconColor: '#0284c7',
+        label: 'Revisión'
+      }
+    }
+    if (st === 'Validado' || st === 'Enviado') {
+      return {
+        bg: '#dcfce7',
+        border: '#10b981',
+        iconColor: '#059669',
+        label: 'Validado'
+      }
+    }
+    if (st === 'Rechazado') {
+      return {
+        bg: '#ffe4e6',
+        border: '#f43f5e',
+        iconColor: '#e11d48',
+        label: 'Rechazado'
+      }
+    }
+    return {
+      bg: '#f1f5f9',
+      border: '#94a3b8',
+      iconColor: '#475569',
+      label: 'Cambio'
     }
   }
 
@@ -389,7 +395,7 @@ export default function ModalTimelineTecnico({
 
                 {/* Hitos Horizontales */}
                 {displayedEvents.map((ev, idx) => {
-                  const nodeInd = getNodeIndicator(ev.estado)
+                  const nodeInd = getNodeIndicator(ev)
                   const isSelected = selectedEvent?.id === ev.id
                   const isCurrentSolicitud = ev.isSolicitud || ev.estado === 'Solicitando Revisión'
 
@@ -445,7 +451,7 @@ export default function ModalTimelineTecnico({
                           <span className="prog-avance-obs-code" style={{ fontSize: 'var(--text-xs)' }}>
                             {ev.id_obs}
                           </span>
-                          <div>{renderEstadoBadge(ev.estado)}</div>
+                          <div>{renderEstadoBadge(ev.estado, ev.badgeLabel, ev.badgeClass)}</div>
                         </div>
 
                         {/* Detalle o Subsistema */}
@@ -456,14 +462,11 @@ export default function ModalTimelineTecnico({
                           </div>
                         )}
 
-                        {/* Estado al que se actualizó en este evento */}
-                        <div className="prog-timeline-update-box">
-                          <span className="update-box-dot" />
-                          <span className="update-box-label">Se actualizó a:</span>
-                          <strong className="update-box-state">{ev.estado}</strong>
-                          {ev.estadoAnterior && ev.estadoAnterior !== ev.estado && (
-                            <span className="update-box-from"> (desde {ev.estadoAnterior})</span>
-                          )}
+                        {/* Acción y estado del evento */}
+                        <div className={`prog-timeline-update-box ${ev.badgeClass || (ev.isSolicitud ? 'solicitud' : 'revision')}`}>
+                          <span className={`update-box-dot ${ev.badgeClass || (ev.isSolicitud ? 'solicitud' : 'revision')}`} />
+                          <span className="update-box-label">Acción:</span>
+                          <strong className="update-box-state">{ev.accionLabel || `Se actualizó a: ${ev.estado}`}</strong>
                         </div>
 
                         {/* Comentario / Sustento técnico */}

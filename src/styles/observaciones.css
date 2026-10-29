@@ -8055,6 +8055,13 @@
    Indicador Conciso de Actualización de Estado en la Línea de Tiempo
    ========================================================================== */
 
+.prog-avance-badge.solicitud {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  font-weight: var(--fw-bold);
+}
+
 .prog-timeline-update-box {
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
@@ -8066,6 +8073,58 @@
   font-size: var(--text-2xs);
   margin: 0.35rem 0;
   line-height: 1.3;
+}
+
+.prog-timeline-update-box.solicitud {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.prog-timeline-update-box.solicitud .update-box-dot {
+  background: #f59e0b;
+}
+
+.prog-timeline-update-box.solicitud .update-box-state {
+  color: #b45309;
+}
+
+.prog-timeline-update-box.revision {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+}
+
+.prog-timeline-update-box.revision .update-box-dot {
+  background: #0284c7;
+}
+
+.prog-timeline-update-box.revision .update-box-state {
+  color: #0369a1;
+}
+
+.prog-timeline-update-box.validado {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.prog-timeline-update-box.validado .update-box-dot {
+  background: #10b981;
+}
+
+.prog-timeline-update-box.validado .update-box-state {
+  color: #15803d;
+}
+
+.prog-timeline-update-box.rechazado {
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.prog-timeline-update-box.rechazado .update-box-dot {
+  background: #ef4444;
+}
+
+.prog-timeline-update-box.rechazado .update-box-state {
+  color: #be123c;
 }
 
 .update-box-dot {
@@ -8086,14 +8145,6 @@
   color: #003060;
   font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
-}
-
-.update-box-from {
-  color: #94a3b8;
-  font-size: var(--text-3xs);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Stepper Horizontal en el Panel Inferior de Detalle */

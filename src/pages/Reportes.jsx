@@ -42,8 +42,9 @@ export default function Reportes() {
   const [busquedaPersonal, setBusquedaPersonal] = useState('')
   const [filtroCargo, setFiltroCargo] = useState('TODOS')
 
-  // Estado para asignar o editar correo a un integrante de personal
-  const [editingPersonId, setEditingPersonId] = useState(null)
+  // Estado para asignar o editar cualquiera de los 2 correos a un integrante
+  // { personId: string, field: 'email' | 'email_2' }
+  const [editingTarget, setEditingTarget] = useState(null)
   const [inputEmailPersona, setInputEmailPersona] = useState('')
   const [savingEmailPersona, setSavingEmailPersona] = useState(false)
 
@@ -171,8 +172,20 @@ export default function Reportes() {
     })
   }
 
-  // Guardar correo para una persona en la BD externa
-  const handleGuardarEmailPersona = async (personId) => {
+  // Iniciar edición de un correo específico (email o email_2)
+  const iniciarEdicionCorreo = (personId, field, valorActual) => {
+    setEditingTarget({ personId, field })
+    setInputEmailPersona(valorActual || '')
+  }
+
+  // Cancelar edición
+  const cancelarEdicionCorreo = () => {
+    setEditingTarget(null)
+    setInputEmailPersona('')
+  }
+
+  // Guardar correo (email o email_2) en la BD externa
+  const handleGuardarEmailPersona = async (personId, field) => {
     const emailVal = (inputEmailPersona || '').trim().toLowerCase()
     if (!emailVal || !EMAIL_REGEX.test(emailVal)) {
       showNotification('Ingresa un correo electrónico válido.', 'error')
@@ -181,11 +194,11 @@ export default function Reportes() {
 
     setSavingEmailPersona(true)
     try {
-      await updatePersonal(personId, { email: emailVal })
-      setPersonalList(prev => prev.map(p => p.id === personId ? { ...p, email: emailVal } : p))
-      showNotification('Correo asignado y guardado en la base de datos.', 'success')
-      setEditingPersonId(null)
-      setInputEmailPersona('')
+      await updatePersonal(personId, { [field]: emailVal })
+      setPersonalList(prev => prev.map(p => p.id === personId ? { ...p, [field]: emailVal } : p))
+      const label = field === 'email' ? 'Correo 1 (Principal)' : 'Correo 2 (Secundario)'
+      showNotification(`${label} guardado exitosamente en la base de datos.`, 'success')
+      cancelarEdicionCorreo()
     } catch (err) {
       console.error('Error guardando correo en personal:', err)
       showNotification('Error al guardar correo: ' + err.message, 'error')
@@ -224,10 +237,11 @@ export default function Reportes() {
       if (busquedaPersonal) {
         const q = busquedaPersonal.toLowerCase()
         const matchName = (p.nombre_completo || '').toLowerCase().includes(q)
-        const matchEmail = (p.email || '').toLowerCase().includes(q)
+        const matchEmail1 = (p.email || '').toLowerCase().includes(q)
+        const matchEmail2 = (p.email_2 || '').toLowerCase().includes(q)
         const matchCargo = (p.cargo || '').toLowerCase().includes(q)
         const matchCuad = (p.cuadrilla || '').toLowerCase().includes(q)
-        if (!matchName && !matchEmail && !matchCargo && !matchCuad) return false
+        if (!matchName && !matchEmail1 && !matchEmail2 && !matchCargo && !matchCuad) return false
       }
       return true
     })
@@ -627,7 +641,7 @@ export default function Reportes() {
         </div>
       </div>
 
-      {/* MODAL: SELECCIONAR DESTINATARIOS DESDE PERSONAL */}
+      {/* MODAL: SELECCIONAR DESTINATARIOS DESDE PERSONAL (SOPORTE DE 2 CORREOS) */}
       {modalPersonalOpen && (
         <div className="reporte-modal-overlay" onClick={() => setModalPersonalOpen(false)}>
           <div className="reporte-modal-content" onClick={e => e.stopPropagation()}>
@@ -668,7 +682,7 @@ export default function Reportes() {
               </div>
             </div>
 
-            {/* Lista de Personal */}
+            {/* Lista de Personal con soporte para 2 Correos */}
             <div className="reporte-modal-list">
               {personalFiltrado.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-secondary)' }}>
@@ -676,34 +690,43 @@ export default function Reportes() {
                 </div>
               ) : (
                 personalFiltrado.map(p => {
-                  const hasEmail = Boolean(p.email)
-                  const isPara = hasEmail && config.destinatarios.includes(p.email.toLowerCase())
-                  const isCC = hasEmail && config.destinatarios_cc.includes(p.email.toLowerCase())
-                  const isEditingThis = editingPersonId === p.id
+                  const hasEmail1 = Boolean(p.email)
+                  const hasEmail2 = Boolean(p.email_2)
+
+                  const isPara1 = hasEmail1 && config.destinatarios.includes(p.email.toLowerCase())
+                  const isCC1 = hasEmail1 && config.destinatarios_cc.includes(p.email.toLowerCase())
+
+                  const isPara2 = hasEmail2 && config.destinatarios.includes(p.email_2.toLowerCase())
+                  const isCC2 = hasEmail2 && config.destinatarios_cc.includes(p.email_2.toLowerCase())
+
+                  const isEditing1 = editingTarget?.personId === p.id && editingTarget?.field === 'email'
+                  const isEditing2 = editingTarget?.personId === p.id && editingTarget?.field === 'email_2'
 
                   return (
                     <div key={p.id} className="reporte-person-card">
-                      <div className="reporte-person-info">
-                        <div className="reporte-person-name-row">
-                          <span className="reporte-person-name">{p.nombre_completo}</span>
-                          <span className="t-badge" style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1' }}>
-                            {p.cargo || 'SIN CARGO'}
+                      {/* Cabecera del Integrante */}
+                      <div className="reporte-person-name-row">
+                        <span className="reporte-person-name">{p.nombre_completo}</span>
+                        <span className="t-badge" style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1' }}>
+                          {p.cargo || 'SIN CARGO'}
+                        </span>
+                        {p.cuadrilla && (
+                          <span className="t-badge" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                            {p.cuadrilla}
                           </span>
-                          {p.cuadrilla && (
-                            <span className="t-badge" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
-                              {p.cuadrilla}
-                            </span>
-                          )}
-                        </div>
+                        )}
+                      </div>
 
-                        {/* Correo o Formulario para asignar correo */}
-                        {isEditingThis ? (
-                          <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.35rem', alignItems: 'center' }}>
+                      {/* ESPACIO 1: CORREO ELECTRÓNICO 1 (PRINCIPAL) */}
+                      <div className="reporte-email-entry-row">
+                        {isEditing1 ? (
+                          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flex: 1 }}>
+                            <span className="t-meta" style={{ fontWeight: 'var(--fw-bold)', color: '#003060' }}>Correo 1:</span>
                             <input
                               type="email"
                               className="reporte-input"
-                              style={{ padding: '0.3rem 0.6rem', fontSize: 'var(--text-xs)', maxWidth: '240px' }}
-                              placeholder="correo@covepa.pe"
+                              style={{ padding: '0.25rem 0.5rem', fontSize: 'var(--text-xs)', maxWidth: '240px' }}
+                              placeholder="correo.principal@covepa.pe"
                               value={inputEmailPersona}
                               onChange={e => setInputEmailPersona(e.target.value)}
                               autoFocus
@@ -711,7 +734,7 @@ export default function Reportes() {
                             <button
                               type="button"
                               className="btn-toggle-dest para-active"
-                              onClick={() => handleGuardarEmailPersona(p.id)}
+                              onClick={() => handleGuardarEmailPersona(p.id, 'email')}
                               disabled={savingEmailPersona}
                             >
                               {savingEmailPersona ? 'Guardando...' : 'Guardar'}
@@ -719,68 +742,132 @@ export default function Reportes() {
                             <button
                               type="button"
                               className="btn-toggle-dest cc-inactive"
-                              onClick={() => { setEditingPersonId(null); setInputEmailPersona('') }}
+                              onClick={cancelarEdicionCorreo}
                             >
                               Cancelar
                             </button>
                           </div>
-                        ) : hasEmail ? (
-                          <div className="reporte-person-email">
-                            <span>📧 {p.email}</span>
-                            <button
-                              type="button"
-                              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 'var(--text-xs)', textDecoration: 'underline' }}
-                              onClick={() => {
-                                setEditingPersonId(p.id)
-                                setInputEmailPersona(p.email)
-                              }}
-                              title="Editar correo en la base de datos"
-                            >
-                              Editar
-                            </button>
-                          </div>
+                        ) : hasEmail1 ? (
+                          <>
+                            <div className="reporte-person-email">
+                              <span style={{ fontWeight: 'var(--fw-semibold)', color: '#475569' }}>Correo 1:</span>
+                              <span>{p.email}</span>
+                              <button
+                                type="button"
+                                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 'var(--text-xs)', textDecoration: 'underline' }}
+                                onClick={() => iniciarEdicionCorreo(p.id, 'email', p.email)}
+                                title="Editar Correo 1 en la base de datos"
+                              >
+                                Editar
+                              </button>
+                            </div>
+                            <div className="reporte-person-actions">
+                              <button
+                                type="button"
+                                className={`btn-toggle-dest ${isPara1 ? 'para-active' : 'para-inactive'}`}
+                                onClick={() => toggleDestinatarioPara(p.email)}
+                                title={isPara1 ? 'Remover Correo 1 de Para:' : 'Agregar Correo 1 a Para:'}
+                              >
+                                {isPara1 ? '✓ En Para' : '+ Para'}
+                              </button>
+                              <button
+                                type="button"
+                                className={`btn-toggle-dest ${isCC1 ? 'cc-active' : 'cc-inactive'}`}
+                                onClick={() => toggleDestinatarioCC(p.email)}
+                                title={isCC1 ? 'Remover Correo 1 de CC:' : 'Agregar Correo 1 a CC:'}
+                              >
+                                {isCC1 ? '✓ En CC' : '+ CC'}
+                              </button>
+                            </div>
+                          </>
                         ) : (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
-                            <span className="reporte-person-no-email">Sin correo registrado</span>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                            <span className="reporte-person-no-email">Correo 1: Sin registrar</span>
                             <button
                               type="button"
                               style={{ background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer', fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-semibold)', textDecoration: 'underline' }}
-                              onClick={() => {
-                                setEditingPersonId(p.id)
-                                setInputEmailPersona('')
-                              }}
+                              onClick={() => iniciarEdicionCorreo(p.id, 'email', '')}
                             >
-                              + Asignar correo
+                              + Asignar Correo 1
                             </button>
                           </div>
                         )}
                       </div>
 
-                      {/* Botones de Acción para Agregar a Para o CC */}
-                      <div className="reporte-person-actions">
-                        {hasEmail ? (
+                      {/* ESPACIO 2: CORREO ELECTRÓNICO 2 (SECUNDARIO / ALTERNATIVO) */}
+                      <div className="reporte-email-entry-row">
+                        {isEditing2 ? (
+                          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flex: 1 }}>
+                            <span className="t-meta" style={{ fontWeight: 'var(--fw-bold)', color: '#003060' }}>Correo 2:</span>
+                            <input
+                              type="email"
+                              className="reporte-input"
+                              style={{ padding: '0.25rem 0.5rem', fontSize: 'var(--text-xs)', maxWidth: '240px' }}
+                              placeholder="correo.secundario@gmail.com"
+                              value={inputEmailPersona}
+                              onChange={e => setInputEmailPersona(e.target.value)}
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              className="btn-toggle-dest para-active"
+                              onClick={() => handleGuardarEmailPersona(p.id, 'email_2')}
+                              disabled={savingEmailPersona}
+                            >
+                              {savingEmailPersona ? 'Guardando...' : 'Guardar'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-toggle-dest cc-inactive"
+                              onClick={cancelarEdicionCorreo}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : hasEmail2 ? (
                           <>
-                            <button
-                              type="button"
-                              className={`btn-toggle-dest ${isPara ? 'para-active' : 'para-inactive'}`}
-                              onClick={() => toggleDestinatarioPara(p.email)}
-                              title={isPara ? 'Remover de destinatarios principales' : 'Agregar a Para:'}
-                            >
-                              {isPara ? '✓ En Para' : '+ Para'}
-                            </button>
-                            <button
-                              type="button"
-                              className={`btn-toggle-dest ${isCC ? 'cc-active' : 'cc-inactive'}`}
-                              onClick={() => toggleDestinatarioCC(p.email)}
-                              title={isCC ? 'Remover de destinatarios con copia' : 'Agregar a CC:'}
-                            >
-                              {isCC ? '✓ En CC' : '+ CC'}
-                            </button>
+                            <div className="reporte-person-email">
+                              <span style={{ fontWeight: 'var(--fw-semibold)', color: '#475569' }}>Correo 2:</span>
+                              <span>{p.email_2}</span>
+                              <button
+                                type="button"
+                                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 'var(--text-xs)', textDecoration: 'underline' }}
+                                onClick={() => iniciarEdicionCorreo(p.id, 'email_2', p.email_2)}
+                                title="Editar Correo 2 en la base de datos"
+                              >
+                                Editar
+                              </button>
+                            </div>
+                            <div className="reporte-person-actions">
+                              <button
+                                type="button"
+                                className={`btn-toggle-dest ${isPara2 ? 'para-active' : 'para-inactive'}`}
+                                onClick={() => toggleDestinatarioPara(p.email_2)}
+                                title={isPara2 ? 'Remover Correo 2 de Para:' : 'Agregar Correo 2 a Para:'}
+                              >
+                                {isPara2 ? '✓ En Para' : '+ Para'}
+                              </button>
+                              <button
+                                type="button"
+                                className={`btn-toggle-dest ${isCC2 ? 'cc-active' : 'cc-inactive'}`}
+                                onClick={() => toggleDestinatarioCC(p.email_2)}
+                                title={isCC2 ? 'Remover Correo 2 de CC:' : 'Agregar Correo 2 a CC:'}
+                              >
+                                {isCC2 ? '✓ En CC' : '+ CC'}
+                              </button>
+                            </div>
                           </>
                         ) : (
-                          <span className="t-meta" style={{ color: '#94a3b8' }}>
-                            Asigna un correo para agregarlo
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                            <span className="reporte-person-no-email">Correo 2: Sin registrar (opcional)</span>
+                            <button
+                              type="button"
+                              style={{ background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer', fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-semibold)', textDecoration: 'underline' }}
+                              onClick={() => iniciarEdicionCorreo(p.id, 'email_2', '')}
+                            >
+                              + Asignar Correo 2
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>

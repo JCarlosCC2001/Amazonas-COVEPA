@@ -68,6 +68,7 @@ export function mapExternalPerson(p, localMetaMap = {}, profileMap = {}, profile
     documento_identidad: p.dni || p.documento_identidad || '',
     cargo: p.cargo || 'SIN CARGO',
     email: p.email ? p.email.toLowerCase().trim() : '',
+    email_2: p.email_2 ? p.email_2.toLowerCase().trim() : '',
     empresa: normalizeEmpresa(p.empresa),
     contacto_1: p.contacto_1 || '',
     contacto_2: p.contacto_2 || '',
@@ -293,6 +294,7 @@ export async function createPersonal(payload) {
     dni: payload.dni ? payload.dni.trim() : (payload.documento_identidad ? payload.documento_identidad.trim() : null),
     cargo: payload.cargo ? payload.cargo.trim() : 'TÉCNICO',
     email: payload.email ? payload.email.trim().toLowerCase() : null,
+    email_2: payload.email_2 ? payload.email_2.trim().toLowerCase() : null,
     empresa: normalizeEmpresa(payload.empresa),
     contacto_1: payload.contacto_1 ? payload.contacto_1.trim() : (payload.telefono ? payload.telefono.split('/')[0]?.trim() : null),
     contacto_2: payload.contacto_2 ? payload.contacto_2.trim() : (payload.telefono ? payload.telefono.split('/')[1]?.trim() : null),
@@ -345,6 +347,7 @@ export async function updatePersonal(id, payload) {
   }
   if (payload.cargo !== undefined) extUpdate.cargo = payload.cargo ? payload.cargo.trim() : null
   if (payload.email !== undefined) extUpdate.email = payload.email ? payload.email.trim().toLowerCase() : null
+  if (payload.email_2 !== undefined) extUpdate.email_2 = payload.email_2 ? payload.email_2.trim().toLowerCase() : null
   if (payload.empresa !== undefined) extUpdate.empresa = normalizeEmpresa(payload.empresa)
   if (payload.contacto_1 !== undefined) extUpdate.contacto_1 = payload.contacto_1 ? payload.contacto_1.trim() : null
   if (payload.contacto_2 !== undefined) extUpdate.contacto_2 = payload.contacto_2 ? payload.contacto_2.trim() : null

@@ -1621,6 +1621,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
   const [apellido, setApellido] = useState(member?.apellido || (member?.nombre_completo ? member.nombre_completo.split(' ').slice(1).join(' ') : ''))
   const [dni, setDni] = useState(member?.dni || member?.documento_identidad || '')
   const [email, setEmail] = useState(member?.email || member?.correo || '')
+  const [email2, setEmail2] = useState(member?.email_2 || '')
   const [cargo, setCargo] = useState(member?.cargo || 'Supervisor')
   const [empresa, setEmpresa] = useState(() => {
     if (!member?.empresa) return 'SELNET S.A.C.'
@@ -1680,6 +1681,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
         contacto_2: tel2.trim() || null,
         operador_2: tel2.trim() ? op2 : null,
         email: email ? email.trim().toLowerCase() : null,
+        email_2: email2 ? email2.trim().toLowerCase() : null,
         estado: estado || 'Activo',
         activo: estado === 'Activo',
         ciudad_origen: ciudadOrigen.trim() || null,
@@ -1757,7 +1759,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
               </div>
             </div>
 
-            {/* Fila 2: DNI y Correo Electrónico */}
+            {/* Fila 2: DNI y Correo Principal */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
               <div className="prog-form-group">
                 <label>DNI / Documento (8 dígitos)</label>
@@ -1772,15 +1774,27 @@ function ModalPersonal({ member, onClose, onSaved }) {
               </div>
 
               <div className="prog-form-group">
-                <label>Correo Electrónico</label>
+                <label>Correo Electrónico 1 (Principal)</label>
                 <input
                   type="email"
                   className="prog-form-control"
-                  placeholder="ejemplo@covepa.com"
+                  placeholder="principal@covepa.pe"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                 />
               </div>
+            </div>
+
+            {/* Fila 2b: Correo Electrónico 2 (Secundario) */}
+            <div className="prog-form-group">
+              <label>Correo Electrónico 2 (Secundario / Opcional)</label>
+              <input
+                type="email"
+                className="prog-form-control"
+                placeholder="secundario@gmail.com"
+                value={email2}
+                onChange={e => setEmail2(e.target.value)}
+              />
             </div>
 
             {/* Fila 3: Empresa y Cargo */}

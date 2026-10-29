@@ -353,10 +353,23 @@
   }
 }
 
+@media (max-width: 860px) {
+  .covepa-metric-grid.cols-7 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.65rem;
+  }
+  /* En grillas impares (cols-7, cols-5, cols-3) en 2 columnas, el primer medidor superior ocupa 1 fila él solo y los demás comparten 2 por fila */
+  .covepa-metric-grid.cols-7 > :first-child,
+  .covepa-metric-grid.cols-5 > :first-child,
+  .covepa-metric-grid.cols-3 > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 640px) {
   .covepa-metric-grid {
     gap: 0.65rem;
-    margin-bottom: 0.95rem;
+    margin-bottom: 0.85rem;
   }
   .covepa-metric-grid.cols-7,
   .covepa-metric-grid.cols-6,
@@ -365,6 +378,12 @@
   .covepa-metric-grid.cols-3,
   .covepa-metric-grid.cols-2 {
     grid-template-columns: repeat(2, 1fr);
+  }
+  /* En grillas impares (cols-7, cols-5, cols-3), el primer medidor superior ocupa 1 fila él solo y los demás comparten 2 por fila */
+  .covepa-metric-grid.cols-7 > :first-child,
+  .covepa-metric-grid.cols-5 > :first-child,
+  .covepa-metric-grid.cols-3 > :first-child {
+    grid-column: 1 / -1;
   }
   .metric-card-inner {
     padding: 0.7rem 0.8rem;
@@ -416,7 +435,7 @@
 @media (max-width: 440px) {
   .covepa-metric-grid {
     gap: 0.55rem;
-    margin-bottom: 0.85rem;
+    margin-bottom: 0.75rem;
   }
   .covepa-metric-grid.cols-7,
   .covepa-metric-grid.cols-5,
@@ -424,6 +443,11 @@
   .covepa-metric-grid.cols-3,
   .covepa-metric-grid.cols-2 {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .covepa-metric-grid.cols-7 > :first-child,
+  .covepa-metric-grid.cols-5 > :first-child,
+  .covepa-metric-grid.cols-3 > :first-child {
+    grid-column: 1 / -1;
   }
   .metric-card-inner {
     padding: 0.62rem 0.68rem;
@@ -461,6 +485,11 @@
   .covepa-metric-grid.cols-2 {
     grid-template-columns: 1fr;
     gap: 0.45rem;
+  }
+  .covepa-metric-grid.cols-7 > :first-child,
+  .covepa-metric-grid.cols-5 > :first-child,
+  .covepa-metric-grid.cols-3 > :first-child {
+    grid-column: auto;
   }
   .metric-card-inner {
     padding: 0.55rem 0.65rem;

@@ -1112,7 +1112,8 @@ export default function Observaciones() {
 
             <button className="obs-export-btn" onClick={handleExport} disabled={exporting} title="Exportar CSV">
               <FileDown size={15}/>
-              <span>{exporting ? 'Exportando...' : 'Exportar CSV'}</span>
+              <span className="obs-export-text-full">{exporting ? 'Exportando...' : 'Exportar CSV'}</span>
+              <span className="obs-export-text-short">{exporting ? '...' : 'CSV'}</span>
             </button>
           </div>
         </div>

@@ -240,8 +240,12 @@
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 20px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
   box-shadow: var(--shadow-sm);
+  width: 100%;
+  max-width: 100%;
 }
 
 .sitios-table {

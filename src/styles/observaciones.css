@@ -389,13 +389,92 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-   RESPONSIVE PARA OBSERVACIONES (Tablets y Smartphones)
+   RESPONSIVE PARA OBSERVACIONES (Desktops, Tablets y Móviles)
    ══════════════════════════════════════════════════════════ */
-@media (max-width: 900px) {
+
+/* ── Reglas Generales de Tabla y Contenedor ── */
+.obs-container .sitios-table-wrapper {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  max-width: 100%;
+}
+
+.obs-container .sitios-table {
+  min-width: 860px;
+}
+
+.obs-container .table-pagination {
+  background: #ffffff;
+  border-top: 1px solid var(--border);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.obs-container .table-pagination .pagination-info {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.obs-container .table-pagination .page-btn {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: #003060;
+  font-weight: var(--fw-semibold);
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  transition: all var(--transition);
+}
+
+.obs-container .table-pagination .page-btn:hover:not(:disabled) {
+  background: #f0f6fc;
+  border-color: #003060;
+}
+
+.obs-container .table-pagination .current-page-tag {
+  color: #003060;
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.obs-export-text-short {
+  display: none;
+}
+
+/* ── Pantallas Medianas / Laptops Compactas (<= 1100px) ── */
+@media (max-width: 1100px) {
+  .obs-container {
+    gap: 1.15rem;
+  }
+  .obs-toolbar {
+    padding: 0.75rem 1rem;
+    gap: 0.65rem;
+  }
+  .obs-filter-group {
+    gap: 0.45rem;
+  }
+  .obs-select-wrap {
+    min-width: 125px;
+  }
+}
+
+/* ── Tablets y Pantallas Medianas (<= 860px) ── */
+@media (max-width: 860px) {
+  .obs-container {
+    gap: 1rem;
+  }
   .obs-toolbar {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.75rem;
+    gap: 0.65rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 14px;
   }
   .obs-search-box {
     width: 100%;
@@ -403,77 +482,221 @@
   }
   .obs-filter-group {
     width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    align-items: center;
     justify-content: flex-start;
   }
-}
-
-@media (max-width: 640px) {
-  .obs-toolbar {
-    padding: 0.75rem;
-  }
-  .obs-filter-group {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
-    width: 100%;
-  }
   .obs-select-wrap {
-    width: 100%;
-    min-width: 100%;
+    flex: 1 1 calc(50% - 0.25rem);
+    min-width: 130px;
   }
   .obs-select-wrap .toolbar-select {
     width: 100%;
+    min-width: 0;
+    text-overflow: ellipsis;
+    height: 38px;
+  }
+  .obs-clear-filters-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 36px;
   }
   .obs-toolbar-actions {
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.4rem;
-    width: 100%;
-    margin-top: 0.25rem;
+    gap: 0.45rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid var(--border-light);
+    margin-top: 0.2rem;
   }
-  .obs-clear-filters-btn {
-    width: 100%;
+  .obs-toolbar-actions .refresh-btn {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+  }
+  .vista-toggle {
+    flex: 1;
+    display: flex;
+  }
+  .vista-toggle-btn {
+    flex: 1;
     justify-content: center;
+    font-size: var(--text-xs);
+    padding: 0.45rem 0.5rem;
+  }
+  .obs-export-btn {
+    flex-shrink: 0;
+    padding: 0.45rem 0.75rem;
+    font-size: var(--text-xs);
+    height: 38px;
+  }
+  .agrupada-header {
+    padding: 0.35rem 0.15rem;
   }
   .agrupada-card-header {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.65rem;
-    padding: 0.85rem;
+    gap: 0.55rem;
+    padding: 0.8rem 0.95rem;
   }
   .agrupada-site-info {
-    flex-direction: column;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
     align-items: flex-start;
-    gap: 0.5rem;
+    gap: 0.65rem;
     width: 100%;
+  }
+  .agrupada-site-headings {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .agrupada-site-title-line {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  .agrupada-site-code {
+    font-size: var(--text-base);
+  }
+  .agrupada-site-loc {
+    font-size: var(--text-sm);
+    word-break: break-word;
   }
   .agrupada-site-pills {
     width: 100%;
+    display: flex;
     gap: 0.3rem;
+    flex-wrap: wrap;
+    margin-top: 0.15rem;
   }
   .agrupada-site-meta {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
     width: 100%;
     border-top: 1px dashed var(--border-light);
     padding-top: 0.45rem;
+    margin-top: 0.15rem;
   }
-  .agrupada-obs-row {
+  .sitios-table {
+    min-width: 820px;
+  }
+  .sitios-table th,
+  .sitios-table td {
+    padding: 0.65rem 0.75rem;
+  }
+}
+
+/* ── Smartphones y Pantallas Pequeñas (<= 640px) ── */
+@media (max-width: 640px) {
+  .obs-container {
+    gap: 0.85rem;
+  }
+  .obs-toolbar {
+    padding: 0.65rem 0.75rem;
+    border-radius: 12px;
+  }
+  .obs-search-input {
+    font-size: var(--text-xs);
+    height: 38px;
+    padding-left: 2rem;
+    padding-right: 1.8rem;
+  }
+  .obs-select-wrap {
+    flex: 1 1 calc(50% - 0.25rem);
+    min-width: 120px;
+  }
+  .obs-select-wrap .toolbar-select {
+    font-size: var(--text-2xs);
+    height: 36px;
+    padding-left: 1.85rem;
+    padding-right: 1.1rem;
+  }
+  .select-icon {
+    left: 0.55rem;
+  }
+  .obs-clear-filters-btn {
+    font-size: var(--text-xs);
+    padding: 0.4rem 0.65rem;
+  }
+  .agrupada-card {
+    border-radius: 12px;
+  }
+  .agrupada-card-header {
+    padding: 0.65rem 0.75rem;
+    gap: 0.45rem;
+  }
+  .agrupada-site-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+  .agrupada-site-code {
+    font-size: var(--text-sm);
+  }
+  .agrupada-site-loc {
+    font-size: var(--text-xs);
+  }
+  .agrupada-total-pill {
+    font-size: var(--text-3xs);
+    padding: 0.15rem 0.45rem;
+  }
+  .pill {
+    font-size: var(--text-3xs);
+    padding: 0.15rem 0.4rem;
+  }
+  .sitios-table-wrapper {
+    border-radius: 14px;
+  }
+  .sitios-table th,
+  .sitios-table td {
+    padding: 0.55rem 0.6rem;
+    font-size: var(--text-xs);
+  }
+  .site-code-badge {
+    font-size: var(--text-xs);
+    padding: 0.15rem 0.45rem;
+  }
+  .obs-container .table-pagination {
     flex-direction: column;
-    align-items: stretch;
-    gap: 0.65rem;
-    padding: 0.85rem;
-    margin: 0.35rem 0.4rem;
-    background: #f8fbfe;
-    border: 1px solid var(--border-light);
-    border-radius: 10px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0.65rem 0.75rem;
+    gap: 0.5rem;
   }
-  .agrupada-obs-col-status {
-    justify-content: space-between;
+  .obs-container .table-pagination .pagination-controls {
     width: 100%;
-    border-top: 1px solid var(--border-light);
-    padding-top: 0.5rem;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+  .obs-container .table-pagination .page-btn {
+    flex: 1;
+    max-width: 120px;
+    justify-content: center;
+    min-height: 36px;
+    font-size: var(--text-xs);
+    padding: 0.35rem 0.5rem;
+  }
+  .obs-container .table-pagination .pagination-info {
+    font-size: var(--text-xs);
+  }
+  .obs-modal-meta-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.45rem;
+  }
+  .obs-meta-card {
+    padding: 0.4rem 0.5rem;
+  }
+  .obs-meta-card .obs-meta-label {
+    font-size: var(--text-3xs);
+  }
+  .obs-meta-card .obs-meta-value {
+    font-size: var(--text-2xs);
   }
   .obs-drawer {
     width: 100vw !important;
@@ -496,6 +719,35 @@
   .obs-save-btn {
     width: 100%;
     justify-content: center;
+  }
+}
+
+/* ── Teléfonos Compactos (<= 440px) ── */
+@media (max-width: 440px) {
+  .obs-export-text-full {
+    display: none;
+  }
+  .obs-export-text-short {
+    display: inline;
+  }
+  .vista-toggle-btn {
+    padding: 0.35rem 0.4rem;
+    font-size: var(--text-2xs);
+    gap: 0.2rem;
+  }
+  .obs-select-wrap {
+    flex: 1 1 100%;
+  }
+  .obs-modal-meta-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.35rem;
+  }
+}
+
+/* ── Teléfonos Extra Pequeños (<= 340px) ── */
+@media (max-width: 340px) {
+  .obs-modal-meta-grid {
+    grid-template-columns: 1fr;
   }
 }
 

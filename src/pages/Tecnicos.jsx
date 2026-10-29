@@ -773,6 +773,30 @@ export default function Tecnicos() {
 // ────────────────────────────────────────────────────────────
 // SUBCOMPONENTE: Vista de Armado de Cuadrillas Predefinidas
 // ────────────────────────────────────────────────────────────
+
+// Helpers para normalizar comparación de cuadrillas y cargos de forma robusta e insensible a tildes
+function normalizeCargoClean(str) {
+  if (!str) return ''
+  return str.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+}
+
+function matchCuadrillaClean(pCuad, cName) {
+  if (!pCuad || !cName) return false
+  const c1 = normalizeCargoClean(pCuad).replace(/GRUPO/gi, 'CUADRILLA').replace(/\s+/g, ' ')
+  const c2 = normalizeCargoClean(cName).replace(/GRUPO/gi, 'CUADRILLA').replace(/\s+/g, ' ')
+  return c1 === c2
+}
+
+function isTecnicoCargo(cargo) {
+  const c = normalizeCargoClean(cargo)
+  return c.includes('TECN') || c.includes('SUPERVISOR')
+}
+
+function isConductorCargo(cargo) {
+  const c = normalizeCargoClean(cargo)
+  return c.includes('CONDUCTOR') || c.includes('CHOFER')
+}
+
 function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
   const defaultList = useMemo(() => [
     'CUADRILLA 1', 'CUADRILLA 2', 'CUADRILLA 3',
@@ -783,18 +807,16 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
   const candidatosTecnicos = useMemo(() => {
     return personal.filter(p => {
       if (p.empresa && p.empresa.toUpperCase() === 'GILAT') return false
-      const c = (p.cargo || '').toUpperCase()
-      return c.includes('TÉCNICO') || c.includes('TECNICO') || c.includes('SUPERVISOR')
-    }).sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo))
+      return isTecnicoCargo(p.cargo)
+    }).sort((a, b) => (a.nombre_completo || '').localeCompare(b.nombre_completo || ''))
   }, [personal])
 
   // Candidatos COVEPA para Conductor
   const candidatosConductores = useMemo(() => {
     return personal.filter(p => {
       if (p.empresa && p.empresa.toUpperCase() === 'GILAT') return false
-      const c = (p.cargo || '').toUpperCase()
-      return c.includes('CONDUCTOR')
-    }).sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo))
+      return isConductorCargo(p.cargo)
+    }).sort((a, b) => (a.nombre_completo || '').localeCompare(b.nombre_completo || ''))
   }, [personal])
 
   // Todas las cuadrillas disponibles
@@ -821,11 +843,28 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
     const form = {}
     const fullList = Array.from(new Set([...allCuadrillas, ...customList]))
     fullList.forEach(cName => {
-      const tec = personal.find(p => p.cuadrilla === cName && ((p.cargo || '').toUpperCase().includes('TÉCN') || (p.cargo || '').toUpperCase().includes('SUPERVISOR')))
-      const cond = personal.find(p => p.cuadrilla === cName && (p.cargo || '').toUpperCase().includes('CONDUCTOR'))
+      // 1. Buscar técnico asignado por coincidencia de cuadrilla y cargo
+      let tec = personal.find(p => matchCuadrillaClean(p.cuadrilla, cName) && isTecnicoCargo(p.cargo))
+      if (!tec) {
+        tec = personal.find(p => matchCuadrillaClean(p.cuadrilla, cName) && !isConductorCargo(p.cargo))
+      }
+      let idTecnico = tec?.id || ''
+      if (!idTecnico && DEFAULT_CUADRILLAS_CONFIG[cName]?.idTecnico) {
+        const defTec = personal.find(p => p.id === DEFAULT_CUADRILLAS_CONFIG[cName].idTecnico)
+        if (defTec) idTecnico = defTec.id
+      }
+
+      // 2. Buscar conductor asignado
+      let cond = personal.find(p => matchCuadrillaClean(p.cuadrilla, cName) && isConductorCargo(p.cargo))
+      let idConductor = cond?.id || ''
+      if (!idConductor && DEFAULT_CUADRILLAS_CONFIG[cName]?.idConductor) {
+        const defCond = personal.find(p => p.id === DEFAULT_CUADRILLAS_CONFIG[cName].idConductor)
+        if (defCond) idConductor = defCond.id
+      }
+
       form[cName] = {
-        idTecnico: tec?.id || '',
-        idConductor: cond?.id || ''
+        idTecnico,
+        idConductor
       }
     })
     setCuadrillasForm(form)

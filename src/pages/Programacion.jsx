@@ -49,7 +49,7 @@ export default function Programacion() {
   const { presentationMode } = usePresentationMode()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('today') // 'today' | 'week'
-  const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL' | 'EN_REVISION' | 'VALIDADO' | 'ENVIADO' | 'DESCARTADA'
+  const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL' | 'SOLICITANDO' | 'EN_REVISION' | 'VALIDADO' | 'RECHAZADO'
   const [loading, setLoading] = useState(true)
   const [programaciones, setProgramaciones] = useState([])
   const [tecnicos, setTecnicos] = useState([])
@@ -349,6 +349,7 @@ export default function Programacion() {
     let enRevision = 0
     let enviadas = 0
     let descartadas = 0
+    let rechazadas = 0
     let pendientes = 0
     const weekSitesSet = new Set()
 
@@ -363,7 +364,8 @@ export default function Programacion() {
             solicitando += (stat.solicitando || 0)
             enRevision += (stat.enRevision || 0)
             enviadas += (stat.enviadas || 0)
-            descartadas += (stat.descartadas || 0) + (stat.rechazadas || 0)
+            descartadas += (stat.descartadas || 0)
+            rechazadas += (stat.rechazadas || 0)
             pendientes += (stat.pendientes || 0)
           }
         }
@@ -377,6 +379,7 @@ export default function Programacion() {
       enRevision,
       enviadas,
       descartadas,
+      rechazadas,
       pendientes,
       totalSitios: weekSitesSet.size
     }
@@ -393,6 +396,7 @@ export default function Programacion() {
     let solicitando = 0
     let enRevision = 0
     let descartadas = 0
+    let rechazadas = 0
     let pendientes = 0
     let totalPersonal = 0
     const sitiosSet = new Set()
@@ -411,7 +415,8 @@ export default function Programacion() {
             validadas += (stat.validadas || 0)
             solicitando += (stat.solicitando || 0)
             enRevision += (stat.enRevision || 0)
-            descartadas += (stat.descartadas || 0) + (stat.rechazadas || 0)
+            descartadas += (stat.descartadas || 0)
+            rechazadas += (stat.rechazadas || 0)
             pendientes += (stat.pendientes || 0)
             resueltas += (stat.validadas || stat.subsanadas || 0) + (stat.descartadas || 0) + (stat.rechazadas || 0)
           }
@@ -430,6 +435,7 @@ export default function Programacion() {
       solicitando,
       enRevision,
       descartadas,
+      rechazadas,
       pendientes,
       progs
     }
@@ -447,7 +453,7 @@ export default function Programacion() {
           if (statusFilter === 'SOLICITANDO') return r.estado === 'Solicitando Revisión'
           if (statusFilter === 'EN_REVISION') return r.estado === 'En Revisión'
           if (statusFilter === 'VALIDADO') return r.estado === 'Validado' || r.estado === 'Enviado'
-          if (statusFilter === 'DESCARTADA') return r.estado === 'Descartado' || r.estado === 'Rechazado'
+          if (statusFilter === 'RECHAZADO') return r.estado === 'Rechazado'
           return false
         })
         .map(r => r.id_sitio)
@@ -462,7 +468,7 @@ export default function Programacion() {
         if (statusFilter === 'SOLICITANDO') return (stat.solicitando || 0) > 0
         if (statusFilter === 'EN_REVISION') return (stat.enRevision || 0) > 0
         if (statusFilter === 'VALIDADO') return (stat.validadas || 0) > 0
-        if (statusFilter === 'DESCARTADA') return ((stat.descartadas || 0) + (stat.rechazadas || 0)) > 0
+        if (statusFilter === 'RECHAZADO') return (stat.rechazadas || 0) > 0
         return true
       })
     })
@@ -507,6 +513,7 @@ export default function Programacion() {
           enRevision: 0,
           enviadas: 0,
           descartadas: 0,
+          rechazadas: 0,
           pendientes: 0,
           resueltas: 0
         })
@@ -549,6 +556,7 @@ export default function Programacion() {
           group.enRevision += stat.enRevision || 0
           group.enviadas += stat.enviadas || 0
           group.descartadas += stat.descartadas || 0
+          group.rechazadas = (group.rechazadas || 0) + (stat.rechazadas || 0)
           group.pendientes += stat.pendientes || 0
           group.resueltas += (stat.validadas || stat.subsanadas || 0) + (stat.descartadas || 0) + (stat.enviadas || 0)
         }
@@ -759,13 +767,13 @@ export default function Programacion() {
         />
         <MetricCard
           icon={<AlertTriangle size={20} />}
-          label="Descartadas / Rech."
-          value={viewMode === 'today' ? ((dayAvance.stats?.descartadas || 0) + (dayAvance.stats?.rechazadas || 0)) : (weekStats.descartadas ?? 0)}
-          subtitle={viewMode === 'today' ? 'cerradas o rechazadas' : 'en la semana'}
+          label="Rechazadas"
+          value={viewMode === 'today' ? (dayAvance.stats?.rechazadas ?? 0) : (weekStats.rechazadas ?? 0)}
+          subtitle={viewMode === 'today' ? 'observaciones rechazadas' : 'en la semana'}
           variant="rose"
-          onClick={() => setStatusFilter(prev => prev === 'DESCARTADA' ? 'ALL' : 'DESCARTADA')}
-          active={statusFilter === 'DESCARTADA'}
-          badge={statusFilter === 'DESCARTADA' ? 'Filtrando' : null}
+          onClick={() => setStatusFilter(prev => prev === 'RECHAZADO' ? 'ALL' : 'RECHAZADO')}
+          active={statusFilter === 'RECHAZADO'}
+          badge={statusFilter === 'RECHAZADO' ? 'Filtrando' : null}
           loading={viewMode === 'today' && dayAvance.loading}
         />
       </MetricGrid>
@@ -1043,7 +1051,8 @@ export default function Programacion() {
                   statusFilter === 'SOLICITANDO' ? 'Solicitando Revisión' :
                   statusFilter === 'EN_REVISION' ? 'En Revisión' :
                   statusFilter === 'VALIDADO' ? 'Validados (Por subir)' :
-                  'Descartadas / Rechazadas'
+                  statusFilter === 'RECHAZADO' ? 'Rechazadas' :
+                  statusFilter
                 }</strong>
               </span>
               <button
@@ -1316,12 +1325,12 @@ export default function Programacion() {
                                   ✓ {sStat.validadas} por subir
                                 </span>
                               )}
-                              {sStat.descartadas > 0 && (
+                              {sStat.rechazadas > 0 && (
                                 <span
                                   className="site-pill-badge badge-rech"
-                                  title={`${sStat.descartadas} observación(es) descartadas / rechazadas`}
+                                  title={`${sStat.rechazadas} observación(es) rechazadas`}
                                 >
-                                  ✕ {sStat.descartadas} rech.
+                                  ✕ {sStat.rechazadas} rech.
                                 </span>
                               )}
                               {sStat.enviadas > 0 && (
@@ -1353,10 +1362,12 @@ export default function Programacion() {
             <div className="prog-filter-notice-banner" style={{ marginBottom: '0.85rem' }}>
               <span>
                 Filtrando cuadrillas con observaciones en estado: <strong>{
+                  statusFilter === 'SOLICITANDO' ? 'Solicitando Revisión' :
                   statusFilter === 'EN_REVISION' ? 'En Revisión' :
                   statusFilter === 'VALIDADO' ? 'Validados (Por subir)' :
                   statusFilter === 'ENVIADO' ? 'Enviados por COVEPA' :
-                  'Descartadas / Rechazadas'
+                  statusFilter === 'RECHAZADO' ? 'Rechazadas' :
+                  statusFilter
                 }</strong>
               </span>
               <button

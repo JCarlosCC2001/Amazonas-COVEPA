@@ -31,23 +31,23 @@ export const getPersonalTecnico = getPersonalActivo
 // 2. Obtener programaciones en un rango de fechas con sus sitios y equipo completo
 // Diccionario de nombres históricos para resolver asignaciones anteriores mientras se reasignan IDs
 export const KNOWN_LEGACY_NAMES = {
-  'b0e30c52-ef5e-46cb-8ae1-82e992ec69b4': 'JHONATAN FLORES',
-  '9184f892-b8f4-441c-af48-fe801cae68c7': 'DANIEL JAVIER',
-  '84624160-b95e-46a0-be80-6aa9cb0974a9': 'ALFONSO CURI',
-  'eb9daa58-60db-4c93-b955-9c520a2281a4': 'WILLIAM AVILA',
-  'a7533248-7885-4cb7-ab7c-8f97093c2b52': 'GABRIEL FARRO',
-  '739fa2c9-5d60-43af-add6-6fb897c8ba7b': 'CRISTIAN ISLA',
-  '1': 'JHONATAN FLORES',
-  '2': 'ANDER PERALTA',
-  '3': 'DANIEL JAVIER',
-  '4': 'LINO TICLLA',
-  '5': 'ALFONSO CURI',
-  '6': 'JHORDITH ZULUETA',
-  '7': 'WILLIAM AVILA',
-  '8': 'JHORDIN PEREZ',
-  '9': 'GABRIEL FARRO',
-  '10': 'NILSON VERA',
-  '11': 'CRISTIAN ISLA'
+  'b0e30c52-ef5e-46cb-8ae1-82e992ec69b4': 'Jhonatan Flores',
+  '9184f892-b8f4-441c-af48-fe801cae68c7': 'Daniel Javier',
+  '84624160-b95e-46a0-be80-6aa9cb0974a9': 'Alfonso Curi',
+  'eb9daa58-60db-4c93-b955-9c520a2281a4': 'William Avila',
+  'a7533248-7885-4cb7-ab7c-8f97093c2b52': 'Gabriel Farro',
+  '739fa2c9-5d60-43af-add6-6fb897c8ba7b': 'Cristian Isla',
+  '1': 'Jhonatan Flores',
+  '2': 'Ander Peralta',
+  '3': 'Daniel Javier',
+  '4': 'Lino Ticlla',
+  '5': 'Alfonso Curi',
+  '6': 'Jhordith Zulueta',
+  '7': 'William Avila',
+  '8': 'Jhordin Perez',
+  '9': 'Gabriel Farro',
+  '10': 'Nilson Vera',
+  '11': 'Cristian Isla'
 }
 
 // ────────────────────────────────────────────────────────────

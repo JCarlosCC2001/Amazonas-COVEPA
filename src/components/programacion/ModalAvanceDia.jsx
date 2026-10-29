@@ -9,6 +9,7 @@ import { getAvancePorFecha } from '../../services/dashboardService'
 import { ASIGNACIONES_BASE } from '../../services/sitiosService'
 import { DEFAULT_CUADRILLAS_CONFIG } from '../../services/personalService'
 import CuadrillasMatrixTable from '../shared/CuadrillasMatrixTable'
+import { formatNombrePersona } from '../../utils/helpers'
 // M3: imageExportService importado dinamicamente en handleCopyPNG / handleDownloadPNG
 import { usePresentationMode } from '../../context/PresentationContext'
 
@@ -136,42 +137,42 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       'CUADRILLA 1': {
         id: 'CUADRILLA 1',
         cuadrilla: 'CUADRILLA 1',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 1']?.tecnicoNombre || 'JHONATAN FLORES',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 1']?.tecnicoNombre || 'Jhonatan Flores',
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
         total: 0
       },
       'CUADRILLA 2': {
         id: 'CUADRILLA 2',
         cuadrilla: 'CUADRILLA 2',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 2']?.tecnicoNombre || 'CRISTIAN ISLA',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 2']?.tecnicoNombre || 'Cristian Isla',
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
         total: 0
       },
       'CUADRILLA 3': {
         id: 'CUADRILLA 3',
         cuadrilla: 'CUADRILLA 3',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 3']?.tecnicoNombre || 'DANIEL JAVIER',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 3']?.tecnicoNombre || 'Daniel Javier',
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
         total: 0
       },
       'CUADRILLA 4': {
         id: 'CUADRILLA 4',
         cuadrilla: 'CUADRILLA 4',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 4']?.tecnicoNombre || 'ALFONSO CURI',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 4']?.tecnicoNombre || 'Alfonso Curi',
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
         total: 0
       },
       'CUADRILLA 5': {
         id: 'CUADRILLA 5',
         cuadrilla: 'CUADRILLA 5',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 5']?.tecnicoNombre || 'WILLIAM AVILA',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 5']?.tecnicoNombre || 'William Avila',
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
         total: 0
       },
       'CUADRILLA 6': {
         id: 'CUADRILLA 6',
         cuadrilla: 'CUADRILLA 6',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 6']?.tecnicoNombre || 'GABRIEL FARRO',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 6']?.tecnicoNombre || 'Gabriel Farro',
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
         total: 0
       }
@@ -182,7 +183,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       const targetObj = cuadrillasMap[targetCuadrilla]
       if (targetObj) {
         if (r.tecnico && r.tecnico !== 'No asignado' && r.tecnico !== 'Técnico de Cuadrilla' && r.tecnico !== 'Técnico en ruta') {
-          targetObj.tecnico = r.tecnico
+          targetObj.tecnico = formatNombrePersona(r.tecnico)
         }
 
         const rawSt = (r.estado || '').trim().toLowerCase()

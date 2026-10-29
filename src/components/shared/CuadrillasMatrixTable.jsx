@@ -1,4 +1,5 @@
 import React from 'react'
+import { formatNombrePersona } from '../../utils/helpers'
 
 /**
  * Componente Reutilizable: CuadrillasMatrixTable
@@ -112,7 +113,7 @@ export default function CuadrillasMatrixTable({
             ) : (
               rows.map(row => {
                 const cuadrillaName = row.cuadrilla || row.grupo || 'Sin Cuadrilla'
-                const techName = !presentationMode ? (row.tecnico || '—') : '—'
+                const techName = !presentationMode ? (formatNombrePersona(row.tecnico) || '—') : '—'
                 const rowTotal = row.total ?? row.totalSemana ?? 0
 
                 return (

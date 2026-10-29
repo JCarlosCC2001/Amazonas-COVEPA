@@ -48,3 +48,18 @@ export function estadoCovepaBadge(estado) {
   return 'badge-muted'
 }
 
+/** Formatea nombres de personas a Title Case si vienen completamente en MAYÚSCULAS */
+export function formatNombrePersona(str) {
+  if (!str) return ''
+  const trimmed = String(str).trim()
+  if (!trimmed) return ''
+  // Si está 100% en mayúsculas (ej: "CRISTIAN ISLA"), convertir a Title Case ("Cristian Isla")
+  if (trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed)) {
+    return trimmed
+      .toLowerCase()
+      .split(/\s+/)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ')
+  }
+  return trimmed
+}

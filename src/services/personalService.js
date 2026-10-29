@@ -1,19 +1,20 @@
 import { supabase, supabaseExt, handleSupabaseAuthError } from '../lib/supabase.js'
+import { formatNombrePersona } from '../utils/helpers.js'
 
 // Fallback del personal inicial del proyecto por si falla la red
 export const PERSONAL_FALLBACK = [
-  { id: '1', id_personal: '1', cargo: 'TÉCNICO', nombre: 'JHONATAN', apellido: 'FLORES', nombre_completo: 'JHONATAN FLORES', contacto_1: '929985566', operador_1: 'BITEL', empresa: 'COVEPA', estado: 'Activo', activo: true },
-  { id: '2', id_personal: '2', cargo: 'CONDUCTOR', nombre: 'ANDER', apellido: 'PERALTA', nombre_completo: 'ANDER PERALTA', contacto_1: '945551928', empresa: 'COVEPA', estado: 'Activo', activo: true },
-  { id: '3', id_personal: '3', cargo: 'TÉCNICO', nombre: 'DANIEL', apellido: 'JAVIER', nombre_completo: 'DANIEL JAVIER', contacto_1: '956188967', operador_1: 'BITEL', empresa: 'COVEPA', estado: 'Activo', activo: true },
-  { id: '4', id_personal: '4', cargo: 'CONDUCTOR', nombre: 'LINO', apellido: 'TICLLA', nombre_completo: 'LINO TICLLA', contacto_1: '910493156', empresa: 'COVEPA', estado: 'Activo', activo: true },
-  { id: '5', id_personal: '5', cargo: 'TÉCNICO', nombre: 'ALFONSO', apellido: 'CURI', nombre_completo: 'ALFONSO CURI', contacto_1: '952010919', contacto_2: '939507297', operador_1: 'BITEL', operador_2: 'MOVISTAR', empresa: 'COVEPA', estado: 'Activo', activo: true },
-  { id: '6', id_personal: '6', cargo: 'CONDUCTOR', nombre: 'JHORDITH', apellido: 'ZULUETA', nombre_completo: 'JHORDITH ZULUETA (TOÑO)', contacto_1: '999389272', empresa: 'COVEPA', estado: 'Activo', activo: true },
-  { id: '7', id_personal: '7', cargo: 'SUPERVISOR', nombre: 'WILLIAM', apellido: 'AVILA', nombre_completo: 'WILLIAM AVILA', contacto_1: '951231901', operador_1: 'CLARO', empresa: 'COVEPA', estado: 'Activo', activo: true },
-  { id: '8', id_personal: '8', cargo: 'CONDUCTOR', nombre: 'JHORDIN', apellido: 'PEREZ', nombre_completo: 'JHORDIN PEREZ', contacto_1: '921004913', empresa: 'COVEPA', estado: 'Activo', activo: true },
-  { id: '9', id_personal: '9', cargo: 'TÉCNICO', nombre: 'GABRIEL', apellido: 'FARRO', nombre_completo: 'GABRIEL FARRO', contacto_1: '931704961', operador_1: 'BITEL', empresa: 'COVEPA', estado: 'Activo', activo: true },
-  { id: '10', id_personal: '10', cargo: 'CONDUCTOR', nombre: 'NILSON', apellido: 'VERA', nombre_completo: 'NILSON VERA', contacto_1: '969936764', empresa: 'COVEPA', estado: 'Activo', activo: true },
-  { id: '11', id_personal: '11', cargo: 'TÉCNICO', nombre: 'CRISTIAN', apellido: 'ISLA', nombre_completo: 'CRISTIAN ISLA', contacto_1: '923932783', contacto_2: '930996665', operador_1: 'CLARO', operador_2: 'BITEL', empresa: 'COVEPA', estado: 'Activo', activo: true },
-  { id: '8359c281-33ce-423e-9823-0e9e09663889', id_personal: '8359c281-33ce-423e-9823-0e9e09663889', cargo: 'SUPERVISOR', nombre: 'CARLOS', apellido: 'CONDOR', nombre_completo: 'CARLOS CONDOR', dni: '73144613', contacto_1: '958086874', email: 'jcarloscc1101@gmail.com', empresa: 'COVEPA', estado: 'Activo', activo: true }
+  { id: '1', id_personal: '1', cargo: 'TÉCNICO', nombre: 'Jhonatan', apellido: 'Flores', nombre_completo: 'Jhonatan Flores', contacto_1: '929985566', operador_1: 'BITEL', empresa: 'COVEPA', estado: 'Activo', activo: true },
+  { id: '2', id_personal: '2', cargo: 'CONDUCTOR', nombre: 'Ander', apellido: 'Peralta', nombre_completo: 'Ander Peralta', contacto_1: '945551928', empresa: 'COVEPA', estado: 'Activo', activo: true },
+  { id: '3', id_personal: '3', cargo: 'TÉCNICO', nombre: 'Daniel', apellido: 'Javier', nombre_completo: 'Daniel Javier', contacto_1: '956188967', operador_1: 'BITEL', empresa: 'COVEPA', estado: 'Activo', activo: true },
+  { id: '4', id_personal: '4', cargo: 'CONDUCTOR', nombre: 'Lino', apellido: 'Ticlla', nombre_completo: 'Lino Ticlla', contacto_1: '910493156', empresa: 'COVEPA', estado: 'Activo', activo: true },
+  { id: '5', id_personal: '5', cargo: 'TÉCNICO', nombre: 'Alfonso', apellido: 'Curi', nombre_completo: 'Alfonso Curi', contacto_1: '952010919', contacto_2: '939507297', operador_1: 'BITEL', operador_2: 'MOVISTAR', empresa: 'COVEPA', estado: 'Activo', activo: true },
+  { id: '6', id_personal: '6', cargo: 'CONDUCTOR', nombre: 'Jhordith', apellido: 'Zulueta', nombre_completo: 'Jhordith Zulueta (Toño)', contacto_1: '999389272', empresa: 'COVEPA', estado: 'Activo', activo: true },
+  { id: '7', id_personal: '7', cargo: 'SUPERVISOR', nombre: 'William', apellido: 'Avila', nombre_completo: 'William Avila', contacto_1: '951231901', operador_1: 'CLARO', empresa: 'COVEPA', estado: 'Activo', activo: true },
+  { id: '8', id_personal: '8', cargo: 'CONDUCTOR', nombre: 'Jhordin', apellido: 'Perez', nombre_completo: 'Jhordin Perez', contacto_1: '921004913', empresa: 'COVEPA', estado: 'Activo', activo: true },
+  { id: '9', id_personal: '9', cargo: 'TÉCNICO', nombre: 'Gabriel', apellido: 'Farro', nombre_completo: 'Gabriel Farro', contacto_1: '931704961', operador_1: 'BITEL', empresa: 'COVEPA', estado: 'Activo', activo: true },
+  { id: '10', id_personal: '10', cargo: 'CONDUCTOR', nombre: 'Nilson', apellido: 'Vera', nombre_completo: 'Nilson Vera', contacto_1: '969936764', empresa: 'COVEPA', estado: 'Activo', activo: true },
+  { id: '11', id_personal: '11', cargo: 'TÉCNICO', nombre: 'Cristian', apellido: 'Isla', nombre_completo: 'Cristian Isla', contacto_1: '923932783', contacto_2: '930996665', operador_1: 'CLARO', operador_2: 'BITEL', empresa: 'COVEPA', estado: 'Activo', activo: true },
+  { id: '8359c281-33ce-423e-9823-0e9e09663889', id_personal: '8359c281-33ce-423e-9823-0e9e09663889', cargo: 'SUPERVISOR', nombre: 'Carlos', apellido: 'Condor', nombre_completo: 'Carlos Condor', dni: '73144613', contacto_1: '958086874', email: 'jcarloscc1101@gmail.com', empresa: 'COVEPA', estado: 'Activo', activo: true }
 ]
 
 // Empresas oficiales permitidas en el proyecto
@@ -41,7 +42,8 @@ export function mapExternalPerson(p, localMetaMap = {}, profileMap = {}, profile
   const id = p.id_personal || p.id
   const nombre = (p.nombre || '').trim()
   const apellido = (p.apellido || '').trim()
-  const nombreCompleto = [nombre, apellido].filter(Boolean).join(' ') || (p.nombre_completo || 'Sin Nombre').trim()
+  const rawNombre = [nombre, apellido].filter(Boolean).join(' ') || (p.nombre_completo || 'Sin Nombre').trim()
+  const nombreCompleto = formatNombrePersona(rawNombre)
 
   const phoneParts = [p.contacto_1, p.contacto_2].filter(Boolean)
   const combinedPhone = phoneParts.length > 0 ? phoneParts.join(' / ') : (p.telefono || null)
@@ -94,44 +96,44 @@ export function mapExternalPerson(p, localMetaMap = {}, profileMap = {}, profile
 export const DEFAULT_CUADRILLAS_CONFIG = {
   'CUADRILLA 1': {
     idTecnico: '554a3a58-bf04-480a-8795-d85e055ee4c6', // Jhonatan Flores Rojas
-    tecnicoNombre: 'JHONATAN FLORES',
+    tecnicoNombre: 'Jhonatan Flores',
     idConductor: '37633174-4fa7-448e-83a1-afcaa67d4189', // Carlos Perez
-    conductorNombre: 'CARLOS PEREZ',
+    conductorNombre: 'Carlos Perez',
     conductorTelefono: ''
   },
   'CUADRILLA 2': {
     idTecnico: 'eebf3b9e-4923-47ce-9eee-8e9af86c9fea', // Cristian Isla
-    tecnicoNombre: 'CRISTIAN ISLA',
+    tecnicoNombre: 'Cristian Isla',
     idConductor: '63ba01bf-2b85-488a-864b-965b6a96c9db', // Jhordin Perez
-    conductorNombre: 'JHORDIN PEREZ',
+    conductorNombre: 'Jhordin Perez',
     conductorTelefono: '921004913'
   },
   'CUADRILLA 3': {
     idTecnico: '05db4c32-3c7a-42e4-a0aa-8ac33dd5c75f', // Daniel Javier
-    tecnicoNombre: 'DANIEL JAVIER',
+    tecnicoNombre: 'Daniel Javier',
     idConductor: '38375217-1e58-4c17-aeed-12e6cd71fd52', // Lino Ticlla
-    conductorNombre: 'LINO TICLLA',
+    conductorNombre: 'Lino Ticlla',
     conductorTelefono: '910493156'
   },
   'CUADRILLA 4': {
     idTecnico: '4b56f618-981f-4f2a-a901-4a4de4543899', // Alfonso Curi Lopez
-    tecnicoNombre: 'ALFONSO CURI',
+    tecnicoNombre: 'Alfonso Curi',
     idConductor: '077953b1-9fe9-41ac-b31e-227b7dd270a3', // Nilson Vera
-    conductorNombre: 'NILSON VERA',
+    conductorNombre: 'Nilson Vera',
     conductorTelefono: '969936764'
   },
   'CUADRILLA 5': {
     idTecnico: '19ff0cdf-7afc-4e50-94b2-f1a9998de148', // William Avila
-    tecnicoNombre: 'WILLIAM AVILA',
+    tecnicoNombre: 'William Avila',
     idConductor: '84072c1a-9f19-4c98-b7da-f9ec3c3391e6', // Jhordin Antonio
-    conductorNombre: 'JHORDIN ANTONIO',
+    conductorNombre: 'Jhordin Antonio',
     conductorTelefono: '999389272'
   },
   'CUADRILLA 6': {
     idTecnico: '58bf102a-514f-4829-806b-1037856cadb1', // Gabriel Farro
-    tecnicoNombre: 'GABRIEL FARRO',
+    tecnicoNombre: 'Gabriel Farro',
     idConductor: 'd879089f-5981-4f08-94ca-ccccf8027f78', // Ander Peralta
-    conductorNombre: 'ANDER PERALTA',
+    conductorNombre: 'Ander Peralta',
     conductorTelefono: '945551928'
   }
 }

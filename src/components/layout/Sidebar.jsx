@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { X, Lock } from 'lucide-react'
+import { X, Lock, Settings, LogOut } from 'lucide-react'
+import ModalConfiguracionCuenta from '../auth/ModalConfiguracionCuenta'
 import { useAuth } from '../../hooks/useAuth'
 import { usePresentationMode } from '../../context/PresentationContext'
 
@@ -89,6 +90,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
   const { user, profile, personalMember, isAdmin, signOut } = useAuth()
   const { presentationMode } = usePresentationMode()
   const navigate = useNavigate()
+  const [configModalOpen, setConfigModalOpen] = useState(false)
 
   const handleSignOut = async () => {
     await signOut()
@@ -186,7 +188,14 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
 
       {/* Footer del sidebar */}
       <div className="sidebar-footer">
-        <div className={`sidebar-user ${collapsed && !mobileOpen ? 'sidebar-user-collapsed' : ''}`}>
+        <div
+          className={`sidebar-user ${collapsed && !mobileOpen ? 'sidebar-user-collapsed' : ''}`}
+          onClick={() => setConfigModalOpen(true)}
+          title="Abrir Configuración de la Cuenta"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setConfigModalOpen(true) }}
+        >
           <div className="user-avatar">
             {presentationMode
               ? 'CP'
@@ -195,30 +204,45 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
                   : (user?.email?.[0]?.toUpperCase() || 'U'))}
           </div>
           {(!collapsed || mobileOpen) && (
-            <div className="user-info">
+            <div className="user-info" style={{ flex: 1 }}>
               <span className="user-email" title={presentationMode ? 'COVEPA Admin' : user?.email}>
                 {presentationMode ? 'COVEPA Admin' : (personalMember?.nombre_completo || user?.email)}
               </span>
-              <span className="user-role">
-                {isAdmin ? 'Administrador' : (profile?.rol ? profile.rol.toUpperCase() : 'Técnico')}
+              <span className="user-role" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>{isAdmin ? 'Administrador' : (profile?.rol ? profile.rol.toUpperCase() : 'Técnico')}</span>
+                <Settings size={13} style={{ opacity: 0.75, color: '#38bdf8' }} title="Configuración" />
               </span>
             </div>
           )}
         </div>
-        <button
-          className="sidebar-logout"
-          onClick={handleSignOut}
-          title="Cerrar sesión"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-          {(!collapsed || mobileOpen) && <span>Salir</span>}
-        </button>
+
+        <div className="sidebar-footer-actions">
+          <button
+            type="button"
+            className="sidebar-config-btn"
+            onClick={() => setConfigModalOpen(true)}
+            title="Configuración de la cuenta, horarios y seguridad"
+          >
+            <Settings size={15} />
+            {(!collapsed || mobileOpen) && <span>Ajustes</span>}
+          </button>
+          <button
+            type="button"
+            className="sidebar-logout"
+            onClick={handleSignOut}
+            title="Cerrar sesión de forma segura"
+          >
+            <LogOut size={15} />
+            {(!collapsed || mobileOpen) && <span>Salir</span>}
+          </button>
+        </div>
       </div>
+
+      {/* Modal de Configuración de la Cuenta */}
+      <ModalConfiguracionCuenta
+        isOpen={configModalOpen}
+        onClose={() => setConfigModalOpen(false)}
+      />
     </aside>
   )
 }
-

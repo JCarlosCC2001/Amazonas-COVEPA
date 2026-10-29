@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 
 // Constantes de programación fija (1:00 AM y 1:00 PM)
 const WARNING_BEFORE_LOGOUT_MS = 5 * 60 * 1000 // 5 minutos de anticipación previa (minuto :55)
-const STORAGE_KEY_EXTENDED = 'covepa_session_extended_target'
+export const STORAGE_KEY_EXTENDED = 'covepa_session_extended_target'
 
 /**
  * Calcula la próxima ventana programada de cierre (1:00 AM o 1:00 PM).

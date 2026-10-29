@@ -406,3 +406,36 @@ export async function sincronizarComentarioObservacion(idObs, comentarioTexto) {
 
   return { data: data?.[0] || null, error: null }
 }
+
+/**
+ * Actualiza la justificación de demora o control de incidentes de una observación técnica.
+ * Si es null o vacío, indica que la observación se resolvió dentro del tiempo normal sin incidentes.
+ *
+ * @param {string} idObs
+ * @param {string|null} justificacionTexto
+ * @returns {Promise<{ data: Object|null, error: Object|null }>}
+ */
+export async function sincronizarJustificacionDemora(idObs, justificacionTexto) {
+  if (!idObs) return { data: null, error: null }
+
+  const justificacionLimpia = (justificacionTexto !== undefined && justificacionTexto !== null && String(justificacionTexto).trim() !== '')
+    ? String(justificacionTexto).trim()
+    : null
+
+  const payload = {
+    justificacion_demora: justificacionLimpia
+  }
+
+  const { data, error } = await supabase
+    .from('observaciones')
+    .update(payload)
+    .eq('id_obs', idObs)
+    .select()
+
+  if (error) {
+    console.error(`[AUDITORIA-SYNC] ❌ Error sincronizando justificación de demora en observación ${idObs}:`, error)
+    throw new Error(`Error sincronizando justificación de demora: ${error.message}`)
+  }
+
+  return { data: data?.[0] || null, error: null }
+}

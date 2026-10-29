@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase'
 import {
   sincronizarAuditoriaObservacion,
   sincronizarComentarioObservacion,
+  sincronizarJustificacionDemora,
   normalizarEstadoOficial,
   resolverNombreAuditor,
   sincronizarEstadoConControlFotos,
@@ -13,6 +14,7 @@ import {
 export {
   sincronizarAuditoriaObservacion,
   sincronizarComentarioObservacion,
+  sincronizarJustificacionDemora,
   normalizarEstadoOficial,
   resolverNombreAuditor,
   sincronizarEstadoConControlFotos,
@@ -37,7 +39,7 @@ function buildSearchOr(search) {
     terms.push(clean.slice(0, -1))
   }
 
-  const columns = ['id_obs', 'id_sitio', 'detalle', 'subsistema', 'protocolo', 'item', 'sub_item']
+  const columns = ['id_obs', 'id_sitio', 'detalle', 'subsistema', 'protocolo', 'item', 'sub_item', 'justificacion_demora']
   const parts = []
   for (const t of terms) {
     for (const col of columns) {
@@ -53,7 +55,8 @@ function applyQueryFilters(query, {
   protocolo = '',
   estadoCovepa = '',
   idSitio = '',
-  idSitios = null
+  idSitios = null,
+  filtroDemora = ''
 } = {}) {
   const searchOr = buildSearchOr(search)
   if (searchOr) query = query.or(searchOr)
@@ -68,6 +71,11 @@ function applyQueryFilters(query, {
   if (idSitio)        query = query.eq('id_sitio', idSitio)
   if (idSitios && Array.isArray(idSitios) && idSitios.length > 0) {
     query = query.in('id_sitio', idSitios)
+  }
+  if (filtroDemora === 'CON_DEMORA') {
+    query = query.not('justificacion_demora', 'is', null).neq('justificacion_demora', '')
+  } else if (filtroDemora === 'SIN_DEMORA') {
+    query = query.or('justificacion_demora.is.null,justificacion_demora.eq.')
   }
   return query
 }
@@ -113,14 +121,15 @@ export async function fetchObservaciones({
   protocolo = '', 
   estadoCovepa = '', 
   idSitio = '',
+  filtroDemora = '',
   page = 1,
   pageSize = 20
 } = {}) {
   let query = supabase
     .from('observaciones')
-    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor', { count: 'exact' })
+    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora', { count: 'exact' })
 
-  query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio })
+  query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio, filtroDemora })
 
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
@@ -246,7 +255,7 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
 // 5. Exporta a CSV todas las observaciones del filtro actual
 // ────────────────────────────────────────────────────────────
 export async function exportObservacionesCSV(filters = {}) {
-  const selectCols = 'id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor'
+  const selectCols = 'id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora'
   const allRows = await fetchAllRowsInBatches('observaciones', selectCols, filters)
   return allRows.sort((a, b) => (a.id_obs || '').localeCompare(b.id_obs || ''))
 }
@@ -300,7 +309,7 @@ export async function fetchResumenPorSitio(filters = {}) {
 export async function fetchObservacionesPorSitio(idSitio, filters = {}) {
   let query = supabase
     .from('observaciones')
-    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor')
+    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora')
     .eq('id_sitio', idSitio)
 
   query = applyQueryFilters(query, filters)

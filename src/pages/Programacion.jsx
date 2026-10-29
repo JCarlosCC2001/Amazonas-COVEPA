@@ -26,6 +26,7 @@ import { updateObservacionCovepa, sincronizarEstadoConControlFotos, esRevisorGil
 import {
   sincronizarAuditoriaObservacion,
   sincronizarComentarioObservacion,
+  sincronizarJustificacionDemora,
   resolverNombreAuditor
 } from '../services/auditoriaSyncService'
 import { ASIGNACIONES_BASE, getCachedSitiosAsignados } from '../services/sitiosService'
@@ -2211,18 +2212,24 @@ function ModalDetallesProgramacion({
   const [currentSitioId, setCurrentSitioId] = useState(sitioId || '')
   const [observaciones, setObservaciones] = useState([])
   const [comments, setComments] = useState({})
+  const [delays, setDelays] = useState({})
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [updatingId, setUpdatingId] = useState(null)
   const [savingCommentId, setSavingCommentId] = useState(null)
   const [savedCommentId, setSavedCommentId] = useState(null)
+  const [savingDelayId, setSavingDelayId] = useState(null)
+  const [savedDelayId, setSavedDelayId] = useState(null)
   const [expandedHistorialId, setExpandedHistorialId] = useState(null)
   const [historialRefreshKeys, setHistorialRefreshKeys] = useState({})
 
-  // Ref con los comentarios modificados (dirty) para autoguardarlos al cerrar
+  // Ref con los comentarios y justificaciones modificados (dirty) para autoguardarlos al cerrar
   const dirtyCommentsRef = useRef(new Set())
   const commentsRef = useRef({})
   commentsRef.current = comments
+  const dirtyDelaysRef = useRef(new Set())
+  const delaysRef = useRef({})
+  delaysRef.current = delays
 
   const team = (prog?.equipo && prog.equipo.length > 0) ? prog.equipo : [prog?.personal || {}]
 
@@ -2249,11 +2256,15 @@ function ModalDetallesProgramacion({
       const data = await getObservacionesSitioDetalle(currentSitioId)
       setObservaciones(data)
       const initialComments = {}
+      const initialDelays = {}
       data.forEach(o => {
         initialComments[o.id_obs] = o.comentario_covepa || ''
+        initialDelays[o.id_obs] = o.justificacion_demora || ''
       })
       setComments(initialComments)
+      setDelays(initialDelays)
       dirtyCommentsRef.current.clear()
+      dirtyDelaysRef.current.clear()
     } catch (err) {
       setErrorMsg(err.message)
     } finally {
@@ -2383,20 +2394,65 @@ function ModalDetallesProgramacion({
     }
   }
 
-  // Guardado automático global de comentarios pendientes al cerrar la ventana
+  // Manejo de cambio en justificación de demora / incidente
+  const handleDelayChange = (obsId, value) => {
+    setDelays(prev => ({ ...prev, [obsId]: value }))
+    dirtyDelaysRef.current.add(obsId)
+  }
+
+  // Guardado al perder el foco (blur) en justificación de demora
+  const handleBlurDelay = async (obsId) => {
+    if (!dirtyDelaysRef.current.has(obsId)) return
+    setSavingDelayId(obsId)
+    try {
+      const val = delaysRef.current[obsId] ?? ''
+      const justificacionLimpia = val.trim() !== '' ? val.trim() : null
+      await sincronizarJustificacionDemora(obsId, justificacionLimpia)
+      dirtyDelaysRef.current.delete(obsId)
+      setSavedDelayId(obsId)
+      setTimeout(() => {
+        setSavedDelayId(prev => (prev === obsId ? null : prev))
+      }, 2000)
+      setObservaciones(prev => prev.map(o => o.id_obs === obsId ? { ...o, justificacion_demora: justificacionLimpia } : o))
+      onObservationUpdated()
+    } catch (err) {
+      console.error('Error al guardar justificación de demora:', err)
+    } finally {
+      setSavingDelayId(null)
+    }
+  }
+
+  // Guardado automático global de comentarios y demoras pendientes al cerrar la ventana
   const handleCloseWithAutoSave = useCallback(async () => {
     const dirtyIds = Array.from(dirtyCommentsRef.current)
+    const dirtyDelayIds = Array.from(dirtyDelaysRef.current)
+    const promises = []
+
     if (dirtyIds.length > 0) {
-      try {
-        await Promise.all(
-          dirtyIds.map(id =>
-            sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '')
-          )
+      promises.push(
+        ...dirtyIds.map(id =>
+          sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '')
         )
-        dirtyCommentsRef.current.clear()
+      )
+      dirtyCommentsRef.current.clear()
+    }
+
+    if (dirtyDelayIds.length > 0) {
+      promises.push(
+        ...dirtyDelayIds.map(id => {
+          const val = delaysRef.current[id] ?? ''
+          return sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null)
+        })
+      )
+      dirtyDelaysRef.current.clear()
+    }
+
+    if (promises.length > 0) {
+      try {
+        await Promise.all(promises)
         onObservationUpdated()
       } catch (err) {
-        console.error('Error al autoguardar comentarios al cerrar:', err)
+        console.error('Error al autoguardar al cerrar:', err)
       }
     }
     onClose()
@@ -2417,6 +2473,7 @@ function ModalDetallesProgramacion({
   useEffect(() => {
     const handleBeforeUnload = () => {
       const dirtyIds = Array.from(dirtyCommentsRef.current)
+      const dirtyDelayIds = Array.from(dirtyDelaysRef.current)
       if (dirtyIds.length > 0) {
         const auditorActual = resolverNombreAuditor(user, personalMember)
         dirtyIds.forEach(id => {
@@ -2425,11 +2482,20 @@ function ModalDetallesProgramacion({
         })
         dirtyCommentsRef.current.clear()
       }
+      if (dirtyDelayIds.length > 0) {
+        dirtyDelayIds.forEach(id => {
+          const val = delaysRef.current[id] ?? ''
+          sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null)
+            .catch(err => console.error('Error autoguardando demora al cerrar:', err))
+        })
+        dirtyDelaysRef.current.clear()
+      }
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
       const dirtyIds = Array.from(dirtyCommentsRef.current)
+      const dirtyDelayIds = Array.from(dirtyDelaysRef.current)
       if (dirtyIds.length > 0) {
         const auditorActual = resolverNombreAuditor(user, personalMember)
         dirtyIds.forEach(id => {
@@ -2438,25 +2504,50 @@ function ModalDetallesProgramacion({
         })
         dirtyCommentsRef.current.clear()
       }
+      if (dirtyDelayIds.length > 0) {
+        dirtyDelayIds.forEach(id => {
+          const val = delaysRef.current[id] ?? ''
+          sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null)
+            .catch(err => console.error('Error autoguardando demora al desmontar:', err))
+        })
+        dirtyDelaysRef.current.clear()
+      }
     }
   }, [user, personalMember])
 
-  // Cambiar de sitio guardando automáticamente comentarios pendientes
+  // Cambiar de sitio guardando automáticamente comentarios y demoras pendientes
   const handleSwitchSitio = async (newSitioId) => {
     if (newSitioId === currentSitioId) return
     const dirtyIds = Array.from(dirtyCommentsRef.current)
+    const dirtyDelayIds = Array.from(dirtyDelaysRef.current)
+    const promises = []
+
     if (dirtyIds.length > 0) {
-      try {
-        const auditorActual = resolverNombreAuditor(user, personalMember)
-        await Promise.all(
-          dirtyIds.map(id =>
-            sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', auditorActual)
-          )
+      const auditorActual = resolverNombreAuditor(user, personalMember)
+      promises.push(
+        ...dirtyIds.map(id =>
+          sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', auditorActual)
         )
-        dirtyCommentsRef.current.clear()
+      )
+      dirtyCommentsRef.current.clear()
+    }
+
+    if (dirtyDelayIds.length > 0) {
+      promises.push(
+        ...dirtyDelayIds.map(id => {
+          const val = delaysRef.current[id] ?? ''
+          return sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null)
+        })
+      )
+      dirtyDelaysRef.current.clear()
+    }
+
+    if (promises.length > 0) {
+      try {
+        await Promise.all(promises)
         onObservationUpdated()
       } catch (err) {
-        console.error('Error guardando comentarios antes de cambiar de sitio:', err)
+        console.error('Error guardando antes de cambiar de sitio:', err)
       }
     }
     setCurrentSitioId(newSitioId)
@@ -2551,6 +2642,7 @@ function ModalDetallesProgramacion({
         const revisor = isRevision ? '' : (o.revisor || 'Sin revisor')
         const fechaRev = isRevision ? '' : (o.fecha_subsanacion ? String(o.fecha_subsanacion).slice(0, 10) : '')
         const comentario = comments[o.id_obs] || o.comentario_covepa || ''
+        const demora = delays[o.id_obs] !== undefined ? delays[o.id_obs] : (o.justificacion_demora || '')
         const sId = o.id_sitio || currentSitioId
         const loc = siteInfo.localidad || sitiosMap[sId]?.localidad || ''
 
@@ -2565,7 +2657,8 @@ function ModalDetallesProgramacion({
           o.acuerdo_subsanacion || '',
           revisor,
           fechaRev,
-          comentario
+          comentario,
+          demora
         ]
       })
 
@@ -2591,13 +2684,14 @@ function ModalDetallesProgramacion({
           { name: 'ACUERDO DE SUBSANACIÓN', filterButton: true },
           { name: 'REVISADO POR', filterButton: true },
           { name: 'FECHA DE REVISIÓN', filterButton: true },
-          { name: 'COMENTARIO COVEPA', filterButton: true }
+          { name: 'COMENTARIO COVEPA', filterButton: true },
+          { name: 'JUSTIFICACIÓN DE DEMORA', filterButton: true }
         ],
         rows: tableRows
       })
 
       // Anchos de columna óptimos
-      const colWidths = [6, 20, 18, 26, 16, 44, 44, 44, 24, 18, 35]
+      const colWidths = [6, 20, 18, 26, 16, 44, 44, 44, 24, 18, 35, 38]
       colWidths.forEach((w, i) => {
         worksheet.getColumn(i + 1).width = w
       })
@@ -2609,7 +2703,7 @@ function ModalDetallesProgramacion({
           cell.alignment = {
             vertical: 'middle',
             horizontal: (colNumber === 1 || colNumber === 2 || colNumber === 3 || colNumber === 5 || colNumber === 10) ? 'center' : 'left',
-            wrapText: colNumber === 6 || colNumber === 7 || colNumber === 8 || colNumber === 11
+            wrapText: colNumber === 6 || colNumber === 7 || colNumber === 8 || colNumber === 11 || colNumber === 12
           }
         })
       })
@@ -3048,6 +3142,47 @@ function ModalDetallesProgramacion({
                         placeholder="Escribe un comentario o nota de subsanación (se guarda automáticamente)..."
                         className="covepa-comment-textarea"
                       />
+                    </div>
+
+                    {/* Caja de Justificación de Demora / Control de Incidentes con autoguardado */}
+                    <div className="obs-content-box box-demora" style={{ borderLeft: '4px solid #f59e0b', background: '#fffdf5', border: '1px solid #fde68a', borderLeftWidth: '4px', borderRadius: '8px', padding: '0.75rem' }}>
+                      <div className="box-covepa-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                        <span className="box-label" style={{ color: '#b45309', fontWeight: 'var(--fw-bold)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                          <AlertTriangle size={13} color="#d97706" /> Control de Incidentes / Justificación de Demora:
+                        </span>
+                        <div className="covepa-save-cluster">
+                          {savingDelayId === obs.id_obs && (
+                            <span className="save-tag saving">
+                              <RefreshCw size={11} className="spin" /> Guardando...
+                            </span>
+                          )}
+                          {savedDelayId === obs.id_obs && (
+                            <span className="save-tag saved">
+                              <Check size={12} /> Guardado
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={delays[obs.id_obs] ?? ''}
+                        onChange={(e) => handleDelayChange(obs.id_obs, e.target.value)}
+                        onBlur={() => handleBlurDelay(obs.id_obs)}
+                        placeholder="Si esta observación tomó más tiempo del debido o tuvo incidentes, redacta aquí el sustento técnico (dejar vacío si no hubo problemas de demora)..."
+                        className="covepa-comment-textarea"
+                        style={{ borderColor: '#fde68a' }}
+                      />
+                      <div style={{ fontSize: 'var(--text-meta)', marginTop: '0.35rem', color: '#78716c' }}>
+                        {delays[obs.id_obs] && delays[obs.id_obs].trim() ? (
+                          <span style={{ color: '#b45309', fontWeight: 'var(--fw-medium)' }}>
+                            ⚠️ Incidente registrado: observación con retraso justificado
+                          </span>
+                        ) : (
+                          <span style={{ color: '#059669', fontWeight: 'var(--fw-medium)' }}>
+                            ✓ Sin incidentes de demora (subsanación en plazo regular)
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

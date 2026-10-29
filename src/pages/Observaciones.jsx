@@ -18,6 +18,7 @@ import {
 import {
   sincronizarAuditoriaObservacion,
   sincronizarComentarioObservacion,
+  sincronizarJustificacionDemora,
   resolverNombreAuditor
 } from '../services/auditoriaSyncService'
 import { getPersonalActivo } from '../services/programacionService'
@@ -36,11 +37,17 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const [commentVal, setCommentVal] = useState(obs?.comentario_covepa || '')
   const [savingComment, setSavingComment] = useState(false)
   const [savedComment, setSavedComment] = useState(false)
+  const [delayVal, setDelayVal] = useState(obs?.justificacion_demora || '')
+  const [savingDelay, setSavingDelay] = useState(false)
+  const [savedDelay, setSavedDelay] = useState(false)
   const [showHistorial, setShowHistorial] = useState(false)
   const [historialRefreshKey, setHistorialRefreshKey] = useState(0)
   const isDirtyCommentRef = useRef(false)
   const commentValRef = useRef(commentVal)
   commentValRef.current = commentVal
+  const isDirtyDelayRef = useRef(false)
+  const delayValRef = useRef(delayVal)
+  delayValRef.current = delayVal
 
   const sitioInfo = sitiosMap[obsLocal?.id_sitio] || {}
   const localidad = sitioInfo.localidad || sitioInfo.nombre_nodo || ''
@@ -50,7 +57,9 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     if (obs) {
       setObsLocal(obs)
       setCommentVal(obs.comentario_covepa || '')
+      setDelayVal(obs.justificacion_demora || '')
       isDirtyCommentRef.current = false
+      isDirtyDelayRef.current = false
     }
   }, [obs?.id_obs])
 
@@ -80,6 +89,27 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     }
   }, [obsLocal, onSaved])
 
+  // Guardado de justificación de demora en tiempo real (COVEPA)
+  const saveDelayNow = useCallback(async () => {
+    if (!isDirtyDelayRef.current || !obsLocal?.id_obs) return
+    setSavingDelay(true)
+    try {
+      const val = delayValRef.current || ''
+      const justificacionLimpia = val.trim() !== '' ? val.trim() : null
+      await sincronizarJustificacionDemora(obsLocal.id_obs, justificacionLimpia)
+      isDirtyDelayRef.current = false
+      setSavedDelay(true)
+      setTimeout(() => setSavedDelay(false), 2500)
+      if (onSaved) {
+        onSaved({ ...obsLocal, justificacion_demora: justificacionLimpia })
+      }
+    } catch (err) {
+      console.error('Error al guardar justificación de demora:', err)
+    } finally {
+      setSavingDelay(false)
+    }
+  }, [obsLocal, onSaved])
+
   const handleCommentChange = (e) => {
     setCommentVal(e.target.value)
     isDirtyCommentRef.current = true
@@ -89,12 +119,24 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     saveCommentNow()
   }
 
+  const handleDelayChange = (e) => {
+    setDelayVal(e.target.value)
+    isDirtyDelayRef.current = true
+  }
+
+  const handleBlurDelay = () => {
+    saveDelayNow()
+  }
+
   const handleCloseWithAutoSave = useCallback(async () => {
     if (isDirtyCommentRef.current) {
       await saveCommentNow()
     }
+    if (isDirtyDelayRef.current) {
+      await saveDelayNow()
+    }
     onClose()
-  }, [onClose, saveCommentNow])
+  }, [onClose, saveCommentNow, saveDelayNow])
 
   // Cerrar con tecla Escape
   useEffect(() => {
@@ -366,6 +408,47 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                 rows={3}
               />
             </div>
+
+            {/* Caja de Justificación de Demora / Control de Incidentes con autoguardado */}
+            <div className="obs-content-box box-demora" style={{ margin: '0.85rem 0 0 0', borderLeft: '4px solid #f59e0b', background: '#fffdf5', border: '1px solid #fde68a', borderLeftWidth: '4px', borderRadius: '8px', padding: '0.75rem' }}>
+              <div className="box-covepa-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <span className="box-label" style={{ color: '#b45309', fontWeight: 'var(--fw-bold)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <AlertTriangle size={13} color="#d97706" /> Control de Incidentes / Justificación de Demora:
+                </span>
+                <div className="covepa-save-cluster">
+                  {savingDelay && (
+                    <span className="save-tag saving">
+                      <RefreshCw size={11} className="spin" /> Guardando...
+                    </span>
+                  )}
+                  {savedDelay && (
+                    <span className="save-tag saved">
+                      <Check size={12} /> Guardado
+                    </span>
+                  )}
+                </div>
+              </div>
+              <textarea
+                value={delayVal}
+                onChange={handleDelayChange}
+                onBlur={handleBlurDelay}
+                placeholder="Si esta observación tomó más tiempo del debido o tuvo incidentes, redacta aquí el sustento técnico (dejar vacío si no hubo problemas de demora)..."
+                className="covepa-comment-textarea"
+                rows={2}
+                style={{ borderColor: '#fde68a' }}
+              />
+              <div style={{ fontSize: 'var(--text-meta)', marginTop: '0.35rem', color: '#78716c' }}>
+                {delayVal && delayVal.trim() ? (
+                  <span style={{ color: '#b45309', fontWeight: 'var(--fw-medium)' }}>
+                    ⚠️ Incidente registrado: observación con retraso justificado
+                  </span>
+                ) : (
+                  <span style={{ color: '#059669', fontWeight: 'var(--fw-medium)' }}>
+                    ✓ Sin incidentes de demora (subsanación en plazo regular)
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* 2. INFORMACIÓN COMPLETA DE LA BASE DE DATOS */}
@@ -597,6 +680,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                     <th style={{ width: '135px' }}>Estado COVEPA</th>
                     <th style={{ width: '130px' }}>Fecha de Revisión</th>
                     <th>Revisado por</th>
+                    <th style={{ width: '150px' }}>Demora / Incidente</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -670,6 +754,36 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                             >
                               <Users size={12} color="#2563eb" />
                               {revisorNombre}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          {o.justificacion_demora && o.justificacion_demora.trim() ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '0.2rem 0.55rem',
+                                borderRadius: '6px',
+                                fontSize: 'var(--text-xs)',
+                                fontWeight: 'var(--fw-medium)',
+                                background: '#fffbeb',
+                                color: '#b45309',
+                                border: '1px solid #fde68a',
+                                maxWidth: '150px',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}
+                              title={`Demora Justificada:\n${o.justificacion_demora}`}
+                            >
+                              <AlertTriangle size={12} color="#d97706" style={{ flexShrink: 0 }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {o.justificacion_demora}
+                              </span>
                             </span>
                           ) : (
                             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
@@ -766,6 +880,7 @@ export default function Observaciones() {
   const [estadoCovepa, setEstadoCovepa] = useState(() => searchParams.get('estado') || '')
   const [idSitio, setIdSitio] = useState('')
   const [cuadrilla, setCuadrilla] = useState('')
+  const [filtroDemora, setFiltroDemora] = useState('')
   const [page, setPage] = useState(1)
   const pageSize = 20
 
@@ -796,8 +911,9 @@ export default function Observaciones() {
     protocolo,
     estadoCovepa,
     idSitio,
-    idSitios: siteIdsForCuadrilla
-  }), [search, protocolo, estadoCovepa, idSitio, siteIdsForCuadrilla])
+    idSitios: siteIdsForCuadrilla,
+    filtroDemora
+  }), [search, protocolo, estadoCovepa, idSitio, siteIdsForCuadrilla, filtroDemora])
 
   // Carga inicial de filtros disponibles, catálogo de localidades y personal
   useEffect(() => {
@@ -866,11 +982,11 @@ export default function Observaciones() {
     if (vista === 'tabla') {
       loadData(true)
     }
-  }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla])
+  }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla, filtroDemora])
   useEffect(() => { if (vista === 'tabla' && page > 1) loadData() }, [page])
   // Los medidores son métricas globales del proyecto y NO se alteran al aplicar filtros
   useEffect(() => { loadKpis() }, [loadKpis])
-  useEffect(() => { loadAgrupada() }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla])
+  useEffect(() => { loadAgrupada() }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla, filtroDemora])
 
   const handleSearchChange = (val) => {
     clearTimeout(searchTimeout.current)
@@ -878,12 +994,12 @@ export default function Observaciones() {
   }
 
   const clearFilters = () => {
-    setSearch(''); setProtocolo(''); setEstadoCovepa(''); setIdSitio(''); setCuadrilla(''); setPage(1)
+    setSearch(''); setProtocolo(''); setEstadoCovepa(''); setIdSitio(''); setCuadrilla(''); setFiltroDemora(''); setPage(1)
     const el = document.getElementById('obs-search-input')
     if (el) el.value = ''
   }
 
-  const hasActiveFilters = Boolean(search || protocolo || estadoCovepa || idSitio || cuadrilla)
+  const hasActiveFilters = Boolean(search || protocolo || estadoCovepa || idSitio || cuadrilla || filtroDemora)
 
   const handleExport = async () => {
     setExporting(true)
@@ -892,7 +1008,7 @@ export default function Observaciones() {
       const cols = [
         'id_obs', 'cuadrilla', 'id_sitio', 'localidad', 'hito', 'protocolo', 'subsistema', 'detalle', 'item', 'sub_item',
         'comentario_inicial', 'comentario_complementario', 'comentario_final',
-        'acuerdo_subsanacion', 'estado_gilat', 'estado_pronatel', 'comentario_pronatel', 'estado_covepa', 'fecha_subsanacion', 'revisor', 'comentario_covepa'
+        'acuerdo_subsanacion', 'estado_gilat', 'estado_pronatel', 'comentario_pronatel', 'estado_covepa', 'fecha_subsanacion', 'revisor', 'comentario_covepa', 'justificacion_demora'
       ]
       const header = cols.join(',')
       const rows = data.map(r => cols.map(c => {
@@ -1076,6 +1192,20 @@ export default function Observaciones() {
             </select>
           </div>
 
+          <div className="obs-select-wrap">
+            <AlertTriangle size={13} className="select-icon"/>
+            <select
+              className="toolbar-select"
+              value={filtroDemora}
+              onChange={e => { setFiltroDemora(e.target.value); setPage(1) }}
+              title="Filtrar por observaciones con demora o plazo normal"
+            >
+              <option value="">Todas (Demora / Incidentes)</option>
+              <option value="CON_DEMORA">⚠️ Con Demora Justificada</option>
+              <option value="SIN_DEMORA">✓ Sin Demora (Normal)</option>
+            </select>
+          </div>
+
           {hasActiveFilters && (
             <button className="obs-clear-filters-btn" onClick={clearFilters} title="Limpiar todos los filtros">
               <X size={14}/> Limpiar
@@ -1158,6 +1288,7 @@ export default function Observaciones() {
                   <th style={{ width: '135px' }}>Estado COVEPA</th>
                   <th style={{ width: '130px' }}>Fecha de Revisión</th>
                   <th>Revisado por</th>
+                  <th style={{ width: '150px' }}>Demora / Incidente</th>
                 </tr>
               </thead>
               <tbody>
@@ -1228,6 +1359,36 @@ export default function Observaciones() {
                           >
                             <Users size={12} color="#2563eb" />
                             {revisorNombre}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {o.justificacion_demora && o.justificacion_demora.trim() ? (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '0.2rem 0.55rem',
+                              borderRadius: '6px',
+                              fontSize: 'var(--text-xs)',
+                              fontWeight: 'var(--fw-medium)',
+                              background: '#fffbeb',
+                              color: '#b45309',
+                              border: '1px solid #fde68a',
+                              maxWidth: '150px',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
+                            }}
+                            title={`Demora Justificada:\n${o.justificacion_demora}`}
+                          >
+                            <AlertTriangle size={12} color="#d97706" style={{ flexShrink: 0 }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {o.justificacion_demora}
+                            </span>
                           </span>
                         ) : (
                           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>

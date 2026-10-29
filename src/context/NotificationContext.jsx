@@ -638,6 +638,60 @@ export function NotificationProvider({ children }) {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'configuracion_reportes_correo' },
+        (payload) => {
+          const newRow = payload.new
+          const oldRow = payload.old
+          // Comprobar si se acaba de registrar un despacho exitoso
+          if (newRow?.ultimo_envio_at && newRow.ultimo_envio_at !== oldRow?.ultimo_envio_at) {
+            playNotificationChime()
+
+            let horaStr = 'recientemente'
+            try {
+              horaStr = new Date(newRow.ultimo_envio_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+            } catch (_) {}
+
+            const toastReporte = {
+              id: `toast-reporte-${Date.now()}`,
+              obs: {
+                id_obs: 'REPORTE-ENVIADO',
+                isReporteEnviado: true,
+                titulo: 'Reporte Diario Despachado',
+                detalle: `El reporte consolidado de observaciones fue enviado exitosamente a las ${horaStr}.`,
+                id_sitio: 'COVEPA',
+                localidad: 'Despacho por Correo',
+                revisor: 'Robot de Notificación',
+                fecha_subsanacion: newRow.ultimo_envio_at
+              },
+              createdAt: Date.now()
+            }
+
+            setToasts(prev => [toastReporte, ...prev].slice(0, 3))
+            setTimeout(() => {
+              setToasts(prev => prev.filter(t => t.id !== toastReporte.id))
+            }, 7000)
+
+            // Notificación nativa de escritorio (Windows / Celular)
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                const notif = new Notification('📬 Reporte Diario COVEPA Enviado', {
+                  body: `El consolidado de observaciones fue despachado exitosamente por correo a las ${horaStr}.`,
+                  icon: '/icon-192.png',
+                  tag: 'covepa-reporte-despachado',
+                  renotify: true
+                })
+                notif.onclick = () => {
+                  window.focus()
+                  window.location.href = '/reportes'
+                  notif.close()
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('[NOTIF-REALTIME] Canal de notificaciones en tiempo real conectado.')

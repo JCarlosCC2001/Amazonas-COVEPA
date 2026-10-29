@@ -69,7 +69,12 @@ export default function NotificationToastContainer() {
               {/* Cabecera del Toast */}
               <div className="notif-toast-header">
                 <div className="notif-toast-title-cluster">
-                  {isAccumulation ? (
+                  {obs.isReporteEnviado ? (
+                    <span className="notif-toast-badge-pill" style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>
+                      <CheckCircle2 size={12} />
+                      <span>Reporte Diario Despachado</span>
+                    </span>
+                  ) : isAccumulation ? (
                     <span className="notif-toast-badge-pill badge-accumulation">
                       <AlertTriangle size={12} />
                       <span>Observaciones en Revisión (+10m)</span>
@@ -153,7 +158,20 @@ export default function NotificationToastContainer() {
 
               {/* Pie del Toast */}
               <div className="notif-toast-footer">
-                {isAccumulation ? (
+                {obs.isReporteEnviado ? (
+                  <button
+                    type="button"
+                    className="notif-toast-action-btn"
+                    onClick={() => {
+                      navigate('/reportes')
+                      dismissToast(toast.id)
+                    }}
+                    style={{ background: '#003060', color: '#ffffff' }}
+                  >
+                    <span>Ir a Reportes</span>
+                    <ChevronRight size={13} />
+                  </button>
+                ) : isAccumulation ? (
                   <button
                     type="button"
                     className="notif-toast-action-btn btn-view-queue"

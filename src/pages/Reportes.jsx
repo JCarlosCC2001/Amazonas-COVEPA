@@ -364,6 +364,33 @@ export default function Reportes() {
             </span>
           </div>
 
+          {/* Banner de Estado del Último Despacho */}
+          {config.ultimo_envio_at && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.75rem 1rem',
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: '10px',
+              color: '#166534'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ fontSize: 'var(--text-lg)' }}>📬</span>
+                <div>
+                  <div className="t-name" style={{ color: '#14532d' }}>Último reporte despachado con éxito</div>
+                  <div className="t-meta" style={{ color: '#15803d' }}>
+                    Enviado: {new Date(config.ultimo_envio_at).toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' })} (Hora Perú)
+                  </div>
+                </div>
+              </div>
+              <span className="t-badge" style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>
+                ✓ Entregado
+              </span>
+            </div>
+          )}
+
           {/* Toggle Activo / Pausado */}
           <div className="reporte-toggle-box">
             <div className="reporte-toggle-label">

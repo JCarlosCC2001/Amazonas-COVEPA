@@ -400,12 +400,13 @@ async function main() {
     }
   })
 
-  // 10. Despachar Correo
+  // 10. Despachar Correo (con copia oculta de notificación al remitente para confirmación inmediata en Outlook)
   console.log(`[CRON-REPORTE] 📤 Enviando correo a través de mail.covepa.pe...`)
   const info = await transporter.sendMail({
     from: `"COVEPA - Gestión de Calidad" <${smtpUser}>`,
     to: recipients,
     cc: recipientsCC.length > 0 ? recipientsCC : undefined,
+    bcc: [smtpUser], // Asegura notificación inmediata en Outlook para ccondor@covepa.pe
     subject: subjectFinal,
     html: htmlBody
   })

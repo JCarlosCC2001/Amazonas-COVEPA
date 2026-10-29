@@ -83,7 +83,14 @@ export default function Programacion() {
     const dStr = typeof targetDate === 'string' ? targetDate : toLocalDateString(targetDate)
     try {
       const res = await fetchUltimosReportesDelDia(dStr)
-      setUltimosReportes(res || { bySite: {}, byCuadrilla: {} })
+      setUltimosReportes(res || {
+        bySite: {},
+        byCuadrilla: {},
+        byUser: {},
+        bySiteSolicitud: {},
+        byCuadrillaSolicitud: {},
+        byUserSolicitud: {}
+      })
     } catch (err) {
       console.warn('Error cargando últimos reportes en Programación:', err)
     }
@@ -157,35 +164,61 @@ export default function Programacion() {
     })
   }, [currentDate])
 
-  // Resolver el último reporte de un grupo de técnico para la jornada activa
+  // Resolver la última solicitud de revisión o último reporte de un grupo de técnico para la jornada activa
   const getUltimoReporteTecnico = useCallback((tGroup) => {
-    let latest = null
+    let latestSolicitud = null
+    let latestGeneral = null
 
-    // 1. Por sitios asignados al técnico en la jornada
+    const tecName = (tGroup?.tecnico?.nombre_completo || '').trim().toUpperCase()
+
+    // 1. Prioridad: Buscar solicitudes de revisión
+    // 1.1 Por sitios asignados
     ;(tGroup?.sitios || []).forEach(s => {
-      const rep = ultimosReportes.bySite?.[s.id_sitio]
-      if (rep && (!latest || new Date(rep.ts) > new Date(latest.ts))) {
-        latest = rep
+      const sol = ultimosReportes.bySiteSolicitud?.[s.id_sitio]
+      if (sol && (!latestSolicitud || new Date(sol.ts) > new Date(latestSolicitud.ts))) {
+        latestSolicitud = { ...sol, isSolicitud: true }
       }
     })
 
-    // 2. Por nombre del técnico responsable
-    const tecName = (tGroup?.tecnico?.nombre_completo || '').trim().toUpperCase()
-    if (tecName && ultimosReportes.byUser) {
-      const repUser = ultimosReportes.byUser[tecName] ||
-        Object.entries(ultimosReportes.byUser).find(([name]) => name.includes(tecName) || tecName.includes(name))?.[1]
-      if (repUser && (!latest || new Date(repUser.ts) > new Date(latest.ts))) {
-        latest = repUser
+    // 1.2 Por técnico responsable
+    if (tecName && ultimosReportes.byUserSolicitud) {
+      const solUser = ultimosReportes.byUserSolicitud[tecName] ||
+        Object.entries(ultimosReportes.byUserSolicitud).find(([name]) => name.includes(tecName) || tecName.includes(name))?.[1]
+      if (solUser && (!latestSolicitud || new Date(solUser.ts) > new Date(latestSolicitud.ts))) {
+        latestSolicitud = { ...solUser, isSolicitud: true }
       }
     }
 
-    // 3. Fallback por cuadrilla asignada
-    if (!latest && tGroup?.cuadrilla) {
-      const repCuad = ultimosReportes.byCuadrilla?.[tGroup.cuadrilla]
-      if (repCuad) latest = repCuad
+    // 1.3 Por cuadrilla
+    if (!latestSolicitud && tGroup?.cuadrilla && ultimosReportes.byCuadrillaSolicitud) {
+      const solCuad = ultimosReportes.byCuadrillaSolicitud[tGroup.cuadrilla]
+      if (solCuad) latestSolicitud = { ...solCuad, isSolicitud: true }
     }
 
-    return latest
+    if (latestSolicitud) return latestSolicitud
+
+    // 2. Si no hay solicitudes hoy, buscar cualquier reporte general
+    ;(tGroup?.sitios || []).forEach(s => {
+      const rep = ultimosReportes.bySite?.[s.id_sitio]
+      if (rep && (!latestGeneral || new Date(rep.ts) > new Date(latestGeneral.ts))) {
+        latestGeneral = { ...rep, isSolicitud: false }
+      }
+    })
+
+    if (tecName && ultimosReportes.byUser) {
+      const repUser = ultimosReportes.byUser[tecName] ||
+        Object.entries(ultimosReportes.byUser).find(([name]) => name.includes(tecName) || tecName.includes(name))?.[1]
+      if (repUser && (!latestGeneral || new Date(repUser.ts) > new Date(latestGeneral.ts))) {
+        latestGeneral = { ...repUser, isSolicitud: false }
+      }
+    }
+
+    if (!latestGeneral && tGroup?.cuadrilla && ultimosReportes.byCuadrilla) {
+      const repCuad = ultimosReportes.byCuadrilla[tGroup.cuadrilla]
+      if (repCuad) latestGeneral = { ...repCuad, isSolicitud: false }
+    }
+
+    return latestGeneral
   }, [ultimosReportes])
 
   // Buscador de Observación e Intersección Operativa
@@ -1113,23 +1146,41 @@ export default function Programacion() {
                                 👥 {tGroup.companions.map(c => c.nombre_completo).join(' · ')}
                               </span>
                             )}
-                            {/* Píldora del Último Reporte al lado de Actividad */}
+                            {/* Píldora de Última Solicitud de Revisión / Reporte al lado de Actividad */}
                             {(() => {
                               const ultRep = getUltimoReporteTecnico(tGroup)
                               const isRecent = ultRep?.ts ? (new Date() - new Date(ultRep.ts)) < 45 * 60 * 1000 : false
+
+                              if (ultRep && ultRep.isSolicitud) {
+                                return (
+                                  <span
+                                    className={`prog-tech-last-report-pill is-solicitud ${isRecent ? 'is-recent' : ''}`}
+                                    title={`Última solicitud de revisión registrada a las ${ultRep.hora}${ultRep.obs ? ` (Obs: ${ultRep.obs})` : ''}${ultRep.user ? ` · ${ultRep.user}` : ''}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleOpenTimelineTecnico(tec, tGroup)
+                                    }}
+                                  >
+                                    <span className="last-report-dot is-solicitud" />
+                                    <span className="last-report-label">Últ. solicitud de revisión:</span>
+                                    <strong className="last-report-time">{ultRep.timeAgo}</strong>
+                                    <span className="last-report-hour">· {ultRep.hora}</span>
+                                  </span>
+                                )
+                              }
 
                               if (ultRep) {
                                 return (
                                   <span
                                     className={`prog-tech-last-report-pill ${isRecent ? 'is-recent' : ''}`}
-                                    title={`Último reporte registrado a las ${ultRep.hora}${ultRep.obs ? ` (Obs: ${ultRep.obs})` : ''}${ultRep.user ? ` · ${ultRep.user}` : ''}`}
+                                    title={`Última actividad registrada a las ${ultRep.hora}${ultRep.obs ? ` (Obs: ${ultRep.obs})` : ''}${ultRep.user ? ` · ${ultRep.user}` : ''}`}
                                     onClick={(e) => {
                                       e.stopPropagation()
                                       handleOpenTimelineTecnico(tec, tGroup)
                                     }}
                                   >
                                     <span className="last-report-dot" />
-                                    <span className="last-report-label">Últ. reporte:</span>
+                                    <span className="last-report-label">Últ. actividad:</span>
                                     <strong className="last-report-time">{ultRep.timeAgo}</strong>
                                     <span className="last-report-hour">· {ultRep.hora}</span>
                                   </span>
@@ -1137,9 +1188,17 @@ export default function Programacion() {
                               }
 
                               return (
-                                <span className="prog-tech-last-report-pill empty" title="Sin reportes registrados para la fecha seleccionada">
+                                <span
+                                  className="prog-tech-last-report-pill empty"
+                                  title="Sin solicitudes de revisión registradas para la fecha seleccionada"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleOpenTimelineTecnico(tec, tGroup)
+                                  }}
+                                  style={{ cursor: 'pointer' }}
+                                >
                                   <span className="last-report-dot empty" />
-                                  <span className="last-report-label">Sin reportes hoy</span>
+                                  <span className="last-report-label">Sin solicitudes de revisión hoy</span>
                                 </span>
                               )
                             })()}
@@ -1349,17 +1408,18 @@ export default function Programacion() {
                                 {(() => {
                                   const ultRep = getUltimoReporteTecnico(tDay)
                                   if (!ultRep) return null
+                                  const isSol = ultRep.isSolicitud
                                   return (
                                     <span
-                                      className="week-tech-last-report-mini"
-                                      title={`Último reporte: ${ultRep.timeAgo} (${ultRep.hora})`}
+                                      className={`week-tech-last-report-mini ${isSol ? 'is-solicitud' : ''}`}
+                                      title={`${isSol ? 'Última solicitud de revisión' : 'Última actividad'}: ${ultRep.timeAgo} (${ultRep.hora})`}
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         handleOpenTimelineTecnico(tec, tDay, day.dateStr)
                                       }}
                                       style={{ cursor: 'pointer' }}
                                     >
-                                      {ultRep.timeAgo}
+                                      {isSol ? `Sol: ${ultRep.timeAgo}` : ultRep.timeAgo}
                                     </span>
                                   )
                                 })()}

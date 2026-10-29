@@ -128,7 +128,10 @@
   display: flex;
   align-items: center;
 }
-.clear-search-btn:hover { color: var(--text-primary); }
+
+.clear-search-btn:hover {
+  color: var(--text-primary);
+}
 
 .filter-group {
   display: flex;
@@ -212,6 +215,7 @@
   justify-content: center;
   transition: all var(--transition);
 }
+
 .refresh-btn:hover {
   background: #f0f6fc;
   color: #003060;
@@ -339,15 +343,31 @@
   display: flex;
   flex-direction: column;
 }
-.location-cell span { color: var(--text-primary); font-weight: var(--fw-medium); }
-.location-cell small { color: var(--text-muted); font-size: var(--text-xs); }
+
+.location-cell span {
+  color: var(--text-primary);
+  font-weight: var(--fw-medium);
+}
+
+.location-cell small {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
 
 .tech-cell {
   display: flex;
   flex-direction: column;
 }
-.tech-red { color: var(--text-secondary); font-weight: var(--fw-medium); }
-.tech-cell small { color: var(--text-muted); font-size: var(--text-xs); }
+
+.tech-red {
+  color: var(--text-secondary);
+  font-weight: var(--fw-medium);
+}
+
+.tech-cell small {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
 
 .coords-link {
   display: inline-flex;
@@ -389,6 +409,7 @@
   justify-content: center;
   transition: all var(--transition);
 }
+
 .view-site-btn:hover {
   background: var(--primary);
   color: white;
@@ -396,7 +417,8 @@
 }
 
 /* ─── Estados de Carga y Vacío ─── */
-.table-loading-state, .table-empty-state {
+.table-loading-state,
+.table-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -458,4 +480,3 @@
   font-weight: var(--fw-semibold);
   padding: 0 0.5rem;
 }
-

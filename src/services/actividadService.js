@@ -124,10 +124,95 @@ export async function getTimelineActividadTecnico({
     const histRows = histRes.data || []
     const obsRows = (obsRes && obsRes.data) ? obsRes.data : []
 
-    // 4. Consolidar eventos de línea de tiempo evitando duplicados
+    // 4. Reconstrucción integral de la trazabilidad (Ciclo de Vida) por observación
+    // Etapas: 1. Solicitó Revisión -> 2. En Revisión -> 3. Validada / Rechazada
+    const lifecycleMap = new Map()
+    const getOrCreateLc = (idObs) => {
+      if (!lifecycleMap.has(idObs)) {
+        lifecycleMap.set(idObs, { solicitado: null, enRevision: null, validado: null, rechazado: null })
+      }
+      return lifecycleMap.get(idObs)
+    }
+
+    // 4.1. Registrar transiciones desde el historial oficial de estados
+    histRows.forEach(h => {
+      const lc = getOrCreateLc(h.id_obs)
+      const item = {
+        ts: h.created_at,
+        hora: formatHoraPeru(h.created_at),
+        timeAgo: getTiempoRelativo(h.created_at),
+        usuario: h.usuario_nombre || 'Auditor / Técnico',
+        comentario: h.comentario || null
+      }
+      const stNuevo = String(h.estado_nuevo || '').trim()
+      const stAnt = String(h.estado_anterior || '').trim()
+
+      if (stNuevo === 'Solicitando Revisión' || stNuevo === 'Solicitando Revision') {
+        if (!lc.solicitado || new Date(h.created_at) > new Date(lc.solicitado.ts)) {
+          lc.solicitado = item
+        }
+      } else if ((stAnt === 'Solicitando Revisión' || stAnt === 'Solicitando Revision') && !lc.solicitado) {
+        lc.solicitado = item
+      }
+
+      if (stNuevo === 'En Revisión' || stNuevo === 'En Revision') {
+        if (!lc.enRevision || new Date(h.created_at) > new Date(lc.enRevision.ts)) {
+          lc.enRevision = item
+        }
+      }
+
+      if (stNuevo === 'Validado') {
+        if (!lc.validado || new Date(h.created_at) > new Date(lc.validado.ts)) {
+          lc.validado = item
+        }
+      }
+
+      if (stNuevo === 'Rechazado') {
+        if (!lc.rechazado || new Date(h.created_at) > new Date(lc.rechazado.ts)) {
+          lc.rechazado = item
+        }
+      }
+    })
+
+    // 4.2. Enriquecer con registros activos de observaciones
+    obsRows.forEach(o => {
+      const lc = getOrCreateLc(o.id_obs)
+      const stNorm = String(o.estado_covepa || '').trim()
+      const isSol = stNorm === 'Solicitando Revisión' || stNorm === 'Solicitando Revision'
+
+      if (isSol && !lc.solicitado) {
+        const ts = o.fecha_subsanacion || new Date().toISOString()
+        lc.solicitado = {
+          ts,
+          hora: formatHoraPeru(ts),
+          timeAgo: getTiempoRelativo(ts),
+          usuario: nombreTecnico || 'Técnico de Cuadrilla'
+        }
+      }
+
+      if ((stNorm === 'En Revisión' || stNorm === 'En Revision') && !lc.enRevision) {
+        const ts = o.fecha_subsanacion || new Date().toISOString()
+        lc.enRevision = {
+          ts,
+          hora: formatHoraPeru(ts),
+          timeAgo: getTiempoRelativo(ts),
+          usuario: o.revisor || 'Auditor COVEPA'
+        }
+      }
+
+      if (stNorm === 'Validado' && o.fecha_subsanacion && !lc.validado) {
+        lc.validado = {
+          ts: o.fecha_subsanacion,
+          hora: formatHoraPeru(o.fecha_subsanacion),
+          timeAgo: getTiempoRelativo(o.fecha_subsanacion),
+          usuario: o.revisor || 'Auditor COVEPA'
+        }
+      }
+    })
+
+    // 4.3. Consolidar eventos de línea de tiempo evitando duplicados
     const eventMap = new Map()
 
-    // 4.1. Eventos del historial oficial de estados
     histRows.forEach(h => {
       const isSolicitud = h.estado_nuevo === 'Solicitando Revisión' ||
         h.estado_anterior === 'Solicitando Revisión' ||
@@ -149,11 +234,12 @@ export async function getTimelineActividadTecnico({
         origen: h.origen || 'app_fotos',
         isSolicitud,
         detalle: null,
-        subsistema: null
+        subsistema: null,
+        lifecycle: lifecycleMap.get(h.id_obs) || { solicitado: null, enRevision: null, validado: null, rechazado: null }
       })
     })
 
-    // 4.2. Observaciones activas que están actualmente solicitando revisión o fueron subsanadas en el día
+    // 4.4. Observaciones activas que están actualmente solicitando revisión o fueron subsanadas en el día
     obsRows.forEach(o => {
       const stNorm = String(o.estado_covepa || '').trim()
       const isSolicitandoActiva = stNorm === 'Solicitando Revisión' || stNorm === 'Solicitando Revision'
@@ -193,7 +279,8 @@ export async function getTimelineActividadTecnico({
           isSolicitud: isSolicitandoActiva,
           detalle: o.detalle || '',
           subsistema: o.subsistema || '',
-          protocolo: o.protocolo || ''
+          protocolo: o.protocolo || '',
+          lifecycle: lifecycleMap.get(o.id_obs) || { solicitado: null, enRevision: null, validado: null, rechazado: null }
         })
       }
     })
@@ -205,10 +292,17 @@ export async function getTimelineActividadTecnico({
       return ta - tb
     })
 
-    // 6. Resumen de métricas del timeline
+    // 6. Resumen de métricas del timeline y última solicitud de revisión
     const solicitudes = events.filter(e => e.isSolicitud || e.estado === 'Solicitando Revisión').length
     const sitiosSet = new Set(events.map(e => e.id_sitio).filter(Boolean))
     const ultimaHora = events.length > 0 ? events[events.length - 1].hora : '—'
+
+    let ultimaSolicitud = null
+    for (const lc of lifecycleMap.values()) {
+      if (lc.solicitado && (!ultimaSolicitud || new Date(lc.solicitado.ts) > new Date(ultimaSolicitud.ts))) {
+        ultimaSolicitud = lc.solicitado
+      }
+    }
 
     return {
       events,
@@ -216,7 +310,8 @@ export async function getTimelineActividadTecnico({
         total: events.length,
         solicitudes,
         sitiosCount: sitiosSet.size,
-        ultimaHora
+        ultimaHora,
+        ultimaSolicitud
       }
     }
   } catch (err) {
@@ -230,10 +325,23 @@ export async function getTimelineActividadTecnico({
 
 /**
  * Obtiene el mapa del último reporte registrado por sitio y cuadrilla para una fecha dada.
- * Retorna { bySite: { [id_sitio]: { ts, hora, timeAgo, obs, user } }, byCuadrilla: { [cuadrilla]: { ts, hora, timeAgo, obs, user } }, byUser: { [nombre]: { ts, hora, timeAgo, obs, user } } }
+ * Retorna tanto la última actividad general como la última solicitud de revisión específica.
+ * Retorna {
+ *   bySite, byCuadrilla, byUser,
+ *   bySiteSolicitud, byCuadrillaSolicitud, byUserSolicitud
+ * }
  */
 export async function fetchUltimosReportesDelDia(fecha) {
-  if (!fecha) return { bySite: {}, byCuadrilla: {}, byUser: {} }
+  if (!fecha) {
+    return {
+      bySite: {},
+      byCuadrilla: {},
+      byUser: {},
+      bySiteSolicitud: {},
+      byCuadrillaSolicitud: {},
+      byUserSolicitud: {}
+    }
+  }
 
   const startIso = `${fecha}T00:00:00`
   const endIso = `${fecha}T23:59:59`
@@ -242,21 +350,24 @@ export async function fetchUltimosReportesDelDia(fecha) {
     const [hRes, oRes] = await Promise.all([
       supabase
         .from('historial_estados_observaciones')
-        .select('id_obs, id_sitio, created_at, usuario_nombre')
+        .select('id_obs, id_sitio, created_at, usuario_nombre, estado_anterior, estado_nuevo')
         .gte('created_at', startIso)
         .lte('created_at', endIso)
         .order('created_at', { ascending: false }),
       supabase
         .from('observaciones')
-        .select('id_obs, id_sitio, fecha_subsanacion, revisor')
-        .gte('fecha_subsanacion', startIso)
-        .lte('fecha_subsanacion', endIso)
+        .select('id_obs, id_sitio, fecha_subsanacion, revisor, estado_covepa')
+        .or(`fecha_subsanacion.gte.${startIso},estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión`)
         .order('fecha_subsanacion', { ascending: false })
     ])
 
     const bySite = {}
     const byCuadrilla = {}
     const byUser = {}
+
+    const bySiteSolicitud = {}
+    const byCuadrillaSolicitud = {}
+    const byUserSolicitud = {}
 
     // Mapeo sitio -> cuadrilla base
     const siteCuadMap = {}
@@ -265,63 +376,109 @@ export async function fetchUltimosReportesDelDia(fecha) {
       siteCuadMap[s.id_site] = c
     })
 
-    const recordEvent = (siteId, ts, obs, user) => {
+    const recordEvent = (siteId, ts, obs, user, isSolicitud = false) => {
       if (!ts) return
 
-      // 1. Indexar por sitio
+      const payload = {
+        ts,
+        hora: formatHoraPeru(ts),
+        timeAgo: getTiempoRelativo(ts),
+        obs,
+        user,
+        siteId,
+        isSolicitud
+      }
+
+      // 1. General por sitio
       if (siteId) {
         const existing = bySite[siteId]
         if (!existing || new Date(ts) > new Date(existing.ts)) {
-          bySite[siteId] = {
-            ts,
-            hora: formatHoraPeru(ts),
-            timeAgo: getTiempoRelativo(ts),
-            obs,
-            user,
-            siteId
-          }
+          bySite[siteId] = payload
         }
 
         const cName = siteCuadMap[siteId]
         if (cName) {
           const existingCuad = byCuadrilla[cName]
           if (!existingCuad || new Date(ts) > new Date(existingCuad.ts)) {
-            byCuadrilla[cName] = {
-              ts,
-              hora: formatHoraPeru(ts),
-              timeAgo: getTiempoRelativo(ts),
-              obs,
-              user,
-              siteId
-            }
+            byCuadrilla[cName] = payload
           }
         }
       }
 
-      // 2. Indexar por usuario / técnico
+      // 2. General por usuario
       if (user) {
         const uKey = String(user).trim().toUpperCase()
         const existingUser = byUser[uKey]
         if (!existingUser || new Date(ts) > new Date(existingUser.ts)) {
-          byUser[uKey] = {
-            ts,
-            hora: formatHoraPeru(ts),
-            timeAgo: getTiempoRelativo(ts),
-            obs,
-            user,
-            siteId
+          byUser[uKey] = payload
+        }
+      }
+
+      // 3. Específico de Solicitud de Revisión
+      if (isSolicitud) {
+        if (siteId) {
+          const existingSolSite = bySiteSolicitud[siteId]
+          if (!existingSolSite || new Date(ts) > new Date(existingSolSite.ts)) {
+            bySiteSolicitud[siteId] = payload
+          }
+
+          const cName = siteCuadMap[siteId]
+          if (cName) {
+            const existingSolCuad = byCuadrillaSolicitud[cName]
+            if (!existingSolCuad || new Date(ts) > new Date(existingSolCuad.ts)) {
+              byCuadrillaSolicitud[cName] = payload
+            }
+          }
+        }
+
+        if (user) {
+          const uKey = String(user).trim().toUpperCase()
+          const existingSolUser = byUserSolicitud[uKey]
+          if (!existingSolUser || new Date(ts) > new Date(existingSolUser.ts)) {
+            byUserSolicitud[uKey] = payload
           }
         }
       }
     }
 
-    ;(hRes.data || []).forEach(h => recordEvent(h.id_sitio, h.created_at, h.id_obs, h.usuario_nombre))
-    ;(oRes.data || []).forEach(o => recordEvent(o.id_sitio, o.fecha_subsanacion, o.id_obs, o.revisor))
+    ;(hRes.data || []).forEach(h => {
+      const stNuevo = String(h.estado_nuevo || '').trim()
+      const stAnt = String(h.estado_anterior || '').trim()
+      const isSol = stNuevo === 'Solicitando Revisión' ||
+        stNuevo === 'Solicitando Revision' ||
+        ((stAnt === 'Solicitando Revisión' || stAnt === 'Solicitando Revision') && (stNuevo === 'En Revisión' || stNuevo === 'En Revision'))
 
-    return { bySite, byCuadrilla, byUser }
+      recordEvent(h.id_sitio, h.created_at, h.id_obs, h.usuario_nombre, isSol)
+    })
+
+    ;(oRes.data || []).forEach(o => {
+      const stNorm = String(o.estado_covepa || '').trim()
+      const isObsSol = stNorm === 'Solicitando Revisión' || stNorm === 'Solicitando Revision'
+      const ts = o.fecha_subsanacion || (isObsSol ? new Date().toISOString() : null)
+
+      if (ts) {
+        recordEvent(o.id_sitio, ts, o.id_obs, o.revisor, isObsSol)
+      }
+    })
+
+    return {
+      bySite,
+      byCuadrilla,
+      byUser,
+      bySiteSolicitud,
+      byCuadrillaSolicitud,
+      byUserSolicitud
+    }
   } catch (err) {
     console.error('[REPORTES-ERROR] Error al consultar últimos reportes del día:', err)
-    return { bySite: {}, byCuadrilla: {}, byUser: {} }
+    return {
+      bySite: {},
+      byCuadrilla: {},
+      byUser: {},
+      bySiteSolicitud: {},
+      byCuadrillaSolicitud: {},
+      byUserSolicitud: {}
+    }
   }
 }
 

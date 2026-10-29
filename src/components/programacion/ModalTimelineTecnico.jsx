@@ -236,8 +236,17 @@ export default function ModalTimelineTecnico({
                       🛡️ {cuadrilla}
                     </span>
                   )}
+                  {timelineData.summary.ultimaSolicitud ? (
+                    <span className="meta-pill" style={{ background: '#fef3c7', color: '#b45309', borderColor: '#fde68a', fontWeight: 'var(--fw-bold)' }}>
+                      ⏳ Última solicitud de revisión: <strong>{timelineData.summary.ultimaSolicitud.timeAgo}</strong> ({timelineData.summary.ultimaSolicitud.hora})
+                    </span>
+                  ) : (
+                    <span className="meta-pill" style={{ background: '#f8fafc', color: '#64748b', borderColor: '#e2e8f0' }}>
+                      ⏳ Sin solicitudes de revisión hoy
+                    </span>
+                  )}
                   <span className="meta-pill" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    <strong>{timelineData.summary.solicitudes}</strong> {timelineData.summary.solicitudes === 1 ? 'solicitud de validación' : 'solicitudes de validación'}
+                    <strong>{timelineData.summary.solicitudes}</strong> {timelineData.summary.solicitudes === 1 ? 'solicitud' : 'solicitudes'}
                   </span>
                   {timelineData.summary.sitiosCount > 0 && (
                     <span className="meta-pill" style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -447,6 +456,46 @@ export default function ModalTimelineTecnico({
                           </div>
                         )}
 
+                        {/* Trazabilidad de 3 Etapas: Pidió Revisión -> En Revisión -> Validada */}
+                        <div className="prog-timeline-lifecycle-box">
+                          {/* 1. Pidió Revisión */}
+                          <div className={`lifecycle-row ${ev.lifecycle?.solicitado ? 'is-done' : ''}`}>
+                            <span className="lifecycle-dot solicitado" />
+                            <span className="lifecycle-step-lbl">Pidió revisión:</span>
+                            <span className="lifecycle-step-val">
+                              {ev.lifecycle?.solicitado
+                                ? `${ev.lifecycle.solicitado.hora} (${ev.lifecycle.solicitado.timeAgo})`
+                                : (ev.isSolicitud ? `${ev.hora} (${ev.timeAgo})` : '—')}
+                            </span>
+                          </div>
+
+                          {/* 2. Pasó a En Revisión */}
+                          <div className={`lifecycle-row ${ev.lifecycle?.enRevision ? 'is-done' : ''}`}>
+                            <span className="lifecycle-dot en-revision" />
+                            <span className="lifecycle-step-lbl">En revisión:</span>
+                            <span className="lifecycle-step-val">
+                              {ev.lifecycle?.enRevision
+                                ? `${ev.lifecycle.enRevision.hora} (${ev.lifecycle.enRevision.timeAgo})`
+                                : (ev.estado === 'En Revisión' ? 'En proceso' : 'Pendiente')}
+                            </span>
+                          </div>
+
+                          {/* 3. Validada / Rechazada */}
+                          <div className={`lifecycle-row ${(ev.lifecycle?.validado || ev.lifecycle?.rechazado) ? 'is-done' : ''}`}>
+                            <span className={`lifecycle-dot ${ev.lifecycle?.rechazado ? 'rechazado' : 'validado'}`} />
+                            <span className="lifecycle-step-lbl">
+                              {ev.lifecycle?.rechazado ? 'Rechazada:' : 'Validada:'}
+                            </span>
+                            <span className="lifecycle-step-val">
+                              {ev.lifecycle?.validado
+                                ? `${ev.lifecycle.validado.hora} (${ev.lifecycle.validado.timeAgo})`
+                                : ev.lifecycle?.rechazado
+                                ? `${ev.lifecycle.rechazado.hora} (${ev.lifecycle.rechazado.timeAgo})`
+                                : (ev.estado === 'Validado' ? `${ev.hora} (${ev.timeAgo})` : 'Pendiente')}
+                            </span>
+                          </div>
+                        </div>
+
                         {/* Comentario / Sustento técnico */}
                         {ev.comentario ? (
                           <div className="prog-timeline-card-comment" title={ev.comentario}>
@@ -505,6 +554,83 @@ export default function ModalTimelineTecnico({
                           <ArrowRight size={12} />
                         </button>
                       )}
+                    </div>
+                  </div>
+
+                  {/* Stepper Horizontal Expandido con las 3 Etapas */}
+                  <div className="prog-timeline-stepper">
+                    {/* Paso 1: Pidió Revisión */}
+                    <div className={`stepper-step ${selectedEvent.lifecycle?.solicitado || selectedEvent.isSolicitud ? 'done' : 'waiting'}`}>
+                      <div className="stepper-step-head">
+                        <span className="stepper-step-badge">1</span>
+                        <strong className="stepper-step-title">Pidió Revisión</strong>
+                      </div>
+                      <div className="stepper-step-body">
+                        <span className="stepper-step-time">
+                          {selectedEvent.lifecycle?.solicitado ? selectedEvent.lifecycle.solicitado.hora : selectedEvent.hora}
+                        </span>
+                        <span className="stepper-step-ago">
+                          {selectedEvent.lifecycle?.solicitado?.timeAgo || selectedEvent.timeAgo || 'Hoy'}
+                        </span>
+                        <span className="stepper-step-user" title={selectedEvent.lifecycle?.solicitado?.usuario || selectedEvent.usuario}>
+                          👤 {selectedEvent.lifecycle?.solicitado?.usuario || selectedEvent.usuario}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="stepper-arrow-divider">
+                      <ArrowRight size={14} color="#94a3b8" />
+                    </div>
+
+                    {/* Paso 2: En Revisión */}
+                    <div className={`stepper-step ${selectedEvent.lifecycle?.enRevision ? 'done' : (selectedEvent.estado === 'En Revisión' ? 'current' : 'waiting')}`}>
+                      <div className="stepper-step-head">
+                        <span className="stepper-step-badge">2</span>
+                        <strong className="stepper-step-title">Pasó a En Revisión</strong>
+                      </div>
+                      <div className="stepper-step-body">
+                        <span className="stepper-step-time">
+                          {selectedEvent.lifecycle?.enRevision ? selectedEvent.lifecycle.enRevision.hora : (selectedEvent.estado === 'En Revisión' ? 'En proceso' : '—')}
+                        </span>
+                        <span className="stepper-step-ago">
+                          {selectedEvent.lifecycle?.enRevision?.timeAgo || (selectedEvent.estado === 'En Revisión' ? 'Tomada por auditor' : 'En cola')}
+                        </span>
+                        <span className="stepper-step-user" title={selectedEvent.lifecycle?.enRevision?.usuario || 'Auditoría COVEPA'}>
+                          🔍 {selectedEvent.lifecycle?.enRevision?.usuario || (selectedEvent.estado === 'En Revisión' ? selectedEvent.usuario : 'Auditor COVEPA')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="stepper-arrow-divider">
+                      <ArrowRight size={14} color="#94a3b8" />
+                    </div>
+
+                    {/* Paso 3: Validada / Dictaminada */}
+                    <div className={`stepper-step ${selectedEvent.lifecycle?.validado ? 'done-valid' : (selectedEvent.lifecycle?.rechazado ? 'done-reject' : (selectedEvent.estado === 'Validado' ? 'done-valid' : 'waiting'))}`}>
+                      <div className="stepper-step-head">
+                        <span className="stepper-step-badge">3</span>
+                        <strong className="stepper-step-title">
+                          {selectedEvent.lifecycle?.rechazado || selectedEvent.estado === 'Rechazado' ? 'Rechazada' : 'Validada'}
+                        </strong>
+                      </div>
+                      <div className="stepper-step-body">
+                        <span className="stepper-step-time">
+                          {selectedEvent.lifecycle?.validado
+                            ? selectedEvent.lifecycle.validado.hora
+                            : selectedEvent.lifecycle?.rechazado
+                            ? selectedEvent.lifecycle.rechazado.hora
+                            : (selectedEvent.estado === 'Validado' ? selectedEvent.hora : '—')}
+                        </span>
+                        <span className="stepper-step-ago">
+                          {selectedEvent.lifecycle?.validado?.timeAgo ||
+                            selectedEvent.lifecycle?.rechazado?.timeAgo ||
+                            (selectedEvent.estado === 'Validado' ? selectedEvent.timeAgo : 'Por dictaminar')}
+                        </span>
+                        <span className="stepper-step-user" title={selectedEvent.lifecycle?.validado?.usuario || selectedEvent.lifecycle?.rechazado?.usuario || 'Mesa de Calidad'}>
+                          {selectedEvent.lifecycle?.validado || selectedEvent.estado === 'Validado' ? '✓ ' : selectedEvent.lifecycle?.rechazado ? '✕ ' : '⏳ '}
+                          {selectedEvent.lifecycle?.validado?.usuario || selectedEvent.lifecycle?.rechazado?.usuario || (selectedEvent.estado === 'Validado' ? selectedEvent.usuario : 'Mesa de Control')}
+                        </span>
+                      </div>
                     </div>
                   </div>
 

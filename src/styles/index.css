@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    COVEPA — Estilos Modulares
    Archivo de entrada: importa todos los módulos CSS del sistema.
    M10: index.css dividido en módulos para facilitar mantenimiento.
@@ -27,3 +27,6 @@
 
 /* 8. Módulo Observaciones (más grande — 5965 líneas) */
 @import './observaciones.css';
+
+/* 9. Módulo Reportes y Envíos Automáticos */
+@import './reportes.css';

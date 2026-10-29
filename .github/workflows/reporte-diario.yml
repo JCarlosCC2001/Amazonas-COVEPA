@@ -1,0 +1,40 @@
+name: Reporte Diario de Observaciones COVEPA
+
+on:
+  schedule:
+    # Se ejecuta cada hora en la tarde/noche (hora Perú: 4 PM a 10 PM)
+    # y el script comprueba automáticamente si coincide con la hora programada (ej. 9:00 PM)
+    - cron: '0 21,22,23,0,1,2,3 * * *'
+  workflow_dispatch:
+    inputs:
+      manual_run:
+        description: 'Forzar envío inmediato ignorando la hora'
+        required: false
+        default: 'true'
+
+jobs:
+  enviar-reporte:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias de correo
+        run: npm install nodemailer @supabase/supabase-js --no-save
+
+      - name: Compilar y enviar reporte diario
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+          SMTP_HOST: 'mail.covepa.pe'
+          SMTP_PORT: '465'
+          SMTP_USER: ${{ secrets.SMTP_USER || 'ccondor@covepa.pe' }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          IS_MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
+        run: node scripts/enviar_reporte_diario.cjs
+

@@ -1,0 +1,326 @@
+/* ══════════════════════════════════════════════════════════
+   MÓDULO: REPORTE DIARIO Y ENVÍO AUTOMÁTICO DE CORREO (COVEPA)
+   ══════════════════════════════════════════════════════════ */
+
+.reportes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  max-width: 1600px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.reportes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.reportes-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.reportes-main-title {
+  margin: 0;
+  color: #003060;
+  font-weight: var(--fw-bold);
+  font-size: var(--text-2xl);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.reportes-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.reportes-split-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+/* ── Panel de Configuración (Lado Izquierdo) ── */
+.reporte-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.reporte-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 0.85rem;
+}
+
+.reporte-card-title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--fw-bold);
+  color: #003060;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.reporte-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.reporte-label {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  color: #003060;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.reporte-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.reporte-input,
+.reporte-select {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-primary);
+  box-sizing: border-box;
+  font-size: var(--text-sm);
+  transition: border-color var(--transition);
+}
+
+.reporte-input:focus,
+.reporte-select:focus,
+.reporte-textarea:focus {
+  outline: none;
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+
+.reporte-textarea {
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+/* Chips de Correos */
+.reporte-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-height: 38px;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.reporte-email-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.6rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  border-radius: 6px;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+}
+
+.reporte-chip-remove {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.reporte-chip-remove:hover {
+  color: #dc2626;
+}
+
+.reporte-chip-input {
+  border: none;
+  background: transparent;
+  flex: 1;
+  min-width: 140px;
+  outline: none;
+  font-size: var(--text-xs);
+  padding: 0.25rem 0.4rem;
+}
+
+/* Toggle Switch Activo / Pausado */
+.reporte-toggle-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.reporte-toggle-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.reporte-toggle-title {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-bold);
+  color: #003060;
+}
+
+.reporte-toggle-sub {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.reporte-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: var(--fw-bold);
+  font-size: var(--text-xs);
+  transition: all var(--transition);
+}
+
+.reporte-switch-btn.active {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+
+.reporte-switch-btn.paused {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+/* Botones de Acción */
+.reporte-actions-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-light);
+}
+
+.btn-reporte-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.4rem;
+  background: #003060;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-weight: var(--fw-bold);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.btn-reporte-save:hover:not(:disabled) {
+  background: #002244;
+}
+
+.btn-reporte-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Panel Simulador de Correo (Lado Derecho) ── */
+.email-sim-window {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+}
+
+.email-sim-header {
+  background: #f1f5f9;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.email-sim-meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: var(--text-xs);
+}
+
+.email-sim-meta-label {
+  font-weight: var(--fw-bold);
+  color: #64748b;
+  width: 48px;
+  flex-shrink: 0;
+}
+
+.email-sim-meta-val {
+  color: #0f172a;
+  word-break: break-all;
+}
+
+.email-sim-body {
+  padding: 1rem;
+  background: #f8fafc;
+  max-height: 720px;
+  overflow-y: auto;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .reportes-split-layout {
+    grid-template-columns: 1fr;
+  }
+}
+

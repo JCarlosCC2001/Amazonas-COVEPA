@@ -6,6 +6,7 @@ import {
   fetchDatosReporteDiario,
   generarHTMLReporte
 } from '../services/reportesCorreoService'
+import { fetchPersonal, updatePersonal } from '../services/personalService'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -28,12 +29,23 @@ export default function Reportes() {
     notas_jornada: 'Cierre operativo de observaciones de la jornada.'
   })
 
-  // Inputs temporales para escribir nuevos correos
+  // Inputs temporales para escribir nuevos correos manualmente
   const [nuevoPara, setNuevoPara] = useState('')
   const [nuevoCC, setNuevoCC] = useState('')
 
   // Datos en vivo para la vista previa
   const [datosReporte, setDatosReporte] = useState(null)
+
+  // Lista de personal para selector de destinatarios
+  const [personalList, setPersonalList] = useState([])
+  const [modalPersonalOpen, setModalPersonalOpen] = useState(false)
+  const [busquedaPersonal, setBusquedaPersonal] = useState('')
+  const [filtroCargo, setFiltroCargo] = useState('TODOS')
+
+  // Estado para asignar o editar correo a un integrante de personal
+  const [editingPersonId, setEditingPersonId] = useState(null)
+  const [inputEmailPersona, setInputEmailPersona] = useState('')
+  const [savingEmailPersona, setSavingEmailPersona] = useState(false)
 
   // Referencia al timer del toast
   const toastTimerRef = useRef(null)
@@ -44,16 +56,18 @@ export default function Reportes() {
     toastTimerRef.current = setTimeout(() => setToast(null), 4500)
   }
 
-  // Cargar configuración inicial y datos de observaciones de hoy
+  // Cargar configuración inicial, observaciones de hoy y lista de personal
   const cargarTodo = async () => {
     setLoading(true)
     try {
-      const [cfg, datos] = await Promise.all([
+      const [cfg, datos, personal] = await Promise.all([
         fetchConfiguracionReporte(),
-        fetchDatosReporteDiario()
+        fetchDatosReporteDiario(),
+        fetchPersonal()
       ])
       setConfig(cfg)
       setDatosReporte(datos)
+      setPersonalList(personal || [])
     } catch (err) {
       console.error('Error cargando datos de reporte:', err)
       showNotification('Error al cargar la información inicial.', 'error')
@@ -132,7 +146,55 @@ export default function Reportes() {
     }))
   }
 
-  // Guardar configuración
+  // Alternar destinatario desde modal de personal
+  const toggleDestinatarioPara = (email) => {
+    if (!email) return
+    const norm = email.toLowerCase().trim()
+    setConfig(prev => {
+      const exists = prev.destinatarios.includes(norm)
+      return {
+        ...prev,
+        destinatarios: exists ? prev.destinatarios.filter(e => e !== norm) : [...prev.destinatarios, norm]
+      }
+    })
+  }
+
+  const toggleDestinatarioCC = (email) => {
+    if (!email) return
+    const norm = email.toLowerCase().trim()
+    setConfig(prev => {
+      const exists = prev.destinatarios_cc.includes(norm)
+      return {
+        ...prev,
+        destinatarios_cc: exists ? prev.destinatarios_cc.filter(e => e !== norm) : [...prev.destinatarios_cc, norm]
+      }
+    })
+  }
+
+  // Guardar correo para una persona en la BD externa
+  const handleGuardarEmailPersona = async (personId) => {
+    const emailVal = (inputEmailPersona || '').trim().toLowerCase()
+    if (!emailVal || !EMAIL_REGEX.test(emailVal)) {
+      showNotification('Ingresa un correo electrónico válido.', 'error')
+      return
+    }
+
+    setSavingEmailPersona(true)
+    try {
+      await updatePersonal(personId, { email: emailVal })
+      setPersonalList(prev => prev.map(p => p.id === personId ? { ...p, email: emailVal } : p))
+      showNotification('Correo asignado y guardado en la base de datos.', 'success')
+      setEditingPersonId(null)
+      setInputEmailPersona('')
+    } catch (err) {
+      console.error('Error guardando correo en personal:', err)
+      showNotification('Error al guardar correo: ' + err.message, 'error')
+    } finally {
+      setSavingEmailPersona(false)
+    }
+  }
+
+  // Guardar configuración general del reporte
   const handleGuardar = async () => {
     if (config.destinatarios.length === 0) {
       showNotification('Debes ingresar al menos un correo principal de destinatario.', 'error')
@@ -149,6 +211,27 @@ export default function Reportes() {
       setSaving(false)
     }
   }
+
+  // Filtrado de personal en el modal
+  const personalFiltrado = useMemo(() => {
+    return personalList.filter(p => {
+      if (filtroCargo !== 'TODOS') {
+        const c = (p.cargo || '').toUpperCase()
+        if (filtroCargo === 'TÉCNICO' && !c.includes('TÉCN') && !c.includes('TECN')) return false
+        if (filtroCargo === 'CONDUCTOR' && !c.includes('COND')) return false
+        if (filtroCargo === 'SUPERVISOR' && !c.includes('SUPER')) return false
+      }
+      if (busquedaPersonal) {
+        const q = busquedaPersonal.toLowerCase()
+        const matchName = (p.nombre_completo || '').toLowerCase().includes(q)
+        const matchEmail = (p.email || '').toLowerCase().includes(q)
+        const matchCargo = (p.cargo || '').toLowerCase().includes(q)
+        const matchCuad = (p.cuadrilla || '').toLowerCase().includes(q)
+        if (!matchName && !matchEmail && !matchCargo && !matchCuad) return false
+      }
+      return true
+    })
+  }, [personalList, filtroCargo, busquedaPersonal])
 
   // Generar HTML en vivo para el simulador
   const previewHtml = useMemo(() => {
@@ -225,7 +308,7 @@ export default function Reportes() {
             <span>📧</span> Reporte Diario Automático por Correo
           </h1>
           <p className="reportes-subtitle t-subtitle">
-            Programa el despacho nocturno de observaciones consolidadas desde <code>ccondor@covepa.pe</code>. El sistema despachará automáticamente todos los días.
+            Programa el despacho nocturno de observaciones consolidadas desde <code>ccondor@covepa.pe</code>. Selecciona destinatarios de tu lista de personal o agrégalos manualmente.
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -270,7 +353,7 @@ export default function Reportes() {
           {/* Toggle Activo / Pausado */}
           <div className="reporte-toggle-box">
             <div className="reporte-toggle-label">
-              <span className="reporte-toggle-title t-name">Estado del Envio Programado</span>
+              <span className="reporte-toggle-title t-name">Estado del Envío Programado</span>
               <span className="reporte-toggle-sub t-meta">
                 {config.activo
                   ? 'El robot nocturno despachará el reporte a la hora configurada.'
@@ -299,7 +382,7 @@ export default function Reportes() {
               onChange={e => setConfig(prev => ({ ...prev, hora_envio: e.target.value }))}
             />
             <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
-              El servidor ejecutará el envío diario a esta hora automáticamente, incluso si no tienes la aplicación abierta. Puedes cambiarla en cualquier momento para reprogramar el próximo despacho.
+              El servidor ejecutará el envío diario a esta hora automáticamente. Puedes cambiarla en cualquier momento para reprogramar el próximo despacho.
             </span>
           </div>
 
@@ -317,11 +400,21 @@ export default function Reportes() {
             />
           </div>
 
-          {/* Destinatarios (Para) */}
+          {/* Destinatarios (Para) con botón a lista de personal */}
           <div className="reporte-form-group">
-            <label className="reporte-label">
-              <span>👥</span> Destinatarios Principales (Para:)
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="reporte-label">
+                <span>👥</span> Destinatarios Principales (Para:)
+              </label>
+              <button
+                type="button"
+                className="btn-open-personal"
+                onClick={() => setModalPersonalOpen(true)}
+              >
+                <span>👥</span>
+                <span>Seleccionar desde Personal</span>
+              </button>
+            </div>
             <div className="reporte-chips-wrap">
               {config.destinatarios.map(email => (
                 <span key={email} className="reporte-email-chip">
@@ -339,7 +432,7 @@ export default function Reportes() {
               <input
                 type="email"
                 className="reporte-chip-input"
-                placeholder="Escribe un correo y pulsa Enter..."
+                placeholder="Escribe un correo o usa 'Seleccionar desde Personal'..."
                 value={nuevoPara}
                 onChange={e => setNuevoPara(e.target.value)}
                 onKeyDown={e => {
@@ -352,15 +445,25 @@ export default function Reportes() {
               />
             </div>
             <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
-              Pulsa <strong>Enter</strong> o coma tras escribir cada dirección para agregarla como destinatario.
+              Pulsa <strong>Enter</strong> o coma tras escribir cada dirección, o pulsa <strong>"Seleccionar desde Personal"</strong>.
             </span>
           </div>
 
           {/* Destinatarios Con Copia (CC) */}
           <div className="reporte-form-group">
-            <label className="reporte-label">
-              <span>📋</span> Con Copia (CC: opcional)
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="reporte-label">
+                <span>📋</span> Con Copia (CC: opcional)
+              </label>
+              <button
+                type="button"
+                className="btn-open-personal"
+                onClick={() => setModalPersonalOpen(true)}
+              >
+                <span>👥</span>
+                <span>Seleccionar desde Personal</span>
+              </button>
+            </div>
             <div className="reporte-chips-wrap">
               {config.destinatarios_cc.map(email => (
                 <span key={email} className="reporte-email-chip" style={{ background: '#f1f5f9', borderColor: '#cbd5e1', color: '#334155' }}>
@@ -378,7 +481,7 @@ export default function Reportes() {
               <input
                 type="email"
                 className="reporte-chip-input"
-                placeholder="Escribe un correo de copia y pulsa Enter..."
+                placeholder="Escribe un correo de copia o selecciónalo..."
                 value={nuevoCC}
                 onChange={e => setNuevoCC(e.target.value)}
                 onKeyDown={e => {
@@ -523,6 +626,186 @@ export default function Reportes() {
           </div>
         </div>
       </div>
+
+      {/* MODAL: SELECCIONAR DESTINATARIOS DESDE PERSONAL */}
+      {modalPersonalOpen && (
+        <div className="reporte-modal-overlay" onClick={() => setModalPersonalOpen(false)}>
+          <div className="reporte-modal-content" onClick={e => e.stopPropagation()}>
+            <div className="reporte-modal-header">
+              <h3 className="reporte-modal-title">
+                <span>👥</span> Seleccionar Destinatarios desde Personal
+              </h3>
+              <button
+                type="button"
+                className="reporte-modal-close"
+                onClick={() => setModalPersonalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Buscador y Filtros Rápidos */}
+            <div className="reporte-modal-controls">
+              <input
+                type="text"
+                className="reporte-modal-search"
+                placeholder="Buscar por nombre, cargo, cuadrilla o correo..."
+                value={busquedaPersonal}
+                onChange={e => setBusquedaPersonal(e.target.value)}
+                autoFocus
+              />
+              <div className="reporte-filter-tabs">
+                {['TODOS', 'SUPERVISOR', 'TÉCNICO', 'CONDUCTOR'].map(cargo => (
+                  <button
+                    key={cargo}
+                    type="button"
+                    className={`reporte-tab-btn ${filtroCargo === cargo ? 'active' : ''}`}
+                    onClick={() => setFiltroCargo(cargo)}
+                  >
+                    {cargo}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Lista de Personal */}
+            <div className="reporte-modal-list">
+              {personalFiltrado.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-secondary)' }}>
+                  <span className="t-meta">No se encontraron integrantes que coincidan con la búsqueda.</span>
+                </div>
+              ) : (
+                personalFiltrado.map(p => {
+                  const hasEmail = Boolean(p.email)
+                  const isPara = hasEmail && config.destinatarios.includes(p.email.toLowerCase())
+                  const isCC = hasEmail && config.destinatarios_cc.includes(p.email.toLowerCase())
+                  const isEditingThis = editingPersonId === p.id
+
+                  return (
+                    <div key={p.id} className="reporte-person-card">
+                      <div className="reporte-person-info">
+                        <div className="reporte-person-name-row">
+                          <span className="reporte-person-name">{p.nombre_completo}</span>
+                          <span className="t-badge" style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1' }}>
+                            {p.cargo || 'SIN CARGO'}
+                          </span>
+                          {p.cuadrilla && (
+                            <span className="t-badge" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                              {p.cuadrilla}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Correo o Formulario para asignar correo */}
+                        {isEditingThis ? (
+                          <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.35rem', alignItems: 'center' }}>
+                            <input
+                              type="email"
+                              className="reporte-input"
+                              style={{ padding: '0.3rem 0.6rem', fontSize: 'var(--text-xs)', maxWidth: '240px' }}
+                              placeholder="correo@covepa.pe"
+                              value={inputEmailPersona}
+                              onChange={e => setInputEmailPersona(e.target.value)}
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              className="btn-toggle-dest para-active"
+                              onClick={() => handleGuardarEmailPersona(p.id)}
+                              disabled={savingEmailPersona}
+                            >
+                              {savingEmailPersona ? 'Guardando...' : 'Guardar'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-toggle-dest cc-inactive"
+                              onClick={() => { setEditingPersonId(null); setInputEmailPersona('') }}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : hasEmail ? (
+                          <div className="reporte-person-email">
+                            <span>📧 {p.email}</span>
+                            <button
+                              type="button"
+                              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 'var(--text-xs)', textDecoration: 'underline' }}
+                              onClick={() => {
+                                setEditingPersonId(p.id)
+                                setInputEmailPersona(p.email)
+                              }}
+                              title="Editar correo en la base de datos"
+                            >
+                              Editar
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
+                            <span className="reporte-person-no-email">Sin correo registrado</span>
+                            <button
+                              type="button"
+                              style={{ background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer', fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-semibold)', textDecoration: 'underline' }}
+                              onClick={() => {
+                                setEditingPersonId(p.id)
+                                setInputEmailPersona('')
+                              }}
+                            >
+                              + Asignar correo
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Botones de Acción para Agregar a Para o CC */}
+                      <div className="reporte-person-actions">
+                        {hasEmail ? (
+                          <>
+                            <button
+                              type="button"
+                              className={`btn-toggle-dest ${isPara ? 'para-active' : 'para-inactive'}`}
+                              onClick={() => toggleDestinatarioPara(p.email)}
+                              title={isPara ? 'Remover de destinatarios principales' : 'Agregar a Para:'}
+                            >
+                              {isPara ? '✓ En Para' : '+ Para'}
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn-toggle-dest ${isCC ? 'cc-active' : 'cc-inactive'}`}
+                              onClick={() => toggleDestinatarioCC(p.email)}
+                              title={isCC ? 'Remover de destinatarios con copia' : 'Agregar a CC:'}
+                            >
+                              {isCC ? '✓ En CC' : '+ CC'}
+                            </button>
+                          </>
+                        ) : (
+                          <span className="t-meta" style={{ color: '#94a3b8' }}>
+                            Asigna un correo para agregarlo
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Pie del Modal con Resumen de Selección */}
+            <div className="reporte-modal-footer">
+              <span className="t-meta" style={{ color: '#334155' }}>
+                Seleccionados: <strong>{config.destinatarios.length}</strong> en Para · <strong>{config.destinatarios_cc.length}</strong> en CC
+              </span>
+              <button
+                type="button"
+                className="btn-reporte-save"
+                style={{ padding: '0.45rem 1.1rem' }}
+                onClick={() => setModalPersonalOpen(false)}
+              >
+                Listo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

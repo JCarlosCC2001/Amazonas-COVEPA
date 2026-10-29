@@ -450,7 +450,7 @@ export default function Dashboard() {
                 <Calendar size={18} color="#003060" />
                 <div>
                   <h3 style={{ margin: 0, fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
-                    Producción Semanal de Cuadrillas
+                    Observaciones Validadas por Cuadrilla
                   </h3>
                   <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>
                     {semanaActual?.rangoSemana ? `Semana: ${semanaActual.rangoSemana}` : 'Semana en curso'}
@@ -458,7 +458,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <span className="dash-progreso-resueltas-badge" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {totalGeneralSemana} Obs. Levantadas
+                {totalGeneralSemana} Obs. Validadas
               </span>
             </div>
 

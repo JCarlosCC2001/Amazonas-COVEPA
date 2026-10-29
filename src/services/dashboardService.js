@@ -585,8 +585,8 @@ export async function getDashboardProjectOverview() {
         else if (st === 'Validado') g.subsanadas++
         else g.pendientes++
 
-        // Conteo de observaciones levantadas en la semana actual por cuadrilla
-        if (row.fecha_subsanacion && (st === 'Validado' || st === 'En Revisión' || st === 'Solicitando Revisión')) {
+        // Conteo de observaciones validadas en la semana actual por cuadrilla (coincide con Programación)
+        if (row.fecha_subsanacion && st === 'Validado') {
           const fLima = getLimaDateStr(row.fecha_subsanacion)
           if (fLima && semanaFechasSet.has(fLima)) {
             g.semana[fLima] = (g.semana[fLima] || 0) + 1

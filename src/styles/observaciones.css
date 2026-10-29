@@ -3747,6 +3747,47 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Variantes semánticas para badges de estado en matriz */
+.dash-weekly-count-badge.val-amber {
+  background: rgba(217, 119, 6, 0.12);
+  color: #d97706;
+  border: 1px solid rgba(217, 119, 6, 0.3);
+}
+
+.dash-weekly-count-badge.val-sky {
+  background: rgba(2, 132, 199, 0.12);
+  color: #0284c7;
+  border: 1px solid rgba(2, 132, 199, 0.3);
+}
+
+.dash-weekly-count-badge.val-rose {
+  background: rgba(225, 29, 72, 0.12);
+  color: #e11d48;
+  border: 1px solid rgba(225, 29, 72, 0.3);
+}
+
+.dash-weekly-count-badge.val-emerald {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.dash-weekly-table th.th-amber {
+  color: #b45309;
+}
+
+.dash-weekly-table th.th-sky {
+  color: #0284c7;
+}
+
+.dash-weekly-table th.th-rose {
+  color: #be123c;
+}
+
+.dash-weekly-table th.th-emerald {
+  color: #047857;
+}
+
 /* ── GRID DE MEDIDORES Y GAUGES ── */
 .dash-metrics-section {
   display: grid;

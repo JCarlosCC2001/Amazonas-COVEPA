@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase'
 import { usePresentationMode } from '../context/PresentationContext'
 import MetricCard from '../components/shared/MetricCard'
 import SegmentedProgressBar from '../components/shared/SegmentedProgressBar'
+import CuadrillasMatrixTable from '../components/shared/CuadrillasMatrixTable'
 import { getDashboardProjectOverview } from '../services/dashboardService'
 
 // ────────────────────────────────────────────────────────────
@@ -443,100 +444,25 @@ export default function Dashboard() {
             })}
           </div>
 
-          {/* Columna Derecha: Tabla de Producción Semanal */}
-          <div className="dash-weekly-card">
-            <div className="dash-weekly-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Calendar size={18} color="#003060" />
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
-                    Observaciones Validadas por Cuadrilla
-                  </h3>
-                  <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>
-                    {semanaActual?.rangoSemana ? `Semana: ${semanaActual.rangoSemana}` : 'Semana en curso'}
-                  </span>
-                </div>
-              </div>
-              <span className="dash-progreso-resueltas-badge" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {totalGeneralSemana} Obs. Validadas
-              </span>
-            </div>
-
-            <div className="dash-weekly-table-wrap">
-              <table className="dash-weekly-table">
-                <thead>
-                  <tr>
-                    <th className="th-left">Cuadrilla</th>
-                    <th className="th-left">Técnico</th>
-                    {diasSemana.map(d => (
-                      <th
-                        key={d.dateStr}
-                        className={d.isToday ? 'th-today' : ''}
-                        title={d.diaNombre}
-                      >
-                        <div>{d.shortLabel}</div>
-                        {d.isToday && (
-                          <div style={{ fontSize: 'var(--text-2xs)', color: '#0284c7', fontWeight: 'var(--fw-black)' }}>
-                            HOY
-                          </div>
-                        )}
-                      </th>
-                    ))}
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {grupos.map(g => (
-                    <tr key={g.grupo}>
-                      <td className="td-left" style={{ fontWeight: 'var(--fw-bold)', color: '#003060' }}>
-                        {g.grupo}
-                      </td>
-                      <td className="td-left" style={{ color: 'var(--text-secondary)' }}>
-                        {!presentationMode ? (g.tecnico || '—') : '—'}
-                      </td>
-                      {diasSemana.map(d => {
-                        const count = g.semana?.[d.dateStr] || 0
-                        return (
-                          <td key={d.dateStr} className={d.isToday ? 'td-today' : ''}>
-                            <span className={`dash-weekly-count-badge ${count > 0 ? 'has-val' : 'is-zero'}`}>
-                              {count > 0 ? count : '—'}
-                            </span>
-                          </td>
-                        )
-                      })}
-                      <td>
-                        <span className="dash-weekly-total-badge">
-                          {g.totalSemana || 0}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={2} className="td-left" style={{ fontWeight: 'var(--fw-black)', color: '#003060' }}>
-                      TOTAL DIARIO
-                    </td>
-                    {diasSemana.map(d => {
-                      const totDia = totalesPorDia[d.dateStr] || 0
-                      return (
-                        <td key={d.dateStr} className={d.isToday ? 'td-today' : ''}>
-                          <span className={`dash-weekly-count-badge ${totDia > 0 ? 'has-val' : 'is-zero'}`}>
-                            {totDia > 0 ? totDia : '—'}
-                          </span>
-                        </td>
-                      )
-                    })}
-                    <td>
-                      <span className="dash-weekly-foot-total">
-                        {totalGeneralSemana}
-                      </span>
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
+          {/* Columna Derecha: Tabla de Producción Semanal (Componente Reutilizable) */}
+          <CuadrillasMatrixTable
+            icon={<Calendar size={18} color="#003060" />}
+            title="Observaciones Validadas por Cuadrilla"
+            subtitle={semanaActual?.rangoSemana ? `Semana: ${semanaActual.rangoSemana}` : 'Semana en curso'}
+            badgeText={`${totalGeneralSemana} Obs. Validadas`}
+            columns={diasSemana.map(d => ({
+              key: d.dateStr,
+              label: d.shortLabel,
+              subLabel: d.isToday ? 'HOY' : null,
+              isToday: d.isToday,
+              title: d.diaNombre
+            }))}
+            rows={grupos}
+            totals={totalesPorDia}
+            grandTotal={totalGeneralSemana}
+            footLabel="TOTAL DIARIO"
+            presentationMode={presentationMode}
+          />
         </div>
       </div>
 

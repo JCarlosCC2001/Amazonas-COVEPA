@@ -1,12 +1,14 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   TrendingUp, X, Search, Download, MapPin, User,
   Clock, ShieldCheck, RefreshCw, AlertCircle, Eye, FileText,
-  Copy, Image, Check
+  Copy, Image, Check, ChevronDown, ChevronUp
 } from 'lucide-react'
 // M3: ExcelJS importado dinamicamente en handleExportXLSX
 import { getAvancePorFecha } from '../../services/dashboardService'
 import { ASIGNACIONES_BASE } from '../../services/sitiosService'
+import { DEFAULT_CUADRILLAS_CONFIG } from '../../services/personalService'
+import CuadrillasMatrixTable from '../shared/CuadrillasMatrixTable'
 // M3: imageExportService importado dinamicamente en handleCopyPNG / handleDownloadPNG
 import { usePresentationMode } from '../../context/PresentationContext'
 
@@ -21,6 +23,8 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
   const [exportingXlsx, setExportingXlsx] = useState(false)
   const [exportingPng, setExportingPng] = useState(false)
   const [copiedPng, setCopiedPng] = useState(false)
+  const [showDetailedList, setShowDetailedList] = useState(false)
+  const [selectedCellFilter, setSelectedCellFilter] = useState(null)
 
   // Cargar datos de avance para la fecha seleccionada
   useEffect(() => {
@@ -66,9 +70,156 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       ''
   }
 
+  // Helper para resolver la cuadrilla oficial asignada a una observación
+  const resolveCuadrillaForObs = useCallback((obs) => {
+    if (obs.cuadrilla) {
+      const cClean = String(obs.cuadrilla).toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
+      const match = cClean.match(/CUADRILLA\s*([1-6])/)
+      if (match) return `CUADRILLA ${match[1]}`
+    }
+
+    const siteId = obs.id_sitio
+    const asig = ASIGNACIONES_BASE.find(s => s.id_site === siteId) || sitiosMap[siteId]
+    if (asig?.grupo) {
+      const gClean = String(asig.grupo).toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
+      const match = gClean.match(/CUADRILLA\s*([1-6])/)
+      if (match) return `CUADRILLA ${match[1]}`
+    }
+
+    if (obs.tecnico) {
+      const tClean = String(obs.tecnico).toUpperCase().trim()
+      for (const [cName, cfg] of Object.entries(DEFAULT_CUADRILLAS_CONFIG)) {
+        if (cfg.tecnicoNombre && tClean.includes(cfg.tecnicoNombre.toUpperCase())) {
+          return cName
+        }
+      }
+    }
+
+    return 'CUADRILLA 1'
+  }, [sitiosMap])
+
   const stats = avanceData.stats || {}
 
-  // Filtrado de filas
+  // Columnas semánticas para la Matriz de Cuadrillas
+  const statusColumns = useMemo(() => [
+    {
+      key: 'solicitando',
+      label: 'Solicitando Revisión',
+      badgeVariant: 'amber',
+      title: 'Observaciones solicitando revisión técnica'
+    },
+    {
+      key: 'enRevision',
+      label: 'En Revisión',
+      badgeVariant: 'sky',
+      title: 'Observaciones en proceso de revisión'
+    },
+    {
+      key: 'rechazados',
+      label: 'Rechazados',
+      badgeVariant: 'rose',
+      title: 'Observaciones rechazadas por calidad'
+    },
+    {
+      key: 'validados',
+      label: 'Validados',
+      badgeVariant: 'emerald',
+      title: 'Observaciones validadas conformes'
+    }
+  ], [])
+
+  // Consolidación de datos matriciales (6 Cuadrillas x Estados)
+  const matrixData = useMemo(() => {
+    const rows = avanceData.rows || []
+
+    const cuadrillasMap = {
+      'CUADRILLA 1': {
+        id: 'CUADRILLA 1',
+        cuadrilla: 'CUADRILLA 1',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 1']?.tecnicoNombre || 'JHONATAN FLORES',
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
+        total: 0
+      },
+      'CUADRILLA 2': {
+        id: 'CUADRILLA 2',
+        cuadrilla: 'CUADRILLA 2',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 2']?.tecnicoNombre || 'CRISTIAN ISLA',
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
+        total: 0
+      },
+      'CUADRILLA 3': {
+        id: 'CUADRILLA 3',
+        cuadrilla: 'CUADRILLA 3',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 3']?.tecnicoNombre || 'DANIEL JAVIER',
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
+        total: 0
+      },
+      'CUADRILLA 4': {
+        id: 'CUADRILLA 4',
+        cuadrilla: 'CUADRILLA 4',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 4']?.tecnicoNombre || 'ALFONSO CURI',
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
+        total: 0
+      },
+      'CUADRILLA 5': {
+        id: 'CUADRILLA 5',
+        cuadrilla: 'CUADRILLA 5',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 5']?.tecnicoNombre || 'WILLIAM AVILA',
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
+        total: 0
+      },
+      'CUADRILLA 6': {
+        id: 'CUADRILLA 6',
+        cuadrilla: 'CUADRILLA 6',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 6']?.tecnicoNombre || 'GABRIEL FARRO',
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
+        total: 0
+      }
+    }
+
+    rows.forEach(r => {
+      const targetCuadrilla = resolveCuadrillaForObs(r)
+      const targetObj = cuadrillasMap[targetCuadrilla]
+      if (targetObj) {
+        if (r.tecnico && r.tecnico !== 'No asignado' && r.tecnico !== 'Técnico de Cuadrilla' && r.tecnico !== 'Técnico en ruta') {
+          targetObj.tecnico = r.tecnico
+        }
+
+        const rawSt = (r.estado || '').trim().toLowerCase()
+        if (rawSt === 'solicitando revisión' || rawSt === 'solicitando revision') {
+          targetObj.values.solicitando++
+        } else if (rawSt === 'en revisión' || rawSt === 'en revision') {
+          targetObj.values.enRevision++
+        } else if (rawSt === 'rechazado' || rawSt === 'rechazada' || rawSt === 'rechazados') {
+          targetObj.values.rechazados++
+        } else if (rawSt === 'validado' || rawSt === 'validada' || rawSt === 'enviado' || rawSt === 'enviada') {
+          targetObj.values.validados++
+        }
+      }
+    })
+
+    const matrixRowsList = Object.values(cuadrillasMap).map(row => ({
+      ...row,
+      total: row.values.solicitando + row.values.enRevision + row.values.rechazados + row.values.validados
+    }))
+
+    const totalsObj = {
+      solicitando: matrixRowsList.reduce((acc, r) => acc + r.values.solicitando, 0),
+      enRevision: matrixRowsList.reduce((acc, r) => acc + r.values.enRevision, 0),
+      rechazados: matrixRowsList.reduce((acc, r) => acc + r.values.rechazados, 0),
+      validados: matrixRowsList.reduce((acc, r) => acc + r.values.validados, 0)
+    }
+
+    const grandTotalNum = totalsObj.solicitando + totalsObj.enRevision + totalsObj.rechazados + totalsObj.validados
+
+    return {
+      matrixRows: matrixRowsList,
+      matrixTotals: totalsObj,
+      matrixGrandTotal: grandTotalNum
+    }
+  }, [avanceData.rows, resolveCuadrillaForObs])
+
+  // Filtrado de filas detalladas
   const filteredRows = useMemo(() => {
     return (avanceData.rows || []).filter(r => {
       const loc = getLocalidad(r.id_sitio)
@@ -97,6 +248,31 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     })
   }, [avanceData.rows, filterEstado, searchTable, sitiosMap])
 
+  // Filas finales para el desglose (aplicando filtro de celda si está activo)
+  const displayRows = useMemo(() => {
+    if (!selectedCellFilter) return filteredRows
+
+    return filteredRows.filter(r => {
+      const c = resolveCuadrillaForObs(r)
+      if (c !== selectedCellFilter.cuadrilla) return false
+
+      const rawSt = (r.estado || '').trim().toLowerCase()
+      if (selectedCellFilter.colKey === 'solicitando') {
+        return rawSt === 'solicitando revisión' || rawSt === 'solicitando revision'
+      }
+      if (selectedCellFilter.colKey === 'enRevision') {
+        return rawSt === 'en revisión' || rawSt === 'en revision'
+      }
+      if (selectedCellFilter.colKey === 'rechazados') {
+        return rawSt === 'rechazado' || rawSt === 'rechazada' || rawSt === 'rechazados'
+      }
+      if (selectedCellFilter.colKey === 'validados') {
+        return rawSt === 'validado' || rawSt === 'validada' || rawSt === 'enviado' || rawSt === 'enviada'
+      }
+      return true
+    })
+  }, [filteredRows, selectedCellFilter, resolveCuadrillaForObs])
+
   // Formato legible de fecha
   const formattedDate = useMemo(() => {
     if (!fecha) return ''
@@ -113,9 +289,9 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     return fecha
   }, [fecha])
 
-  // Exportar reporte a Excel (.xlsx) con estricto apego a Regla 1 (LOCALIDAD al lado de CÓDIGO DE SITIO)
+  // Exportar reporte a Excel (.xlsx) con Hoja 1: Matriz de Cuadrillas y Hoja 2: Detalle (con LOCALIDAD al lado de CÓDIGO DE SITIO)
   const handleExportXLSX = async () => {
-    if (filteredRows.length === 0) return
+    if (matrixData.matrixRows.length === 0 && filteredRows.length === 0) return
     setExportingXlsx(true)
     try {
       const { default: ExcelJS } = await import('exceljs')
@@ -123,14 +299,82 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       workbook.creator = 'COVEPA ERP'
       workbook.created = new Date()
 
-      const worksheet = workbook.addWorksheet('Avance_Dia', {
+      // Hoja 1: Matriz Ejecutiva por Cuadrilla
+      const wsMatriz = workbook.addWorksheet('Matriz_Cuadrillas', {
+        views: [{ showGridLines: true }]
+      })
+
+      const matrixTableRows = matrixData.matrixRows.map(r => [
+        r.cuadrilla,
+        r.tecnico,
+        r.values.solicitando || 0,
+        r.values.enRevision || 0,
+        r.values.rechazados || 0,
+        r.values.validados || 0,
+        r.total || 0
+      ])
+
+      // Fila de Total Diario
+      matrixTableRows.push([
+        'TOTAL DIARIO',
+        '',
+        matrixData.matrixTotals.solicitando || 0,
+        matrixData.matrixTotals.enRevision || 0,
+        matrixData.matrixTotals.rechazados || 0,
+        matrixData.matrixTotals.validados || 0,
+        matrixData.matrixGrandTotal || 0
+      ])
+
+      wsMatriz.addTable({
+        name: `Matriz_${fecha.replace(/-/g, '_')}`,
+        ref: 'A1',
+        headerRow: true,
+        totalsRow: false,
+        style: {
+          theme: 'TableStyleMedium9',
+          showRowStripes: true,
+          showColumnStripes: false
+        },
+        columns: [
+          { name: 'CUADRILLA', filterButton: true },
+          { name: 'TÉCNICO RESPONSABLE', filterButton: true },
+          { name: 'SOLICITANDO REVISIÓN', filterButton: true },
+          { name: 'EN REVISIÓN', filterButton: true },
+          { name: 'RECHAZADOS', filterButton: true },
+          { name: 'VALIDADOS', filterButton: true },
+          { name: 'TOTAL DIARIO', filterButton: true }
+        ],
+        rows: matrixTableRows
+      })
+
+      const matrixColWidths = [18, 28, 24, 18, 16, 16, 18]
+      matrixColWidths.forEach((w, i) => {
+        wsMatriz.getColumn(i + 1).width = w
+      })
+
+      wsMatriz.eachRow((row, rowNumber) => {
+        row.height = rowNumber === 1 ? 26 : 22
+        const isFoot = rowNumber === matrixTableRows.length + 1
+        row.eachCell((cell, colNumber) => {
+          if (isFoot) {
+            cell.font = { bold: true }
+          }
+          cell.alignment = {
+            vertical: 'middle',
+            horizontal: colNumber === 1 || colNumber === 2 ? 'left' : 'center'
+          }
+        })
+      })
+
+      // Hoja 2: Detalle Unitario de Observaciones
+      const wsDetalle = workbook.addWorksheet('Detalle_Observaciones', {
         views: [{ showGridLines: true }]
       })
 
       const tableRows = filteredRows.map(r => [
         r.id_obs || '',
         r.tecnico || 'No asignado',
-        r.cuadrilla || 'Sin cuadrilla',
+        resolveCuadrillaForObs(r) || r.cuadrilla || 'Sin cuadrilla',
         r.id_sitio || '',
         getLocalidad(r.id_sitio) || '',
         r.estado || '',
@@ -139,8 +383,8 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
         r.detalle || ''
       ])
 
-      worksheet.addTable({
-        name: `Avance_${fecha.replace(/-/g, '_')}`,
+      wsDetalle.addTable({
+        name: `Detalle_${fecha.replace(/-/g, '_')}`,
         ref: 'A1',
         headerRow: true,
         totalsRow: false,
@@ -165,10 +409,10 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
 
       const colWidths = [20, 26, 16, 18, 24, 18, 22, 16, 40]
       colWidths.forEach((w, i) => {
-        worksheet.getColumn(i + 1).width = w
+        wsDetalle.getColumn(i + 1).width = w
       })
 
-      worksheet.eachRow((row, rowNumber) => {
+      wsDetalle.eachRow((row, rowNumber) => {
         row.height = rowNumber === 1 ? 24 : 20
         row.eachCell((cell, colNumber) => {
           cell.alignment = {
@@ -476,87 +720,189 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
               )}
             </div>
           ) : (
-            <div className="prog-avance-table-wrap">
-              <table className="prog-avance-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '120px' }}>CÓD. OBS</th>
-                    <th>TÉCNICO / CUADRILLA</th>
-                    <th>CÓDIGO DE SITIO · LOCALIDAD</th>
-                    <th style={{ width: '130px' }}>ESTADO</th>
-                    <th>REVISADO POR</th>
-                    <th style={{ width: '48px', textAlign: 'center' }}>VER</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map((row, idx) => {
-                    const localidad = getLocalidad(row.id_sitio)
-                    return (
-                      <tr key={row.id_obs || idx} className="prog-avance-tr">
-                        <td>
-                          <span className="prog-avance-obs-code">{row.id_obs}</span>
-                        </td>
-                        <td>
-                          <div className="prog-avance-tech-cell">
-                            <User size={13} color="#0284c7" style={{ flexShrink: 0 }} />
-                            <div className="prog-avance-tech-texts">
-                              {!presentationMode && (
-                                <span className="prog-avance-tech-name">{row.tecnico || 'No asignado'}</span>
-                              )}
-                              {row.cuadrilla ? (
-                                <span className="prog-avance-tech-cuadrilla">{row.cuadrilla}</span>
-                              ) : (
-                                presentationMode && <span className="prog-avance-tech-cuadrilla">Sin Cuadrilla</span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="prog-avance-site-cell">
-                            <MapPin size={12} color="#0284c7" style={{ flexShrink: 0 }} />
-                            <span className="prog-avance-site-code">{row.id_sitio}</span>
-                            {localidad && (
-                              <span className="prog-avance-site-loc">· {localidad}</span>
-                            )}
-                          </div>
-                        </td>
-                        <td>
-                          {renderEstadoBadge(row.estado)}
-                        </td>
-                        <td>
-                          <div className="prog-avance-revisor-cell">
-                            {row.estado === 'En Revision' || row.estado === 'En Revisión' ? (
-                              <>
-                                <Clock size={12} color="#0284c7" />
-                                <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: 'var(--text-sm)' }}>
-                                  {row.revisor || 'En proceso'}
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                <ShieldCheck size={13} color="#059669" />
-                                <span style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', color: '#003060' }}>
-                                  {row.revisor || 'Sin revisor'}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            className="prog-avance-row-btn"
-                            title="Ver detalle completo de esta observación"
-                            onClick={() => setSelectedRowDetail(row)}
-                          >
-                            <Eye size={13} />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Matriz Principal de Cuadrillas y Estados (Diseño idéntico al Dashboard) */}
+              <CuadrillasMatrixTable
+                icon={<TrendingUp size={18} color="#003060" />}
+                title="Resumen Operativo por Cuadrilla"
+                subtitle={`Distribución de estados para la jornada ${fecha}`}
+                badgeText={`${matrixData.matrixGrandTotal} Obs. Totales`}
+                columns={statusColumns}
+                rows={matrixData.matrixRows}
+                totals={matrixData.matrixTotals}
+                grandTotal={matrixData.matrixGrandTotal}
+                footLabel="TOTAL DIARIO"
+                presentationMode={presentationMode}
+                onCellClick={(row, col, count) => {
+                  if (count > 0) {
+                    if (selectedCellFilter?.cuadrilla === row.cuadrilla && selectedCellFilter?.colKey === col.key) {
+                      setSelectedCellFilter(null)
+                    } else {
+                      setSelectedCellFilter({
+                        cuadrilla: row.cuadrilla,
+                        colKey: col.key,
+                        label: col.label
+                      })
+                      setShowDetailedList(true)
+                    }
+                  }
+                }}
+              />
+
+              {/* Barra de Acceso y Filtro al Desglose Individual */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.65rem 0.85rem',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                flexWrap: 'wrap',
+                gap: '0.5rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                    {selectedCellFilter ? (
+                      <>
+                        Filtrando detalle por: <strong style={{ color: '#003060' }}>{selectedCellFilter.cuadrilla}</strong> · <strong style={{ color: '#0284c7' }}>{selectedCellFilter.label}</strong> ({displayRows.length} obs.)
+                      </>
+                    ) : (
+                      <span>Desglose unitario de observaciones ({displayRows.length} disponibles)</span>
+                    )}
+                  </span>
+                  {selectedCellFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCellFilter(null)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#e11d48',
+                        fontSize: 'var(--text-2xs)',
+                        fontWeight: 'var(--fw-bold)',
+                        cursor: 'pointer',
+                        padding: '0.2rem 0.4rem',
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      Quitar filtro
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowDetailedList(prev => !prev)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    padding: '0.35rem 0.75rem',
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 'var(--fw-semibold)',
+                    color: '#003060',
+                    cursor: 'pointer'
+                  }}
+                  title={showDetailedList ? 'Ocultar listado de observaciones' : 'Ver listado de observaciones'}
+                >
+                  <Eye size={13} />
+                  <span>{showDetailedList ? 'Ocultar listado individual' : 'Ver listado individual'}</span>
+                  {showDetailedList ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                </button>
+              </div>
+
+              {/* Listado Individual de Observaciones (Desplegable) */}
+              {showDetailedList && (
+                displayRows.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: 'var(--text-sm)', background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    No hay observaciones para este filtro específico.
+                  </div>
+                ) : (
+                  <div className="prog-avance-table-wrap">
+                    <table className="prog-avance-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '120px' }}>CÓD. OBS</th>
+                          <th>TÉCNICO / CUADRILLA</th>
+                          <th>CÓDIGO DE SITIO · LOCALIDAD</th>
+                          <th style={{ width: '130px' }}>ESTADO</th>
+                          <th>REVISADO POR</th>
+                          <th style={{ width: '48px', textAlign: 'center' }}>VER</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayRows.map((row, idx) => {
+                          const localidad = getLocalidad(row.id_sitio)
+                          const resolvedC = resolveCuadrillaForObs(row)
+                          return (
+                            <tr key={row.id_obs || idx} className="prog-avance-tr">
+                              <td>
+                                <span className="prog-avance-obs-code">{row.id_obs}</span>
+                              </td>
+                              <td>
+                                <div className="prog-avance-tech-cell">
+                                  <User size={13} color="#0284c7" style={{ flexShrink: 0 }} />
+                                  <div className="prog-avance-tech-texts">
+                                    {!presentationMode && (
+                                      <span className="prog-avance-tech-name">{row.tecnico || 'No asignado'}</span>
+                                    )}
+                                    <span className="prog-avance-tech-cuadrilla">{resolvedC || row.cuadrilla || 'Sin Cuadrilla'}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <div className="prog-avance-site-cell">
+                                  <MapPin size={12} color="#0284c7" style={{ flexShrink: 0 }} />
+                                  <span className="prog-avance-site-code">{row.id_sitio}</span>
+                                  {localidad && (
+                                    <span className="prog-avance-site-loc">· {localidad}</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                {renderEstadoBadge(row.estado)}
+                              </td>
+                              <td>
+                                <div className="prog-avance-revisor-cell">
+                                  {row.estado === 'En Revision' || row.estado === 'En Revisión' ? (
+                                    <>
+                                      <Clock size={12} color="#0284c7" />
+                                      <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: 'var(--text-sm)' }}>
+                                        {row.revisor || 'En proceso'}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ShieldCheck size={13} color="#059669" />
+                                      <span style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', color: '#003060' }}>
+                                        {row.revisor || 'Sin revisor'}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <button
+                                  type="button"
+                                  className="prog-avance-row-btn"
+                                  title="Ver detalle completo de esta observación"
+                                  onClick={() => setSelectedRowDetail(row)}
+                                >
+                                  <Eye size={13} />
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              )}
             </div>
           )}
         </div>

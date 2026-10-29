@@ -676,11 +676,10 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                     <th style={{ width: '120px' }}>Cuadrilla</th>
                     <th style={{ width: '125px' }}>Código de Sitio</th>
                     <th>Localidad</th>
-                    <th>Nombre del Lugar</th>
                     <th style={{ width: '135px' }}>Estado COVEPA</th>
                     <th style={{ width: '130px' }}>Fecha de Revisión</th>
                     <th>Revisado por</th>
-                    <th style={{ width: '150px' }}>Demora / Incidente</th>
+                    <th style={{ width: '130px' }}>¿Tuvo Demora?</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -718,11 +717,6 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                         <td>
                           <span style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
                             {localidad || '—'}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="site-name" style={{ color: 'var(--text-main)', fontWeight: 'var(--fw-semibold)', fontSize: 'var(--text-sm)' }}>
-                            {sitioInfo?.nombre_nodo || localidad || '—'}
                           </span>
                         </td>
                         <td>
@@ -766,24 +760,19 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '4px',
-                                padding: '0.2rem 0.55rem',
+                                padding: '0.22rem 0.6rem',
                                 borderRadius: '6px',
                                 fontSize: 'var(--text-xs)',
-                                fontWeight: 'var(--fw-medium)',
+                                fontWeight: 'var(--fw-semibold)',
                                 background: '#fffbeb',
                                 color: '#b45309',
                                 border: '1px solid #fde68a',
-                                maxWidth: '150px',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
+                                whiteSpace: 'nowrap'
                               }}
-                              title={`Demora Justificada:\n${o.justificacion_demora}`}
+                              title={`Justificación:\n${o.justificacion_demora}`}
                             >
                               <AlertTriangle size={12} color="#d97706" style={{ flexShrink: 0 }} />
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {o.justificacion_demora}
-                              </span>
+                              Tuvo Demora
                             </span>
                           ) : (
                             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
@@ -1284,11 +1273,10 @@ export default function Observaciones() {
                   <th style={{ width: '120px' }}>Cuadrilla</th>
                   <th style={{ width: '125px' }}>Código de Sitio</th>
                   <th>Localidad</th>
-                  <th>Nombre del Lugar</th>
                   <th style={{ width: '135px' }}>Estado COVEPA</th>
                   <th style={{ width: '130px' }}>Fecha de Revisión</th>
                   <th>Revisado por</th>
-                  <th style={{ width: '150px' }}>Demora / Incidente</th>
+                  <th style={{ width: '130px' }}>¿Tuvo Demora?</th>
                 </tr>
               </thead>
               <tbody>
@@ -1323,11 +1311,6 @@ export default function Observaciones() {
                       <td>
                         <span style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
                           {sInfo.localidad || '—'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="site-name" style={{ color: 'var(--text-main)', fontWeight: 'var(--fw-semibold)', fontSize: 'var(--text-sm)' }}>
-                          {sInfo.nombre_nodo || sInfo.localidad || '—'}
                         </span>
                       </td>
                       <td>
@@ -1371,24 +1354,19 @@ export default function Observaciones() {
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
-                              padding: '0.2rem 0.55rem',
+                              padding: '0.22rem 0.6rem',
                               borderRadius: '6px',
                               fontSize: 'var(--text-xs)',
-                              fontWeight: 'var(--fw-medium)',
+                              fontWeight: 'var(--fw-semibold)',
                               background: '#fffbeb',
                               color: '#b45309',
                               border: '1px solid #fde68a',
-                              maxWidth: '150px',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
+                              whiteSpace: 'nowrap'
                             }}
-                            title={`Demora Justificada:\n${o.justificacion_demora}`}
+                            title={`Justificación:\n${o.justificacion_demora}`}
                           >
                             <AlertTriangle size={12} color="#d97706" style={{ flexShrink: 0 }} />
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {o.justificacion_demora}
-                            </span>
+                            Tuvo Demora
                           </span>
                         ) : (
                           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>

@@ -8052,66 +8052,45 @@
 }
 
 /* ==========================================================================
-   Trazabilidad de 3 Etapas en la Línea de Tiempo (Pidió -> En Revisión -> Validada)
+   Indicador Conciso de Actualización de Estado en la Línea de Tiempo
    ========================================================================== */
 
-.prog-timeline-lifecycle-box {
-  background: #f8fafc;
+.prog-timeline-update-box {
+  background: #f1f5f9;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
-  padding: 0.45rem 0.55rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  margin: 0.45rem 0;
-}
-
-.lifecycle-row {
+  padding: 0.35rem 0.5rem;
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: var(--text-3xs);
+  font-size: var(--text-2xs);
+  margin: 0.35rem 0;
   line-height: 1.3;
-  color: #64748b;
 }
 
-.lifecycle-row.is-done {
-  color: #0f172a;
-  font-weight: var(--fw-medium);
-}
-
-.lifecycle-dot {
+.update-box-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #cbd5e1;
-  flex-shrink: 0;
-}
-
-.lifecycle-dot.solicitado {
-  background: #f59e0b;
-}
-
-.lifecycle-dot.en-revision {
   background: #0284c7;
-}
-
-.lifecycle-dot.validado {
-  background: #10b981;
-}
-
-.lifecycle-dot.rechazado {
-  background: #ef4444;
-}
-
-.lifecycle-step-lbl {
-  font-weight: var(--fw-semibold);
   flex-shrink: 0;
-  min-width: 82px;
 }
 
-.lifecycle-step-val {
+.update-box-label {
+  color: #64748b;
+  font-weight: var(--fw-normal);
+  flex-shrink: 0;
+}
+
+.update-box-state {
+  color: #003060;
+  font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
+}
+
+.update-box-from {
+  color: #94a3b8;
+  font-size: var(--text-3xs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

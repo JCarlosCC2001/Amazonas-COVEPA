@@ -456,44 +456,14 @@ export default function ModalTimelineTecnico({
                           </div>
                         )}
 
-                        {/* Trazabilidad de 3 Etapas: Pidió Revisión -> En Revisión -> Validada */}
-                        <div className="prog-timeline-lifecycle-box">
-                          {/* 1. Pidió Revisión */}
-                          <div className={`lifecycle-row ${ev.lifecycle?.solicitado ? 'is-done' : ''}`}>
-                            <span className="lifecycle-dot solicitado" />
-                            <span className="lifecycle-step-lbl">Pidió revisión:</span>
-                            <span className="lifecycle-step-val">
-                              {ev.lifecycle?.solicitado
-                                ? `${ev.lifecycle.solicitado.hora} (${ev.lifecycle.solicitado.timeAgo})`
-                                : (ev.isSolicitud ? `${ev.hora} (${ev.timeAgo})` : '—')}
-                            </span>
-                          </div>
-
-                          {/* 2. Pasó a En Revisión */}
-                          <div className={`lifecycle-row ${ev.lifecycle?.enRevision ? 'is-done' : ''}`}>
-                            <span className="lifecycle-dot en-revision" />
-                            <span className="lifecycle-step-lbl">En revisión:</span>
-                            <span className="lifecycle-step-val">
-                              {ev.lifecycle?.enRevision
-                                ? `${ev.lifecycle.enRevision.hora} (${ev.lifecycle.enRevision.timeAgo})`
-                                : (ev.estado === 'En Revisión' ? 'En proceso' : 'Pendiente')}
-                            </span>
-                          </div>
-
-                          {/* 3. Validada / Rechazada */}
-                          <div className={`lifecycle-row ${(ev.lifecycle?.validado || ev.lifecycle?.rechazado) ? 'is-done' : ''}`}>
-                            <span className={`lifecycle-dot ${ev.lifecycle?.rechazado ? 'rechazado' : 'validado'}`} />
-                            <span className="lifecycle-step-lbl">
-                              {ev.lifecycle?.rechazado ? 'Rechazada:' : 'Validada:'}
-                            </span>
-                            <span className="lifecycle-step-val">
-                              {ev.lifecycle?.validado
-                                ? `${ev.lifecycle.validado.hora} (${ev.lifecycle.validado.timeAgo})`
-                                : ev.lifecycle?.rechazado
-                                ? `${ev.lifecycle.rechazado.hora} (${ev.lifecycle.rechazado.timeAgo})`
-                                : (ev.estado === 'Validado' ? `${ev.hora} (${ev.timeAgo})` : 'Pendiente')}
-                            </span>
-                          </div>
+                        {/* Estado al que se actualizó en este evento */}
+                        <div className="prog-timeline-update-box">
+                          <span className="update-box-dot" />
+                          <span className="update-box-label">Se actualizó a:</span>
+                          <strong className="update-box-state">{ev.estado}</strong>
+                          {ev.estadoAnterior && ev.estadoAnterior !== ev.estado && (
+                            <span className="update-box-from"> (desde {ev.estadoAnterior})</span>
+                          )}
                         </div>
 
                         {/* Comentario / Sustento técnico */}

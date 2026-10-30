@@ -194,24 +194,53 @@ export default function Reportes() {
     }
   }
 
-  // Guardar configuración general
-  const handleGuardar = async () => {
-    if (configActual.destinatarios.length === 0) {
-      showNotification('Debes ingresar al menos un correo principal en Para:.', 'error')
-      return
-    }
+  // Referencias para auto-guardado seguro al salir de la zona
+  const configDiarioRef = useRef(configDiario)
+  configDiarioRef.current = configDiario
+  const configSemanalRef = useRef(configSemanal)
+  configSemanalRef.current = configSemanal
+  const tipoVistaRef = useRef(tipoVista)
+  tipoVistaRef.current = tipoVista
+
+  // Auto-guardar configuración al salir de la zona
+  const guardarConfiguracionActual = async (silent = false) => {
+    if (tipoVistaRef.current === 'HUB') return
+    const tipo = tipoVistaRef.current === 'SEMANAL' ? 'semanal' : 'diario'
+    const cfg = tipo === 'semanal' ? configSemanalRef.current : configDiarioRef.current
+    if (!cfg || !cfg.destinatarios || cfg.destinatarios.length === 0) return
     setSaving(true)
     try {
-      const tipo = tipoVista === 'SEMANAL' ? 'semanal' : 'diario'
-      await saveConfiguracionReporte(configActual, userEmail, tipo)
-      showNotification(`Configuración de ${tipoVista === 'SEMANAL' ? 'reporte semanal' : 'reporte diario'} guardada exitosamente.`, 'success')
+      await saveConfiguracionReporte(cfg, userEmail, tipo)
+      if (!silent) {
+        showNotification(`Configuración guardada exitosamente.`, 'success')
+      }
     } catch (err) {
-      console.error('Error al guardar configuración:', err)
-      showNotification('Error al guardar la configuración: ' + err.message, 'error')
+      console.error('Error al guardar configuración al salir:', err)
+      if (!silent) {
+        showNotification('Error al guardar: ' + err.message, 'error')
+      }
     } finally {
       setSaving(false)
     }
   }
+
+  const handleVolverAlHub = async () => {
+    await guardarConfiguracionActual(false)
+    setTipoVista('HUB')
+  }
+
+  // Guardar automáticamente al desmontar el componente o navegar a otra página
+  useEffect(() => {
+    return () => {
+      if (tipoVistaRef.current !== 'HUB') {
+        const tipo = tipoVistaRef.current === 'SEMANAL' ? 'semanal' : 'diario'
+        const cfg = tipo === 'semanal' ? configSemanalRef.current : configDiarioRef.current
+        if (cfg && cfg.destinatarios?.length > 0) {
+          saveConfiguracionReporte(cfg, userEmail, tipo).catch(() => {})
+        }
+      }
+    }
+  }, [userEmail])
 
   // Manejo de chips de correos: Para
   const agregarPara = () => {
@@ -565,7 +594,7 @@ export default function Reportes() {
             <button
               type="button"
               className="btn-back-hub"
-              onClick={() => setTipoVista('HUB')}
+              onClick={handleVolverAlHub}
             >
               <span>← Volver a Selección de Reportes</span>
             </button>
@@ -585,7 +614,6 @@ export default function Reportes() {
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-              {/* Botón Destacado: Ver Correo de Ejemplo en Ventana Emergente */}
               <button
                 type="button"
                 onClick={() => setModalPreviewOpen(true)}
@@ -604,10 +632,10 @@ export default function Reportes() {
                   transition: 'all 0.2s ease'
                 }}
                 className="t-body"
-                title="Abrir la ventana emergente con el correo de ejemplo tal como llegará a la bandeja de entrada"
+                title="Abrir vista previa del correo"
               >
                 <span>👁️</span>
-                <span>Ver Correo de Ejemplo</span>
+                <span>Vista Previa</span>
               </button>
 
               <button
@@ -631,7 +659,7 @@ export default function Reportes() {
                 title="Descargar archivo Excel oficial (.xlsx)"
               >
                 <span>📊</span>
-                <span>{exportingExcel ? 'Generando...' : 'Descargar Excel'}</span>
+                <span>{exportingExcel ? 'Descargando...' : 'Descargar Excel'}</span>
               </button>
 
               <button
@@ -653,21 +681,35 @@ export default function Reportes() {
                   transition: 'all 0.2s ease'
                 }}
                 className="t-body"
-                title="Enviar inmediatamente el reporte por correo a los destinatarios configurados"
+                title="Enviar reporte de prueba por correo"
               >
                 <span>{despachando ? '⏳' : '🚀'}</span>
-                <span>{despachando ? 'Despachando Correo...' : 'Enviar Reporte de Prueba'}</span>
+                <span>{despachando ? 'Enviando...' : 'Enviar Reporte de Prueba'}</span>
               </button>
 
-              <button
-                type="button"
-                className="btn-reporte-save"
-                onClick={handleGuardar}
-                disabled={saving}
+              <a
+                href="https://console.cron-job.org/jobs"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.55rem 0.9rem',
+                  background: '#ffffff',
+                  color: '#003060',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  textDecoration: 'none',
+                  fontWeight: 'var(--fw-semibold)',
+                  transition: 'all 0.2s ease'
+                }}
+                className="t-body"
+                title="Configurar horario en cron-job.org"
               >
-                <span>💾</span>
-                <span>{saving ? 'Guardando...' : 'Guardar Parámetros'}</span>
-              </button>
+                <span>⏰</span>
+                <span>Configurar Hora</span>
+              </a>
             </div>
           </header>
 
@@ -693,47 +735,6 @@ export default function Reportes() {
                 <span style={{ fontSize: 'var(--text-xs)', lineHeight: 1 }}>●</span>
                 {configActual.activo ? 'Envío automático activo' : 'Envío pausado'}
               </span>
-            </div>
-
-            {/* Banner Informativo de Vista Previa Emergente */}
-            <div style={{
-              background: '#eff6ff',
-              border: '1px solid #bfdbfe',
-              borderRadius: '10px',
-              padding: '0.85rem 1.15rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.75rem',
-              flexWrap: 'wrap'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <span style={{ fontSize: 'var(--text-xl)' }}>💡</span>
-                <div>
-                  <div className="t-name" style={{ color: '#003060' }}>
-                    ¿Deseas verificar cómo llegará el correo antes de enviarlo?
-                  </div>
-                  <div className="t-meta" style={{ color: '#1e40af' }}>
-                    Pulsa en <strong>"Ver Correo de Ejemplo"</strong> para previsualizar la plantilla en una ventana emergente interactiva.
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setModalPreviewOpen(true)}
-                style={{
-                  background: '#003060',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '0.45rem 0.95rem',
-                  cursor: 'pointer',
-                  fontWeight: 'var(--fw-semibold)'
-                }}
-                className="t-meta"
-              >
-                👁️ Abrir Vista Previa ↗
-              </button>
             </div>
 
             {/* 1. Toggle Activo / Pausado */}
@@ -918,43 +919,37 @@ export default function Reportes() {
                   </div>
                 </div>
               ) : (
-                <div style={{
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderLeft: '4px solid #003060',
-                  borderRadius: '8px',
-                  padding: '0.85rem 1rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.6rem'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <span className="t-name" style={{ color: '#003060', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span>☁️</span> Reloj Autónomo en la Nube (cron-job.org)
-                    </span>
-                    <a
-                      href="https://console.cron-job.org/jobs"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        background: '#003060',
-                        color: '#ffffff',
-                        padding: '0.45rem 0.9rem',
-                        borderRadius: '6px',
-                        textDecoration: 'none',
-                        fontWeight: 'var(--fw-semibold)'
-                      }}
-                      className="t-meta"
-                    >
-                      <span>⏰ Configurar Hora en cron-job.org ↗</span>
-                    </a>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.65rem', alignItems: 'flex-end' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    <span className="t-meta" style={{ color: '#003060', fontWeight: 'var(--fw-semibold)' }}>Hora programada (Hora Perú):</span>
+                    <input
+                      type="time"
+                      className="reporte-input"
+                      value={configDiario.hora_envio || '21:00'}
+                      onChange={e => setConfigDiario(prev => ({ ...prev, hora_envio: e.target.value }))}
+                    />
                   </div>
-                  <p className="t-meta" style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                    Para asegurar que el reporte se despache puntual a las <strong>{configDiario.hora_envio || '21:00'} hrs</strong> aunque la computadora esté apagada, el cron autónomo corre en la nube.
-                  </p>
+                  <a
+                    href="https://console.cron-job.org/jobs"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      background: '#f8fafc',
+                      color: '#003060',
+                      border: '1px solid #cbd5e1',
+                      padding: '0.65rem 0.95rem',
+                      borderRadius: '8px',
+                      textDecoration: 'none',
+                      fontWeight: 'var(--fw-semibold)'
+                    }}
+                    className="t-meta"
+                    title="Configurar hora en cron-job.org"
+                  >
+                    <span>⏰ Configurar Hora</span>
+                  </a>
                 </div>
               )}
             </div>
@@ -1105,53 +1100,6 @@ export default function Reportes() {
               <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
                 Aparecerá en el cuerpo del correo antes de la firma. Si se deja vacío, no se incluirá nada.
               </span>
-            </div>
-
-            {/* 9. Botón Destacado: Ver Correo de Ejemplo en Modal */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '1.25rem',
-              background: '#f8fafc',
-              border: '1px dashed #cbd5e1',
-              borderRadius: '12px'
-            }}>
-              <button
-                type="button"
-                onClick={() => setModalPreviewOpen(true)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.6rem',
-                  padding: '0.75rem 1.6rem',
-                  background: '#003060',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '10px',
-                  fontWeight: 'var(--fw-bold)',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(0, 48, 96, 0.2)',
-                  transition: 'all 0.2s ease'
-                }}
-                className="t-body"
-              >
-                <span style={{ fontSize: 'var(--text-base)' }}>👁️</span>
-                <span>Ver Correo de Ejemplo en Ventana Emergente</span>
-              </button>
-            </div>
-
-            {/* 10. Barra de Guardado Inferior */}
-            <div className="reporte-actions-bar">
-              <button
-                type="button"
-                className="btn-reporte-save"
-                onClick={handleGuardar}
-                disabled={saving}
-              >
-                <span>💾</span>
-                <span>{saving ? 'Guardando...' : 'Guardar Parámetros'}</span>
-              </button>
             </div>
           </div>
         </>

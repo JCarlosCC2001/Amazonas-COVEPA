@@ -308,7 +308,7 @@ async function main() {
 
   const logoSrc = hasLogo ? 'cid:covepa-logo' : 'https://byywikicdvmmmndhkooe.supabase.co/storage/v1/object/public/covepa.png'
 
-  // 8.1 Generar archivo Excel (.xlsx) adjunto con las 5 columnas oficiales y fondo #003060
+  // 8.1 Generar archivo Excel (.xlsx) adjunto con formato oficial de tabla y fondo #003060
   try {
     const wb = new ExcelJS.Workbook()
     wb.creator = 'Amazonas-COVEPA'
@@ -316,16 +316,62 @@ async function main() {
       views: [{ showGridLines: true }]
     })
 
-    // 5 Columnas Oficiales requeridas
+    // Anchos calibrados de las 5 columnas oficiales
     ws.columns = [
-      { header: 'ID', key: 'id_obs', width: 22 },
-      { header: 'Código de lugar', key: 'codigo_lugar', width: 20 },
-      { header: 'Nombre de localidad', key: 'localidad', width: 28 },
-      { header: 'Persona que validó', key: 'revisor', width: 24 },
-      { header: 'Estado observación', key: 'estado', width: 22 }
+      { width: 22 },
+      { width: 20 },
+      { width: 28 },
+      { width: 24 },
+      { width: 22 }
     ]
 
-    // Encabezado institucional en color #003060
+    // Consolidado de todas las observaciones trabajadas en la jornada
+    const allRows = [
+      ...validadas,
+      ...rechazadas,
+      ...enEspera,
+      ...descartadas
+    ]
+
+    const tableRows = allRows.map(r => {
+      let estadoDisplay = r.estado || 'Validado'
+      if (estadoDisplay === 'Descartado') estadoDisplay = 'No Aplica'
+      const revisorFinal = (r.revisor && r.revisor.trim() && r.revisor.trim().toLowerCase() !== 'sin revisor')
+        ? r.revisor.trim()
+        : '-'
+
+      return [
+        r.id_obs || '',
+        r.id_sitio || '',
+        r.localidad || '',
+        revisorFinal,
+        estadoDisplay
+      ]
+    })
+
+    // Añadir tabla oficial con formato de tabla (addTable)
+    const cleanTableName = `Reporte_${targetFechaIso.replace(/-/g, '_')}`
+    ws.addTable({
+      name: cleanTableName,
+      ref: 'A1',
+      headerRow: true,
+      totalsRow: false,
+      style: {
+        theme: 'TableStyleMedium9', // Azul marino corporativo COVEPA
+        showRowStripes: true,
+        showColumnStripes: false
+      },
+      columns: [
+        { name: 'ID', filterButton: true },
+        { name: 'Código de lugar', filterButton: true },
+        { name: 'Nombre de localidad', filterButton: true },
+        { name: 'Persona que validó', filterButton: true },
+        { name: 'Estado observación', filterButton: true }
+      ],
+      rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-']]
+    })
+
+    // Conservar encabezado institucional en color oficial #003060 y texto blanco
     const headerRow = ws.getRow(1)
     headerRow.height = 26
     headerRow.eachCell((cell) => {
@@ -341,51 +387,22 @@ async function main() {
         color: { argb: 'FFFFFFFF' }
       }
       cell.alignment = { vertical: 'middle', horizontal: 'center' }
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FF002040' } },
-        left: { style: 'thin', color: { argb: 'FF002040' } },
-        bottom: { style: 'medium', color: { argb: 'FF002040' } },
-        right: { style: 'thin', color: { argb: 'FF002040' } }
-      }
     })
 
-    // Consolidado de todas las observaciones trabajadas en la jornada
-    const allRows = [
-      ...validadas,
-      ...rechazadas,
-      ...enEspera,
-      ...descartadas
-    ]
-
-    allRows.forEach((r, idx) => {
-      const rowNum = idx + 2
-      let estadoDisplay = r.estado || 'Validado'
-      if (estadoDisplay === 'Descartado') estadoDisplay = 'No Aplica'
-
-      ws.addRow({
-        id_obs: r.id_obs || '',
-        codigo_lugar: r.id_sitio || '',
-        localidad: r.localidad || '',
-        revisor: r.revisor || 'Sin revisor',
-        estado: estadoDisplay
-      })
-
+    // Formato y alineación de celdas de datos
+    const totalFilas = tableRows.length > 0 ? tableRows.length : 1
+    for (let i = 0; i < totalFilas; i++) {
+      const rowNum = i + 2
       const row = ws.getRow(rowNum)
       row.height = 20
       row.eachCell((cell, colNum) => {
         cell.font = { name: 'Arial', size: 10 }
         cell.alignment = {
           vertical: 'middle',
-          horizontal: (colNum === 1 || colNum === 2 || colNum === 5) ? 'center' : 'left'
-        }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          horizontal: (colNum === 1 || colNum === 2 || colNum === 5 || cell.value === '-') ? 'center' : 'left'
         }
       })
-    })
+    }
 
     const excelBuffer = await wb.xlsx.writeBuffer()
     attachments.push({
@@ -393,7 +410,7 @@ async function main() {
       content: excelBuffer,
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     })
-    console.log(`[CRON-REPORTE] 📊 Archivo Excel generado y adjuntado: Reporte_Observaciones_${targetFechaIso}.xlsx (${allRows.length} registros)`)
+    console.log(`[CRON-REPORTE] 📊 Archivo Excel con formato de tabla generado y adjuntado: Reporte_Observaciones_${targetFechaIso}.xlsx (${allRows.length} registros)`)
   } catch (errExcel) {
     console.error('[CRON-REPORTE] ⚠️ Error generando Excel adjunto:', errExcel)
   }

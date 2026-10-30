@@ -7,3 +7,4 @@
 
 ALTER TABLE public.configuracion_reportes_correo
 ADD COLUMN IF NOT EXISTS periodo_reporte TEXT NOT NULL DEFAULT 'dia_actual';
+

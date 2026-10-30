@@ -271,6 +271,7 @@ Para garantizar que Google Earth funcione a máxima velocidad sin congelarse ni 
 8. **Búsqueda global (Ctrl+K):** saltar a un sitio, observación o persona desde el header.
 9. **Gráficos de tendencia en el Dashboard** (`recharts` ya está instalado).
 10. **Copias de seguridad programadas:** exportación semanal de observaciones a Excel.
+11. **Seguridad Avanzada Webhook (Ocultar clave del navegador):** Autenticación estricta con cabeceras privadas (Headers), firma de petición HMAC y restricción exclusiva POST para que el webhook de reportes sea 100% inaccesible e inejecutable desde barras de direcciones o navegadores externos.
 
 ---
 

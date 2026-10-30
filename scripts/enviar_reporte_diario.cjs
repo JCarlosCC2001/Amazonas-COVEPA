@@ -62,6 +62,18 @@ function getPeruDateInfo() {
   }
 }
 
+function getPeruDateString(dateInput) {
+  if (!dateInput) return null
+  const d = new Date(dateInput)
+  if (isNaN(d.getTime())) return null
+  const utc = d.getTime() + (d.getTimezoneOffset() * 60000)
+  const peruTime = new Date(utc - (5 * 3600000))
+  const y = peruTime.getFullYear()
+  const m = String(peruTime.getMonth() + 1).padStart(2, '0')
+  const day = String(peruTime.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function escapeHtml(str) {
   if (!str) return ''
   return String(str)
@@ -108,10 +120,8 @@ async function main() {
   // 3.1 Limpieza automática diaria de notas_jornada si provienen de un día anterior
   let notasLimpias = (config.notas_jornada || '').trim()
   if (config.updated_at) {
-    const d = new Date(config.updated_at)
-    const utc = d.getTime() + (d.getTimezoneOffset() * 60000)
-    const fechaPeruUpdate = new Date(utc - (5 * 3600000)).toISOString().slice(0, 10)
-    if (fechaPeruUpdate < fechaIso && notasLimpias) {
+    const fechaPeruUpdate = getPeruDateString(config.updated_at)
+    if (fechaPeruUpdate && fechaPeruUpdate < fechaIso && notasLimpias) {
       console.log(`[CRON-REPORTE] 🧹 La nota operativa pertenece al día anterior (${fechaPeruUpdate}). Limpiando comentario para la nueva jornada.`)
       notasLimpias = ''
       try {
@@ -129,25 +139,40 @@ async function main() {
     return
   }
 
-  // 4.1 Comprobar coincidencia de hora y minuto si es ejecución programada
+  // 4.1 Comprobar coincidencia de hora si es ejecución programada
   const [cfgH, cfgM] = (config.hora_envio || '21:00:00').split(':').map(Number)
   const [curH, curM] = horaMinuto.split(':').map(Number)
   const cfgTotalMins = (cfgH || 0) * 60 + (cfgM || 0)
   const curTotalMins = (curH || 0) * 60 + (curM || 0)
   const diffMins = curTotalMins - cfgTotalMins
 
-  // Si no es ejecución manual, verificar si estamos en la ventana de envío (desde la hora programada hasta 25 min después)
-  if (!isManualRun && (diffMins < 0 || diffMins > 25)) {
-    console.log(`[CRON-REPORTE] ⏳ Hora programada es ${config.hora_envio} y la hora actual Perú es ${horaMinuto}. Fuera de ventana (dif: ${diffMins} min). Omitiendo.`)
+  // a) Si aún no llega la hora programada en hora Perú (diffMins < 0), esperar al siguiente ciclo
+  if (!isManualRun && diffMins < 0) {
+    console.log(`[CRON-REPORTE] ⏳ Hora programada: ${config.hora_envio} | Hora actual Perú: ${horaMinuto}. Faltan ${Math.abs(diffMins)} min para la hora programada. Omitiendo.`)
+    return
+  }
+
+  // b) Si han pasado más de 6 horas desde la hora programada (ej. ya amaneció o es otra jornada), omitir
+  if (!isManualRun && diffMins > 360) {
+    console.log(`[CRON-REPORTE] ⏳ La hora programada (${config.hora_envio}) quedó fuera de la ventana nocturna respecto a la hora actual (${horaMinuto}). Omitiendo.`)
     return
   }
 
   // 4.2 Evitar envíos duplicados en la misma fecha (solo en modo programado)
+  // Se autoriza el reenvío si la configuración se actualizó después del último envío (ej. el usuario reprogramó la hora o notas)
   if (!isManualRun && config.ultimo_envio_at) {
-    const ultimoEnvioStr = new Date(config.ultimo_envio_at).toISOString().slice(0, 10)
-    if (ultimoEnvioStr === fechaIso) {
-      console.log(`[CRON-REPORTE] ℹ️ El reporte de la fecha ${fechaIso} ya fue enviado hoy a las ${config.ultimo_envio_at}. Omitiendo envío duplicado.`)
+    const ultimoEnvioPeruDate = getPeruDateString(config.ultimo_envio_at)
+    const configUpdateTime = config.updated_at ? new Date(config.updated_at).getTime() : 0
+    const ultimoEnvioTime = new Date(config.ultimo_envio_at).getTime()
+    const fueReprogramado = configUpdateTime > (ultimoEnvioTime + 10000) // margen de 10 segundos
+
+    if (ultimoEnvioPeruDate === fechaIso && !fueReprogramado) {
+      console.log(`[CRON-REPORTE] ℹ️ El reporte de hoy (${fechaIso}) ya fue enviado a las ${config.ultimo_envio_at} y no hay cambios posteriores de configuración. Omitiendo envío duplicado.`)
       return
+    }
+
+    if (fueReprogramado) {
+      console.log(`[CRON-REPORTE] 🔄 Se detectó una reprogramación de horario/configuración posterior al último envío (${config.updated_at} > ${config.ultimo_envio_at}). Procediendo con el nuevo despacho.`)
     }
   }
 

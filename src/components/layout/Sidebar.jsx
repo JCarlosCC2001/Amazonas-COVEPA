@@ -190,11 +190,6 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
       <div className="sidebar-footer">
         <div
           className={`sidebar-user ${collapsed && !mobileOpen ? 'sidebar-user-collapsed' : ''}`}
-          onClick={() => setConfigModalOpen(true)}
-          title="Abrir Configuración de la Cuenta"
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setConfigModalOpen(true) }}
         >
           <div className="user-avatar">
             {presentationMode
@@ -208,9 +203,8 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
               <span className="user-email" title={presentationMode ? 'COVEPA Admin' : user?.email}>
                 {presentationMode ? 'COVEPA Admin' : (personalMember?.nombre_completo || user?.email)}
               </span>
-              <span className="user-role" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>{isAdmin ? 'Administrador' : (profile?.rol ? profile.rol.toUpperCase() : 'Técnico')}</span>
-                <Settings size={13} style={{ opacity: 0.75, color: '#38bdf8' }} title="Configuración" />
+              <span className="user-role">
+                {isAdmin ? 'Administrador' : (profile?.rol ? profile.rol.toUpperCase() : 'Técnico')}
               </span>
             </div>
           )}

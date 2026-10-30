@@ -511,15 +511,6 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
             </td>
           </tr>
 
-          <!-- Pie del Correo Institucional -->
-          <tr>
-            <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 28px;text-align:center;">
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#94a3b8;">
-                Sistema Amazonas - Covepa
-              </div>
-            </td>
-          </tr>
-
         </table>
       </td>
     </tr>

@@ -42,7 +42,7 @@ export default async function handler(req, res) {
 
   if (!token) {
     return res.status(500).json({
-      error: 'Falta configurar la variable de entorno GITHUB_DISPATCH_TOKEN en el servidor.'
+      error: 'Falta configurar la variable GITHUB_DISPATCH_TOKEN en Vercel (Settings > Environment Variables) para despachar desde la web.'
     })
   }
 

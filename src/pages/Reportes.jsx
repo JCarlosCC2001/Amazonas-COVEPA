@@ -121,7 +121,7 @@ export default function Reportes() {
     }
   }
 
-  // Descarga del consolidado en Excel (.xlsx) con 5 columnas oficiales
+  // Descarga del consolidado en Excel (.xlsx) con 6 columnas oficiales (incluyendo Zona)
   const handleDescargarExcel = async () => {
     if (!datosReporte) return
     setExportingExcel(true)
@@ -837,7 +837,7 @@ export default function Reportes() {
                   fontWeight: 'var(--fw-semibold)'
                 }}
                 className="t-meta"
-                title="Descargar archivo Excel oficial (.xlsx) de 5 columnas con color corporativo #003060"
+                title="Descargar archivo Excel oficial (.xlsx) con Zona y color corporativo #003060"
               >
                 <span>📊</span>
                 <span>{exportingExcel ? 'Generando...' : 'Descargar Excel Adjunto'}</span>
@@ -914,7 +914,7 @@ export default function Reportes() {
                       fontWeight: 'var(--fw-semibold)'
                     }}
                   >
-                    📎 Reporte_Observaciones_{datosReporte?.fechaStr || 'jornada'}.xlsx (5 columnas · #003060)
+                    📎 Reporte_Observaciones_{datosReporte?.fechaStr || 'jornada'}.xlsx (ID · Zona · Código · Localidad · Revisor · Estado)
                   </span>
                 </span>
               </div>

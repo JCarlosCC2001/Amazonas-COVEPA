@@ -316,13 +316,14 @@ async function main() {
       views: [{ showGridLines: true }]
     })
 
-    // Anchos calibrados de las 5 columnas oficiales
+    // Anchos calibrados de las 6 columnas oficiales (Zona entre ID y Código de lugar)
     ws.columns = [
-      { width: 22 },
-      { width: 20 },
-      { width: 28 },
-      { width: 24 },
-      { width: 22 }
+      { width: 22 }, // ID
+      { width: 14 }, // Zona
+      { width: 20 }, // Código de lugar
+      { width: 28 }, // Nombre de localidad
+      { width: 24 }, // Persona que validó
+      { width: 22 }  // Estado observación
     ]
 
     // Consolidado de todas las observaciones trabajadas en la jornada
@@ -342,6 +343,7 @@ async function main() {
 
       return [
         r.id_obs || '',
+        r.zona || '-',
         r.id_sitio || '',
         r.localidad || '',
         revisorFinal,
@@ -363,12 +365,13 @@ async function main() {
       },
       columns: [
         { name: 'ID', filterButton: true },
+        { name: 'Zona', filterButton: true },
         { name: 'Código de lugar', filterButton: true },
         { name: 'Nombre de localidad', filterButton: true },
         { name: 'Persona que validó', filterButton: true },
         { name: 'Estado observación', filterButton: true }
       ],
-      rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-']]
+      rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-', '-']]
     })
 
     // Conservar encabezado institucional en color oficial #003060 y texto blanco
@@ -399,7 +402,7 @@ async function main() {
         cell.font = { name: 'Arial', size: 10 }
         cell.alignment = {
           vertical: 'middle',
-          horizontal: (colNum === 1 || colNum === 2 || colNum === 5 || cell.value === '-') ? 'center' : 'left'
+          horizontal: (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 6 || cell.value === '-') ? 'center' : 'left'
         }
       })
     }
@@ -528,7 +531,7 @@ async function main() {
                 <tr>
                   <td>
                     <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#0369a1;line-height:1.45;">
-                      <strong style="color:#003060;">📎 Archivo Excel Adjunto:</strong> <code>Reporte_Observaciones_${escapeHtml(targetFechaIso)}.xlsx</code> (Consolidado de 5 columnas con ID, Código de lugar, Nombre de localidad, Persona que validó y Estado).
+                      <strong style="color:#003060;">📎 Archivo Excel Adjunto:</strong> <code>Reporte_Observaciones_${escapeHtml(targetFechaIso)}.xlsx</code> (Consolidado oficial con ID, Zona, Código de lugar, Nombre de localidad, Persona que validó y Estado).
                     </div>
                   </td>
                 </tr>

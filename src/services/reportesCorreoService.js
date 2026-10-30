@@ -147,8 +147,22 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
   }
 
   // Fuente de verdad unificada: utiliza getAvancePorFecha para consistencia total con Programación
-  const avance = await getAvancePorFecha(targetDate)
-  const rows = avance?.rows || []
+  const [avance, sitios] = await Promise.all([
+    getAvancePorFecha(targetDate),
+    getCachedSitiosAsignados()
+  ])
+  const sitiosMap = {}
+  if (Array.isArray(sitios)) {
+    sitios.forEach(s => { sitiosMap[s.id_site] = s })
+  }
+  const rawRows = avance?.rows || []
+  const rows = rawRows.map(r => {
+    const sInfo = sitiosMap[r.id_sitio] || {}
+    return {
+      ...r,
+      zona: sInfo.zona || r.zona || '-'
+    }
+  })
   const statsAvance = avance?.stats || {}
 
   const validadas = rows.filter(r => r.estado === 'Validado')
@@ -200,13 +214,14 @@ export async function exportarExcelReporteDiario(datos) {
     views: [{ showGridLines: true }]
   })
 
-  // Anchos calibrados de las 5 columnas oficiales
+  // Anchos calibrados de las 6 columnas oficiales (Zona entre ID y Código de lugar)
   ws.columns = [
-    { width: 22 },
-    { width: 20 },
-    { width: 28 },
-    { width: 24 },
-    { width: 22 }
+    { width: 22 }, // ID
+    { width: 14 }, // Zona
+    { width: 20 }, // Código de lugar
+    { width: 28 }, // Nombre de localidad
+    { width: 24 }, // Persona que validó
+    { width: 22 }  // Estado observación
   ]
 
   // Lista unificada de todas las observaciones trabajadas ese día
@@ -226,6 +241,7 @@ export async function exportarExcelReporteDiario(datos) {
 
     return [
       r.id_obs || '',
+      r.zona || '-',
       r.id_sitio || r.codigo_lugar || '',
       r.localidad || '',
       revisorFinal,
@@ -247,12 +263,13 @@ export async function exportarExcelReporteDiario(datos) {
     },
     columns: [
       { name: 'ID', filterButton: true },
+      { name: 'Zona', filterButton: true },
       { name: 'Código de lugar', filterButton: true },
       { name: 'Nombre de localidad', filterButton: true },
       { name: 'Persona que validó', filterButton: true },
       { name: 'Estado observación', filterButton: true }
     ],
-    rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-']]
+    rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-', '-']]
   })
 
   // Conservar encabezado institucional en color oficial #003060 y texto blanco
@@ -283,7 +300,7 @@ export async function exportarExcelReporteDiario(datos) {
       cell.font = { name: 'Arial', size: 10 }
       cell.alignment = {
         vertical: 'middle',
-        horizontal: (colNum === 1 || colNum === 2 || colNum === 5 || cell.value === '-') ? 'center' : 'left'
+        horizontal: (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 6 || cell.value === '-') ? 'center' : 'left'
       }
     })
   }
@@ -423,7 +440,7 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
                 <tr>
                   <td>
                     <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#0369a1;line-height:1.45;">
-                      <strong style="color:#003060;">📎 Archivo Excel Adjunto:</strong> <code>Reporte_Observaciones_${escapeHtml(datos.fechaStr)}.xlsx</code> (Consolidado de 5 columnas con ID, Código de lugar, Nombre de localidad, Persona que validó y Estado).
+                      <strong style="color:#003060;">📎 Archivo Excel Adjunto:</strong> <code>Reporte_Observaciones_${escapeHtml(datos.fechaStr)}.xlsx</code> (Consolidado oficial con ID, Zona, Código de lugar, Nombre de localidad, Persona que validó y Estado).
                     </div>
                   </td>
                 </tr>

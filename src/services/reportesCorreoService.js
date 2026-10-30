@@ -635,15 +635,11 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
   const logoSrc = isWebPreview ? '/covepa.png' : 'cid:covepa-logo'
   const totalListados = validadas.length + rechazadas.length + enEspera.length + descartadas.length
 
-  // Helper para renderizar insignias (chips) limpias y legibles de códigos
+  // Helper para renderizar observaciones agrupadas en fila limpia sin recuadros individuales
   const renderCodeList = (items, colorText, colorBorder, bgLight = '#f8fafc') => {
     return `
-      <div style="background-color:${bgLight};border:1px solid ${colorBorder};border-radius:6px;padding:10px 14px;">
-        ${items.map(o => `
-          <span style="display:inline-block;padding:3px 9px;margin:2px 3px;background-color:#ffffff;border:1px solid ${colorBorder};border-radius:4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${colorText};line-height:1.4;">
-            ${escapeHtml(o.id_obs || '—')}
-          </span>
-        `).join('')}
+      <div style="background-color:${bgLight};border:1px solid ${colorBorder};border-radius:6px;padding:12px 18px;font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:bold;color:${colorText};line-height:1.65;">
+        ${items.map(o => escapeHtml(o.id_obs || '—')).join('<span style="color:#94a3b8;font-weight:normal;margin:0 8px;">·</span>')}
       </div>
     `
   }
@@ -696,20 +692,18 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
           <tr>
             <td style="background-color:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 24px;">
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-                <!-- Total General Trabajado -->
+                <!-- Total General Trabajado (Centrado como los medidores de abajo, conservando su posición) -->
                 <tr>
                   <td colspan="4" style="padding-bottom:10px;">
-                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #cbd5e1;border-left:4px solid #003060;border-radius:6px;">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #cbd5e1;border-top:3px solid #003060;border-radius:6px;text-align:center;">
                       <tr>
-                        <td style="padding:10px 16px;text-align:left;">
-                          <span style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;">
-                            Total de Observaciones Trabajadas en la Jornada
-                          </span>
-                        </td>
-                        <td style="padding:10px 16px;text-align:right;">
-                          <span style="font-family:'Segoe UI',Arial,sans-serif;font-size:26px;font-weight:bold;color:#003060;line-height:1;">
+                        <td style="padding:12px 16px;text-align:center;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:26px;font-weight:bold;color:#003060;line-height:1;">
                             ${stats.total}
-                          </span>
+                          </div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">
+                            Total de Observaciones Trabajadas en la Jornada
+                          </div>
                         </td>
                       </tr>
                     </table>
@@ -886,15 +880,11 @@ export function generarHTMLReporteSemanal({ config, datos, isWebPreview = true }
   const logoSrc = isWebPreview ? '/covepa.png' : 'cid:covepa-logo'
   const totalListados = validadas.length + rechazadas.length + enEspera.length + descartadas.length
 
-  // Helper para renderizar insignias (chips) limpias y legibles de códigos
+  // Helper para renderizar observaciones agrupadas en fila limpia sin recuadros individuales
   const renderCodeList = (items, colorText, colorBorder, bgLight = '#f8fafc') => {
     return `
-      <div style="background-color:${bgLight};border:1px solid ${colorBorder};border-radius:6px;padding:10px 14px;">
-        ${items.map(o => `
-          <span style="display:inline-block;padding:3px 9px;margin:2px 3px;background-color:#ffffff;border:1px solid ${colorBorder};border-radius:4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${colorText};line-height:1.4;">
-            ${escapeHtml(o.id_obs || '—')}
-          </span>
-        `).join('')}
+      <div style="background-color:${bgLight};border:1px solid ${colorBorder};border-radius:6px;padding:12px 18px;font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:bold;color:${colorText};line-height:1.65;">
+        ${items.map(o => escapeHtml(o.id_obs || '—')).join('<span style="color:#94a3b8;font-weight:normal;margin:0 8px;">·</span>')}
       </div>
     `
   }
@@ -947,20 +937,18 @@ export function generarHTMLReporteSemanal({ config, datos, isWebPreview = true }
           <tr>
             <td style="background-color:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 24px;">
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-                <!-- Total General Semanal -->
+                <!-- Total General Semanal (Centrado como los medidores de abajo, conservando su posición) -->
                 <tr>
                   <td colspan="4" style="padding-bottom:10px;">
-                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #cbd5e1;border-left:4px solid #003060;border-radius:6px;">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #cbd5e1;border-top:3px solid #003060;border-radius:6px;text-align:center;">
                       <tr>
-                        <td style="padding:10px 16px;text-align:left;">
-                          <span style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;">
-                            Total de Observaciones Trabajadas en la Semana
-                          </span>
-                        </td>
-                        <td style="padding:10px 16px;text-align:right;">
-                          <span style="font-family:'Segoe UI',Arial,sans-serif;font-size:26px;font-weight:bold;color:#003060;line-height:1;">
+                        <td style="padding:12px 16px;text-align:center;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:26px;font-weight:bold;color:#003060;line-height:1;">
                             ${stats.total}
-                          </span>
+                          </div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">
+                            Total de Observaciones Trabajadas en la Semana
+                          </div>
                         </td>
                       </tr>
                     </table>

@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { getAvancePorFecha } from './dashboardService'
-import { getCachedSitiosAsignados } from './sitiosService'
+import { getCachedSitiosAsignados, getZonaBySiteId } from './sitiosService'
 import { toLocalDateString, getPeruDateStr, getAyerPeruStr } from '../utils/helpers'
 
 const LOCAL_STORAGE_KEY_DIARIO = 'covepa_config_reporte_correo'
@@ -177,9 +177,10 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
   const rawRows = avance?.rows || []
   const rows = rawRows.map(r => {
     const sInfo = sitiosMap[r.id_sitio] || {}
+    const zonaFinal = (r.zona && r.zona !== '-') ? r.zona : (sInfo.zona || getZonaBySiteId(r.id_sitio))
     return {
       ...r,
-      zona: sInfo.zona || r.zona || '-'
+      zona: zonaFinal
     }
   })
   const statsAvance = avance?.stats || {}
@@ -292,9 +293,10 @@ export async function fetchDatosReporteSemanal(fechaFiltro = null, periodoReport
 
     rowsDia.forEach(r => {
       const sInfo = sitiosMap[r.id_sitio] || {}
+      const zonaFinal = (r.zona && r.zona !== '-') ? r.zona : (sInfo.zona || getZonaBySiteId(r.id_sitio))
       const enriched = {
         ...r,
-        zona: sInfo.zona || r.zona || '-'
+        zona: zonaFinal
       }
       if (r.estado === 'Validado') valDia++
       else if (r.estado === 'Rechazado') rechDia++
@@ -382,7 +384,7 @@ export async function exportarExcelReporteDiario(datos) {
 
     return [
       r.id_obs || '',
-      r.zona || '-',
+      r.zona && r.zona !== '-' ? r.zona : getZonaBySiteId(r.id_sitio),
       r.id_sitio || r.codigo_lugar || '',
       r.localidad || '',
       revisorFinal,
@@ -498,7 +500,7 @@ export async function exportarExcelReporteSemanal(datos) {
 
     return [
       r.id_obs || '',
-      r.zona || '-',
+      r.zona && r.zona !== '-' ? r.zona : getZonaBySiteId(r.id_sitio),
       r.id_sitio || r.codigo_lugar || '',
       r.localidad || '',
       revisorFinal,

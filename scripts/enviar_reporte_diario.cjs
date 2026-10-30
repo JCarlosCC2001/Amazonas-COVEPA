@@ -197,26 +197,207 @@ async function main() {
 
   console.log(`[CRON-REPORTE] 📬 Destinatarios: ${recipients.join(', ')} | CC: ${recipientsCC.join(', ') || 'Ninguno'}`)
 
-  // 6. Consultar mapa de localidades y cuadrillas (Regla 2.1)
+  // 6. Consultar mapa de localidades y asignaciones territoriales (Regla 2.1)
+  const ASIGNACIONES_BASE = [
+    { id_site: 'AM-0038-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0038-CS01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0038-CO01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0038-CO02', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0041-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0041-CS01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0041-IE01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0041-HS01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0034-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0034-CS01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0123-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0042-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0042-CS01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0042-CO01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0124-CS01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0125-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0235-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
+    { id_site: 'AM-0240-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
+    { id_site: 'AM-0237-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
+    { id_site: 'AM-0238-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
+    { id_site: 'AM-0234-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
+    { id_site: 'AM-0234-HS01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
+    { id_site: 'AM-0232-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
+    { id_site: 'AM-0232-HS01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
+    { id_site: 'AM-0220-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
+    { id_site: 'AM-0219-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
+    { id_site: 'AM-0231-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
+    { id_site: 'AM-0231-HS01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
+    { id_site: 'AM-0233-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0233-IE01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0239-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0078-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0078-CS01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0078-CO01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0078-HS01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0286-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0230-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0275-IE01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0217-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0271-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0271-IE01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0271-CS01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0215-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0214-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0214-CS01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0214-HS01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
+    { id_site: 'AM-0186-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0186-IE01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0189-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0189-CS01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0190-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0192-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0192-CS01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0192-HS01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0192-IE01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0193-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0241-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0241-HS01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0241-IE01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0242-IE02', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0243-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0245-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0246-IE01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0248-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0249-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0253-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0270-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0315-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
+    { id_site: 'AM-0076-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0076-HS01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0079-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0079-CO01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0079-HS01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0080-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0080-HS01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0221-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0222-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0222-HS01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0223-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0224-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0228-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0250-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0250-HS01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0251-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0252-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0252-HS01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0254-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0268-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0284-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0304-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
+    { id_site: 'AM-0180-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0183-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0183-CS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0185-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0185-IE02', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0191-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0177-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0177-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0178-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0178-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0179-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0229-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0229-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0227-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0227-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0225-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0226-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0226-CS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0225-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0077-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0077-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0075-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0075-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0201-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0200-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0256-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0256-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0256-IE01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0195-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0181-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0194-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0194-IE01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0272-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0272-HS01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0213-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0207-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0205-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0197-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0196-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0204-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0199-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0203-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0209-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0208-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0212-IE01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0216-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0216-HS01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
+    { id_site: 'AM-0188-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0274-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0274-CS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0274-IE01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0273-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0273-IE01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0273-CS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
+    { id_site: 'AM-0040-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
+    { id_site: 'AM-0036-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
+    { id_site: 'AM-0121-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
+    { id_site: 'AM-0121-IE01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
+    { id_site: 'AM-0122-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
+    { id_site: 'AM-0037-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
+    { id_site: 'AM-0037-CS01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
+    { id_site: 'AM-0037-CO01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
+    { id_site: 'AM-0037-CO02', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
+    { id_site: 'AM-0043-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
+    { id_site: 'AM-0126-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' }
+  ]
+
+  const asignacionesMap = {}
+  ASIGNACIONES_BASE.forEach(a => { asignacionesMap[a.id_site.toUpperCase()] = a })
+
+  const getZonaForSite = (siteId) => {
+    if (!siteId) return 'ZONA 7'
+    const clean = String(siteId).trim().toUpperCase()
+    if (asignacionesMap[clean]?.zona) return asignacionesMap[clean].zona
+    const parts = clean.split('-')
+    if (parts.length >= 2) {
+      const prefix = `${parts[0]}-${parts[1]}`
+      const found = ASIGNACIONES_BASE.find(s => s.id_site.toUpperCase().startsWith(prefix))
+      if (found?.zona) return found.zona
+    }
+    return 'ZONA 7'
+  }
+
   let sitiosMap = {}
   try {
     const [extRes, localRes] = await Promise.all([
       supabaseExt.from('sitios').select('id_site, localidad, nombre_nodo'),
-      supabase.from('sitios_asignados').select('id_site, grupo, zona')
+      supabase.from('sitios_cuadrillas').select('id_site, cuadrilla, zona').eq('activo', true)
     ])
 
-    const asignacionesMap = {}
-    if (localRes.data) {
-      localRes.data.forEach(a => { asignacionesMap[a.id_site] = a })
+    if (localRes.data && localRes.data.length > 0) {
+      localRes.data.forEach(a => {
+        if (a.id_site) {
+          asignacionesMap[a.id_site.toUpperCase()] = {
+            id_site: a.id_site,
+            grupo: a.cuadrilla,
+            zona: a.zona
+          }
+        }
+      })
     }
 
     if (extRes.data) {
       extRes.data.forEach(s => {
-        const asig = asignacionesMap[s.id_site] || {}
+        const asig = asignacionesMap[s.id_site?.toUpperCase()] || {}
         sitiosMap[s.id_site] = {
           ...s,
           grupo: asig.grupo || 'Sin Cuadrilla',
-          zona: asig.zona || ''
+          zona: asig.zona || getZonaForSite(s.id_site)
         }
       })
     }
@@ -267,9 +448,11 @@ async function main() {
     else if (rawSt === 'Validado' || rawSt === 'Enviado') estadoNormalizado = 'Validado'
     else if (o.fecha_subsanacion) estadoNormalizado = 'Validado'
 
+    const zonaCalculada = (sitiosMap[o.id_sitio]?.zona || getZonaForSite(o.id_sitio))
     return {
       ...o,
       localidad: (sitiosMap[o.id_sitio]?.localidad || sitiosMap[o.id_sitio]?.nombre_nodo || ''),
+      zona: zonaCalculada,
       estado: estadoNormalizado
     }
   })
@@ -347,7 +530,7 @@ async function main() {
 
       return [
         r.id_obs || '',
-        r.zona || '-',
+        r.zona || getZonaForSite(r.id_sitio) || 'ZONA 7',
         r.id_sitio || '',
         r.localidad || '',
         revisorFinal,

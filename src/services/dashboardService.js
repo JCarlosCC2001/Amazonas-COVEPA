@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { supabaseExt } from '../lib/supabase'
-import { ASIGNACIONES_BASE } from './sitiosService'
+import { ASIGNACIONES_BASE, getZonaBySiteId } from './sitiosService'
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService.js'
 
 // Cache en memoria de catálogo de sitios para no saturar la BD externa
@@ -370,6 +370,7 @@ export async function getAvancePorFecha(fechaStr) {
       return {
         id_obs: o.id_obs,
         id_sitio: siteId,
+        zona: getZonaBySiteId(siteId),
         codigo_lugar: codigoLugar,
         localidad: localidad,
         tecnico: nombreTecnico,

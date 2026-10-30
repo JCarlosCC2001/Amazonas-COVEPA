@@ -309,3 +309,21 @@ export async function getCachedSitiosAsignados() {
     }
   })
 }
+
+/**
+ * Resuelve la zona territorial oficial (ZONA 2 o ZONA 7) de un sitio de forma determinista.
+ * Admite coincidencia exacta por ID de sitio o por prefijo de lugar (AM-XXXX).
+ */
+export function getZonaBySiteId(siteId) {
+  if (!siteId) return 'ZONA 7'
+  const clean = String(siteId).trim().toUpperCase()
+  const exact = ASIGNACIONES_BASE.find(s => s.id_site.toUpperCase() === clean)
+  if (exact?.zona) return exact.zona
+  const parts = clean.split('-')
+  if (parts.length >= 2) {
+    const prefix = `${parts[0]}-${parts[1]}`
+    const byPrefix = ASIGNACIONES_BASE.find(s => s.id_site.toUpperCase().startsWith(prefix))
+    if (byPrefix?.zona) return byPrefix.zona
+  }
+  return 'ZONA 7'
+}

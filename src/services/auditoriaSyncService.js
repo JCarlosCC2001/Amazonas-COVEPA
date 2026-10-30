@@ -199,8 +199,14 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
     // Payload de actualización en la tabla observaciones
     const updatePayload = {
       estado_covepa: estadoNorm,
-      fecha_subsanacion: fechaIso,
       comentario_covepa: comentario
+    }
+
+    // Conservar fecha_subsanacion original del técnico si pasa a En Revisión
+    if (estadoNorm === 'En Revisión' && extraContext.fechaSubsanacionPrevia) {
+      updatePayload.fecha_subsanacion = extraContext.fechaSubsanacionPrevia
+    } else {
+      updatePayload.fecha_subsanacion = fechaIso
     }
 
     // Regla de Negocio: Conservar siempre el Revisor que ya estaba asignado (a menos que se especifique)

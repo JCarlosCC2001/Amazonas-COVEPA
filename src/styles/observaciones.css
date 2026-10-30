@@ -5413,6 +5413,12 @@
   white-space: nowrap;
 }
 
+.site-pill-badge.badge-sol {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
 .site-pill-badge.badge-rev {
   background: #e0f2fe;
   color: #0369a1;

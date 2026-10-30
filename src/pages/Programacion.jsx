@@ -168,8 +168,7 @@ export default function Programacion() {
   // Resolver la última solicitud de revisión o último reporte de un grupo de técnico para la jornada activa
   const getUltimoReporteTecnico = useCallback((tGroup) => {
     let latestSolicitud = null
-    let latestGeneral = null
-
+    
     const tecName = (tGroup?.tecnico?.nombre_completo || '').trim().toUpperCase()
 
     // 1. Prioridad: Buscar solicitudes de revisión
@@ -196,30 +195,7 @@ export default function Programacion() {
       if (solCuad) latestSolicitud = { ...solCuad, isSolicitud: true }
     }
 
-    if (latestSolicitud) return latestSolicitud
-
-    // 2. Si no hay solicitudes hoy, buscar cualquier reporte general
-    ;(tGroup?.sitios || []).forEach(s => {
-      const rep = ultimosReportes.bySite?.[s.id_sitio]
-      if (rep && (!latestGeneral || new Date(rep.ts) > new Date(latestGeneral.ts))) {
-        latestGeneral = { ...rep, isSolicitud: false }
-      }
-    })
-
-    if (tecName && ultimosReportes.byUser) {
-      const repUser = ultimosReportes.byUser[tecName] ||
-        Object.entries(ultimosReportes.byUser).find(([name]) => name.includes(tecName) || tecName.includes(name))?.[1]
-      if (repUser && (!latestGeneral || new Date(repUser.ts) > new Date(latestGeneral.ts))) {
-        latestGeneral = { ...repUser, isSolicitud: false }
-      }
-    }
-
-    if (!latestGeneral && tGroup?.cuadrilla && ultimosReportes.byCuadrilla) {
-      const repCuad = ultimosReportes.byCuadrilla[tGroup.cuadrilla]
-      if (repCuad) latestGeneral = { ...repCuad, isSolicitud: false }
-    }
-
-    return latestGeneral
+    return latestSolicitud
   }, [ultimosReportes])
 
   // Buscador de Observación e Intersección Operativa
@@ -510,6 +486,7 @@ export default function Programacion() {
           sitios: [],
           sitiosSet: new Set(),
           totalObs: 0,
+          solicitando: 0,
           validadas: 0,
           enRevision: 0,
           enviadas: 0,
@@ -537,6 +514,7 @@ export default function Programacion() {
           group.sitiosSet.add(s.id_sitio)
           const stat = statsMap[s.id_sitio] || {
             total: 0,
+            solicitando: 0,
             validadas: 0,
             enRevision: 0,
             enviadas: 0,
@@ -553,6 +531,7 @@ export default function Programacion() {
           })
 
           group.totalObs += stat.total || 0
+          group.solicitando += stat.solicitando || 0
           group.validadas += stat.validadas || 0
           group.enRevision += stat.enRevision || 0
           group.enviadas += stat.enviadas || 0
@@ -1250,6 +1229,14 @@ export default function Programacion() {
                           )}
                         </span>
 
+                        {tGroup.solicitando > 0 && (
+                          <span
+                            className="site-pill-badge badge-sol"
+                            title={`${tGroup.solicitando} observación(es) solicitando revisión de este técnico`}
+                          >
+                            ⏳ {tGroup.solicitando} sol.
+                          </span>
+                        )}
                         {tGroup.enRevision > 0 && (
                           <span
                             className="site-pill-badge badge-rev"
@@ -1310,6 +1297,14 @@ export default function Programacion() {
                                 {sDone}/{sStat.total} resueltas
                               </span>
 
+                              {sStat.solicitando > 0 && (
+                                <span
+                                  className="site-pill-badge badge-sol"
+                                  title={`${sStat.solicitando} observación(es) solicitando revisión`}
+                                >
+                                  ⏳ {sStat.solicitando} sol.
+                                </span>
+                              )}
                               {sStat.enRevision > 0 && (
                                 <span
                                   className="site-pill-badge badge-rev"
@@ -2297,6 +2292,7 @@ function ModalDetallesProgramacion({
         comentarioActual,
         {
           idSitio: obs.id_sitio || currentSitioId,
+          fechaSubsanacionPrevia: obs.fecha_subsanacion,
           estadoAnterior: obs.estado_covepa,
           usuarioNombre: responsableSesion,
           usuarioEmail: user?.email,

@@ -44,10 +44,12 @@ export function getAyerPeruStr(dateInput = new Date()) {
   return `${ayY}-${ayM}-${ayD}`
 }
 
-/** Genera timestamp ISO seguro para la fecha Perú (mediodía UTC 12:00:00Z para evitar saltos de día por huso horario) */
+/** Genera timestamp ISO seguro para la fecha Perú (hora real exacta si no se especifica dateYmd, o mediodía UTC 12:00:00Z si se pasa YYYY-MM-DD) */
 export function getPeruISOString(dateYmd = null) {
-  const ymd = dateYmd || getPeruDateStr(new Date())
-  return new Date(`${ymd}T12:00:00.000Z`).toISOString()
+  if (dateYmd) {
+    return new Date(dateYmd + "T12:00:00.000Z").toISOString()
+  }
+  return new Date().toISOString()
 }
 
 /** Iniciales de un nombre (2 letras). */

@@ -158,7 +158,7 @@ export async function getTimelineActividadTecnico({
         const o = obsMap.get(h.id_obs)
         const tsSol = (o && o.fecha_subsanacion && new Date(o.fecha_subsanacion) <= new Date(h.created_at))
           ? o.fecha_subsanacion
-          : new Date(new Date(h.created_at).getTime() - 60 * 1000).toISOString()
+          : null
         lc.solicitado = {
           ts: tsSol,
           hora: formatHoraPeru(tsSol),
@@ -221,7 +221,7 @@ export async function getTimelineActividadTecnico({
         addedSolObs.add(h.id_obs)
         let tsSol = (o && o.fecha_subsanacion) ? o.fecha_subsanacion : null
         if (!tsSol || new Date(tsSol) > new Date(h.created_at)) {
-          tsSol = new Date(new Date(h.created_at).getTime() - 60 * 1000).toISOString()
+          tsSol = null
         }
 
         events.push({
@@ -499,9 +499,7 @@ export async function fetchUltimosReportesDelDia(fecha) {
     ;(hRes.data || []).forEach(h => {
       const stNuevo = String(h.estado_nuevo || '').trim()
       const stAnt = String(h.estado_anterior || '').trim()
-      const isSol = stNuevo === 'Solicitando Revisión' ||
-        stNuevo === 'Solicitando Revision' ||
-        ((stAnt === 'Solicitando Revisión' || stAnt === 'Solicitando Revision') && (stNuevo === 'En Revisión' || stNuevo === 'En Revision'))
+      const isSol = stNuevo === 'Solicitando Revisión' || stNuevo === 'Solicitando Revision'
 
       recordEvent(h.id_sitio, h.created_at, h.id_obs, h.usuario_nombre, isSol)
     })
@@ -509,10 +507,10 @@ export async function fetchUltimosReportesDelDia(fecha) {
     ;(oRes.data || []).forEach(o => {
       const stNorm = String(o.estado_covepa || '').trim()
       const isObsSol = stNorm === 'Solicitando Revisión' || stNorm === 'Solicitando Revision'
-      const ts = o.fecha_subsanacion || (isObsSol ? new Date().toISOString() : null)
+      const ts = o.fecha_subsanacion || null
 
       if (ts) {
-        recordEvent(o.id_sitio, ts, o.id_obs, o.revisor, isObsSol)
+        recordEvent(o.id_sitio, ts, o.id_obs, isObsSol ? null : o.revisor, isObsSol)
       }
     })
 

@@ -170,6 +170,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
         comentarioActual,
         {
           idSitio: obsLocal.id_sitio,
+          fechaSubsanacionPrevia: obsLocal.fecha_subsanacion,
           estadoAnterior: obsLocal.estado_covepa || (obsLocal.fecha_subsanacion ? 'Validado' : 'Pendiente'),
           usuarioNombre: responsableSesion,
           usuarioEmail: user?.email,

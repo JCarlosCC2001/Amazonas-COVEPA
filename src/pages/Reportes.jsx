@@ -401,7 +401,7 @@ export default function Reportes() {
               }}
             >
               <span style={{ fontSize: 'var(--text-xs)', lineHeight: 1 }}>●</span>
-              {config.activo ? `Envío activo: ${config.hora_envio} hrs` : 'Envío pausado'}
+              {config.activo ? 'Envío automático activo' : 'Envío pausado'}
             </span>
           </div>
 
@@ -484,21 +484,48 @@ export default function Reportes() {
             </button>
           </div>
 
-          {/* Hora de Envío */}
+          {/* Horario de Envío Autónomo en la Nube */}
           <div className="reporte-form-group">
-            <label className="reporte-label" htmlFor="hora_envio">
-              <span>⏰</span> Hora de Envío Automático (Hora de Perú)
+            <label className="reporte-label">
+              <span>⏰</span> Horario de Envío Automático
             </label>
-            <input
-              id="hora_envio"
-              type="time"
-              className="reporte-input"
-              value={config.hora_envio}
-              onChange={e => setConfig(prev => ({ ...prev, hora_envio: e.target.value }))}
-            />
-            <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
-              El servidor ejecutará el envío diario a esta hora automáticamente. Puedes cambiarla en cualquier momento para reprogramar el próximo despacho.
-            </span>
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderLeft: '4px solid #003060',
+              borderRadius: '8px',
+              padding: '0.85rem 1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.6rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span className="t-name" style={{ color: '#003060', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>☁️</span> Reloj Autónomo en la Nube (cron-job.org)
+                </span>
+                <a
+                  href="https://console.cron-job.org/jobs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    background: '#003060',
+                    color: '#ffffff',
+                    padding: '0.45rem 0.9rem',
+                    borderRadius: '6px',
+                    textDecoration: 'none',
+                    fontWeight: 'var(--fw-semibold)'
+                  }}
+                >
+                  <span>⏰ Configurar Hora en cron-job.org ↗</span>
+                </a>
+              </div>
+              <p className="t-meta" style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                Para evitar discrepancias y asegurar que el reporte se despache puntual aunque tengas la computadora apagada, el horario se administra directamente en el reloj de <strong>cron-job.org</strong>. Haz clic en el botón para ajustar la hora de disparo nocturno.
+              </p>
+            </div>
           </div>
 
           {/* Remitente Fijo */}
@@ -719,7 +746,7 @@ export default function Reportes() {
               <div className="email-sim-meta-row">
                 <span className="email-sim-meta-label">Hora:</span>
                 <span className="email-sim-meta-val" style={{ color: '#64748b' }}>
-                  Programado para las {config.hora_envio} hrs (Hora Perú)
+                  Programado en la nube (cron-job.org) · Hora Perú
                 </span>
               </div>
             </div>

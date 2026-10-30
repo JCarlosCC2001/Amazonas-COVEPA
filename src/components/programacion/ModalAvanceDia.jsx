@@ -71,6 +71,13 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       ''
   }
 
+  // Helper para resolver la zona de un sitio
+  const getZona = (idSitio) => {
+    return sitiosMap[idSitio]?.zona ||
+      ASIGNACIONES_BASE.find(s => s.id_site === idSitio)?.zona ||
+      ''
+  }
+
   // Helper para resolver la cuadrilla oficial asignada a una observación
   const resolveCuadrillaForObs = useCallback((obs) => {
     if (obs.cuadrilla) {
@@ -378,6 +385,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
         resolveCuadrillaForObs(r) || r.cuadrilla || 'Sin cuadrilla',
         r.id_sitio || '',
         getLocalidad(r.id_sitio) || '',
+        getZona(r.id_sitio) || '',
         r.estado || '',
         r.revisor || 'Sin revisor',
         r.fecha_subsanacion ? getPeruDateStr(r.fecha_subsanacion) : '',
@@ -400,6 +408,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
           { name: 'CUADRILLA', filterButton: true },
           { name: 'CÓDIGO DE SITIO', filterButton: true },
           { name: 'LOCALIDAD', filterButton: true },
+          { name: 'ZONA', filterButton: true },
           { name: 'ESTADO COVEPA', filterButton: true },
           { name: 'REVISADO POR', filterButton: true },
           { name: 'FECHA DE REVISIÓN', filterButton: true },
@@ -862,6 +871,9 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                                   {localidad && (
                                     <span className="prog-avance-site-loc">· {localidad}</span>
                                   )}
+                                  {getZona(row.id_sitio) && (
+                                    <span className="prog-avance-site-loc" style={{ fontWeight: 'var(--fw-bold)', color: '#0369a1' }}>· {getZona(row.id_sitio)}</span>
+                                  )}
                                 </div>
                               </td>
                               <td>
@@ -934,7 +946,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                   <div className="audit-col" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
                     <span className="stat-btn-label">Código de Sitio y Localidad:</span>
                     <strong style={{ color: '#003060', fontSize: 'var(--text-sm)' }}>
-                      {selectedRowDetail.id_sitio} {getLocalidad(selectedRowDetail.id_sitio) ? `· ${getLocalidad(selectedRowDetail.id_sitio)}` : ''}
+                      {selectedRowDetail.id_sitio} {getLocalidad(selectedRowDetail.id_sitio) ? `· ${getLocalidad(selectedRowDetail.id_sitio)}` : ''}{getZona(selectedRowDetail.id_sitio) ? ` · ${getZona(selectedRowDetail.id_sitio)}` : ''}
                     </strong>
                   </div>
                   <div className="audit-col" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>

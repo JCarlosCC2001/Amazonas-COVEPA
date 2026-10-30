@@ -2645,12 +2645,14 @@ function ModalDetallesProgramacion({
         const demora = delays[o.id_obs] !== undefined ? delays[o.id_obs] : (o.justificacion_demora || '')
         const sId = o.id_sitio || currentSitioId
         const loc = siteInfo.localidad || sitiosMap[sId]?.localidad || ''
+        const zona = siteInfo.zona || sitiosMap[sId]?.zona || ''
 
         return [
           idx + 1,
           o.id_obs || '',
           sId,
           loc,
+          zona,
           rawSt,
           o.detalle || '',
           o.comentario_inicial || '',
@@ -2678,6 +2680,7 @@ function ModalDetallesProgramacion({
           { name: 'CÓD. OBSERVACIÓN', filterButton: true },
           { name: 'CÓDIGO DE SITIO', filterButton: true },
           { name: 'LOCALIDAD', filterButton: true },
+          { name: 'ZONA', filterButton: true },
           { name: 'ESTADO COVEPA', filterButton: true },
           { name: 'DETALLE DE OBSERVACIÓN', filterButton: true },
           { name: 'COMENTARIO INICIAL', filterButton: true },
@@ -2691,7 +2694,7 @@ function ModalDetallesProgramacion({
       })
 
       // Anchos de columna óptimos
-      const colWidths = [6, 20, 18, 26, 16, 44, 44, 44, 24, 18, 35, 38]
+      const colWidths = [6, 20, 18, 26, 14, 16, 44, 44, 44, 24, 18, 35, 38]
       colWidths.forEach((w, i) => {
         worksheet.getColumn(i + 1).width = w
       })

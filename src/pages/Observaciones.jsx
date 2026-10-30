@@ -52,6 +52,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const sitioInfo = sitiosMap[obsLocal?.id_sitio] || {}
   const localidad = sitioInfo.localidad || sitioInfo.nombre_nodo || ''
   const cuadrilla = sitioInfo.cuadrilla || ''
+  const zona = sitioInfo.zona || ''
 
   useEffect(() => {
     if (obs) {
@@ -243,7 +244,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
               <div className="prog-details-site-texts">
                 <div className="prog-details-title-line">
                   <span className="prog-details-site-title">{obsLocal.id_obs}</span>
-                  <span className="prog-details-site-loc">· {obsLocal.id_sitio}{localidad ? ` · ${localidad}` : ''}</span>
+                  <span className="prog-details-site-loc">· {obsLocal.id_sitio}{localidad ? ` · ${localidad}` : ''}{zona ? ` · ${zona}` : ''}</span>
                 </div>
                 <div className="prog-details-site-meta-pills">
                   {cuadrilla && (
@@ -478,6 +479,10 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
               <span className="obs-meta-value">{localidad || '—'}</span>
             </div>
             <div className="obs-meta-card">
+              <span className="obs-meta-label">Zona</span>
+              <span className="obs-meta-value">{zona || '—'}</span>
+            </div>
+            <div className="obs-meta-card">
               <span className="obs-meta-label">Cuadrilla</span>
               <span className="obs-meta-value">{cuadrilla || 'Sin Cuadrilla'}</span>
             </div>
@@ -675,6 +680,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                   <col className="col-obs-cuadrilla" />
                   <col className="col-obs-sitio" />
                   <col className="col-obs-localidad" />
+                  <col className="col-obs-zona" />
                   <col className="col-obs-estado" />
                   <col className="col-obs-fecha" />
                   <col className="col-obs-revisor" />
@@ -686,6 +692,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                     <th className="col-obs-cuadrilla">Cuadrilla</th>
                     <th className="col-obs-sitio">Código de Sitio</th>
                     <th className="col-obs-localidad">Localidad</th>
+                    <th className="col-obs-zona">Zona</th>
                     <th className="col-obs-estado">Estado COVEPA</th>
                     <th className="col-obs-fecha">Fecha de Revisión</th>
                     <th className="col-obs-revisor">Revisado por</th>
@@ -728,6 +735,13 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                           <span className="obs-localidad-text" title={localidad || ''}>
                             {localidad || '—'}
                           </span>
+                        </td>
+                        <td>
+                          {sitioInfo?.zona ? (
+                            <span className="obs-zona-pill">{sitioInfo.zona}</span>
+                          ) : (
+                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
+                          )}
                         </td>
                         <td>
                           <span className={`estado-badge ${estadoCovepaBadge(o.estado_covepa)}`}>
@@ -981,7 +995,7 @@ export default function Observaciones() {
     try {
       const data = await exportObservacionesCSV(filtrosActivos)
       const cols = [
-        'id_obs', 'cuadrilla', 'id_sitio', 'localidad', 'hito', 'protocolo', 'subsistema', 'detalle', 'item', 'sub_item',
+        'id_obs', 'cuadrilla', 'id_sitio', 'localidad', 'zona', 'hito', 'protocolo', 'subsistema', 'detalle', 'item', 'sub_item',
         'comentario_inicial', 'comentario_complementario', 'comentario_final',
         'acuerdo_subsanacion', 'estado_gilat', 'estado_pronatel', 'comentario_pronatel', 'estado_covepa', 'fecha_subsanacion', 'revisor', 'comentario_covepa', 'justificacion_demora'
       ]
@@ -990,6 +1004,7 @@ export default function Observaciones() {
         let v = r[c] ?? ''
         if (c === 'cuadrilla') v = sitiosMap[r.id_sitio]?.cuadrilla || ''
         if (c === 'localidad') v = sitiosMap[r.id_sitio]?.localidad || ''
+        if (c === 'zona') v = sitiosMap[r.id_sitio]?.zona || ''
         const s = String(v).replace(/"/g, '""').replace(/\n/g, ' ')
         return `"${s}"`
       }).join(','))
@@ -1258,6 +1273,7 @@ export default function Observaciones() {
                 <col className="col-obs-cuadrilla" />
                 <col className="col-obs-sitio" />
                 <col className="col-obs-localidad" />
+                <col className="col-obs-zona" />
                 <col className="col-obs-estado" />
                 <col className="col-obs-fecha" />
                 <col className="col-obs-revisor" />
@@ -1269,6 +1285,7 @@ export default function Observaciones() {
                   <th className="col-obs-cuadrilla">Cuadrilla</th>
                   <th className="col-obs-sitio">Código de Sitio</th>
                   <th className="col-obs-localidad">Localidad</th>
+                  <th className="col-obs-zona">Zona</th>
                   <th className="col-obs-estado">Estado COVEPA</th>
                   <th className="col-obs-fecha">Fecha de Revisión</th>
                   <th className="col-obs-revisor">Revisado por</th>
@@ -1308,6 +1325,13 @@ export default function Observaciones() {
                         <span className="obs-localidad-text" title={sInfo.localidad || ''}>
                           {sInfo.localidad || '—'}
                         </span>
+                      </td>
+                      <td>
+                        {sInfo.zona ? (
+                          <span className="obs-zona-pill">{sInfo.zona}</span>
+                        ) : (
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
+                        )}
                       </td>
                       <td>
                         <span className={`estado-badge ${estadoCovepaBadge(o.estado_covepa)}`}>

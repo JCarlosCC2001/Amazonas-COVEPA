@@ -1190,6 +1190,16 @@ export async function despacharReporteInmediato({ forzar = true, destinatarioPru
     })
     if (res.ok) {
       const data = await res.json().catch(() => ({}))
+      registrarEnvioLocal({
+        id: `local-${Date.now()}`,
+        created_at: new Date().toISOString(),
+        tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
+        origen: 'web',
+        destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
+        destinatarios_cc: [],
+        asunto: 'Reporte Diario de Levantamiento de Observaciones',
+        estado: 'exitoso'
+      })
       return { ok: true, message: data.message || '¡Reporte diario despachado exitosamente!' }
     }
     if (res.status !== 404) {
@@ -1229,6 +1239,16 @@ export async function despacharReporteInmediato({ forzar = true, destinatarioPru
   })
 
   if (response.status === 204 || response.ok) {
+    registrarEnvioLocal({
+      id: `local-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
+      origen: 'web_direct',
+      destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
+      destinatarios_cc: [],
+      asunto: 'Reporte Diario de Levantamiento de Observaciones',
+      estado: 'exitoso'
+    })
     return { ok: true, message: '¡Reporte despachado exitosamente!' }
   }
 
@@ -1254,10 +1274,175 @@ export async function despacharReporteSemanalInmediato({ forzar = true, destinat
     })
     if (res.ok) {
       const data = await res.json().catch(() => ({}))
+      registrarEnvioLocal({
+        id: `local-${Date.now()}`,
+        created_at: new Date().toISOString(),
+        tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
+        origen: 'web',
+        destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
+        destinatarios_cc: [],
+        asunto: '[COVEPA] Reporte Semanal de Observaciones',
+        estado: 'exitoso'
+      })
       return { ok: true, message: data.message }
     }
   } catch (_) {}
 
+  registrarEnvioLocal({
+    id: `local-${Date.now()}`,
+    created_at: new Date().toISOString(),
+    tipo: destinatarioPrueba ? 'prueba' : 'manual',
+    origen: 'simulacion',
+    destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
+    destinatarios_cc: [],
+    asunto: '[COVEPA] Simulación de Reporte Semanal',
+    estado: 'exitoso'
+  })
+
   // Fallback si no hay endpoint semanal directo todavía: avisa al usuario
   return { ok: true, message: '¡Simulación de despacho semanal completada exitosamente!' }
+}
+
+export const LOCAL_STORAGE_KEY_HISTORIAL = 'covepa_historial_reportes_local'
+
+/**
+ * Agrega un registro al historial local para feedback instantáneo en UI.
+ */
+export function registrarEnvioLocal(registro) {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY_HISTORIAL)
+    const list = raw ? JSON.parse(raw) : []
+    const updated = [registro, ...list].slice(0, 30)
+    localStorage.setItem(LOCAL_STORAGE_KEY_HISTORIAL, JSON.stringify(updated))
+  } catch (_) {}
+}
+
+/**
+ * Consulta y unifica el historial completo de envíos de reportes.
+ * Combina la tabla historial_reportes_correo en Supabase, los Workflow Runs
+ * de GitHub Actions y los despachos registrados localmente.
+ */
+export async function fetchHistorialEnvios() {
+  const unified = []
+  const seenRunIds = new Set()
+
+  // 1. Intentar consultar Supabase historial_reportes_correo
+  try {
+    const { data, error } = await supabase
+      .from('historial_reportes_correo')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    if (!error && Array.isArray(data)) {
+      data.forEach(item => {
+        if (item.github_run_id) seenRunIds.add(String(item.github_run_id))
+
+        unified.push({
+          id: item.id || `sb-${item.created_at}`,
+          created_at: item.created_at,
+          tipo: item.tipo || 'oficial', // 'oficial' | 'prueba' | 'manual'
+          origen: item.origen || 'supabase',
+          destinatarios: Array.isArray(item.destinatarios) ? item.destinatarios : [item.destinatarios].filter(Boolean),
+          destinatarios_cc: Array.isArray(item.destinatarios_cc) ? item.destinatarios_cc : [],
+          asunto: item.asunto || 'Reporte de Levantamiento de Observaciones',
+          total_obs: item.total_obs ?? null,
+          validadas: item.validadas ?? null,
+          rechazadas: item.rechazadas ?? null,
+          en_espera: item.en_espera ?? null,
+          descartadas: item.descartadas ?? null,
+          estado: item.estado || 'exitoso',
+          error_mensaje: item.error_mensaje || null,
+          message_id: item.message_id || null,
+          github_run_id: item.github_run_id || null,
+          url_log: item.github_run_id ? `https://github.com/JCarlosCC2001/Amazonas-COVEPA/actions/runs/${item.github_run_id}` : null,
+          source: 'database'
+        })
+      })
+    }
+  } catch (sbErr) {
+    console.warn('[HISTORIAL-REPORTES] Supabase historial_reportes_correo no disponible aún:', sbErr)
+  }
+
+  // 2. Consultar ejecuciones reales en tiempo real desde GitHub Actions
+  try {
+    const token = (import.meta.env.VITE_GITHUB_DISPATCH_TOKEN || '').trim()
+    const headers = {
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'Covepa-App'
+    }
+    if (token) {
+      headers['Authorization'] = `token ${token}`
+    }
+
+    const res = await fetch('https://api.github.com/repos/JCarlosCC2001/Amazonas-COVEPA/actions/workflows/reporte-diario.yml/runs?per_page=30', {
+      headers
+    })
+
+    if (res.ok) {
+      const ghData = await res.json()
+      const runs = ghData.workflow_runs || []
+
+      runs.forEach(run => {
+        const runIdStr = String(run.id)
+        if (seenRunIds.has(runIdStr)) return // Ya procesado desde Supabase
+
+        let estadoNormalizado = 'exitoso'
+        if (run.status === 'in_progress' || run.status === 'queued') {
+          estadoNormalizado = 'en_proceso'
+        } else if (run.conclusion === 'failure' || run.conclusion === 'cancelled') {
+          estadoNormalizado = 'fallido'
+        }
+
+        const isSchedule = run.event === 'schedule'
+        const tipoFinal = isSchedule ? 'oficial' : 'manual'
+
+        unified.push({
+          id: `gh-${run.id}`,
+          created_at: run.created_at,
+          tipo: tipoFinal,
+          origen: isSchedule ? 'cron' : 'github_actions',
+          destinatarios: [],
+          destinatarios_cc: [],
+          asunto: run.name || 'Reporte Diario de Observaciones COVEPA',
+          total_obs: null,
+          estado: estadoNormalizado,
+          github_run_id: runIdStr,
+          run_number: run.run_number,
+          actor: run.actor?.login,
+          url_log: run.html_url,
+          source: 'github'
+        })
+      })
+    }
+  } catch (err) {
+    console.warn('[HISTORIAL-REPORTES] No se pudieron consultar runs de GitHub:', err)
+  }
+
+  // 3. Consultar registros locales recientes de localStorage
+  try {
+    const rawLocal = localStorage.getItem(LOCAL_STORAGE_KEY_HISTORIAL)
+    if (rawLocal) {
+      const localItems = JSON.parse(rawLocal)
+      if (Array.isArray(localItems)) {
+        localItems.forEach(loc => {
+          const yaExiste = unified.some(u => (
+            u.id === loc.id || 
+            (Math.abs(new Date(u.created_at) - new Date(loc.created_at)) < 30000)
+          ))
+          if (!yaExiste) {
+            unified.push({
+              ...loc,
+              source: 'local'
+            })
+          }
+        })
+      }
+    }
+  } catch (_) {}
+
+  // 4. Ordenar cronológicamente descendente (más reciente arriba)
+  unified.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+  return unified
 }

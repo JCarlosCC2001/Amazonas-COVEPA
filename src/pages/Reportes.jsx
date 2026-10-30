@@ -11,6 +11,7 @@ import {
   generarHTMLReporteSemanal,
   exportarExcelReporteDiario,
   exportarExcelReporteSemanal,
+  fetchHistorialEnvios,
   DEFAULT_CONFIG_DIARIO,
   DEFAULT_CONFIG_SEMANAL
 } from '../services/reportesCorreoService'
@@ -48,6 +49,16 @@ export default function Reportes() {
   const [modalPersonalOpen, setModalPersonalOpen] = useState(false)
   const [busquedaPersonal, setBusquedaPersonal] = useState('')
   const [filtroCargo, setFiltroCargo] = useState('TODOS')
+
+  // Historial y Auditoría de Envíos
+  const [historial, setHistorial] = useState([])
+  const [loadingHistorial, setLoadingHistorial] = useState(false)
+  const [filtroTipoHistorial, setFiltroTipoHistorial] = useState('todos') // 'todos' | 'oficial' | 'prueba' | 'exitoso' | 'fallido'
+  const [busquedaHistorial, setBusquedaHistorial] = useState('')
+  const [vistaPreviaOrigen, setVistaPreviaOrigen] = useState('HUB')
+  const [modalSqlOpen, setModalSqlOpen] = useState(false)
+  const [sqlCopiado, setSqlCopiado] = useState(false)
+  const [modalDetalleEnvio, setModalDetalleEnvio] = useState(null)
 
   // Menú de opciones (3 puntos ⋮) en cabecera
   const [menuOpcionesOpen, setMenuOpcionesOpen] = useState(false)
@@ -265,14 +276,107 @@ export default function Reportes() {
   }
 
   const handleVolverAlHub = async () => {
+    if (tipoVista === 'HISTORIAL') {
+      setTipoVista(vistaPreviaOrigen || 'HUB')
+      return
+    }
     await guardarConfiguracionActual(false)
     setTipoVista('HUB')
   }
 
+  // Cargar historial unificado
+  const cargarHistorial = async () => {
+    setLoadingHistorial(true)
+    try {
+      const data = await fetchHistorialEnvios()
+      setHistorial(data)
+    } catch (err) {
+      console.error('Error cargando historial:', err)
+    } finally {
+      setLoadingHistorial(false)
+    }
+  }
+
+  useEffect(() => {
+    cargarHistorial()
+  }, [])
+
+  useEffect(() => {
+    if (tipoVista === 'HISTORIAL') {
+      cargarHistorial()
+    }
+  }, [tipoVista])
+
+  const formatFechaPeru = (isoString) => {
+    if (!isoString) return '—'
+    try {
+      const d = new Date(isoString)
+      const dia = d.toLocaleDateString('es-PE', {
+        timeZone: 'America/Lima',
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+      const hora = d.toLocaleTimeString('es-PE', {
+        timeZone: 'America/Lima',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      })
+      return `${dia} · ${hora} hrs`
+    } catch (_) {
+      return isoString
+    }
+  }
+
+  const isHoyPeru = (isoString) => {
+    if (!isoString) return false
+    try {
+      const d = new Date(isoString)
+      const fRun = d.toLocaleDateString('en-CA', { timeZone: 'America/Lima' })
+      const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' })
+      return fRun === hoy
+    } catch (_) {
+      return false
+    }
+  }
+
+  const kpiHistorial = useMemo(() => {
+    const total = historial.length
+    const oficiales = historial.filter(h => h.tipo === 'oficial' || h.tipo === 'manual').length
+    const pruebas = historial.filter(h => h.tipo === 'prueba').length
+    const exitosos = historial.filter(h => h.estado === 'exitoso').length
+    const fallidos = historial.filter(h => h.estado === 'fallido').length
+    const tasa = total > 0 ? Math.round((exitosos / total) * 100) : 100
+    return { total, oficiales, pruebas, exitosos, fallidos, tasa }
+  }, [historial])
+
+  const historialFiltrado = useMemo(() => {
+    return historial.filter(item => {
+      if (filtroTipoHistorial === 'oficial' && (item.tipo !== 'oficial' && item.tipo !== 'manual')) return false
+      if (filtroTipoHistorial === 'prueba' && item.tipo !== 'prueba') return false
+      if (filtroTipoHistorial === 'exitoso' && item.estado !== 'exitoso') return false
+      if (filtroTipoHistorial === 'fallido' && item.estado !== 'fallido') return false
+
+      if (busquedaHistorial.trim()) {
+        const q = busquedaHistorial.toLowerCase()
+        const matchAsunto = (item.asunto || '').toLowerCase().includes(q)
+        const matchActor = (item.actor || '').toLowerCase().includes(q)
+        const matchRun = String(item.run_number || item.github_run_id || '').includes(q)
+        const matchDest = (item.destinatarios || []).some(d => d.toLowerCase().includes(q))
+        const matchDestCC = (item.destinatarios_cc || []).some(d => d.toLowerCase().includes(q))
+        return matchAsunto || matchActor || matchRun || matchDest || matchDestCC
+      }
+      return true
+    })
+  }, [historial, filtroTipoHistorial, busquedaHistorial])
+
   // Guardar automáticamente al desmontar el componente o navegar a otra página
   useEffect(() => {
     return () => {
-      if (tipoVistaRef.current !== 'HUB') {
+      if (tipoVistaRef.current !== 'HUB' && tipoVistaRef.current !== 'HISTORIAL') {
         const tipo = tipoVistaRef.current === 'SEMANAL' ? 'semanal' : 'diario'
         const cfg = tipo === 'semanal' ? configSemanalRef.current : configDiarioRef.current
         if (cfg && cfg.destinatarios?.length > 0) {
@@ -683,6 +787,64 @@ export default function Reportes() {
                 <span>→</span>
               </button>
             </div>
+
+            {/* Tarjeta 3: Historial y Auditoría de Envíos */}
+            <div className="reporte-hub-card" onClick={() => {
+              setVistaPreviaOrigen('HUB')
+              setTipoVista('HISTORIAL')
+            }}>
+              <div className="reporte-hub-card-top">
+                <div className="reporte-hub-icon-wrap" style={{ background: '#f8fafc', color: '#003060', borderColor: '#cbd5e1' }}>
+                  <span>📜</span>
+                </div>
+                <span
+                  className="t-badge"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.25rem 0.65rem',
+                    borderRadius: '12px',
+                    background: '#eff6ff',
+                    color: '#0369a1',
+                    border: '1px solid #bae6fd'
+                  }}
+                >
+                  <span className="t-caption" style={{ lineHeight: 1 }}>●</span>
+                  Auditoría en Vivo
+                </span>
+              </div>
+              <div className="reporte-hub-card-content">
+                <h2 className="reporte-hub-card-title t-title-section">Historial de Envíos</h2>
+                <p className="reporte-hub-card-desc t-body">
+                  Registro cronológico de reportes oficiales (despachos nocturnos y manuales) y correos de prueba, con métricas de entrega, destinatarios y logs de ejecución.
+                </p>
+              </div>
+              <div className="reporte-hub-card-meta">
+                <div className="reporte-hub-meta-item">
+                  <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>Total Registros:</span>
+                  <span className="t-meta" style={{ fontWeight: 'var(--fw-semibold)', color: '#003060' }}>
+                    {kpiHistorial.total} envíos auditados
+                  </span>
+                </div>
+                <div className="reporte-hub-meta-item">
+                  <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>Distribución:</span>
+                  <span className="t-meta" style={{ fontWeight: 'var(--fw-semibold)', color: '#003060' }}>
+                    {kpiHistorial.oficiales} oficiales · {kpiHistorial.pruebas} pruebas
+                  </span>
+                </div>
+                <div className="reporte-hub-meta-item">
+                  <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>Tasa de entrega:</span>
+                  <span className="t-meta" style={{ fontWeight: 'var(--fw-semibold)', color: '#166534' }}>
+                    {kpiHistorial.tasa}% exitosos
+                  </span>
+                </div>
+              </div>
+              <button type="button" className="btn-reporte-hub-action">
+                <span>Ver Historial de Envíos</span>
+                <span>→</span>
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -690,7 +852,7 @@ export default function Reportes() {
       {/* ══════════════════════════════════════════════════════════
          VISTA 2 Y 3: FORMULARIO DE CONFIGURACIÓN (DIARIO O SEMANAL)
          ══════════════════════════════════════════════════════════ */}
-      {tipoVista !== 'HUB' && (
+      {(tipoVista === 'DIARIO' || tipoVista === 'SEMANAL') && (
         <>
           {/* Barra de Navegación Superior */}
           <div>
@@ -717,52 +879,100 @@ export default function Reportes() {
               </p>
             </div>
 
-            {/* Menú de opciones de 3 puntos (⋮) */}
-            <div ref={menuOpcionesRef} style={{ position: 'relative' }}>
+            {/* Acciones de Cabecera: Botón de Historial y Menú de 3 puntos (⋮) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <button
                 type="button"
-                onClick={() => setMenuOpcionesOpen(prev => !prev)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '8px',
-                  background: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  color: '#003060',
-                  cursor: 'pointer',
-                  fontWeight: 'var(--fw-bold)',
-                  boxShadow: 'var(--shadow-sm)',
-                  transition: 'all 0.15s ease'
+                onClick={() => {
+                  setVistaPreviaOrigen(tipoVista)
+                  setTipoVista('HISTORIAL')
                 }}
-                className="t-name"
-                title="Más opciones de reporte"
-                aria-label="Más opciones"
+                className="btn-open-historial"
+                title="Ver historial cronológico de envíos oficiales y pruebas"
               >
-                <span>⋮</span>
+                <span>📜</span>
+                <span>Historial</span>
+                {historial.length > 0 && (
+                  <span className="t-badge" style={{ background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '10px' }}>
+                    {historial.length}
+                  </span>
+                )}
               </button>
 
-              {menuOpcionesOpen && (
-                <div
+              <div ref={menuOpcionesRef} style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpcionesOpen(prev => !prev)}
                   style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 6px)',
-                    right: 0,
-                    zIndex: 100,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '8px',
                     background: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '10px',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
-                    minWidth: '240px',
-                    padding: '0.45rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.2rem',
-                    animation: 'fadeIn 0.15s ease'
+                    border: '1px solid #cbd5e1',
+                    color: '#003060',
+                    cursor: 'pointer',
+                    fontWeight: 'var(--fw-bold)',
+                    boxShadow: 'var(--shadow-sm)',
+                    transition: 'all 0.15s ease'
                   }}
+                  className="t-name"
+                  title="Más opciones de reporte"
+                  aria-label="Más opciones"
                 >
+                  <span>⋮</span>
+                </button>
+
+                {menuOpcionesOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      right: 0,
+                      zIndex: 100,
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '10px',
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
+                      minWidth: '240px',
+                      padding: '0.45rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.2rem',
+                      animation: 'fadeIn 0.15s ease'
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpcionesOpen(false)
+                        setVistaPreviaOrigen(tipoVista)
+                        setTipoVista('HISTORIAL')
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.65rem',
+                        width: '100%',
+                        padding: '0.6rem 0.85rem',
+                        background: 'none',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        color: '#003060',
+                        fontWeight: 'var(--fw-semibold)',
+                        transition: 'background 0.15s'
+                      }}
+                      className="t-body"
+                      onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    >
+                      <span>📜</span>
+                      <span>Ver Historial de Envíos</span>
+                    </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -904,7 +1114,8 @@ export default function Reportes() {
                 </div>
               )}
             </div>
-          </header>
+          </div>
+        </header>
 
           {/* Tarjeta de Configuración de Reporte (Reorganizada y Optimizada) */}
           <div className="reporte-card" style={{ maxWidth: '1060px', margin: '0 auto', width: '100%', padding: '1.25rem 1.5rem', gap: '1rem' }}>
@@ -1277,6 +1488,19 @@ export default function Reportes() {
                   <span>{despachando ? '⏳' : '🚀'}</span>
                   <span>{despachando ? 'Despachando...' : 'Enviar Prueba'}</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVistaPreviaOrigen(tipoVista)
+                    setTipoVista('HISTORIAL')
+                  }}
+                  className="btn-preview-tool"
+                  style={{ padding: '0.55rem 0.95rem', whiteSpace: 'nowrap' }}
+                  title="Ver el historial cronológico de envíos oficiales y pruebas"
+                >
+                  <span>📜</span>
+                  <span>Ver Historial</span>
+                </button>
               </div>
 
               <span className="t-caption">
@@ -1285,6 +1509,312 @@ export default function Reportes() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+         VISTA 4: HISTORIAL Y AUDITORÍA DE ENVÍOS (OFICIALES Y PRUEBAS)
+         ══════════════════════════════════════════════════════════ */}
+      {tipoVista === 'HISTORIAL' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {/* Barra de Navegación Superior */}
+          <div>
+            <button
+              type="button"
+              className="btn-back-hub"
+              onClick={handleVolverAlHub}
+            >
+              <span>← Volver a {vistaPreviaOrigen === 'DIARIO' ? 'Reporte Diario' : vistaPreviaOrigen === 'SEMANAL' ? 'Reporte Semanal' : 'Selección de Reportes'}</span>
+            </button>
+          </div>
+
+          {/* Cabecera de la Vista de Historial */}
+          <header className="reportes-header" style={{ marginBottom: 0 }}>
+            <div className="reportes-title-group">
+              <h1 className="reportes-main-title t-title-page">
+                <span>📜</span>
+                <span>Historial de Envíos de Reportes</span>
+              </h1>
+              <p className="reportes-subtitle t-subtitle">
+                Auditoría cronológica de reportes oficiales (despachos automáticos nocturnos y manuales) y correos de prueba.
+              </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={cargarHistorial}
+                disabled={loadingHistorial}
+                className="btn-preview-tool"
+                title="Actualizar la lista de envíos desde GitHub Actions y base de datos"
+              >
+                <span>{loadingHistorial ? '⏳' : '🔄'}</span>
+                <span>{loadingHistorial ? 'Actualizando...' : 'Actualizar'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalSqlOpen(true)}
+                className="btn-preview-tool"
+                title="Ver script SQL para la tabla historial_reportes_correo en Supabase"
+              >
+                <span>📋</span>
+                <span>Script SQL Supabase</span>
+              </button>
+            </div>
+          </header>
+
+          {/* KPI Cards de Resumen */}
+          <div className="historial-kpi-grid">
+            <div className="historial-kpi-card">
+              <span className="historial-kpi-val">{kpiHistorial.total}</span>
+              <span className="historial-kpi-label">Total de Envíos Registrados</span>
+            </div>
+            <div className="historial-kpi-card">
+              <span className="historial-kpi-val" style={{ color: '#0369a1' }}>{kpiHistorial.oficiales}</span>
+              <span className="historial-kpi-label">Reportes Oficiales Despachados</span>
+            </div>
+            <div className="historial-kpi-card">
+              <span className="historial-kpi-val" style={{ color: '#7c3aed' }}>{kpiHistorial.pruebas}</span>
+              <span className="historial-kpi-label">Correos de Prueba Realizados</span>
+            </div>
+            <div className="historial-kpi-card">
+              <span className="historial-kpi-val" style={{ color: '#166534' }}>{kpiHistorial.tasa}%</span>
+              <span className="historial-kpi-label">Tasa de Entrega Exitosa</span>
+            </div>
+          </div>
+
+          {/* Barra de Filtros y Búsqueda */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '0.75rem',
+            flexWrap: 'wrap',
+            background: '#ffffff',
+            padding: '0.75rem 1rem',
+            borderRadius: '12px',
+            border: '1px solid var(--border)'
+          }}>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={`historial-filter-tab ${filtroTipoHistorial === 'todos' ? 'active' : ''}`}
+                onClick={() => setFiltroTipoHistorial('todos')}
+              >
+                Todos ({historial.length})
+              </button>
+              <button
+                type="button"
+                className={`historial-filter-tab ${filtroTipoHistorial === 'oficial' ? 'active' : ''}`}
+                onClick={() => setFiltroTipoHistorial('oficial')}
+              >
+                🚀 Oficiales ({kpiHistorial.oficiales})
+              </button>
+              <button
+                type="button"
+                className={`historial-filter-tab ${filtroTipoHistorial === 'prueba' ? 'active' : ''}`}
+                onClick={() => setFiltroTipoHistorial('prueba')}
+              >
+                🧪 Pruebas ({kpiHistorial.pruebas})
+              </button>
+              <button
+                type="button"
+                className={`historial-filter-tab ${filtroTipoHistorial === 'exitoso' ? 'active' : ''}`}
+                onClick={() => setFiltroTipoHistorial('exitoso')}
+              >
+                ✓ Exitosos ({kpiHistorial.exitosos})
+              </button>
+              {kpiHistorial.fallidos > 0 && (
+                <button
+                  type="button"
+                  className={`historial-filter-tab ${filtroTipoHistorial === 'fallido' ? 'active' : ''}`}
+                  onClick={() => setFiltroTipoHistorial('fallido')}
+                >
+                  ✕ Fallidos ({kpiHistorial.fallidos})
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1 1 240px', maxWidth: '380px' }}>
+              <input
+                type="text"
+                className="reporte-input"
+                placeholder="🔍 Buscar por correo, asunto, id de run..."
+                value={busquedaHistorial}
+                onChange={e => setBusquedaHistorial(e.target.value)}
+                style={{ padding: '0.4rem 0.75rem' }}
+              />
+              {busquedaHistorial && (
+                <button
+                  type="button"
+                  onClick={() => setBusquedaHistorial('')}
+                  style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.2rem' }}
+                  className="t-caption"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Tabla de Historial */}
+          <div className="historial-table-container">
+            <div style={{ overflowX: 'auto' }}>
+              <table className="historial-table">
+                <thead>
+                  <tr>
+                    <th>Fecha y Hora (Perú)</th>
+                    <th>Tipo de Envío</th>
+                    <th>Destinatario(s)</th>
+                    <th>Métricas / Observaciones</th>
+                    <th>Estado</th>
+                    <th style={{ textAlign: 'right' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingHistorial && historial.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                        <span className="t-body">⏳ Consultando historial en tiempo real...</span>
+                      </td>
+                    </tr>
+                  ) : historialFiltrado.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
+                          <span className="t-name">📭 No se encontraron registros de envío</span>
+                          <span className="t-caption">
+                            {busquedaHistorial ? 'Prueba ajustando los términos de búsqueda o el filtro seleccionado.' : 'Aún no se han registrado envíos con el filtro seleccionado.'}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    historialFiltrado.map((item, idx) => {
+                      const isHoy = isHoyPeru(item.created_at)
+                      const isPrueba = item.tipo === 'prueba'
+                      const isOficialAuto = item.tipo === 'oficial' && item.origen === 'cron'
+
+                      return (
+                        <tr key={item.id || idx}>
+                          {/* Columna Fecha */}
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <span style={{ fontWeight: 'var(--fw-medium)', color: '#003060' }}>
+                                {formatFechaPeru(item.created_at)}
+                              </span>
+                              {isHoy && (
+                                <span className="t-badge" style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', padding: '1px 5px', borderRadius: '8px' }}>
+                                  Hoy
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Columna Tipo */}
+                          <td>
+                            {isPrueba ? (
+                              <span className="historial-badge" style={{ background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe' }}>
+                                <span>🧪</span> Correo de Prueba
+                              </span>
+                            ) : isOficialAuto ? (
+                              <span className="historial-badge" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
+                                <span>🚀</span> Oficial (Automático)
+                              </span>
+                            ) : (
+                              <span className="historial-badge" style={{ background: '#eff6ff', color: '#0369a1', border: '1px solid #bae6fd' }}>
+                                <span>👤</span> Oficial (Manual)
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Columna Destinatarios */}
+                          <td style={{ maxWidth: '280px' }}>
+                            {item.destinatarios && item.destinatarios.length > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span className="t-body" style={{ fontWeight: 'var(--fw-medium)', color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.destinatarios.join(', ')}>
+                                  {item.destinatarios.join(', ')}
+                                </span>
+                                {item.destinatarios_cc?.length > 0 && (
+                                  <span className="t-caption" style={{ color: '#64748b' }}>
+                                    CC: {item.destinatarios_cc.length} destinatario{item.destinatarios_cc.length > 1 ? 's' : ''}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="t-caption" style={{ color: '#64748b' }}>
+                                {item.actor ? `Disparado por @${item.actor}` : 'Destinatarios oficiales predeterminados'}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Columna Métricas */}
+                          <td>
+                            {item.total_obs !== null && item.total_obs !== undefined ? (
+                              <span className="t-body" style={{ fontWeight: 'var(--fw-semibold)', color: '#003060' }}>
+                                {item.total_obs} obs ({item.validadas || 0} val · {item.rechazadas || 0} rech)
+                              </span>
+                            ) : item.run_number ? (
+                              <span className="t-caption" style={{ color: '#475569' }}>
+                                GitHub Action Run #{item.run_number}
+                              </span>
+                            ) : (
+                              <span className="t-caption" style={{ color: '#94a3b8' }}>—</span>
+                            )}
+                          </td>
+
+                          {/* Columna Estado */}
+                          <td>
+                            {item.estado === 'exitoso' ? (
+                              <span className="historial-badge" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
+                                ✓ Entregado
+                              </span>
+                            ) : item.estado === 'en_proceso' ? (
+                              <span className="historial-badge" style={{ background: '#eff6ff', color: '#0284c7', border: '1px solid #bae6fd' }}>
+                                ⏳ En proceso
+                              </span>
+                            ) : (
+                              <span className="historial-badge" style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' }}>
+                                ✕ Fallido
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Columna Acciones */}
+                          <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => setModalDetalleEnvio(item)}
+                                className="btn-preview-tool"
+                                style={{ padding: '0.25rem 0.55rem' }}
+                                title="Ver detalles completos del despacho"
+                              >
+                                <span>👁️</span>
+                                <span>Detalle</span>
+                              </button>
+                              {item.url_log && (
+                                <a
+                                  href={item.url_log}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn-preview-tool"
+                                  style={{ padding: '0.25rem 0.55rem', textDecoration: 'none' }}
+                                  title="Ver logs de ejecución en GitHub Actions"
+                                >
+                                  <span>↗</span>
+                                  <span>Log</span>
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ══════════════════════════════════════════════════════════
@@ -1694,6 +2224,287 @@ export default function Reportes() {
               >
                 Listo
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+         VENTANA EMERGENTE (MODAL): SCRIPT SQL DE HISTORIAL SUPABASE
+         ══════════════════════════════════════════════════════════ */}
+      {modalSqlOpen && (
+        <div className="reporte-modal-overlay" onClick={() => setModalSqlOpen(false)}>
+          <div className="modal-preview-correo-dialog" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-preview-header">
+              <div className="modal-preview-title-wrap">
+                <span className="t-title-page">📋</span>
+                <div>
+                  <h3 className="t-title-section" style={{ margin: 0, color: '#003060' }}>
+                    Script SQL para Supabase
+                  </h3>
+                  <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
+                    Crea la tabla <code>historial_reportes_correo</code> para persistencia permanente de métricas y auditoría.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="reporte-chip-remove"
+                style={{ padding: '4px 8px' }}
+                onClick={() => setModalSqlOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <span className="t-caption" style={{ color: '#0369a1' }}>
+                  ℹ️ <strong>Instrucciones:</strong> Copia este código, ve a tu panel de Supabase $\rightarrow$ <strong>SQL Editor</strong>, pégalo y haz clic en <strong>RUN</strong>.
+                </span>
+              </div>
+
+              <textarea
+                readOnly
+                rows={12}
+                className="reporte-textarea"
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 'var(--text-xs)',
+                  lineHeight: 1.45,
+                  background: '#0f172a',
+                  color: '#f8fafc',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  whiteSpace: 'pre',
+                  resize: 'none'
+                }}
+                value={`-- ============================================================
+-- TABLA DE HISTORIAL DE ENVÍOS DE REPORTES POR CORREO
+-- Amazonas - COVEPA
+-- Ejecutar en el SQL Editor de Supabase
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.historial_reportes_correo (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    tipo TEXT NOT NULL DEFAULT 'oficial', -- 'oficial' | 'prueba' | 'manual'
+    origen TEXT DEFAULT 'github_actions', -- 'cron' | 'web' | 'github_actions'
+    destinatarios JSONB DEFAULT '[]'::jsonb,
+    destinatarios_cc JSONB DEFAULT '[]'::jsonb,
+    asunto TEXT,
+    total_obs INTEGER DEFAULT 0,
+    validadas INTEGER DEFAULT 0,
+    rechazadas INTEGER DEFAULT 0,
+    en_espera INTEGER DEFAULT 0,
+    descartadas INTEGER DEFAULT 0,
+    estado TEXT NOT NULL DEFAULT 'exitoso', -- 'exitoso' | 'fallido' | 'en_proceso'
+    error_mensaje TEXT,
+    message_id TEXT,
+    github_run_id TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_historial_reportes_created_at 
+ON public.historial_reportes_correo (created_at DESC);
+
+ALTER TABLE public.historial_reportes_correo ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Permitir lectura publica de historial"
+ON public.historial_reportes_correo FOR SELECT TO public USING (true);
+
+CREATE POLICY "Permitir insercion de historial"
+ON public.historial_reportes_correo FOR INSERT TO public WITH CHECK (true);`}
+              />
+            </div>
+
+            <div className="modal-preview-footer">
+              <span className="t-caption">
+                {sqlCopiado ? '✅ ¡Copiado al portapapeles!' : 'Haz clic en copiar para llevar el script al portapapeles'}
+              </span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn-reporte-save"
+                  onClick={() => {
+                    const sqlText = `-- ============================================================
+-- TABLA DE HISTORIAL DE ENVÍOS DE REPORTES POR CORREO
+-- Amazonas - COVEPA
+-- Ejecutar en el SQL Editor de Supabase
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.historial_reportes_correo (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    tipo TEXT NOT NULL DEFAULT 'oficial', -- 'oficial' | 'prueba' | 'manual'
+    origen TEXT DEFAULT 'github_actions', -- 'cron' | 'web' | 'github_actions'
+    destinatarios JSONB DEFAULT '[]'::jsonb,
+    destinatarios_cc JSONB DEFAULT '[]'::jsonb,
+    asunto TEXT,
+    total_obs INTEGER DEFAULT 0,
+    validadas INTEGER DEFAULT 0,
+    rechazadas INTEGER DEFAULT 0,
+    en_espera INTEGER DEFAULT 0,
+    descartadas INTEGER DEFAULT 0,
+    estado TEXT NOT NULL DEFAULT 'exitoso', -- 'exitoso' | 'fallido' | 'en_proceso'
+    error_mensaje TEXT,
+    message_id TEXT,
+    github_run_id TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_historial_reportes_created_at 
+ON public.historial_reportes_correo (created_at DESC);
+
+ALTER TABLE public.historial_reportes_correo ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Permitir lectura publica de historial"
+ON public.historial_reportes_correo FOR SELECT TO public USING (true);
+
+CREATE POLICY "Permitir insercion de historial"
+ON public.historial_reportes_correo FOR INSERT TO public WITH CHECK (true);`
+                    navigator.clipboard.writeText(sqlText)
+                    setSqlCopiado(true)
+                    showNotification('¡Script SQL copiado al portapapeles!', 'success')
+                    setTimeout(() => setSqlCopiado(false), 2500)
+                  }}
+                  style={{ padding: '0.5rem 1.15rem' }}
+                >
+                  <span>{sqlCopiado ? '✓ Copiado' : '📋 Copiar Script SQL'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-preview-tool"
+                  onClick={() => setModalSqlOpen(false)}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+         VENTANA EMERGENTE (MODAL): DETALLE COMPLETO DEL ENVÍO
+         ══════════════════════════════════════════════════════════ */}
+      {modalDetalleEnvio && (
+        <div className="reporte-modal-overlay" onClick={() => setModalDetalleEnvio(null)}>
+          <div className="modal-preview-correo-dialog" style={{ maxWidth: '580px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-preview-header">
+              <div className="modal-preview-title-wrap">
+                <span className="t-title-page">
+                  {modalDetalleEnvio.tipo === 'prueba' ? '🧪' : '🚀'}
+                </span>
+                <div>
+                  <h3 className="t-title-section" style={{ margin: 0, color: '#003060' }}>
+                    Detalle del Despacho de Reporte
+                  </h3>
+                  <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
+                    {formatFechaPeru(modalDetalleEnvio.created_at)}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="reporte-chip-remove"
+                style={{ padding: '4px 8px' }}
+                onClick={() => setModalDetalleEnvio(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.65rem' }}>
+                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <span className="t-caption" style={{ display: 'block', color: 'var(--text-secondary)' }}>Tipo de Envío</span>
+                  <span className="t-name" style={{ color: '#003060', fontWeight: 'var(--fw-bold)' }}>
+                    {modalDetalleEnvio.tipo === 'prueba' ? '🧪 Correo de Prueba' : modalDetalleEnvio.origen === 'cron' ? '🚀 Oficial (Automático Nocturno)' : '👤 Oficial (Manual)'}
+                  </span>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <span className="t-caption" style={{ display: 'block', color: 'var(--text-secondary)' }}>Estado de Entrega</span>
+                  <span className="t-name" style={{ color: modalDetalleEnvio.estado === 'exitoso' ? '#166534' : '#991b1b', fontWeight: 'var(--fw-bold)' }}>
+                    {modalDetalleEnvio.estado === 'exitoso' ? '✓ Entregado con Éxito' : modalDetalleEnvio.estado === 'en_proceso' ? '⏳ En Proceso' : '✕ Fallido'}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <span className="t-caption" style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: '3px' }}>Asunto</span>
+                <span className="t-body" style={{ fontWeight: 'var(--fw-medium)', color: '#003060' }}>
+                  {modalDetalleEnvio.asunto || 'Reporte Diario de Levantamiento de Observaciones'}
+                </span>
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <span className="t-caption" style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: '3px' }}>Destinatarios Principales (Para)</span>
+                <span className="t-body" style={{ fontWeight: 'var(--fw-medium)', color: '#1e293b' }}>
+                  {modalDetalleEnvio.destinatarios?.length > 0 ? modalDetalleEnvio.destinatarios.join(', ') : '(Destinatarios oficiales autorizados en servidor)'}
+                </span>
+              </div>
+
+              {modalDetalleEnvio.destinatarios_cc?.length > 0 && (
+                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <span className="t-caption" style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: '3px' }}>Con Copia (CC)</span>
+                  <span className="t-body" style={{ color: '#475569' }}>
+                    {modalDetalleEnvio.destinatarios_cc.join(', ')}
+                  </span>
+                </div>
+              )}
+
+              {modalDetalleEnvio.total_obs !== null && modalDetalleEnvio.total_obs !== undefined && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', textAlign: 'center' }}>
+                  <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px' }}>
+                    <span className="t-name" style={{ color: '#003060', fontWeight: 'var(--fw-bold)', display: 'block' }}>{modalDetalleEnvio.total_obs}</span>
+                    <span className="t-caption">Total</span>
+                  </div>
+                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '6px' }}>
+                    <span className="t-name" style={{ color: '#166534', fontWeight: 'var(--fw-bold)', display: 'block' }}>{modalDetalleEnvio.validadas || 0}</span>
+                    <span className="t-caption">Validadas</span>
+                  </div>
+                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '6px' }}>
+                    <span className="t-name" style={{ color: '#991b1b', fontWeight: 'var(--fw-bold)', display: 'block' }}>{modalDetalleEnvio.rechazadas || 0}</span>
+                    <span className="t-caption">Rechazadas</span>
+                  </div>
+                  <div style={{ background: '#eff6ff', border: '1px solid #bae6fd', borderRadius: '6px', padding: '6px' }}>
+                    <span className="t-name" style={{ color: '#0369a1', fontWeight: 'var(--fw-bold)', display: 'block' }}>{modalDetalleEnvio.en_espera || 0}</span>
+                    <span className="t-caption">En Espera</span>
+                  </div>
+                </div>
+              )}
+
+              {modalDetalleEnvio.error_mensaje && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 12px' }}>
+                  <span className="t-caption" style={{ color: '#991b1b', fontWeight: 'var(--fw-bold)', display: 'block' }}>Error Registrado:</span>
+                  <span className="t-caption" style={{ color: '#b91c1c' }}>{modalDetalleEnvio.error_mensaje}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-preview-footer">
+              <span className="t-caption">
+                {modalDetalleEnvio.github_run_id ? `GitHub Action Run ID: ${modalDetalleEnvio.github_run_id}` : 'Registro auditado de despacho'}
+              </span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {modalDetalleEnvio.url_log && (
+                  <a
+                    href={modalDetalleEnvio.url_log}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-reporte-save"
+                    style={{ textDecoration: 'none', padding: '0.45rem 0.95rem' }}
+                  >
+                    Ver Log en GitHub ↗
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="btn-preview-tool"
+                  onClick={() => setModalDetalleEnvio(null)}
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         </div>

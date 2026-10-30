@@ -966,6 +966,31 @@ async function main() {
     console.log('[CRON-REPORTE] 🧪 Envío de prueba manual completado con éxito. El despacho automático nocturno queda intacto y listo para ejecutarse.')
   }
 
+  // 13. Registrar en historial_reportes_correo si la tabla existe en Supabase
+  try {
+    const esPrueba = Boolean(forzarEnvio && rawDestinatarioPrueba)
+    const logItem = {
+      tipo: esPrueba ? 'prueba' : (forzarEnvio ? 'manual' : 'oficial'),
+      origen: process.env.GITHUB_RUN_ID ? (isManual ? 'github_actions' : 'cron') : 'manual',
+      destinatarios: recipients,
+      destinatarios_cc: recipientsCC,
+      asunto: subjectFinal,
+      total_obs: stats.total || 0,
+      validadas: stats.validadas || 0,
+      rechazadas: stats.rechazadas || 0,
+      en_espera: stats.enEspera || 0,
+      descartadas: stats.descartadas || 0,
+      estado: 'exitoso',
+      message_id: info.messageId || null,
+      github_run_id: process.env.GITHUB_RUN_ID || null,
+      created_at: new Date().toISOString()
+    }
+    const { error: insErr } = await supabase.from('historial_reportes_correo').insert(logItem)
+    if (!insErr) {
+      console.log('[CRON-REPORTE] 📜 Registro guardado exitosamente en historial_reportes_correo.')
+    }
+  } catch (_) {}
+
   console.log(`[CRON-REPORTE] 🏁 Proceso finalizado satisfactoriamente.`)
 }
 

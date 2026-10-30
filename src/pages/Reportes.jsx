@@ -438,6 +438,30 @@ export default function Reportes() {
     })
   }, [personalList, filtroCargo, busquedaPersonal])
 
+  // Obtener nombre oficial asociado a un correo para visualización amigable
+  const getNombreDestinatario = (email) => {
+    if (!email) return ''
+    const clean = email.toLowerCase().trim()
+    const found = personalList.find(p => 
+      (p.email && p.email.toLowerCase().trim() === clean) ||
+      (p.email_2 && p.email_2.toLowerCase().trim() === clean)
+    )
+    if (found?.nombre_completo) return found.nombre_completo
+    const CONOCIDOS = {
+      'ccondor@covepa.pe': 'Carlos Condor',
+      'ksedano@covepa.pe': 'Katherine Sedano',
+      'hventocilla@covepa.pe': 'Higinio Ventocilla',
+      'mventocilla@covepa.pe': 'Manuel Ventocilla',
+      'projas@covepa.pe': 'Percy Rojas',
+      'wavila@covepa.pe': 'William Avila',
+      'crivera@covepa.pe': 'Cristhian Rivera',
+      'jhospina@covepa.pe': 'Jhon Hospina',
+      'mchavez@covepa.pe': 'Milton Chavez',
+      'jcarloscc1101@gmail.com': 'Carlos Condor'
+    }
+    return CONOCIDOS[clean] || null
+  }
+
   // HTML generado para el correo de ejemplo
   const previewHtml = useMemo(() => {
     if (tipoVista === 'SEMANAL') {
@@ -1020,30 +1044,33 @@ export default function Reportes() {
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    {configActual.destinatarios.map(email => (
-                      <span
-                        key={email}
-                        className="reporte-email-chip"
-                        draggable={true}
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('text/plain', email)
-                          e.dataTransfer.setData('sourceZone', 'para')
-                        }}
-                        style={{ cursor: 'grab', userSelect: 'none' }}
-                        title="Arrastra este correo a 'Con Copia' para moverlo"
-                      >
-                        <span style={{ opacity: 0.45, marginRight: '2px', cursor: 'grab' }}>⠿</span>
-                        <span>{email}</span>
-                        <button
-                          type="button"
-                          className="reporte-chip-remove"
-                          onClick={() => removerPara(email)}
-                          title="Remover correo"
+                    {configActual.destinatarios.map(email => {
+                      const nombre = getNombreDestinatario(email)
+                      return (
+                        <span
+                          key={email}
+                          className="reporte-email-chip"
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', email)
+                            e.dataTransfer.setData('sourceZone', 'para')
+                          }}
+                          style={{ cursor: 'grab', userSelect: 'none' }}
+                          title={`Arrastra este correo a 'Con Copia' para moverlo (${email})`}
                         >
-                          ✕
-                        </button>
-                      </span>
-                    ))}
+                          <span style={{ opacity: 0.45, marginRight: '2px', cursor: 'grab' }}>⠿</span>
+                          <span>{nombre ? `${nombre} · ${email}` : email}</span>
+                          <button
+                            type="button"
+                            className="reporte-chip-remove"
+                            onClick={() => removerPara(email)}
+                            title="Remover correo"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      )
+                    })}
                     <input
                       type="email"
                       className="reporte-chip-input"
@@ -1105,30 +1132,33 @@ export default function Reportes() {
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    {configActual.destinatarios_cc.map(email => (
-                      <span
-                        key={email}
-                        className="reporte-email-chip"
-                        style={{ background: '#f1f5f9', borderColor: '#cbd5e1', color: '#334155', cursor: 'grab', userSelect: 'none' }}
-                        draggable={true}
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('text/plain', email)
-                          e.dataTransfer.setData('sourceZone', 'cc')
-                        }}
-                        title="Arrastra este correo a 'Para:' para moverlo"
-                      >
-                        <span style={{ opacity: 0.45, marginRight: '2px', cursor: 'grab' }}>⠿</span>
-                        <span>{email}</span>
-                        <button
-                          type="button"
-                          className="reporte-chip-remove"
-                          onClick={() => removerCC(email)}
-                          title="Remover correo"
+                    {configActual.destinatarios_cc.map(email => {
+                      const nombre = getNombreDestinatario(email)
+                      return (
+                        <span
+                          key={email}
+                          className="reporte-email-chip"
+                          style={{ background: '#f1f5f9', borderColor: '#cbd5e1', color: '#334155', cursor: 'grab', userSelect: 'none' }}
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', email)
+                            e.dataTransfer.setData('sourceZone', 'cc')
+                          }}
+                          title={`Arrastra este correo a 'Para:' para moverlo (${email})`}
                         >
-                          ✕
-                        </button>
-                      </span>
-                    ))}
+                          <span style={{ opacity: 0.45, marginRight: '2px', cursor: 'grab' }}>⠿</span>
+                          <span>{nombre ? `${nombre} · ${email}` : email}</span>
+                          <button
+                            type="button"
+                            className="reporte-chip-remove"
+                            onClick={() => removerCC(email)}
+                            title="Remover correo"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      )
+                    })}
                     <input
                       type="email"
                       className="reporte-chip-input"

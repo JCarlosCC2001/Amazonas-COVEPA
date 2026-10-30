@@ -373,11 +373,45 @@ async function main() {
   }
 
   let sitiosMap = {}
+  const emailToNameMap = {
+    'ccondor@covepa.pe': 'Carlos Condor',
+    'ksedano@covepa.pe': 'Katherine Sedano',
+    'hventocilla@covepa.pe': 'Higinio Ventocilla',
+    'mventocilla@covepa.pe': 'Manuel Ventocilla',
+    'projas@covepa.pe': 'Percy Rojas',
+    'wavila@covepa.pe': 'William Avila',
+    'crivera@covepa.pe': 'Cristhian Rivera',
+    'jhospina@covepa.pe': 'Jhon Hospina',
+    'mchavez@covepa.pe': 'Milton Chavez',
+    'jcarloscc1101@gmail.com': 'Carlos Condor',
+    'hcamac.ext@gilatla.com': 'Helio Camac',
+    'mtagle@gilatla.com': 'Monica Tagle',
+    'turquizo@gilatla.com': 'Thalia Urquizo',
+    'mnoriega@gilatla.com': 'Miguel Noriega',
+    'rhuapaya@gilatla.com': 'Renzo Huapaya',
+    'kcepeda@gilatla.com': 'Karin Cepeda',
+    'yalvarez@gilatla.com': 'Yevit Alvarez',
+    'kdextre@gilatla.com': 'Kori Dextre',
+    'alayme.ext@gilatla.com': 'Amilcar Hander',
+    'mnavarro@gilatla.com': 'Marco Navarro'
+  }
+
   try {
-    const [extRes, localRes] = await Promise.all([
+    const [extRes, localRes, personalRes] = await Promise.all([
       supabaseExt.from('sitios').select('id_site, localidad, nombre_nodo'),
-      supabase.from('sitios_cuadrillas').select('id_site, cuadrilla, zona').eq('activo', true)
+      supabase.from('sitios_cuadrillas').select('id_site, cuadrilla, zona').eq('activo', true),
+      supabaseExt.from('personal').select('nombre, apellido, nombre_completo, email, email_2')
     ])
+
+    if (personalRes && personalRes.data) {
+      personalRes.data.forEach(p => {
+        const fullName = (p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim()
+        if (fullName) {
+          if (p.email) emailToNameMap[p.email.toLowerCase().trim()] = fullName
+          if (p.email_2) emailToNameMap[p.email_2.toLowerCase().trim()] = fullName
+        }
+      })
+    }
 
     if (localRes.data && localRes.data.length > 0) {
       localRes.data.forEach(a => {
@@ -870,12 +904,33 @@ async function main() {
     }
   })
 
-  // 11. Despachar Correo
+  // 11. Despachar Correo con Formato de Nombre Oficial RFC 5322 ("Nombre" <correo>)
+  const formatRecipientWithName = (addr) => {
+    if (!addr) return ''
+    let str = String(addr).trim()
+    if (!str) return ''
+    if (str.includes('<') && str.includes('>')) return str
+    if (!str.includes('@')) str = `${str}@covepa.pe`
+    const cleanEmail = str.toLowerCase().trim()
+    const name = emailToNameMap[cleanEmail]
+    if (name) {
+      return `"${name}" <${cleanEmail}>`
+    }
+    return cleanEmail
+  }
+
+  const formattedTo = recipients.map(formatRecipientWithName).filter(Boolean)
+  const formattedCC = recipientsCC.map(formatRecipientWithName).filter(Boolean)
+
   console.log(`[CRON-REPORTE] 📤 Enviando correo a través de mail.covepa.pe (desde ${smtpUser})...`)
+  console.log(`[CRON-REPORTE] 📋 Destinatarios formateados con nombre oficial:`)
+  console.log(`[CRON-REPORTE]   Para: ${formattedTo.join(', ')}`)
+  console.log(`[CRON-REPORTE]   CC:   ${formattedCC.join(', ') || 'Ninguno'}`)
+
   const info = await transporter.sendMail({
     from: `"COVEPA - Gestión de Calidad" <${smtpUser}>`,
-    to: recipients,
-    cc: recipientsCC.length > 0 ? recipientsCC : undefined,
+    to: formattedTo,
+    cc: formattedCC.length > 0 ? formattedCC : undefined,
     bcc: [smtpUser], // Notificación inmediata en Outlook para ccondor@covepa.pe
     subject: subjectFinal,
     html: htmlBody,

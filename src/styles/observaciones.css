@@ -915,6 +915,7 @@
   white-space: nowrap;
 }
 
+.table-pagination,
 .obs-container .table-pagination {
   background: #ffffff;
   border-top: 1px solid var(--border);
@@ -925,32 +926,64 @@
   padding: 0.85rem 1.25rem;
   flex-wrap: wrap;
   gap: 0.75rem;
+  flex-shrink: 0;
 }
 
+.table-pagination .pagination-info,
 .obs-container .table-pagination .pagination-info {
   color: var(--text-secondary);
   font-size: var(--text-sm);
 }
 
+.table-pagination .pagination-filtered-label {
+  color: var(--primary-light);
+  font-weight: var(--fw-semibold);
+  margin-left: 0.35rem;
+}
+
+.table-pagination .pagination-controls,
+.obs-container .table-pagination .pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.table-pagination .page-btn,
 .obs-container .table-pagination .page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   background: #ffffff;
   border: 1px solid var(--border);
   color: #003060;
   font-weight: var(--fw-semibold);
+  font-size: var(--text-sm);
   border-radius: 8px;
-  padding: 0.4rem 0.75rem;
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
   transition: all var(--transition);
+  font-family: var(--font-sans);
 }
 
+.table-pagination .page-btn:hover:not(:disabled),
 .obs-container .table-pagination .page-btn:hover:not(:disabled) {
   background: #f0f6fc;
   border-color: #003060;
 }
 
+.table-pagination .page-btn:disabled,
+.obs-container .table-pagination .page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.table-pagination .current-page-tag,
 .obs-container .table-pagination .current-page-tag {
   color: #003060;
   font-weight: var(--fw-bold);
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
+  padding: 0 0.35rem;
 }
 
 .obs-export-text-short {
@@ -9277,3 +9310,222 @@
 }
 
 
+
+
+/* ══════════════════════════════════════════════════════════════════
+   COMPONENTE REUTILIZABLE: TABLA ESTÁNDAR ERP (ErpTable)
+   ══════════════════════════════════════════════════════════════════ */
+.erp-table-wrapper {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (min-width: 861px) {
+  .personal-container .erp-table-wrapper,
+  .obs-container .erp-table-wrapper {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  .personal-container .erp-table-scroll,
+  .obs-container .erp-table-scroll {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 860px) {
+  .personal-container .erp-table-wrapper {
+    overflow-x: auto;
+    border-radius: 14px;
+    background: #ffffff;
+    border: 1px solid var(--border);
+  }
+
+  .personal-container .erp-table-scroll {
+    overflow-x: auto;
+    max-height: 65vh;
+  }
+}
+
+.erp-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--font-sans);
+}
+
+.erp-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f0f6fc;
+  box-shadow: 0 1px 2px rgba(0, 48, 96, 0.08);
+  padding: 0.85rem 0.95rem;
+  color: #003060;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.04em;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+
+.erp-table tbody tr.erp-row {
+  border-bottom: 1px solid var(--border-light);
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+
+.erp-table tbody tr.erp-row:hover {
+  background: #f4f8fc;
+}
+
+.erp-table td {
+  padding: 0.75rem 0.95rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-light);
+  font-size: var(--text-sm);
+}
+
+/* Cabeceras Ordenables en ErpTable */
+.erp-table th.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.erp-table th.th-sortable:hover {
+  background: #e2edf8;
+  color: #002244;
+}
+
+.erp-table th.th-sortable.is-sorted {
+  background: #e0f2fe;
+  color: #003060;
+  border-bottom: 2px solid #0284c7;
+}
+
+.erp-table .sort-header-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.erp-table .sort-header-inner.align-center {
+  justify-content: center;
+}
+
+.erp-table .sort-header-inner.align-left {
+  justify-content: flex-start;
+}
+
+.erp-table .sort-header-inner.align-right {
+  justify-content: flex-end;
+}
+
+.erp-table .sort-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+
+.erp-table .sort-indicator.active {
+  color: #003060;
+  opacity: 1;
+  font-weight: var(--fw-black);
+}
+
+.erp-table .sort-indicator.inactive {
+  color: #94a3b8;
+  opacity: 0.45;
+}
+
+/* Columnas de Proporción Exacta para Tabla de Personal (ERP) */
+.erp-table .col-pers-avatar-name {
+  width: 21%;
+  min-width: 210px;
+  text-align: left;
+}
+
+.erp-table .col-pers-dni {
+  width: 10%;
+  min-width: 105px;
+  text-align: left;
+}
+
+.erp-table .col-pers-cargo {
+  width: 12%;
+  min-width: 120px;
+  text-align: left;
+}
+
+.erp-table .col-pers-cuadrilla {
+  width: 9%;
+  min-width: 95px;
+  text-align: center;
+}
+
+.erp-table th.col-pers-cuadrilla,
+.erp-table td.cell-pers-cuadrilla {
+  text-align: center;
+}
+
+.erp-table .col-pers-empresa {
+  width: 11%;
+  min-width: 115px;
+  text-align: left;
+}
+
+.erp-table .col-pers-telefono {
+  width: 15%;
+  min-width: 155px;
+  text-align: left;
+}
+
+.erp-table .col-pers-activo {
+  width: 8%;
+  min-width: 85px;
+  text-align: center;
+}
+
+.erp-table th.col-pers-activo,
+.erp-table td.cell-pers-activo {
+  text-align: center;
+}
+
+.erp-table .col-pers-cuenta {
+  width: 8%;
+  min-width: 95px;
+  text-align: center;
+}
+
+.erp-table th.col-pers-cuenta,
+.erp-table td.cell-pers-cuenta {
+  text-align: center;
+}
+
+.erp-table .col-pers-acciones {
+  width: 6%;
+  min-width: 75px;
+  text-align: center;
+}
+
+.erp-table th.col-pers-acciones,
+.erp-table td.cell-pers-acciones {
+  text-align: center;
+}

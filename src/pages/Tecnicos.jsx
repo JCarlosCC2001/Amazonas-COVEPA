@@ -19,6 +19,7 @@ import {
   assignUserAccount
 } from '../services/personalService'
 import { getInitials, getCargoClass } from '../utils/helpers'
+import ErpTable from '../components/shared/ErpTable'
 
 // Helper para parsear hasta 2 teléfonos y operadores estructurados
 function parsePhoneLines(telefono, operador) {
@@ -61,6 +62,27 @@ export default function Tecnicos() {
   const [viewMode, setViewMode] = useState('tarjetas') // 'tarjetas' | 'lista'
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false)
   const filterPopoverRef = useRef(null)
+
+  // Estado para ordenamiento y paginación en Vista Lista
+  const [listSortField, setListSortField] = useState('nombre_completo')
+  const [listSortDirection, setListSortDirection] = useState('asc')
+  const [listPage, setListPage] = useState(1)
+  const listPageSize = 15
+
+  const handleListSort = useCallback((field) => {
+    if (listSortField === field) {
+      setListSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setListSortField(field)
+      setListSortDirection('asc')
+    }
+    setListPage(1)
+  }, [listSortField])
+
+  // Resetear paginación al cambiar filtros o búsqueda
+  useEffect(() => {
+    setListPage(1)
+  }, [search, filterCargo, filterEmpresa, filterCuenta])
 
   // Modales y Drawers
   const [modalOpen, setModalOpen] = useState(false)
@@ -172,6 +194,249 @@ export default function Tecnicos() {
       return matchSearch && matchCargo && matchEmpresa && matchCuenta
     })
   }, [personal, search, filterCargo, filterEmpresa, filterCuenta])
+
+  // Ordenamiento en memoria para la Vista Lista
+  const sortedPersonal = useMemo(() => {
+    const list = [...filteredPersonal]
+    const dir = listSortDirection === 'asc' ? 1 : -1
+
+    return list.sort((a, b) => {
+      let valA = a[listSortField] ?? ''
+      let valB = b[listSortField] ?? ''
+
+      if (listSortField === 'nombre_completo') {
+        valA = a.nombre_completo || a.nombre || ''
+        valB = b.nombre_completo || b.nombre || ''
+        return dir * valA.localeCompare(valB, 'es', { sensitivity: 'base' })
+      }
+
+      if (listSortField === 'documento_identidad') {
+        valA = a.documento_identidad || a.dni || ''
+        valB = b.documento_identidad || b.dni || ''
+        return dir * valA.localeCompare(valB, undefined, { numeric: true })
+      }
+
+      if (listSortField === 'cuadrilla') {
+        valA = a.cuadrilla || ''
+        valB = b.cuadrilla || ''
+        return dir * valA.localeCompare(valB, undefined, { numeric: true })
+      }
+
+      if (listSortField === 'cuenta') {
+        valA = a.cuenta_usuario ? (a.cuenta_usuario.activo ? 2 : 1) : 0
+        valB = b.cuenta_usuario ? (b.cuenta_usuario.activo ? 2 : 1) : 0
+        return dir * (valA - valB)
+      }
+
+      if (listSortField === 'activo') {
+        valA = a.activo ? 1 : 0
+        valB = b.activo ? 1 : 0
+        return dir * (valA - valB)
+      }
+
+      if (typeof valA === 'string') {
+        return dir * valA.localeCompare(valB, 'es', { sensitivity: 'base' })
+      }
+
+      return dir * (valA > valB ? 1 : valA < valB ? -1 : 0)
+    })
+  }, [filteredPersonal, listSortField, listSortDirection])
+
+  // Paginación para la Vista Lista
+  const paginatedPersonal = useMemo(() => {
+    const start = (listPage - 1) * listPageSize
+    return sortedPersonal.slice(start, start + listPageSize)
+  }, [sortedPersonal, listPage, listPageSize])
+
+  // Definición de Columnas ERP Reutilizables (Idéntico a Observaciones)
+  const personalColumns = useMemo(() => [
+    {
+      key: 'nombre_completo',
+      label: 'Integrante',
+      className: 'col-pers-avatar-name',
+      align: 'left',
+      sortable: true,
+      render: (person) => {
+        const cargoClass = getCargoClass(person.cargo)
+        const isCarlos = (person.nombre_completo || '').includes('CARLOS CONDOR')
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div className={`person-avatar ${cargoClass}`} style={{ width: '32px', height: '32px' }}>
+              <span className="t-badge">{getInitials(person.nombre_completo)}</span>
+            </div>
+            <div style={{ minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                <span style={{ color: '#003060', fontWeight: 'var(--fw-bold)' }} className="t-name">
+                  {person.nombre_completo}
+                </span>
+                {isCarlos && (
+                  <span className="person-special-role-pill">
+                    SUPERVISOR COVEPA
+                  </span>
+                )}
+              </div>
+              {person.email && (
+                <div style={{ color: 'var(--text-muted)' }} className="t-meta">
+                  {person.email}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+    },
+    {
+      key: 'documento_identidad',
+      label: 'DNI / Documento',
+      className: 'col-pers-dni',
+      align: 'left',
+      sortable: true,
+      render: (person) => person.documento_identidad ? (
+        <span className="person-dni-badge">
+          DNI {person.documento_identidad}
+        </span>
+      ) : (
+        <span className="t-meta" style={{ color: 'var(--text-muted)' }}>—</span>
+      )
+    },
+    {
+      key: 'cargo',
+      label: 'Cargo',
+      className: 'col-pers-cargo',
+      align: 'left',
+      sortable: true,
+      render: (person) => (
+        <span className={`role-badge ${getCargoClass(person.cargo)}`}>
+          {person.cargo}
+        </span>
+      )
+    },
+    {
+      key: 'cuadrilla',
+      label: 'Cuadrilla',
+      className: 'col-pers-cuadrilla',
+      cellClassName: 'cell-pers-cuadrilla',
+      align: 'center',
+      sortable: true,
+      render: (person) => person.cuadrilla ? (
+        <span className="prog-card-cuadrilla-badge">
+          {person.cuadrilla}
+        </span>
+      ) : (
+        <span className="t-meta" style={{ color: 'var(--text-muted)' }}>—</span>
+      )
+    },
+    {
+      key: 'empresa',
+      label: 'Empresa',
+      className: 'col-pers-empresa',
+      align: 'left',
+      sortable: true,
+      render: (person) => (
+        <span className="person-empresa-badge">
+          {person.empresa || 'SELNET S.A.C.'}
+        </span>
+      )
+    },
+    {
+      key: 'telefono',
+      label: 'Contacto Directo',
+      className: 'col-pers-telefono',
+      align: 'left',
+      sortable: true,
+      render: (person) => {
+        const phoneLines = parsePhoneLines(person.telefono, person.operador)
+        const firstPhone = phoneLines[0]
+        if (!firstPhone) {
+          return <span className="t-meta" style={{ color: 'var(--text-muted)' }}>—</span>
+        }
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 'var(--fw-semibold)' }} className="t-body">
+              {firstPhone.phone}
+            </span>
+            {firstPhone.operator && (
+              <span className={`phone-operator-tag ${getOperatorClass(firstPhone.operator)}`} style={{ padding: '0.05rem 0.3rem' }}>
+                {firstPhone.operator}
+              </span>
+            )}
+            {firstPhone.clean && (
+              <div style={{ display: 'flex', gap: '3px', marginLeft: '2px' }} onClick={e => e.stopPropagation()}>
+                <a href={`tel:${firstPhone.clean}`} className="action-btn-circle call" title={`Llamar a ${firstPhone.phone}`}>
+                  <PhoneCall size={11} />
+                </a>
+                <a href={`https://wa.me/51${firstPhone.clean}`} target="_blank" rel="noreferrer" className="action-btn-circle wa" title={`WhatsApp con ${firstPhone.phone}`}>
+                  <MessageSquare size={11} />
+                </a>
+              </div>
+            )}
+          </div>
+        )
+      }
+    },
+    {
+      key: 'activo',
+      label: 'Estado BD',
+      className: 'col-pers-activo',
+      cellClassName: 'cell-pers-activo',
+      align: 'center',
+      sortable: true,
+      render: (person) => person.activo ? (
+        <span className="covepa-access-badge active" title="Estado activo en base de datos externa">
+          <ShieldCheck size={11} /> Activo
+        </span>
+      ) : (
+        <span className="covepa-access-badge inactive" title="Estado inactivo en base de datos externa">
+          <Lock size={11} /> Inactivo
+        </span>
+      )
+    },
+    {
+      key: 'cuenta',
+      label: 'Cuenta COVEPA',
+      className: 'col-pers-cuenta',
+      cellClassName: 'cell-pers-cuenta',
+      align: 'center',
+      sortable: true,
+      render: (person) => person.cuenta_usuario ? (
+        <span
+          className={`person-account-pill ${person.cuenta_usuario.activo ? 'active' : 'blocked'}`}
+          title={person.cuenta_usuario.activo ? `Cuenta COVEPA: ${person.cuenta_usuario.rol}` : 'Cuenta COVEPA Bloqueada'}
+        >
+          {person.cuenta_usuario.activo ? <ShieldCheck size={11} /> : <Lock size={11} />}
+          <span>{person.cuenta_usuario.activo ? 'Con Acceso' : 'Bloqueado'}</span>
+        </span>
+      ) : (
+        <span className="person-account-pill none" title="Sin cuenta de acceso asignada en este proyecto">
+          <Lock size={11} />
+          <span>Sin Cuenta</span>
+        </span>
+      )
+    },
+    {
+      key: 'acciones',
+      label: 'Acciones',
+      className: 'col-pers-acciones',
+      cellClassName: 'cell-pers-acciones',
+      align: 'center',
+      sortable: false,
+      render: (person) => (
+        <button
+          type="button"
+          className="btn-secondary-soft"
+          style={{ padding: '0.3rem 0.65rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          onClick={e => {
+            e.stopPropagation()
+            setSelectedDrawerPerson(person)
+          }}
+          title="Ver ficha completa"
+        >
+          <Eye size={12} />
+          <span className="t-meta">Ficha</span>
+        </button>
+      )
+    }
+  ], [])
 
   const handleToggleAccess = async (person) => {
     try {
@@ -488,10 +753,11 @@ export default function Tecnicos() {
         )}
       </div>
 
-      {/* ── ZONA DE CONTENIDO SCROLLABLE ── */}
-      <div className="personal-content-scroll">
-        {/* VISTA 1: TARJETAS DE PERSONAL */}
-        {apartado === 'personal' && viewMode === 'tarjetas' && (
+      {/* ── ZONA DE CONTENIDO ── */}
+      {/* VISTA 1: TARJETAS DE PERSONAL */}
+      {apartado === 'personal' && viewMode === 'tarjetas' && (
+        <div className="personal-content-scroll">
+          {apartado === 'personal' && viewMode === 'tarjetas' && (
           <div className="personal-grid">
             {filteredPersonal.length === 0 ? (
               <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1rem', background: '#ffffff', borderRadius: '14px', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
@@ -638,186 +904,44 @@ export default function Tecnicos() {
             )}
           </div>
         )}
+        </div>
+      )}
 
-        {/* VISTA 2: LISTA GENERAL (TABLA ERP) */}
-        {apartado === 'personal' && viewMode === 'lista' && (
-          <div className="table-container" style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border)' }}>
-            <table className="erp-table">
-              <thead>
-                <tr>
-                  <th>Integrante</th>
-                  <th>DNI / Documento</th>
-                  <th>Cargo</th>
-                  <th>Cuadrilla</th>
-                  <th>Empresa</th>
-                  <th>Contacto Directo</th>
-                  <th>Estado BD Externa</th>
-                  <th>Cuenta y Rol COVEPA</th>
-                  <th style={{ textAlign: 'center' }}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPersonal.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
-                      No se encontró personal con los filtros aplicados.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredPersonal.map(person => {
-                    const cargoClass = getCargoClass(person.cargo)
-                    const phoneLines = parsePhoneLines(person.telefono, person.operador)
-                    const firstPhone = phoneLines[0]
+      {/* VISTA 2: LISTA GENERAL (REUTILIZANDO ErpTable COMO EN OBSERVACIONES) */}
+      {apartado === 'personal' && viewMode === 'lista' && (
+        <ErpTable
+          columns={personalColumns}
+          data={paginatedPersonal}
+          keyField="id"
+          loading={loading}
+          loadingMessage="Cargando personal..."
+          emptyIcon={<Users size={44} style={{ opacity: 0.3 }} />}
+          emptyTitle="No se encontró personal con los filtros aplicados"
+          emptyDescription="Prueba ajustando el término de búsqueda o seleccionando otro cargo"
+          sortField={listSortField}
+          sortDirection={listSortDirection}
+          onSort={handleListSort}
+          onRowClick={person => setSelectedDrawerPerson(person)}
+          rowClassName="erp-row"
+          page={listPage}
+          pageSize={listPageSize}
+          totalCount={filteredPersonal.length}
+          onPageChange={setListPage}
+          hasActiveFilters={activeFilterCount > 0 || !!search}
+          entityName="integrantes"
+          minWidth="980px"
+        />
+      )}
 
-                    return (
-                      <tr
-                        key={person.id}
-                        onClick={() => setSelectedDrawerPerson(person)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <td style={{ fontWeight: 'var(--fw-semibold)', color: 'var(--text-primary)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                            <div className={`person-avatar ${cargoClass}`} style={{ width: '32px', height: '32px', fontSize: 'var(--text-sm)' }}>
-                              {getInitials(person.nombre_completo)}
-                            </div>
-                            <div>
-                              <div style={{ color: '#003060', fontWeight: 'var(--fw-bold)' }}>{person.nombre_completo}</div>
-                              {person.email && (
-                                <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>{person.email}</div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          {person.documento_identidad ? (
-                            <span className="person-dni-badge">
-                              {person.documento_identidad}
-                            </span>
-                          ) : (
-                            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>—</span>
-                          )}
-                        </td>
-                        <td>
-                          <span className={`role-badge ${cargoClass}`}>
-                            {person.cargo}
-                          </span>
-                        </td>
-                        <td>
-                          {person.cuadrilla ? (
-                            <span
-                              style={{
-                                fontSize: 'var(--text-xs)',
-                                fontWeight: 'var(--fw-bold)',
-                                padding: '0.18rem 0.5rem',
-                                borderRadius: '6px',
-                                background: '#eff6ff',
-                                border: '1px solid #bfdbfe',
-                                color: '#1d4ed8',
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              {person.cuadrilla}
-                            </span>
-                          ) : (
-                            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>—</span>
-                          )}
-                        </td>
-                        <td>
-                          <span
-                            style={{
-                              fontSize: 'var(--text-xs)',
-                              fontWeight: 'var(--fw-bold)',
-                              padding: '0.15rem 0.45rem',
-                              borderRadius: '4px',
-                              background: person.empresa?.toUpperCase().includes('GILAT') ? '#e0f2fe' : 'rgba(0, 48, 96, 0.07)',
-                              border: `1px solid ${person.empresa?.toUpperCase().includes('GILAT') ? '#7dd3fc' : 'rgba(0, 48, 96, 0.2)'}`,
-                              color: person.empresa?.toUpperCase().includes('GILAT') ? '#0369a1' : '#003060'
-                            }}
-                          >
-                            {person.empresa || 'SELNET S.A.C.'}
-                          </span>
-                        </td>
-                        <td>
-                          {firstPhone ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                              <span style={{ fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums', fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)' }}>{firstPhone.phone}</span>
-                              {firstPhone.operator && (
-                                <span className={`phone-operator-tag ${getOperatorClass(firstPhone.operator)}`} style={{ fontSize: 'var(--text-2xs)', padding: '0.05rem 0.3rem' }}>
-                                  {firstPhone.operator}
-                                </span>
-                              )}
-                              <div style={{ display: 'flex', gap: '3px', marginLeft: '2px' }} onClick={e => e.stopPropagation()}>
-                                <a href={`tel:${firstPhone.clean}`} className="action-btn-circle call" title="Llamar">
-                                  <PhoneCall size={11} />
-                                </a>
-                                <a href={`https://wa.me/51${firstPhone.clean}`} target="_blank" rel="noreferrer" className="action-btn-circle wa" title="WhatsApp">
-                                  <MessageSquare size={11} />
-                                </a>
-                              </div>
-                            </div>
-                          ) : (
-                            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>—</span>
-                          )}
-                        </td>
-                        <td>
-                          {person.activo ? (
-                            <span className="covepa-access-badge active" title="Estado activo en la base de datos externa">
-                              <ShieldCheck size={11} /> Activo
-                            </span>
-                          ) : (
-                            <span className="covepa-access-badge inactive" title="Estado inactivo en la base de datos externa">
-                              <Lock size={11} /> Inactivo
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          {person.cuenta_usuario ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                              <span className={`role-tag-covepa ${person.cuenta_usuario.rol}`}>
-                                {person.cuenta_usuario.rol}
-                              </span>
-                              <span className={`covepa-access-badge ${person.cuenta_usuario.activo ? 'active' : 'inactive'}`} style={{ fontSize: 'var(--text-2xs)', padding: '0.1rem 0.35rem' }}>
-                                {person.cuenta_usuario.activo ? 'Habilitado' : 'Bloqueado'}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="covepa-access-badge inactive" style={{ fontSize: 'var(--text-2xs)', opacity: 0.75 }}>
-                              <Lock size={10} /> Sin Cuenta
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            className="btn-secondary-soft"
-                            style={{ padding: '0.35rem 0.75rem', fontSize: 'var(--text-xs)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                            onClick={e => {
-                              e.stopPropagation()
-                              setSelectedDrawerPerson(person)
-                            }}
-                          >
-                            <Eye size={13} />
-                            Ficha
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* APARTADO 2: ASIGNACIÓN DE CUADRILLAS */}
-        {apartado === 'cuadrillas' && (
+      {/* APARTADO 2: ASIGNACIÓN DE CUADRILLAS */}
+      {apartado === 'cuadrillas' && (
+        <div className="personal-content-scroll">
           <VistaCuadrillasPredefinidas
             personal={personal}
             onCuadrillasUpdated={loadData}
           />
-        )}
-      </div>
-
+        </div>
+      )}
       {/* ── VENTANITA LATERAL (DRAWER) DE DETALLE Y GESTIÓN ── */}
       {selectedDrawerPerson && (
         <DrawerPersonal

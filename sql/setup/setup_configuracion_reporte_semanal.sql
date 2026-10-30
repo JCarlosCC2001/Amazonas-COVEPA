@@ -23,3 +23,4 @@ VALUES (
   'Consolidado semanal de observaciones levantadas y avances de la semana.'
 )
 ON CONFLICT (id) DO NOTHING;
+

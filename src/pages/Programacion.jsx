@@ -191,8 +191,27 @@ export default function Programacion() {
 
     // 1.3 Por cuadrilla
     if (!latestSolicitud && tGroup?.cuadrilla && ultimosReportes.byCuadrillaSolicitud) {
-      const solCuad = ultimosReportes.byCuadrillaSolicitud[tGroup.cuadrilla]
+      const cClean = String(tGroup.cuadrilla).trim().toUpperCase().replace(/GRUPO/gi, 'CUADRILLA')
+      const solCuad = ultimosReportes.byCuadrillaSolicitud[cClean] || ultimosReportes.byCuadrillaSolicitud[tGroup.cuadrilla]
       if (solCuad) latestSolicitud = { ...solCuad, isSolicitud: true }
+    }
+
+    // 2. Si no hubo solicitud explícita de revisión, buscar última actividad registrada de sus sitios/cuadrilla
+    if (!latestSolicitud) {
+      let latestActividad = null
+      ;(tGroup?.sitios || []).forEach(s => {
+        const act = ultimosReportes.bySite?.[s.id_sitio]
+        if (act && (!latestActividad || new Date(act.ts) > new Date(latestActividad.ts))) {
+          latestActividad = act
+        }
+      })
+      if (!latestActividad && tGroup?.cuadrilla && ultimosReportes.byCuadrilla) {
+        const cClean = String(tGroup.cuadrilla).trim().toUpperCase().replace(/GRUPO/gi, 'CUADRILLA')
+        latestActividad = ultimosReportes.byCuadrilla[cClean] || ultimosReportes.byCuadrilla[tGroup.cuadrilla]
+      }
+      if (latestActividad) {
+        return latestActividad
+      }
     }
 
     return latestSolicitud

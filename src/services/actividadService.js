@@ -158,7 +158,7 @@ export async function getTimelineActividadTecnico({
         const o = obsMap.get(h.id_obs)
         const tsSol = (o && o.fecha_subsanacion && new Date(o.fecha_subsanacion) <= new Date(h.created_at))
           ? o.fecha_subsanacion
-          : null
+          : h.created_at
         lc.solicitado = {
           ts: tsSol,
           hora: formatHoraPeru(tsSol),
@@ -219,9 +219,9 @@ export async function getTimelineActividadTecnico({
 
       if ((veniaDeSolicitud || esNuevaSolicitud) && !addedSolObs.has(h.id_obs)) {
         addedSolObs.add(h.id_obs)
-        let tsSol = (o && o.fecha_subsanacion) ? o.fecha_subsanacion : null
+        let tsSol = (o && o.fecha_subsanacion) ? o.fecha_subsanacion : h.created_at
         if (!tsSol || new Date(tsSol) > new Date(h.created_at)) {
-          tsSol = null
+          tsSol = h.created_at
         }
 
         events.push({
@@ -499,15 +499,20 @@ export async function fetchUltimosReportesDelDia(fecha) {
     ;(hRes.data || []).forEach(h => {
       const stNuevo = String(h.estado_nuevo || '').trim()
       const stAnt = String(h.estado_anterior || '').trim()
-      const isSol = stNuevo === 'Solicitando Revisión' || stNuevo === 'Solicitando Revision'
+      const isSol = stNuevo === 'Solicitando Revisión' ||
+        stNuevo === 'Solicitando Revision' ||
+        stAnt === 'Solicitando Revisión' ||
+        stAnt === 'Solicitando Revision' ||
+        stNuevo === 'En Revisión' ||
+        stNuevo === 'En Revision'
 
       recordEvent(h.id_sitio, h.created_at, h.id_obs, h.usuario_nombre, isSol)
     })
 
     ;(oRes.data || []).forEach(o => {
       const stNorm = String(o.estado_covepa || '').trim()
-      const isObsSol = stNorm === 'Solicitando Revisión' || stNorm === 'Solicitando Revision'
-      const ts = o.fecha_subsanacion || null
+      const isObsSol = stNorm.includes('Solicitando') || stNorm.includes('En Revis')
+      const ts = o.fecha_subsanacion || (isObsSol ? new Date().toISOString() : null)
 
       if (ts) {
         recordEvent(o.id_sitio, ts, o.id_obs, isObsSol ? null : o.revisor, isObsSol)

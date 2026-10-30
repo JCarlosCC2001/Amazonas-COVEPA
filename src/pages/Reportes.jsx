@@ -260,7 +260,8 @@ export default function Reportes() {
   // Asunto procesado para la cabecera del visor
   const asuntoRenderizado = useMemo(() => {
     const fecha = datosReporte?.fechaFormateada || 'Hoy'
-    return (config.asunto || '[COVEPA] Reporte Diario de Observaciones - {fecha}').replace('{fecha}', fecha)
+    const base = config.asunto || 'Reporte Diario de Levantamiento de Observaciones Amazonas - Zona 2 y Zona 7'
+    return base.includes('{fecha}') ? base.replace('{fecha}', fecha) : base
   }, [config.asunto, datosReporte])
 
   if (loading) {
@@ -604,25 +605,25 @@ export default function Reportes() {
               onChange={e => setConfig(prev => ({ ...prev, asunto: e.target.value }))}
             />
             <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
-              Usa la etiqueta <code>{'{fecha}'}</code> para que se reemplace dinámicamente con el día del envío.
+              Asunto oficial. Puedes incluir <code>{'{fecha}'}</code> si deseas agregar la fecha automáticamente.
             </span>
           </div>
 
-          {/* Notas y Justificaciones de la Jornada */}
+          {/* Notas y Comentarios de la Jornada */}
           <div className="reporte-form-group">
             <label className="reporte-label" htmlFor="notas_jornada">
-              <span>📝</span> Notas y Razones / Justificaciones de la Jornada
+              <span>💬</span> Comentarios u Observaciones de la Jornada (Opcional)
             </label>
             <textarea
               id="notas_jornada"
-              rows={4}
+              rows={3}
               className="reporte-textarea"
-              placeholder="Escribe aquí acuerdos relevantes, motivos de demora, contingencias de lluvia, accesos o comentarios generales para este envío..."
+              placeholder="Escribe aquí acuerdos de la jornada, contingencias o comentarios especiales. Si lo dejas vacío, no aparecerá en el correo..."
               value={config.notas_jornada}
               onChange={e => setConfig(prev => ({ ...prev, notas_jornada: e.target.value }))}
             />
             <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
-              Este texto se incorporará de forma destacada en la cabecera del correo nocturno enviado a los destinatarios.
+              Aparecerá al final del correo antes de la firma. Si está vacío no se incluirá nada. Se limpia automáticamente cada día a las 00:00 horas.
             </span>
           </div>
 

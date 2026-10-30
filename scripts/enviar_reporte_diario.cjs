@@ -649,26 +649,20 @@ async function main() {
           <!-- Cabecera Institucional COVEPA -->
           <tr>
             <td style="background-color:#003060;padding:24px 30px;text-align:left;">
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td valign="middle">
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:4px;">
-                      AMAZONAS · COVEPA
-                    </div>
-                    <h1 style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:19px;font-weight:bold;color:#ffffff;line-height:1.25;">
-                      Reporte Diario de Levantamiento de Observaciones
-                    </h1>
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#bfdbfe;margin-top:3px;font-weight:500;">
-                      Amazonas — Zona 2 y Zona 7
-                    </div>
-                  </td>
-                  <td align="right" valign="middle" style="text-align:right;">
-                    <div style="display:inline-block;background-color:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:16px;padding:6px 12px;color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;white-space:nowrap;">
-                      📅 ${escapeHtml(targetFechaFormateada)}
-                    </div>
-                  </td>
-                </tr>
-              </table>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:4px;">
+                AMAZONAS · COVEPA
+              </div>
+              <h1 style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;line-height:1.25;">
+                Reporte Diario de Levantamiento de Observaciones
+              </h1>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#bfdbfe;margin-top:3px;font-weight:500;">
+                Amazonas — Zona 2 y Zona 7
+              </div>
+              <div style="margin-top:10px;">
+                <span style="display:inline-block;background-color:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:16px;padding:5px 14px;color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;white-space:nowrap;">
+                  📅 ${escapeHtml(targetFechaFormateada)}
+                </span>
+              </div>
             </td>
           </tr>
 

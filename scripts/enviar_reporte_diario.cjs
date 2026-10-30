@@ -20,8 +20,16 @@ const supabaseUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://
 const rawKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim()
 const supabaseKey = (rawKey.length > 20) ? rawKey : DEFAULT_SUPABASE_KEY
 
-const supabase = createClient(supabaseUrl, supabaseKey)
-const supabaseExt = createClient(DEFAULT_EXT_URL, DEFAULT_EXT_KEY)
+const clientOptions = {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false
+  }
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey, clientOptions)
+const supabaseExt = createClient(DEFAULT_EXT_URL, DEFAULT_EXT_KEY, clientOptions)
 
 // 2. Helper de fecha en hora Perú (UTC-5)
 function getPeruDateInfo() {

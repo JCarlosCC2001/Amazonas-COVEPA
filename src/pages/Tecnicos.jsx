@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   Users, UserPlus, Search, Phone, MessageSquare, Edit2,
   Trash2, Shield, Wrench, Truck, MapPin, RefreshCw, X,
   LayoutGrid, List, PhoneCall, Eye, EyeOff, ChevronRight,
   KeyRound, Lock, CheckCircle2, AlertCircle, ShieldCheck,
-  UserCheck, UserX, Mail, Fingerprint, Check, Copy, Sparkles, Building2
+  UserCheck, UserX, Mail, Fingerprint, Check, Copy, Sparkles, Building2,
+  SlidersHorizontal, Filter
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { usePresentationMode } from '../context/PresentationContext'
@@ -17,8 +18,6 @@ import {
   toggleAccesoPersonal,
   assignUserAccount
 } from '../services/personalService'
-import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
-import SearchInput from '../components/shared/SearchInput'
 import { getInitials, getCargoClass } from '../utils/helpers'
 
 // Helper para parsear hasta 2 teléfonos y operadores estructurados
@@ -55,15 +54,55 @@ export default function Tecnicos() {
   const [personal, setPersonal] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [apartado, setApartado] = useState('personal') // 'personal' | 'cuadrillas'
   const [filterCargo, setFilterCargo] = useState('TODOS')
   const [filterEmpresa, setFilterEmpresa] = useState('TODOS')
+  const [filterCuenta, setFilterCuenta] = useState('TODOS') // 'TODOS' | 'CON_CUENTA' | 'SIN_CUENTA' | 'BLOQUEADO'
   const [viewMode, setViewMode] = useState('tarjetas') // 'tarjetas' | 'lista'
+  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false)
+  const filterPopoverRef = useRef(null)
 
   // Modales y Drawers
   const [modalOpen, setModalOpen] = useState(false)
   const [editingMember, setEditingMember] = useState(null)
   const [selectedDrawerPerson, setSelectedDrawerPerson] = useState(null)
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
+
+  // Cerrar popover de filtros con clic afuera o Escape
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(e.target)) {
+        setFilterPopoverOpen(false)
+      }
+    }
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        setFilterPopoverOpen(false)
+      }
+    }
+    if (filterPopoverOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleKeyDown)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [filterPopoverOpen])
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (filterEmpresa !== 'TODOS') count++
+    if (filterCargo !== 'TODOS') count++
+    if (filterCuenta !== 'TODOS') count++
+    return count
+  }, [filterEmpresa, filterCargo, filterCuenta])
+
+  const clearFilters = useCallback(() => {
+    setFilterEmpresa('TODOS')
+    setFilterCargo('TODOS')
+    setFilterCuenta('TODOS')
+  }, [])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -100,7 +139,7 @@ export default function Tecnicos() {
     return ['SELNET S.A.C.', 'COVEPA S.A.C.', 'Gilat Networks']
   }, [])
 
-  // Filtrado reactivo con soporte para DNI, nombre, apellido, email, cargo, empresa
+  // Filtrado reactivo con soporte para DNI, nombre, apellido, email, cargo, empresa y cuenta
   const filteredPersonal = useMemo(() => {
     const q = search.toLowerCase().trim()
     return personal.filter(p => {
@@ -121,20 +160,18 @@ export default function Tecnicos() {
       const matchCargo = filterCargo === 'TODOS' || (p.cargo || '').toUpperCase() === filterCargo.toUpperCase()
       const matchEmpresa = filterEmpresa === 'TODOS' || (p.empresa || '').toUpperCase() === filterEmpresa.toUpperCase()
 
-      return matchSearch && matchCargo && matchEmpresa
-    })
-  }, [personal, search, filterCargo, filterEmpresa])
+      let matchCuenta = true
+      if (filterCuenta === 'CON_CUENTA') {
+        matchCuenta = !!p.cuenta_usuario
+      } else if (filterCuenta === 'SIN_CUENTA') {
+        matchCuenta = !p.cuenta_usuario
+      } else if (filterCuenta === 'BLOQUEADO') {
+        matchCuenta = p.cuenta_usuario && !p.cuenta_usuario.activo
+      }
 
-  // KPIs
-  const kpis = useMemo(() => {
-    const total = personal.length
-    const conCuenta = personal.filter(p => !!p.cuenta_usuario).length
-    const conAcceso = personal.filter(p => p.activo).length
-    const tecnicos = personal.filter(p => (p.cargo || '').toUpperCase().includes('TÉCN') || (p.cargo || '').toUpperCase().includes('TECN')).length
-    const supervisores = personal.filter(p => (p.cargo || '').toUpperCase().includes('SUPERVIS')).length
-    const conductores = personal.filter(p => (p.cargo || '').toUpperCase().includes('CONDUCTOR')).length
-    return { total, conCuenta, conAcceso, tecnicos, supervisores, conductores }
-  }, [personal])
+      return matchSearch && matchCargo && matchEmpresa && matchCuenta
+    })
+  }, [personal, search, filterCargo, filterEmpresa, filterCuenta])
 
   const handleToggleAccess = async (person) => {
     try {
@@ -246,272 +283,322 @@ export default function Tecnicos() {
 
   return (
     <div className="personal-container">
-      {/* ── MEDIDORES / KPIs REUTILIZABLES DE PERSONAL ── */}
-      <MetricGrid columns={4}>
-        <MetricCard
-          icon={<Users size={22} />}
-          label="Total Personal"
-          value={kpis.total}
-          subtitle={`${kpis.conCuenta} con cuenta vinculada`}
-          variant="navy"
-          onClick={() => setFilterCargo('TODOS')}
-          active={filterCargo === 'TODOS'}
-          title="Ver todos los integrantes registrados en BD externa"
-        />
-        <MetricCard
-          icon={<Shield size={22} />}
-          label="Supervisores"
-          value={kpis.supervisores}
-          subtitle="Supervisión y control"
-          variant="purple"
-          onClick={() => setFilterCargo(prev => prev === 'SUPERVISOR' ? 'TODOS' : 'SUPERVISOR')}
-          active={filterCargo === 'SUPERVISOR'}
-          title="Filtrar supervisores"
-        />
-        <MetricCard
-          icon={<Wrench size={22} />}
-          label="Técnicos"
-          value={kpis.tecnicos}
-          subtitle="Personal operativo de campo"
-          variant="sky"
-          onClick={() => setFilterCargo(prev => prev === 'TECNICO' ? 'TODOS' : 'TECNICO')}
-          active={filterCargo === 'TECNICO'}
-          title="Filtrar técnicos de campo"
-        />
-        <MetricCard
-          icon={<Truck size={22} />}
-          label="Conductores"
-          value={kpis.conductores}
-          subtitle="Logística y movilidad"
-          variant="emerald"
-          onClick={() => setFilterCargo(prev => prev === 'CONDUCTOR' ? 'TODOS' : 'CONDUCTOR')}
-          active={filterCargo === 'CONDUCTOR'}
-          title="Filtrar conductores"
-        />
-      </MetricGrid>
-
-      {/* ── BARRA SUPERIOR INTEGRADA (Buscador + Filtros + Acciones) ── */}
-      <div className="prog-toolbar">
-        {/* Izquierda: Buscador y Filtro por Cargo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', flex: 1 }}>
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Buscar por nombre, DNI, empresa..."
-            style={{ maxWidth: '280px' }}
-            iconSize={14}
-          />
-
-          <select
-            className="filter-select"
-            value={filterEmpresa}
-            onChange={e => setFilterEmpresa(e.target.value)}
-            style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.6rem' }}
-          >
-            <option value="TODOS">Todas las Empresas ({personal.length})</option>
-            {empresas.map(emp => (
-              <option key={emp} value={emp}>{emp}</option>
-            ))}
-          </select>
-
-          <select
-            className="filter-select"
-            value={filterCargo}
-            onChange={e => setFilterCargo(e.target.value)}
-            style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.6rem' }}
-          >
-            <option value="TODOS">Todos los Cargos</option>
-            {cargos.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-
-          <button className="prog-btn-nav" onClick={loadData} title="Refrescar datos">
-            <RefreshCw size={13} className={loading ? 'spin' : ''} />
-          </button>
-        </div>
-
-        {/* Derecha: Toggle Tarjetas/Lista + Botón Nuevo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <div className="prog-views-toggle">
-            <button
-              className={`prog-view-btn ${viewMode === 'tarjetas' ? 'active' : ''}`}
-              onClick={() => setViewMode('tarjetas')}
-            >
-              <LayoutGrid size={13} />
-              Tarjetas
-            </button>
-            <button
-              className={`prog-view-btn ${viewMode === 'lista' ? 'active' : ''}`}
-              onClick={() => setViewMode('lista')}
-            >
-              <List size={13} />
-              Lista
-            </button>
-            <button
-              className={`prog-view-btn ${viewMode === 'cuadrillas' ? 'active' : ''}`}
-              onClick={() => setViewMode('cuadrillas')}
-            >
-              <Truck size={13} />
-              Cuadrillas
-            </button>
-          </div>
-
-          {/* Acción exclusiva de Administrador: Cambiar Contraseña */}
-          {isAdmin && (
+      {/* ── ZONA SUPERIOR FIJA: SUBPESTAÑAS DE APARTADOS + TOOLBAR ── */}
+      <div className="personal-fixed-top">
+        {/* Barra de Subpestañas (Apartados) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="personal-subtabs-bar">
             <button
               type="button"
-              className="prog-btn-secondary"
-              onClick={() => setPasswordModalOpen(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                padding: '0.45rem 0.85rem',
-                borderRadius: '8px',
-                background: 'rgba(99, 102, 241, 0.12)',
-                border: '1px solid rgba(99, 102, 241, 0.35)',
-                color: '#a5b4fc',
-                fontWeight: 'var(--fw-semibold)',
-                fontSize: 'var(--text-sm)',
-                cursor: 'pointer'
-              }}
-              title="Acceso exclusivo Administrador: Cambiar mi contraseña de acceso"
+              className={`personal-subtab-btn ${apartado === 'personal' ? 'active' : ''}`}
+              onClick={() => setApartado('personal')}
             >
-              <KeyRound size={14} color="#818cf8" />
-              <span>Mi Contraseña</span>
+              <Users size={14} />
+              <span>Directorio de Personal</span>
+              <span className="personal-subtab-badge">{personal.length}</span>
             </button>
-          )}
-
-          <button className="prog-btn-create" onClick={handleOpenCreate}>
-            <UserPlus size={15} />
-            Nuevo Integrante
-          </button>
+            <button
+              type="button"
+              className={`personal-subtab-btn ${apartado === 'cuadrillas' ? 'active' : ''}`}
+              onClick={() => setApartado('cuadrillas')}
+            >
+              <Truck size={14} />
+              <span>Asignación de Cuadrillas</span>
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* ── CONTENIDO: VISTA TARJETAS INDIVIDUALES REDISEÑADA ── */}
-      {viewMode === 'tarjetas' && (
-        <div className="personal-grid">
-          {filteredPersonal.length === 0 ? (
-            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1rem', background: '#ffffff', borderRadius: '14px', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-              <Users size={40} style={{ opacity: 0.3, margin: '0 auto 0.75rem auto' }} />
-              <div style={{ fontWeight: 'var(--fw-semibold)', fontSize: 'var(--text-base)', color: '#003060' }}>No se encontró personal con los filtros aplicados</div>
-              <div style={{ fontSize: 'var(--text-sm)', marginTop: '0.25rem' }}>Prueba ajustando el término de búsqueda o seleccionando otro cargo</div>
-            </div>
-          ) : (
-            filteredPersonal.map(person => {
-              const cargoClass = getCargoClass(person.cargo)
-              const isTecnico = cargoClass === 'tecnico' || (person.cargo || '').includes('SUPERVISOR')
-              const phoneLines = parsePhoneLines(person.telefono, person.operador)
-              const firstPhone = phoneLines[0]
-              const isGilat = (person.empresa || '').toUpperCase().includes('GILAT')
-              const isCarlos = (person.nombre_completo || '').includes('CARLOS CONDOR')
-
-              return (
-                <div
-                  key={person.id}
-                  className="person-card"
-                  onClick={() => setSelectedDrawerPerson(person)}
-                  title="Clic para ver ficha completa y permisos de acceso"
-                  style={{ cursor: 'pointer' }}
+        {/* Barra de Herramientas Compacta (Fila Única, exclusiva de Directorio) */}
+        {apartado === 'personal' && (
+          <div className="personal-toolbar">
+            {/* Buscador */}
+            <div className="personal-search-box">
+              <Search size={14} className="personal-search-icon" />
+              <input
+                type="text"
+                className="personal-search-input"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar por nombre, DNI, empresa, cargo..."
+              />
+              {search && (
+                <button
+                  type="button"
+                  className="personal-search-clear-btn"
+                  onClick={() => setSearch('')}
+                  title="Limpiar búsqueda"
                 >
-                  {/* Cabecera de la persona */}
-                  <div className="person-card-top">
-                    <div className="person-identity">
-                      <div className={`person-avatar ${cargoClass}`}>
-                        {getInitials(person.nombre_completo)}
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* Acciones y Filtros a la Derecha */}
+            <div className="personal-toolbar-right">
+              {/* Botón y Popover Desplegable de Filtros */}
+              <div className="personal-filter-popover-anchor" ref={filterPopoverRef}>
+                <button
+                  type="button"
+                  className={`personal-filter-trigger-btn ${activeFilterCount > 0 ? 'has-active' : ''}`}
+                  onClick={() => setFilterPopoverOpen(prev => !prev)}
+                  title="Filtros por Empresa, Cargo y Cuenta COVEPA"
+                >
+                  <SlidersHorizontal size={13} />
+                  <span>Filtros</span>
+                  {activeFilterCount > 0 && (
+                    <span className="personal-filter-count-badge">{activeFilterCount}</span>
+                  )}
+                </button>
+
+                {filterPopoverOpen && (
+                  <div className="personal-filter-popover-card">
+                    <div className="personal-popover-header">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 'var(--fw-bold)', fontSize: 'var(--text-sm)', color: '#003060' }}>
+                        <Filter size={14} color="#003060" />
+                        <span>Filtros de Directorio</span>
                       </div>
-                      <div className="person-names-box">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                          <span className="person-name">{person.nombre_completo}</span>
-                          {isCarlos && (
-                            <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 'var(--fw-black)', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(0, 48, 96, 0.08)', color: '#003060', border: '1px solid rgba(0, 48, 96, 0.2)' }}>
-                              SUPERVISOR COVEPA
-                            </span>
-                          )}
-                        </div>
+                      {activeFilterCount > 0 && (
+                        <button
+                          type="button"
+                          className="personal-popover-clear-btn"
+                          onClick={clearFilters}
+                        >
+                          Limpiar ({activeFilterCount})
+                        </button>
+                      )}
+                    </div>
 
-                        <div className="person-tags-row">
-                          {person.documento_identidad ? (
-                            <span className="person-dni-badge" title="Documento Nacional de Identidad">
-                              DNI {person.documento_identidad}
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>
-                              Sin DNI
-                            </span>
-                          )}
+                    <div className="personal-popover-body">
+                      {/* Filtro Empresa */}
+                      <div className="personal-popover-field">
+                        <label className="personal-popover-label">
+                          <Building2 size={12} color="#0284c7" />
+                          <span>Empresa Contratista</span>
+                        </label>
+                        <select
+                          className="filter-select"
+                          value={filterEmpresa}
+                          onChange={e => setFilterEmpresa(e.target.value)}
+                          style={{ width: '100%', fontSize: 'var(--text-sm)', padding: '0.45rem 0.6rem' }}
+                        >
+                          <option value="TODOS">Todas las Empresas ({personal.length})</option>
+                          {empresas.map(emp => (
+                            <option key={emp} value={emp}>{emp}</option>
+                          ))}
+                        </select>
+                      </div>
 
-                          <span className={`role-badge ${cargoClass}`}>
-                            {person.cargo}
-                          </span>
+                      {/* Filtro Cargo */}
+                      <div className="personal-popover-field">
+                        <label className="personal-popover-label">
+                          <ShieldCheck size={12} color="#7e22ce" />
+                          <span>Cargo / Especialidad</span>
+                        </label>
+                        <select
+                          className="filter-select"
+                          value={filterCargo}
+                          onChange={e => setFilterCargo(e.target.value)}
+                          style={{ width: '100%', fontSize: 'var(--text-sm)', padding: '0.45rem 0.6rem' }}
+                        >
+                          <option value="TODOS">Todos los Cargos ({cargos.length})</option>
+                          {cargos.map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
 
-                          <span
-                            style={{
-                              fontSize: 'var(--text-2xs)',
-                              fontWeight: 'var(--fw-bold)',
-                              padding: '0.1rem 0.38rem',
-                              borderRadius: '4px',
-                              background: isGilat ? '#e0f2fe' : 'rgba(0, 48, 96, 0.07)',
-                              border: `1px solid ${isGilat ? '#7dd3fc' : 'rgba(0, 48, 96, 0.2)'}`,
-                              color: isGilat ? '#0369a1' : '#003060',
-                              textTransform: 'uppercase'
-                            }}
-                          >
-                            {person.empresa || 'SELNET S.A.C.'}
-                          </span>
-
-                          {person.cuadrilla && (
-                            <span className="prog-card-cuadrilla-badge">
-                              {person.cuadrilla}
-                            </span>
-                          )}
-                        </div>
+                      {/* Filtro Cuenta COVEPA */}
+                      <div className="personal-popover-field">
+                        <label className="personal-popover-label">
+                          <Lock size={12} color="#b45309" />
+                          <span>Estado Cuenta COVEPA</span>
+                        </label>
+                        <select
+                          className="filter-select"
+                          value={filterCuenta}
+                          onChange={e => setFilterCuenta(e.target.value)}
+                          style={{ width: '100%', fontSize: 'var(--text-sm)', padding: '0.45rem 0.6rem' }}
+                        >
+                          <option value="TODOS">Todas las Cuentas</option>
+                          <option value="CON_CUENTA">Con Cuenta de Acceso</option>
+                          <option value="SIN_CUENTA">Sin Cuenta Asignada</option>
+                          <option value="BLOQUEADO">Bloqueadas / Inactivas</option>
+                        </select>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
-                      {person.cuenta_usuario ? (
-                        <>
-                          <span className={`role-tag-covepa ${person.cuenta_usuario.rol}`}>
-                            {person.cuenta_usuario.rol}
-                          </span>
-                          <span className={`covepa-access-badge ${person.cuenta_usuario.activo ? 'active' : 'inactive'}`} title={person.cuenta_usuario.activo ? 'Cuenta COVEPA habilitada' : 'Cuenta COVEPA deshabilitada'}>
-                            {person.cuenta_usuario.activo ? <ShieldCheck size={11} /> : <Lock size={11} />}
-                            {person.cuenta_usuario.activo ? 'Habilitado' : 'Bloqueado'}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="covepa-access-badge inactive" title="Sin cuenta de acceso asignada en este proyecto">
-                          <Lock size={11} /> Sin Cuenta
-                        </span>
-                      )}
-                      <ChevronRight size={15} color="var(--text-muted)" />
+                    <div className="personal-popover-footer">
+                      <button
+                        type="button"
+                        className="personal-popover-apply-btn"
+                        onClick={() => setFilterPopoverOpen(false)}
+                      >
+                        <Check size={13} />
+                        <span>Listo</span>
+                      </button>
                     </div>
                   </div>
+                )}
+              </div>
 
-                  {/* Datos de contacto y ubicación */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginTop: '0.35rem' }}>
-                    {/* Fila Ciudad Base y Correo */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 'var(--text-sm)' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
-                        <MapPin size={13} color="#0284c7" />
-                        Base: <strong style={{ color: '#003060' }}>{person.origen || 'Por asignar'}</strong>
-                      </span>
-                      {person.email && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }} title={person.email}>
-                          <Mail size={12} color="#0284c7" />
-                          {person.email.length > 20 ? person.email.slice(0, 18) + '…' : person.email}
-                        </span>
-                      )}
+              {/* Botón Refrescar */}
+              <button
+                type="button"
+                className="prog-btn-nav"
+                onClick={loadData}
+                title="Refrescar directorio"
+              >
+                <RefreshCw size={13} className={loading ? 'spin' : ''} />
+              </button>
+
+              {/* Conmutador de Vistas (Solo Tarjetas y Lista) */}
+              <div className="prog-views-toggle">
+                <button
+                  type="button"
+                  className={`prog-view-btn ${viewMode === 'tarjetas' ? 'active' : ''}`}
+                  onClick={() => setViewMode('tarjetas')}
+                  title="Vista de Tarjetas Individuales"
+                >
+                  <LayoutGrid size={13} />
+                  <span>Tarjetas</span>
+                </button>
+                <button
+                  type="button"
+                  className={`prog-view-btn ${viewMode === 'lista' ? 'active' : ''}`}
+                  onClick={() => setViewMode('lista')}
+                  title="Vista de Lista General"
+                >
+                  <List size={13} />
+                  <span>Lista</span>
+                </button>
+              </div>
+
+              {/* Botón Nuevo Integrante */}
+              <button
+                type="button"
+                className="personal-create-btn"
+                onClick={handleOpenCreate}
+                title="Registrar un nuevo integrante en el directorio"
+              >
+                <UserPlus size={14} />
+                <span>Nuevo Integrante</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── ZONA DE CONTENIDO SCROLLABLE ── */}
+      <div className="personal-content-scroll">
+        {/* VISTA 1: TARJETAS DE PERSONAL */}
+        {apartado === 'personal' && viewMode === 'tarjetas' && (
+          <div className="personal-grid">
+            {filteredPersonal.length === 0 ? (
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1rem', background: '#ffffff', borderRadius: '14px', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                <Users size={40} style={{ opacity: 0.3, margin: '0 auto 0.75rem auto' }} />
+                <div style={{ fontWeight: 'var(--fw-semibold)', fontSize: 'var(--text-base)', color: '#003060' }}>No se encontró personal con los filtros aplicados</div>
+                <div style={{ fontSize: 'var(--text-sm)', marginTop: '0.25rem' }}>Prueba ajustando el término de búsqueda o limpiando los filtros</div>
+              </div>
+            ) : (
+              filteredPersonal.map(person => {
+                const cargoClass = getCargoClass(person.cargo)
+                const phoneLines = parsePhoneLines(person.telefono, person.operador)
+                const firstPhone = phoneLines[0]
+                const isCarlos = (person.nombre_completo || '').includes('CARLOS CONDOR')
+
+                return (
+                  <div
+                    key={person.id}
+                    className="person-card"
+                    onClick={() => setSelectedDrawerPerson(person)}
+                    title="Clic para ver ficha completa y permisos de acceso"
+                  >
+                    {/* Cabecera de Identidad */}
+                    <div className="person-card-header">
+                      <div className="person-identity">
+                        <div className={`person-avatar ${cargoClass}`}>
+                          {getInitials(person.nombre_completo)}
+                        </div>
+                        <div className="person-names-box">
+                          <div className="person-name-line">
+                            <span className="person-name">{person.nombre_completo}</span>
+                            {isCarlos && (
+                              <span className="person-special-role-pill">
+                                SUPERVISOR COVEPA
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="person-badges-wrap">
+                            {person.documento_identidad ? (
+                              <span className="person-dni-badge" title="Documento Nacional de Identidad">
+                                DNI {person.documento_identidad}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: 'var(--text-3xs)', color: 'var(--text-muted)' }}>
+                                Sin DNI
+                              </span>
+                            )}
+
+                            <span className={`role-badge ${cargoClass}`}>
+                              {person.cargo}
+                            </span>
+
+                            <span className="person-empresa-badge">
+                              {person.empresa || 'SELNET S.A.C.'}
+                            </span>
+
+                            {person.cuadrilla && (
+                              <span className="prog-card-cuadrilla-badge">
+                                {person.cuadrilla}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="person-header-right">
+                        {person.cuenta_usuario ? (
+                          <span
+                            className={`person-account-pill ${person.cuenta_usuario.activo ? 'active' : 'blocked'}`}
+                            title={person.cuenta_usuario.activo ? `Cuenta COVEPA: ${person.cuenta_usuario.rol}` : 'Cuenta COVEPA Bloqueada'}
+                          >
+                            {person.cuenta_usuario.activo ? <ShieldCheck size={11} /> : <Lock size={11} />}
+                            <span>{person.cuenta_usuario.activo ? 'Con Acceso' : 'Bloqueado'}</span>
+                          </span>
+                        ) : (
+                          <span className="person-account-pill none" title="Sin cuenta de acceso asignada en este proyecto">
+                            <Lock size={11} />
+                            <span>Sin Cuenta</span>
+                          </span>
+                        )}
+                        <ChevronRight size={14} className="person-card-arrow" />
+                      </div>
                     </div>
 
-                    {/* Fila Teléfono directo con botones de llamada y WhatsApp */}
+                    {/* Metadatos (Ubicación y Email) — omitir "Por asignar" vacío */}
+                    {(person.origen || person.email) && (
+                      <div className="person-meta-row">
+                        {person.origen ? (
+                          <span className="person-meta-item">
+                            <MapPin size={12} color="#003060" />
+                            <span>Base: <strong style={{ color: '#003060' }}>{person.origen}</strong></span>
+                          </span>
+                        ) : <span />}
+                        {person.email && (
+                          <span className="person-meta-item" title={person.email}>
+                            <Mail size={12} color="#003060" />
+                            <span className="person-email-text">{person.email}</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Fila Teléfono directo con llamadas y WhatsApp */}
                     {firstPhone ? (
-                      <div className="phone-line-card" style={{ marginTop: '0.15rem' }}>
+                      <div className="phone-line-card">
                         <div className="phone-left">
-                          <Phone size={13} color="#003060" />
+                          <Phone size={12} color="#003060" />
                           <span className="phone-number">{firstPhone.phone}</span>
                           {firstPhone.operator && (
                             <span className={`phone-operator-tag ${getOperatorClass(firstPhone.operator)}`}>
@@ -541,195 +628,195 @@ export default function Tecnicos() {
                         )}
                       </div>
                     ) : (
-                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.2rem 0' }}>
+                      <div style={{ fontSize: 'var(--text-3xs)', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.1rem 0' }}>
                         Sin teléfono registrado
                       </div>
                     )}
                   </div>
-                </div>
-              )
-            })
-          )}
-        </div>
-      )}
+                )
+              })
+            )}
+          </div>
+        )}
 
-      {/* ── CONTENIDO: VISTA LISTA GENERAL (TABLA) REDISEÑADA ── */}
-      {viewMode === 'lista' && (
-        <div className="table-container" style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border)' }}>
-          <table className="erp-table">
-            <thead>
-              <tr>
-                <th>Integrante</th>
-                <th>DNI / Documento</th>
-                <th>Cargo</th>
-                <th>Cuadrilla</th>
-                <th>Empresa</th>
-                <th>Contacto Directo</th>
-                <th>Estado BD Externa</th>
-                <th>Cuenta y Rol COVEPA</th>
-                <th style={{ textAlign: 'center' }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPersonal.length === 0 ? (
+        {/* VISTA 2: LISTA GENERAL (TABLA ERP) */}
+        {apartado === 'personal' && viewMode === 'lista' && (
+          <div className="table-container" style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border)' }}>
+            <table className="erp-table">
+              <thead>
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
-                    No se encontró personal con los filtros aplicados.
-                  </td>
+                  <th>Integrante</th>
+                  <th>DNI / Documento</th>
+                  <th>Cargo</th>
+                  <th>Cuadrilla</th>
+                  <th>Empresa</th>
+                  <th>Contacto Directo</th>
+                  <th>Estado BD Externa</th>
+                  <th>Cuenta y Rol COVEPA</th>
+                  <th style={{ textAlign: 'center' }}>Acciones</th>
                 </tr>
-              ) : (
-                filteredPersonal.map(person => {
-                  const cargoClass = getCargoClass(person.cargo)
-                  const phoneLines = parsePhoneLines(person.telefono, person.operador)
-                  const firstPhone = phoneLines[0]
+              </thead>
+              <tbody>
+                {filteredPersonal.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                      No se encontró personal con los filtros aplicados.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredPersonal.map(person => {
+                    const cargoClass = getCargoClass(person.cargo)
+                    const phoneLines = parsePhoneLines(person.telefono, person.operador)
+                    const firstPhone = phoneLines[0]
 
-                  return (
-                    <tr
-                      key={person.id}
-                      onClick={() => setSelectedDrawerPerson(person)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <td style={{ fontWeight: 'var(--fw-semibold)', color: 'var(--text-primary)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <div className={`person-avatar ${cargoClass}`} style={{ width: '32px', height: '32px', fontSize: 'var(--text-sm)' }}>
-                            {getInitials(person.nombre_completo)}
+                    return (
+                      <tr
+                        key={person.id}
+                        onClick={() => setSelectedDrawerPerson(person)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <td style={{ fontWeight: 'var(--fw-semibold)', color: 'var(--text-primary)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                            <div className={`person-avatar ${cargoClass}`} style={{ width: '32px', height: '32px', fontSize: 'var(--text-sm)' }}>
+                              {getInitials(person.nombre_completo)}
+                            </div>
+                            <div>
+                              <div style={{ color: '#003060', fontWeight: 'var(--fw-bold)' }}>{person.nombre_completo}</div>
+                              {person.email && (
+                                <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>{person.email}</div>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <div style={{ color: '#003060', fontWeight: 'var(--fw-bold)' }}>{person.nombre_completo}</div>
-                            {person.email && (
-                              <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)' }}>{person.email}</div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        {person.documento_identidad ? (
-                          <span className="person-dni-badge">
-                            {person.documento_identidad}
+                        </td>
+                        <td>
+                          {person.documento_identidad ? (
+                            <span className="person-dni-badge">
+                              {person.documento_identidad}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          <span className={`role-badge ${cargoClass}`}>
+                            {person.cargo}
                           </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className={`role-badge ${cargoClass}`}>
-                          {person.cargo}
-                        </span>
-                      </td>
-                      <td>
-                        {person.cuadrilla ? (
+                        </td>
+                        <td>
+                          {person.cuadrilla ? (
+                            <span
+                              style={{
+                                fontSize: 'var(--text-xs)',
+                                fontWeight: 'var(--fw-bold)',
+                                padding: '0.18rem 0.5rem',
+                                borderRadius: '6px',
+                                background: '#eff6ff',
+                                border: '1px solid #bfdbfe',
+                                color: '#1d4ed8',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {person.cuadrilla}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>—</span>
+                          )}
+                        </td>
+                        <td>
                           <span
                             style={{
                               fontSize: 'var(--text-xs)',
                               fontWeight: 'var(--fw-bold)',
-                              padding: '0.18rem 0.5rem',
-                              borderRadius: '6px',
-                              background: '#eff6ff',
-                              border: '1px solid #bfdbfe',
-                              color: '#1d4ed8',
-                              whiteSpace: 'nowrap'
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '4px',
+                              background: person.empresa?.toUpperCase().includes('GILAT') ? '#e0f2fe' : 'rgba(0, 48, 96, 0.07)',
+                              border: `1px solid ${person.empresa?.toUpperCase().includes('GILAT') ? '#7dd3fc' : 'rgba(0, 48, 96, 0.2)'}`,
+                              color: person.empresa?.toUpperCase().includes('GILAT') ? '#0369a1' : '#003060'
                             }}
                           >
-                            {person.cuadrilla}
+                            {person.empresa || 'SELNET S.A.C.'}
                           </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        <span
-                          style={{
-                            fontSize: 'var(--text-xs)',
-                            fontWeight: 'var(--fw-bold)',
-                            padding: '0.15rem 0.45rem',
-                            borderRadius: '4px',
-                            background: person.empresa?.toUpperCase().includes('GILAT') ? '#e0f2fe' : 'rgba(0, 48, 96, 0.07)',
-                            border: `1px solid ${person.empresa?.toUpperCase().includes('GILAT') ? '#7dd3fc' : 'rgba(0, 48, 96, 0.2)'}`,
-                            color: person.empresa?.toUpperCase().includes('GILAT') ? '#0369a1' : '#003060'
-                          }}
-                        >
-                          {person.empresa || 'SELNET S.A.C.'}
-                        </span>
-                      </td>
-                      <td>
-                        {firstPhone ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <span style={{ fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums', fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)' }}>{firstPhone.phone}</span>
-                            {firstPhone.operator && (
-                              <span className={`phone-operator-tag ${getOperatorClass(firstPhone.operator)}`} style={{ fontSize: 'var(--text-2xs)', padding: '0.05rem 0.3rem' }}>
-                                {firstPhone.operator}
-                              </span>
-                            )}
-                            <div style={{ display: 'flex', gap: '3px', marginLeft: '2px' }} onClick={e => e.stopPropagation()}>
-                              <a href={`tel:${firstPhone.clean}`} className="action-btn-circle call" title="Llamar">
-                                <PhoneCall size={11} />
-                              </a>
-                              <a href={`https://wa.me/51${firstPhone.clean}`} target="_blank" rel="noreferrer" className="action-btn-circle wa" title="WhatsApp">
-                                <MessageSquare size={11} />
-                              </a>
+                        </td>
+                        <td>
+                          {firstPhone ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <span style={{ fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums', fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)' }}>{firstPhone.phone}</span>
+                              {firstPhone.operator && (
+                                <span className={`phone-operator-tag ${getOperatorClass(firstPhone.operator)}`} style={{ fontSize: 'var(--text-2xs)', padding: '0.05rem 0.3rem' }}>
+                                  {firstPhone.operator}
+                                </span>
+                              )}
+                              <div style={{ display: 'flex', gap: '3px', marginLeft: '2px' }} onClick={e => e.stopPropagation()}>
+                                <a href={`tel:${firstPhone.clean}`} className="action-btn-circle call" title="Llamar">
+                                  <PhoneCall size={11} />
+                                </a>
+                                <a href={`https://wa.me/51${firstPhone.clean}`} target="_blank" rel="noreferrer" className="action-btn-circle wa" title="WhatsApp">
+                                  <MessageSquare size={11} />
+                                </a>
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        {person.activo ? (
-                          <span className="covepa-access-badge active" title="Estado activo en la base de datos externa">
-                            <ShieldCheck size={11} /> Activo
-                          </span>
-                        ) : (
-                          <span className="covepa-access-badge inactive" title="Estado inactivo en la base de datos externa">
-                            <Lock size={11} /> Inactivo
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {person.cuenta_usuario ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                            <span className={`role-tag-covepa ${person.cuenta_usuario.rol}`}>
-                              {person.cuenta_usuario.rol}
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          {person.activo ? (
+                            <span className="covepa-access-badge active" title="Estado activo en la base de datos externa">
+                              <ShieldCheck size={11} /> Activo
                             </span>
-                            <span className={`covepa-access-badge ${person.cuenta_usuario.activo ? 'active' : 'inactive'}`} style={{ fontSize: 'var(--text-2xs)', padding: '0.1rem 0.35rem' }}>
-                              {person.cuenta_usuario.activo ? 'Habilitado' : 'Bloqueado'}
+                          ) : (
+                            <span className="covepa-access-badge inactive" title="Estado inactivo en la base de datos externa">
+                              <Lock size={11} /> Inactivo
                             </span>
-                          </div>
-                        ) : (
-                          <span className="covepa-access-badge inactive" style={{ fontSize: 'var(--text-2xs)', opacity: 0.75 }}>
-                            <Lock size={10} /> Sin Cuenta
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          className="btn-secondary-soft"
-                          style={{ padding: '0.35rem 0.75rem', fontSize: 'var(--text-xs)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                          onClick={e => {
-                            e.stopPropagation()
-                            setSelectedDrawerPerson(person)
-                          }}
-                        >
-                          <Eye size={13} />
-                          Ficha
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+                          )}
+                        </td>
+                        <td>
+                          {person.cuenta_usuario ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <span className={`role-tag-covepa ${person.cuenta_usuario.rol}`}>
+                                {person.cuenta_usuario.rol}
+                              </span>
+                              <span className={`covepa-access-badge ${person.cuenta_usuario.activo ? 'active' : 'inactive'}`} style={{ fontSize: 'var(--text-2xs)', padding: '0.1rem 0.35rem' }}>
+                                {person.cuenta_usuario.activo ? 'Habilitado' : 'Bloqueado'}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="covepa-access-badge inactive" style={{ fontSize: 'var(--text-2xs)', opacity: 0.75 }}>
+                              <Lock size={10} /> Sin Cuenta
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn-secondary-soft"
+                            style={{ padding: '0.35rem 0.75rem', fontSize: 'var(--text-xs)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            onClick={e => {
+                              e.stopPropagation()
+                              setSelectedDrawerPerson(person)
+                            }}
+                          >
+                            <Eye size={13} />
+                            Ficha
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-      {/* ── CONTENIDO: VISTA CUADRILLAS PREDEFINIDAS ── */}
-      {viewMode === 'cuadrillas' && (
-        <VistaCuadrillasPredefinidas
-          personal={personal}
-          onCuadrillasUpdated={loadData}
-        />
-      )}
+        {/* APARTADO 2: ASIGNACIÓN DE CUADRILLAS */}
+        {apartado === 'cuadrillas' && (
+          <VistaCuadrillasPredefinidas
+            personal={personal}
+            onCuadrillasUpdated={loadData}
+          />
+        )}
+      </div>
 
       {/* ── VENTANITA LATERAL (DRAWER) DE DETALLE Y GESTIÓN ── */}
       {selectedDrawerPerson && (

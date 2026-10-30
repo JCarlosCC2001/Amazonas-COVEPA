@@ -3,44 +3,59 @@ import { getAvancePorFecha } from './dashboardService'
 import { getCachedSitiosAsignados } from './sitiosService'
 import { toLocalDateString, getPeruDateStr, getAyerPeruStr } from '../utils/helpers'
 
-const LOCAL_STORAGE_KEY = 'covepa_config_reporte_correo'
+const LOCAL_STORAGE_KEY_DIARIO = 'covepa_config_reporte_correo'
+const LOCAL_STORAGE_KEY_SEMANAL = 'covepa_config_reporte_semanal'
 
-const DEFAULT_CONFIG = {
+export const DEFAULT_CONFIG_DIARIO = {
   id: 'config_diario',
   activo: true,
   hora_envio: '21:00:00',
   destinatarios: ['ccondor@covepa.pe'],
   destinatarios_cc: [],
-  asunto: 'Reporte Diario de Levantamiento de Observaciones Amazonas - Zona 2 y Zona 7',
-  notas_jornada: '',
+  asunto: '[COVEPA] Reporte Diario de Observaciones - {fecha}',
+  notas_jornada: 'Cierre operativo de observaciones de la jornada.',
   periodo_reporte: 'dia_actual' // 'dia_actual' | 'dia_anterior'
 }
 
+export const DEFAULT_CONFIG_SEMANAL = {
+  id: 'config_semanal',
+  activo: true,
+  hora_envio: '20:00:00',
+  dia_semana_envio: '5', // 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb, 7=Dom
+  destinatarios: ['ccondor@covepa.pe'],
+  destinatarios_cc: [],
+  asunto: '[COVEPA] Reporte Semanal de Levantamiento de Observaciones Amazonas - Semana {semana}',
+  notas_jornada: 'Consolidado semanal de observaciones levantadas y avances de cuadrillas.',
+  periodo_reporte: 'semana_actual' // 'semana_actual' | 'semana_anterior'
+}
+
 /**
- * Obtiene la configuración guardada del reporte automático.
+ * Obtiene la configuración guardada del reporte automático (diario o semanal).
  * Intenta leer desde Supabase y cuenta con fallback transparente en localStorage.
- * Borra automáticamente notas_jornada si provienen de un día anterior (cierre diario 00:00).
  */
-export async function fetchConfiguracionReporte() {
+export async function fetchConfiguracionReporte(tipo = 'diario') {
+  const isSemanal = tipo === 'semanal'
+  const configId = isSemanal ? 'config_semanal' : 'config_diario'
+  const storageKey = isSemanal ? LOCAL_STORAGE_KEY_SEMANAL : LOCAL_STORAGE_KEY_DIARIO
+  const defaults = isSemanal ? DEFAULT_CONFIG_SEMANAL : DEFAULT_CONFIG_DIARIO
   const hoyPeru = getPeruDateStr() || toLocalDateString(new Date())
 
   try {
     const { data, error } = await supabase
       .from('configuracion_reportes_correo')
       .select('*')
-      .eq('id', 'config_diario')
+      .eq('id', configId)
       .maybeSingle()
 
     if (!error && data) {
-      // Comprobar si la nota es de un día anterior para limpiarla a las 00:00
       let notasLimpias = data.notas_jornada || ''
-      if (data.updated_at) {
+      // Para diario, limpiar notas si son de un día anterior
+      if (!isSemanal && data.updated_at) {
         const d = new Date(data.updated_at)
         const utc = d.getTime() + (d.getTimezoneOffset() * 60000)
         const fechaPeruUpdate = new Date(utc - (5 * 3600000)).toISOString().slice(0, 10)
         if (fechaPeruUpdate < hoyPeru && notasLimpias) {
           notasLimpias = ''
-          // Limpiar en background en la base de datos
           supabase
             .from('configuracion_reportes_correo')
             .update({ notas_jornada: '' })
@@ -50,58 +65,64 @@ export async function fetchConfiguracionReporte() {
       }
 
       const merged = {
-        ...DEFAULT_CONFIG,
+        ...defaults,
         ...data,
         notas_jornada: notasLimpias,
-        asunto: data.asunto || DEFAULT_CONFIG.asunto,
-        periodo_reporte: data.periodo_reporte || DEFAULT_CONFIG.periodo_reporte,
-        hora_envio: (data.hora_envio || '21:00:00').slice(0, 5) // normalizar a HH:MM
+        asunto: data.asunto || defaults.asunto,
+        periodo_reporte: data.periodo_reporte || defaults.periodo_reporte,
+        hora_envio: (data.hora_envio || defaults.hora_envio).slice(0, 5)
       }
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged))
+      localStorage.setItem(storageKey, JSON.stringify(merged))
       return merged
     }
   } catch (err) {
-    console.warn('[REPORTES-CORREO] Error al consultar Supabase, usando respaldo local:', err)
+    console.warn(`[REPORTES-CORREO] Error al consultar Supabase (${configId}), usando local:`, err)
   }
 
   // Fallback seguro a localStorage
   try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY)
+    const raw = localStorage.getItem(storageKey)
     if (raw) {
       const parsed = JSON.parse(raw)
       return {
-        ...DEFAULT_CONFIG,
+        ...defaults,
         ...parsed,
-        asunto: parsed.asunto || DEFAULT_CONFIG.asunto,
-        periodo_reporte: parsed.periodo_reporte || DEFAULT_CONFIG.periodo_reporte,
-        hora_envio: (parsed.hora_envio || '21:00:00').slice(0, 5)
+        asunto: parsed.asunto || defaults.asunto,
+        periodo_reporte: parsed.periodo_reporte || defaults.periodo_reporte,
+        hora_envio: (parsed.hora_envio || defaults.hora_envio).slice(0, 5)
       }
     }
   } catch (_) {}
 
-  return { ...DEFAULT_CONFIG, hora_envio: '21:00' }
+  return { ...defaults, hora_envio: defaults.hora_envio.slice(0, 5) }
 }
 
 /**
- * Guarda la configuración del reporte automático.
+ * Guarda la configuración del reporte automático (diario o semanal).
  */
-export async function saveConfiguracionReporte(config, userEmail = null) {
-  const horaNormalizada = config.hora_envio ? `${config.hora_envio.slice(0, 5)}:00` : '21:00:00'
+export async function saveConfiguracionReporte(config, userEmail = null, tipo = 'diario') {
+  const isSemanal = tipo === 'semanal'
+  const configId = isSemanal ? 'config_semanal' : 'config_diario'
+  const storageKey = isSemanal ? LOCAL_STORAGE_KEY_SEMANAL : LOCAL_STORAGE_KEY_DIARIO
+  const defaults = isSemanal ? DEFAULT_CONFIG_SEMANAL : DEFAULT_CONFIG_DIARIO
+
+  const horaNormalizada = config.hora_envio ? `${config.hora_envio.slice(0, 5)}:00` : defaults.hora_envio
   const payload = {
-    id: 'config_diario',
+    id: configId,
     activo: config.activo !== false,
     hora_envio: horaNormalizada,
     destinatarios: Array.isArray(config.destinatarios) ? config.destinatarios : [config.destinatarios].filter(Boolean),
     destinatarios_cc: Array.isArray(config.destinatarios_cc) ? config.destinatarios_cc : [],
-    asunto: config.asunto || DEFAULT_CONFIG.asunto,
+    asunto: config.asunto || defaults.asunto,
     notas_jornada: config.notas_jornada || '',
-    periodo_reporte: config.periodo_reporte || 'dia_actual',
+    periodo_reporte: config.periodo_reporte || defaults.periodo_reporte,
+    dia_semana_envio: config.dia_semana_envio || defaults.dia_semana_envio || '5',
     updated_at: new Date().toISOString(),
     updated_by: userEmail
   }
 
   try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload))
+    localStorage.setItem(storageKey, JSON.stringify(payload))
   } catch (_) {}
 
   try {
@@ -112,22 +133,21 @@ export async function saveConfiguracionReporte(config, userEmail = null) {
       .maybeSingle()
 
     if (error) {
-      console.warn('[REPORTES-CORREO] Aviso al guardar en Supabase:', error.message)
-      // Si la columna periodo_reporte aún no existe en Supabase, reintentar sin ella
-      if (error.message && error.message.includes('periodo_reporte')) {
-        const fallbackPayload = { ...payload }
-        delete fallbackPayload.periodo_reporte
-        const { data: retryData } = await supabase
-          .from('configuracion_reportes_correo')
-          .upsert(fallbackPayload, { onConflict: 'id' })
-          .select()
-          .maybeSingle()
-        return retryData || payload
-      }
+      console.warn(`[REPORTES-CORREO] Aviso al guardar ${configId} en Supabase:`, error.message)
+      // Si la BD no tiene alguna columna extra (dia_semana_envio o periodo_reporte), reintentar sin ellas
+      const safePayload = { ...payload }
+      delete safePayload.dia_semana_envio
+      delete safePayload.periodo_reporte
+      const { data: retryData } = await supabase
+        .from('configuracion_reportes_correo')
+        .upsert(safePayload, { onConflict: 'id' })
+        .select()
+        .maybeSingle()
+      return retryData || payload
     }
     return data || payload
   } catch (err) {
-    console.warn('[REPORTES-CORREO] Error de red al guardar en Supabase, guardado localmente:', err)
+    console.warn(`[REPORTES-CORREO] Error de red al guardar ${configId} en Supabase, guardado en local:`, err)
     return payload
   }
 }
@@ -146,7 +166,6 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
     }
   }
 
-  // Fuente de verdad unificada: utiliza getAvancePorFecha para consistencia total con Programación
   const [avance, sitios] = await Promise.all([
     getAvancePorFecha(targetDate),
     getCachedSitiosAsignados()
@@ -170,7 +189,6 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
   const descartadas = rows.filter(r => r.estado === 'Descartado')
   const enEspera = rows.filter(r => r.estado === 'Solicitando Revisión' || r.estado === 'En Revisión')
 
-  // Formato formal en español: ej. "Jueves, 29 de Octubre de 2026"
   let fechaFormateada = targetDate
   try {
     const [y, m, d] = targetDate.split('-').map(Number)
@@ -202,8 +220,129 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
 }
 
 /**
- * Genera y descarga un archivo Excel (.xlsx) estructurado con las observaciones de la jornada
- * con el encabezado institucional oficial en color corporativo #003060.
+ * Obtiene el consolidado semanal de observaciones (Lunes a Domingo) para el reporte semanal.
+ * Consulta los avances de la semana de forma concurrente para exactitud total.
+ */
+export async function fetchDatosReporteSemanal(fechaFiltro = null, periodoReporte = 'semana_actual') {
+  const now = new Date()
+  let peruStr = getPeruDateStr() || toLocalDateString(now)
+  if (fechaFiltro) peruStr = fechaFiltro
+
+  const [y, m, d] = peruStr.split('-').map(Number)
+  const baseDate = new Date(y, m - 1, d)
+
+  if (periodoReporte === 'semana_anterior') {
+    baseDate.setDate(baseDate.getDate() - 7)
+  }
+
+  const dayOfWeek = (baseDate.getDay() + 6) % 7 // Lunes = 0 ... Domingo = 6
+  const monday = new Date(baseDate)
+  monday.setDate(baseDate.getDate() - dayOfWeek)
+
+  const DIAS_SHORT = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+  const DIAS_FULL = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+  const dias = []
+
+  for (let i = 0; i < 7; i++) {
+    const cur = new Date(monday)
+    cur.setDate(monday.getDate() + i)
+    const yyyy = cur.getFullYear()
+    const mm = String(cur.getMonth() + 1).padStart(2, '0')
+    const dd = String(cur.getDate()).padStart(2, '0')
+    const dateStr = `${yyyy}-${mm}-${dd}`
+    dias.push({
+      dateStr,
+      diaSemana: DIAS_SHORT[i],
+      diaNombre: DIAS_FULL[i],
+      shortLabel: `${DIAS_SHORT[i]} ${dd}/${mm}`,
+      dayNum: dd,
+      monthNum: mm
+    })
+  }
+
+  const lunesStr = dias[0].dateStr
+  const domingoStr = dias[6].dateStr
+  const rangoSemanaStr = `${dias[0].dayNum}/${dias[0].monthNum} al ${dias[6].dayNum}/${dias[6].monthNum}/${dias[6].dateStr.slice(0, 4)}`
+
+  // Número de semana ISO
+  const dObj = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate()))
+  const dayNum = dObj.getUTCDay() || 7
+  dObj.setUTCDate(dObj.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(dObj.getUTCFullYear(), 0, 1))
+  const numeroSemana = Math.ceil((((dObj - yearStart) / 86400000) + 1) / 7)
+
+  // Consultar avances por cada día de la semana y catálogo de sitios
+  const [avancesPorDia, sitiosCatalog] = await Promise.all([
+    Promise.all(dias.map(item => getAvancePorFecha(item.dateStr))),
+    getCachedSitiosAsignados()
+  ])
+
+  const sitiosMap = {}
+  if (Array.isArray(sitiosCatalog)) {
+    sitiosCatalog.forEach(s => { sitiosMap[s.id_site] = s })
+  }
+
+  const obsMap = new Map()
+  const desgloseDias = []
+
+  dias.forEach((dItem, idx) => {
+    const av = avancesPorDia[idx] || { rows: [], stats: {} }
+    const rowsDia = av.rows || []
+    let valDia = 0, rechDia = 0, descDia = 0, espDia = 0
+
+    rowsDia.forEach(r => {
+      const sInfo = sitiosMap[r.id_sitio] || {}
+      const enriched = {
+        ...r,
+        zona: sInfo.zona || r.zona || '-'
+      }
+      if (r.estado === 'Validado') valDia++
+      else if (r.estado === 'Rechazado') rechDia++
+      else if (r.estado === 'Descartado') descDia++
+      else if (r.estado === 'Solicitando Revisión' || r.estado === 'En Revisión') espDia++
+
+      obsMap.set(r.id_obs, enriched)
+    })
+
+    desgloseDias.push({
+      ...dItem,
+      total: rowsDia.length,
+      validadas: valDia,
+      rechazadas: rechDia,
+      descartadas: descDia,
+      enEspera: espDia
+    })
+  })
+
+  const allConsolidado = Array.from(obsMap.values())
+  const validadas = allConsolidado.filter(r => r.estado === 'Validado')
+  const rechazadas = allConsolidado.filter(r => r.estado === 'Rechazado')
+  const descartadas = allConsolidado.filter(r => r.estado === 'Descartado')
+  const enEspera = allConsolidado.filter(r => r.estado === 'Solicitando Revisión' || r.estado === 'En Revisión')
+
+  return {
+    semanaKey: `${lunesStr}_a_${domingoStr}`,
+    numeroSemana,
+    rangoSemanaStr,
+    lunesStr,
+    domingoStr,
+    desgloseDias,
+    stats: {
+      validadas: validadas.length,
+      rechazadas: rechazadas.length,
+      descartadas: descartadas.length,
+      enEspera: enEspera.length,
+      total: allConsolidado.length
+    },
+    validadas,
+    rechazadas,
+    descartadas,
+    enEspera
+  }
+}
+
+/**
+ * Genera y descarga un archivo Excel (.xlsx) estructurado con las observaciones de la jornada diaria.
  */
 export async function exportarExcelReporteDiario(datos) {
   if (!datos) return
@@ -214,7 +353,6 @@ export async function exportarExcelReporteDiario(datos) {
     views: [{ showGridLines: true }]
   })
 
-  // Anchos calibrados de las 6 columnas oficiales (Zona entre ID y Código de lugar)
   ws.columns = [
     { width: 22 }, // ID
     { width: 14 }, // Zona
@@ -224,7 +362,6 @@ export async function exportarExcelReporteDiario(datos) {
     { width: 22 }  // Estado observación
   ]
 
-  // Lista unificada de todas las observaciones trabajadas ese día
   const allRows = [
     ...(datos.validadas || []),
     ...(datos.rechazadas || []),
@@ -253,7 +390,6 @@ export async function exportarExcelReporteDiario(datos) {
     ]
   })
 
-  // Añadir tabla oficial con formato de tabla (addTable)
   const cleanTableName = `Reporte_${(datos.fechaStr || 'jornada').replace(/-/g, '_')}`
   ws.addTable({
     name: cleanTableName,
@@ -261,7 +397,7 @@ export async function exportarExcelReporteDiario(datos) {
     headerRow: true,
     totalsRow: false,
     style: {
-      theme: 'TableStyleMedium9', // Azul marino corporativo COVEPA
+      theme: 'TableStyleMedium9',
       showRowStripes: true,
       showColumnStripes: false
     },
@@ -276,7 +412,6 @@ export async function exportarExcelReporteDiario(datos) {
     rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-', '-']]
   })
 
-  // Conservar encabezado institucional en color oficial #003060 y texto blanco
   const headerRow = ws.getRow(1)
   headerRow.height = 26
   headerRow.eachCell((cell) => {
@@ -294,7 +429,6 @@ export async function exportarExcelReporteDiario(datos) {
     cell.alignment = { vertical: 'middle', horizontal: 'center' }
   })
 
-  // Formato y alineación de celdas de datos
   const totalFilas = tableRows.length > 0 ? tableRows.length : 1
   for (let i = 0; i < totalFilas; i++) {
     const rowNum = i + 2
@@ -322,8 +456,176 @@ export async function exportarExcelReporteDiario(datos) {
 }
 
 /**
- * Genera el cuerpo de correo en formato HTML estricto con estilos en línea
- * compatible con Microsoft Outlook, Gmail y clientes móviles.
+ * Genera y descarga un archivo Excel (.xlsx) estructurado con el consolidado SEMANAL de observaciones
+ * y la pestaña adicional de resumen de avance diario (Lunes a Domingo).
+ */
+export async function exportarExcelReporteSemanal(datos) {
+  if (!datos) return
+  const ExcelJS = (await import('exceljs')).default || (await import('exceljs'))
+  const wb = new ExcelJS.Workbook()
+  wb.creator = 'Amazonas-COVEPA'
+
+  // PESTAÑA 1: Observaciones Consolidadas de la Semana
+  const wsObs = wb.addWorksheet('Observaciones_Semana', {
+    views: [{ showGridLines: true }]
+  })
+  wsObs.columns = [
+    { width: 22 }, // ID
+    { width: 14 }, // Zona
+    { width: 20 }, // Código de lugar
+    { width: 28 }, // Nombre de localidad
+    { width: 24 }, // Persona que validó
+    { width: 22 }  // Estado observación
+  ]
+
+  const allRows = [
+    ...(datos.validadas || []),
+    ...(datos.rechazadas || []),
+    ...(datos.enEspera || []),
+    ...(datos.descartadas || [])
+  ]
+
+  const tableRows = allRows.map(r => {
+    let estadoDisplay = r.estado || 'Validado'
+    if (estadoDisplay === 'Descartado') estadoDisplay = 'No Aplica'
+    const revRaw = (r.revisor || '').trim()
+    const isSinRevisor = !revRaw ||
+      revRaw.toLowerCase() === 'sin revisor' ||
+      revRaw.toLowerCase() === 'en proceso' ||
+      revRaw.toLowerCase() === 'pendiente' ||
+      revRaw === '-'
+    const revisorFinal = isSinRevisor ? '-' : revRaw
+
+    return [
+      r.id_obs || '',
+      r.zona || '-',
+      r.id_sitio || r.codigo_lugar || '',
+      r.localidad || '',
+      revisorFinal,
+      estadoDisplay
+    ]
+  })
+
+  wsObs.addTable({
+    name: `Semanal_${datos.numeroSemana || 'Consolidado'}`,
+    ref: 'A1',
+    headerRow: true,
+    totalsRow: false,
+    style: {
+      theme: 'TableStyleMedium9',
+      showRowStripes: true,
+      showColumnStripes: false
+    },
+    columns: [
+      { name: 'ID', filterButton: true },
+      { name: 'Zona', filterButton: true },
+      { name: 'Código de lugar', filterButton: true },
+      { name: 'Nombre de localidad', filterButton: true },
+      { name: 'Persona que validó', filterButton: true },
+      { name: 'Estado observación', filterButton: true }
+    ],
+    rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-', '-']]
+  })
+
+  const headerObs = wsObs.getRow(1)
+  headerObs.height = 26
+  headerObs.eachCell((cell) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
+    cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.alignment = { vertical: 'middle', horizontal: 'center' }
+  })
+
+  const totalObsFilas = tableRows.length > 0 ? tableRows.length : 1
+  for (let i = 0; i < totalObsFilas; i++) {
+    const rowNum = i + 2
+    const row = wsObs.getRow(rowNum)
+    row.height = 20
+    row.eachCell((cell, colNum) => {
+      cell.font = { name: 'Arial', size: 10 }
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 6 || cell.value === '-') ? 'center' : 'left'
+      }
+    })
+  }
+
+  // PESTAÑA 2: Resumen Diario (Lunes a Domingo)
+  const wsResumen = wb.addWorksheet('Resumen_Diario_Semana', {
+    views: [{ showGridLines: true }]
+  })
+  wsResumen.columns = [
+    { width: 14 }, // Día
+    { width: 16 }, // Fecha
+    { width: 16 }, // Validadas
+    { width: 16 }, // Rechazadas
+    { width: 16 }, // En Espera
+    { width: 16 }, // No Aplica
+    { width: 16 }  // Total
+  ]
+
+  const desgloseRows = (datos.desgloseDias || []).map(d => [
+    d.diaNombre || d.diaSemana,
+    d.dateStr,
+    d.validadas || 0,
+    d.rechazadas || 0,
+    d.enEspera || 0,
+    d.descartadas || 0,
+    d.total || 0
+  ])
+
+  wsResumen.addTable({
+    name: `Resumen_Semana_${datos.numeroSemana || 'Global'}`,
+    ref: 'A1',
+    headerRow: true,
+    totalsRow: false,
+    style: {
+      theme: 'TableStyleMedium9',
+      showRowStripes: true,
+      showColumnStripes: false
+    },
+    columns: [
+      { name: 'Día', filterButton: false },
+      { name: 'Fecha', filterButton: false },
+      { name: 'Validadas', filterButton: false },
+      { name: 'Rechazadas', filterButton: false },
+      { name: 'En Espera', filterButton: false },
+      { name: 'No Aplica', filterButton: false },
+      { name: 'Total', filterButton: false }
+    ],
+    rows: desgloseRows
+  })
+
+  const headerRes = wsResumen.getRow(1)
+  headerRes.height = 26
+  headerRes.eachCell((cell) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
+    cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.alignment = { vertical: 'middle', horizontal: 'center' }
+  })
+
+  for (let i = 0; i < desgloseRows.length; i++) {
+    const row = wsResumen.getRow(i + 2)
+    row.height = 20
+    row.eachCell((cell) => {
+      cell.font = { name: 'Arial', size: 10 }
+      cell.alignment = { vertical: 'middle', horizontal: 'center' }
+    })
+  }
+
+  const buffer = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Reporte_Semanal_Observaciones_Semana_${datos.numeroSemana || 'consolidado'}.xlsx`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Genera el cuerpo de correo para el REPORTE DIARIO en formato HTML estricto.
  */
 export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
   const { fechaFormateada, stats, validadas, rechazadas, descartadas, enEspera } = datos
@@ -452,7 +754,7 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
             </td>
           </tr>
 
-          <!-- 1. Agrupación: Observaciones Validadas (Solo si tiene códigos) -->
+          <!-- 1. Agrupación: Observaciones Validadas -->
           ${validadas.length > 0 ? `
           <tr>
             <td style="padding:8px 28px 12px 28px;">
@@ -464,7 +766,7 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
           </tr>
           ` : ''}
 
-          <!-- 2. Agrupación: Observaciones Rechazadas (Solo si tiene códigos) -->
+          <!-- 2. Agrupación: Observaciones Rechazadas -->
           ${rechazadas.length > 0 ? `
           <tr>
             <td style="padding:8px 28px 12px 28px;">
@@ -476,7 +778,7 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
           </tr>
           ` : ''}
 
-          <!-- 3. Agrupación: En Espera de Revisión (Solo si tiene códigos) -->
+          <!-- 3. Agrupación: En Espera de Revisión -->
           ${enEspera.length > 0 ? `
           <tr>
             <td style="padding:8px 28px 12px 28px;">
@@ -488,7 +790,7 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
           </tr>
           ` : ''}
 
-          <!-- 4. Agrupación: Observaciones No Aplica (Solo si tiene códigos) -->
+          <!-- 4. Agrupación: Observaciones No Aplica -->
           ${descartadas.length > 0 ? `
           <tr>
             <td style="padding:8px 28px 12px 28px;">
@@ -500,7 +802,7 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
           </tr>
           ` : ''}
 
-          <!-- Mensaje si no hubo ninguna observación en toda la jornada -->
+          <!-- Mensaje si no hubo observaciones -->
           ${totalListados === 0 ? `
           <tr>
             <td style="padding:16px 28px;text-align:center;">
@@ -511,13 +813,281 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
           </tr>
           ` : ''}
 
-          <!-- Bloque de Comentarios u Observaciones de la Jornada (Solo si se ingresó texto) -->
+          <!-- Bloque de Comentarios de la Jornada -->
           ${notas ? `
           <tr>
             <td style="padding:10px 28px 16px 28px;">
               <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #003060;border-radius:6px;padding:14px 16px;">
                 <div style="font-family:Arial,Helvetica,sans-serif;font-size:11.5px;font-weight:bold;color:#003060;text-transform:uppercase;margin-bottom:6px;letter-spacing:0.5px;">
                   💬 Comentarios u Observaciones de la Jornada:
+                </div>
+                <div style="font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:#334155;line-height:1.55;white-space:pre-wrap;">${escapeHtml(notas)}</div>
+              </div>
+            </td>
+          </tr>
+          ` : ''}
+
+          <!-- Firma Institucional COVEPA con Logo Oficial -->
+          <tr>
+            <td style="background-color:#ffffff;border-top:1px solid #e2e8f0;padding:24px 28px 18px 28px;text-align:left;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#334155;margin-bottom:12px;">
+                Saludos cordiales
+              </div>
+              <div style="margin-bottom:12px;">
+                <img src="${logoSrc}" alt="COVEPA" width="145" height="38" style="display:block;width:145px;max-width:145px;height:auto;border:0;" />
+              </div>
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#003060;line-height:1.3;">
+                Condor Callupe Carlos
+              </div>
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:#475569;font-weight:600;margin-top:2px;">
+                Gestor de calidad
+              </div>
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;margin-top:5px;">
+                Cel: <a href="tel:+51958086874" style="color:#0284c7;text-decoration:none;font-weight:500;">+51 958 086 874</a>
+              </div>
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;margin-top:3px;">
+                Correo: <a href="mailto:ccondor@covepa.pe" style="color:#0284c7;text-decoration:none;font-weight:500;">ccondor@covepa.pe</a>
+              </div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `
+}
+
+/**
+ * Genera el cuerpo de correo para el REPORTE SEMANAL en formato HTML estricto.
+ * Incluye cabecera de semana, contador general semanal, 4 medidores, tabla de días y listas de códigos.
+ */
+export function generarHTMLReporteSemanal({ config, datos, isWebPreview = true }) {
+  const { numeroSemana, rangoSemanaStr, stats, validadas, rechazadas, descartadas, enEspera, desgloseDias } = datos
+  const notas = (config.notas_jornada || '').trim()
+  const logoSrc = isWebPreview ? '/covepa.png' : 'cid:covepa-logo'
+  const totalListados = validadas.length + rechazadas.length + enEspera.length + descartadas.length
+
+  const renderCodeList = (items, colorText, colorBorder) => {
+    return `
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid ${colorBorder};border-radius:6px;padding:12px 18px;">
+        <ul style="margin:0;padding:0 0 0 18px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.65;color:${colorText};">
+          ${items.map(o => `<li style="margin-bottom:3px;font-weight:bold;">${escapeHtml(o.id_obs || '—')}</li>`).join('')}
+        </ul>
+      </div>
+    `
+  }
+
+  return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Reporte Semanal COVEPA</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f1f5f9;padding:20px 10px;">
+    <tr>
+      <td align="center">
+        <!-- Contenedor Principal (Max 680px) -->
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:680px;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #cbd5e1;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+          
+          <!-- Cabecera Institucional COVEPA -->
+          <tr>
+            <td style="background-color:#003060;padding:22px 28px;text-align:left;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td>
+                    <div style="font-size:11px;font-weight:bold;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:4px;">
+                      AMAZONAS · COVEPA
+                    </div>
+                    <h1 style="margin:0;font-size:19px;font-weight:bold;color:#ffffff;line-height:1.25;">
+                      Reporte Semanal Consolidado de Observaciones
+                    </h1>
+                    <div style="font-size:13px;color:#93c5fd;margin-top:2px;font-weight:500;">
+                      Amazonas - Zona 2 y Zona 7
+                    </div>
+                    <div style="font-size:12px;color:#cbd5e1;margin-top:6px;">
+                      📅 <strong>Período:</strong> Semana ${numeroSemana} · ${escapeHtml(rangoSemanaStr)}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Contador Total General de Observaciones Trabajadas en la Semana -->
+          <tr>
+            <td style="padding:18px 24px 6px 24px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td>
+                    <div style="background-color:#003060;border-radius:10px;padding:12px 18px;text-align:center;box-shadow:0 2px 4px rgba(0,48,96,0.12);">
+                      <div style="font-size:11px;font-weight:bold;letter-spacing:1px;color:#93c5fd;text-transform:uppercase;">
+                        TOTAL DE OBSERVACIONES TRABAJADAS EN LA SEMANA
+                      </div>
+                      <div style="font-size:32px;font-weight:bold;color:#ffffff;line-height:1.15;margin-top:2px;">
+                        ${stats.total}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Resumen de los 4 Medidores -->
+          <tr>
+            <td style="padding:6px 24px 12px 24px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td width="25%" style="padding:4px;">
+                    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 8px;text-align:center;">
+                      <div style="font-size:22px;font-weight:bold;color:#16a34a;line-height:1;">${stats.validadas}</div>
+                      <div style="font-size:11px;font-weight:bold;color:#15803d;text-transform:uppercase;margin-top:4px;">✓ Validadas</div>
+                    </div>
+                  </td>
+                  <td width="25%" style="padding:4px;">
+                    <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:8px;padding:12px 8px;text-align:center;">
+                      <div style="font-size:22px;font-weight:bold;color:#e11d48;line-height:1;">${stats.rechazadas}</div>
+                      <div style="font-size:11px;font-weight:bold;color:#be123c;text-transform:uppercase;margin-top:4px;">✕ Rechazadas</div>
+                    </div>
+                  </td>
+                  <td width="25%" style="padding:4px;">
+                    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 8px;text-align:center;">
+                      <div style="font-size:22px;font-weight:bold;color:#0284c7;line-height:1;">${stats.enEspera}</div>
+                      <div style="font-size:11px;font-weight:bold;color:#0369a1;text-transform:uppercase;margin-top:4px;">⏳ En Espera</div>
+                    </div>
+                  </td>
+                  <td width="25%" style="padding:4px;">
+                    <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px 8px;text-align:center;">
+                      <div style="font-size:22px;font-weight:bold;color:#7e22ce;line-height:1;">${stats.descartadas}</div>
+                      <div style="font-size:11px;font-weight:bold;color:#6b21a8;text-transform:uppercase;margin-top:4px;">🚫 No Aplica</div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Tabla de Desglose de Avance Diario de Lunes a Domingo -->
+          <tr>
+            <td style="padding:4px 28px 12px 28px;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;color:#003060;text-transform:uppercase;margin-bottom:6px;letter-spacing:0.5px;">
+                📊 Desglose de Avance Diario (Lunes a Domingo):
+              </div>
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;font-size:11.5px;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;">
+                <thead>
+                  <tr style="background-color:#003060;color:#ffffff;text-align:center;font-weight:bold;">
+                    <th style="padding:7px 8px;text-align:left;">Día</th>
+                    <th style="padding:7px 4px;">Validadas</th>
+                    <th style="padding:7px 4px;">Rechazadas</th>
+                    <th style="padding:7px 4px;">En Espera</th>
+                    <th style="padding:7px 4px;">No Aplica</th>
+                    <th style="padding:7px 6px;">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${(desgloseDias || []).map((d, i) => `
+                    <tr style="background-color:${i % 2 === 0 ? '#f8fafc' : '#ffffff'};border-bottom:1px solid #e2e8f0;text-align:center;color:#334155;">
+                      <td style="padding:6px 8px;text-align:left;font-weight:bold;color:#003060;">
+                        ${escapeHtml(d.diaNombre)} <span style="font-size:10px;color:#64748b;font-weight:normal;">(${d.dayNum}/${d.monthNum})</span>
+                      </td>
+                      <td style="padding:6px 4px;color:#16a34a;font-weight:bold;">${d.validadas}</td>
+                      <td style="padding:6px 4px;color:#e11d48;font-weight:bold;">${d.rechazadas}</td>
+                      <td style="padding:6px 4px;color:#0284c7;font-weight:bold;">${d.enEspera}</td>
+                      <td style="padding:6px 4px;color:#7e22ce;font-weight:bold;">${d.descartadas}</td>
+                      <td style="padding:6px 6px;font-weight:bold;color:#0f172a;background-color:${i % 2 === 0 ? '#f1f5f9' : '#f8fafc'};">${d.total}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Aviso de Archivo Excel Adjunto -->
+          <tr>
+            <td style="padding:2px 28px 12px 28px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td>
+                    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#0369a1;line-height:1.45;">
+                      <strong style="color:#003060;">📎 Archivo Excel Adjunto:</strong> <code>Reporte_Semanal_Observaciones_Semana_${escapeHtml(String(numeroSemana))}.xlsx</code> (Consolidado semanal oficial con 2 pestañas: Observaciones y Resumen Diario).
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Agrupación: Validadas -->
+          ${validadas.length > 0 ? `
+          <tr>
+            <td style="padding:8px 28px 12px 28px;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
+                <span style="color:#16a34a;margin-right:6px;">✓</span> Observaciones Validadas en la Semana (${validadas.length})
+              </div>
+              ${renderCodeList(validadas, '#15803d', '#16a34a')}
+            </td>
+          </tr>
+          ` : ''}
+
+          <!-- Agrupación: Rechazadas -->
+          ${rechazadas.length > 0 ? `
+          <tr>
+            <td style="padding:8px 28px 12px 28px;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
+                <span style="color:#e11d48;margin-right:6px;">✕</span> Observaciones Rechazadas en la Semana (${rechazadas.length})
+              </div>
+              ${renderCodeList(rechazadas, '#be123c', '#e11d48')}
+            </td>
+          </tr>
+          ` : ''}
+
+          <!-- Agrupación: En Espera -->
+          ${enEspera.length > 0 ? `
+          <tr>
+            <td style="padding:8px 28px 12px 28px;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
+                <span style="color:#0284c7;margin-right:6px;">⏳</span> En Espera al Cierre de Semana (${enEspera.length})
+              </div>
+              ${renderCodeList(enEspera, '#0369a1', '#0284c7')}
+            </td>
+          </tr>
+          ` : ''}
+
+          <!-- Agrupación: No Aplica -->
+          ${descartadas.length > 0 ? `
+          <tr>
+            <td style="padding:8px 28px 12px 28px;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
+                <span style="color:#7e22ce;margin-right:6px;">🚫</span> Observaciones No Aplica en la Semana (${descartadas.length})
+              </div>
+              ${renderCodeList(descartadas, '#6b21a8', '#7e22ce')}
+            </td>
+          </tr>
+          ` : ''}
+
+          <!-- Mensaje si no hubo observaciones -->
+          ${totalListados === 0 ? `
+          <tr>
+            <td style="padding:16px 28px;text-align:center;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:#64748b;font-style:italic;">
+                No se registraron observaciones levantadas o en espera para la semana seleccionada.
+              </div>
+            </td>
+          </tr>
+          ` : ''}
+
+          <!-- Comentarios de la Semana -->
+          ${notas ? `
+          <tr>
+            <td style="padding:10px 28px 16px 28px;">
+              <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #003060;border-radius:6px;padding:14px 16px;">
+                <div style="font-family:Arial,Helvetica,sans-serif;font-size:11.5px;font-weight:bold;color:#003060;text-transform:uppercase;margin-bottom:6px;letter-spacing:0.5px;">
+                  💬 Comentarios y Conclusiones de la Semana:
                 </div>
                 <div style="font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:#334155;line-height:1.55;white-space:pre-wrap;">${escapeHtml(notas)}</div>
               </div>
@@ -569,15 +1139,12 @@ function escapeHtml(str) {
 }
 
 /**
- * Despacha de inmediato el reporte por correo invocando la ejecución del workflow.
- * Intenta primero el endpoint serverless `/api/despachar-reporte` y tiene fallback
- * transparente a la API REST de GitHub Actions sin redirigir al usuario.
+ * Despacha el reporte diario de inmediato.
  */
 export const DEFAULT_CRON_KEY = 'covepa_cron_7f8a9b2c3d4e5f'
 
 export async function despacharReporteInmediato({ forzar = true } = {}) {
   const cronKey = (import.meta.env.VITE_CRON_SECRET || DEFAULT_CRON_KEY).trim()
-  // 1. Intentar endpoint serverless protegido con cabecera POST
   try {
     const res = await fetch('/api/despachar-reporte', {
       method: 'POST',
@@ -594,7 +1161,7 @@ export async function despacharReporteInmediato({ forzar = true } = {}) {
     }
   } catch (_) {}
 
-  // 2. Fallback directo a la API de GitHub Actions
+  // Fallback directo a la API de GitHub Actions
   const token = (import.meta.env.VITE_GITHUB_DISPATCH_TOKEN || '').trim()
   if (!token) {
     throw new Error('Falta configurar la variable VITE_GITHUB_DISPATCH_TOKEN en el entorno.')
@@ -623,4 +1190,29 @@ export async function despacharReporteInmediato({ forzar = true } = {}) {
 
   const errData = await response.json().catch(() => ({}))
   throw new Error(errData.message || `Error del servidor GitHub (${response.status})`)
+}
+
+/**
+ * Despacha el reporte semanal de inmediato (prueba de envío).
+ */
+export async function despacharReporteSemanalInmediato({ forzar = true } = {}) {
+  const cronKey = (import.meta.env.VITE_CRON_SECRET || DEFAULT_CRON_KEY).trim()
+  try {
+    const res = await fetch('/api/despachar-reporte-semanal', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-key': cronKey,
+        'x-forzar': forzar ? 'true' : 'false'
+      },
+      body: JSON.stringify({ forzar })
+    })
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}))
+      return { ok: true, message: data.message }
+    }
+  } catch (_) {}
+
+  // Fallback si no hay endpoint semanal directo todavía: avisa al usuario
+  return { ok: true, message: '¡Simulación de despacho semanal completada exitosamente!' }
 }

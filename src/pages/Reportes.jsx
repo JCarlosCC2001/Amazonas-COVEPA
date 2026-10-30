@@ -523,8 +523,22 @@ export default function Reportes() {
                 </a>
               </div>
               <p className="t-meta" style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                Para evitar discrepancias y asegurar que el reporte se despache puntual aunque tengas la computadora apagada, el horario se administra directamente en el reloj de <strong>cron-job.org</strong>. Haz clic en el botón para ajustar la hora de disparo nocturno.
+                Para evitar discrepancias y asegurar que el reporte se despache puntual aunque tengas la computadora apagada, el horario se administra directamente en <strong>cron-job.org</strong>. La URL está protegida con clave secreta para que nadie ajeno pueda dispararla.
               </p>
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                padding: '0.45rem 0.75rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.2rem'
+              }}>
+                <span className="t-meta" style={{ color: '#475569', fontWeight: 'var(--fw-semibold)' }}>URL protegida para tu tarea en cron-job.org:</span>
+                <code style={{ fontSize: 'var(--text-xs)', color: '#003060', wordBreak: 'break-all', fontFamily: 'var(--font-mono)' }}>
+                  https://amazonas-covepa.vercel.app/api/despachar-reporte?key=covepa_cron_7f8a9b2c3d4e5f
+                </code>
+              </div>
             </div>
           </div>
 

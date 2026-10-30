@@ -1,15 +1,15 @@
 /**
  * Endpoint Serverless de Despacho Inmediato de Reportes
  * Proyecto: Amazonas - COVEPA
- * Permite invocar la ejecución del reporte diario sin redirigir al usuario
- * y sirve además como webhook cloud para servicios de cron como cron-job.org.
+ * Protegido mediante clave secreta (?key=... o header x-cron-key)
+ * para evitar ejecuciones no autorizadas de terceros o bots.
  */
 
 export default async function handler(req, res) {
   // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-cron-key')
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
@@ -19,6 +19,28 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido. Use POST o GET.' })
   }
 
+  // 1. Validación de Seguridad (Clave Secreta)
+  const expectedSecret = (process.env.CRON_SECRET || 'covepa_cron_7f8a9b2c3d4e5f').trim()
+  let providedKey = ''
+
+  try {
+    const urlObj = new URL(req.url, `https://${req.headers.host || 'localhost'}`)
+    providedKey = urlObj.searchParams.get('key') || ''
+  } catch (_) {}
+
+  if (!providedKey) {
+    providedKey = (req.query?.key ||
+                   req.headers['x-cron-key'] ||
+                   (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '') || '').trim()
+  }
+
+  if (!providedKey || providedKey !== expectedSecret) {
+    return res.status(401).json({
+      error: 'No autorizado. Se requiere una clave de seguridad válida (?key=...).'
+    })
+  }
+
+  // 2. Token de GitHub Actions
   const token = (process.env.GITHUB_DISPATCH_TOKEN ||
                  process.env.VITE_GITHUB_DISPATCH_TOKEN || '').trim()
 

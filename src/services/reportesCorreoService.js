@@ -392,12 +392,18 @@ function escapeHtml(str) {
  * Intenta primero el endpoint serverless `/api/despachar-reporte` y tiene fallback
  * transparente a la API REST de GitHub Actions sin redirigir al usuario.
  */
+export const DEFAULT_CRON_KEY = 'covepa_cron_7f8a9b2c3d4e5f'
+
 export async function despacharReporteInmediato() {
-  // 1. Intentar endpoint serverless
+  const cronKey = (import.meta.env.VITE_CRON_SECRET || DEFAULT_CRON_KEY).trim()
+  // 1. Intentar endpoint serverless con clave de seguridad
   try {
-    const res = await fetch('/api/despachar-reporte', {
+    const res = await fetch(`/api/despachar-reporte?key=${cronKey}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-key': cronKey
+      }
     })
     if (res.ok) {
       const data = await res.json().catch(() => ({}))

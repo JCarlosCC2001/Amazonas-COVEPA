@@ -375,7 +375,7 @@ export async function getAvancePorFecha(fechaStr) {
         tecnico: nombreTecnico,
         cuadrilla: cuadrillaTecnico,
         estado: estadoNormalizado,
-        revisor: isPendingReview ? (o.revisor || 'En proceso') : (o.revisor || 'Sin revisor'),
+        revisor: (o.revisor && o.revisor.trim()) ? o.revisor.trim() : null,
         fecha_subsanacion: isPendingReview ? (o.fecha_subsanacion || 'Pendiente') : o.fecha_subsanacion,
         detalle: o.detalle,
         subsistema: o.subsistema,

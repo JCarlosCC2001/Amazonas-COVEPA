@@ -235,9 +235,13 @@ export async function exportarExcelReporteDiario(datos) {
   const tableRows = allRows.map(r => {
     let estadoDisplay = r.estado || 'Validado'
     if (estadoDisplay === 'Descartado') estadoDisplay = 'No Aplica'
-    const revisorFinal = (r.revisor && r.revisor.trim() && r.revisor.trim().toLowerCase() !== 'sin revisor')
-      ? r.revisor.trim()
-      : '-'
+    const revRaw = (r.revisor || '').trim()
+    const isSinRevisor = !revRaw ||
+      revRaw.toLowerCase() === 'sin revisor' ||
+      revRaw.toLowerCase() === 'en proceso' ||
+      revRaw.toLowerCase() === 'pendiente' ||
+      revRaw === '-'
+    const revisorFinal = isSinRevisor ? '-' : revRaw
 
     return [
       r.id_obs || '',

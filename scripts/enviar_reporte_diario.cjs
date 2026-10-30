@@ -939,19 +939,24 @@ async function main() {
 
   console.log(`[CRON-REPORTE] ✅ Correo entregado con éxito! MessageId: ${info.messageId}`)
 
-  // 12. Actualizar ultimo_envio_at en Supabase
-  try {
-    const { error: updErr } = await supabase
-      .from('configuracion_reportes_correo')
-      .update({ ultimo_envio_at: new Date().toISOString() })
-      .eq('id', 'config_diario')
+  // 12. Actualizar ultimo_envio_at en Supabase (Solo en envíos automáticos programados)
+  // Las pruebas manuales forzadas no bloquean el despacho nocturno oficial de la jornada.
+  if (!forzarEnvio) {
+    try {
+      const { error: updErr } = await supabase
+        .from('configuracion_reportes_correo')
+        .update({ ultimo_envio_at: new Date().toISOString() })
+        .eq('id', 'config_diario')
 
-    if (updErr) {
-      console.warn('[CRON-REPORTE] ⚠️ Aviso al actualizar ultimo_envio_at en Supabase:', updErr.message)
-    } else {
-      console.log('[CRON-REPORTE] 📝 Base de datos actualizada con la marca de tiempo de envío.')
-    }
-  } catch (_) {}
+      if (updErr) {
+        console.warn('[CRON-REPORTE] ⚠️ Aviso al actualizar ultimo_envio_at en Supabase:', updErr.message)
+      } else {
+        console.log('[CRON-REPORTE] 📝 Base de datos actualizada con la marca de tiempo de envío programado.')
+      }
+    } catch (_) {}
+  } else {
+    console.log('[CRON-REPORTE] 🧪 Envío de prueba manual completado con éxito. El despacho automático nocturno queda intacto y listo para ejecutarse.')
+  }
 
   console.log(`[CRON-REPORTE] 🏁 Proceso finalizado satisfactoriamente.`)
 }

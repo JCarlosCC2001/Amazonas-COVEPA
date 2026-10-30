@@ -611,11 +611,19 @@ async function main() {
     ? subjectTemplate.replace(/\{fecha\}/gi, targetFechaIso)
     : subjectTemplate
 
-  // Helper para renderizar observaciones agrupadas en fila limpia sin recuadros individuales
+  // Helper para renderizar observaciones agrupadas en lista vertical (de arriba a abajo)
   const renderCodeList = (items, colorText, colorBorder, bgLight = '#f8fafc') => {
     return `
-      <div style="background-color:${bgLight};border:1px solid ${colorBorder};border-radius:6px;padding:12px 18px;font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:bold;color:${colorText};line-height:1.65;">
-        ${items.map(o => escapeHtml(o.id_obs || '—')).join('<span style="color:#94a3b8;font-weight:normal;margin:0 8px;">·</span>')}
+      <div style="background-color:${bgLight};border:1px solid ${colorBorder};border-radius:6px;padding:10px 16px;">
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+          ${items.map(o => `
+            <tr>
+              <td style="padding:3px 0;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:${colorText};line-height:1.5;white-space:nowrap;">
+                <span style="color:${colorText};margin-right:8px;font-size:13px;line-height:1;">•</span>${escapeHtml(o.id_obs || '—')}
+              </td>
+            </tr>
+          `).join('')}
+        </table>
       </div>
     `
   }

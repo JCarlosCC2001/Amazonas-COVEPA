@@ -4,6 +4,7 @@ import {
   fetchConfiguracionReporte,
   saveConfiguracionReporte,
   fetchDatosReporteDiario,
+  despacharReporteInmediato,
   generarHTMLReporte
 } from '../services/reportesCorreoService'
 import { fetchPersonal, updatePersonal } from '../services/personalService'
@@ -16,6 +17,7 @@ export default function Reportes() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [despachando, setDespachando] = useState(false)
   const [refreshingData, setRefreshingData] = useState(false)
   const [toast, setToast] = useState(null)
 
@@ -207,6 +209,20 @@ export default function Reportes() {
     }
   }
 
+  // Despacho directo del reporte de prueba sin salir de la pantalla
+  const handleDespacharPrueba = async () => {
+    if (despachando) return
+    setDespachando(true)
+    try {
+      await despacharReporteInmediato()
+      showNotification("¡Envío de prueba iniciado! El correo llegará a tu bandeja en unos segundos.", "success")
+    } catch (err) {
+      console.error("Error despachando reporte:", err)
+      showNotification("Error al despachar el reporte: " + err.message, "error")
+    } finally {
+      setDespachando(false)
+    }
+  }
   // Guardar configuración general del reporte
   const handleGuardar = async () => {
     if (config.destinatarios.length === 0) {
@@ -327,28 +343,30 @@ export default function Reportes() {
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <a
-            href="https://github.com/JCarlosCC2001/Amazonas-COVEPA/actions/workflows/reporte-diario.yml"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={handleDespacharPrueba}
+            disabled={despachando || saving}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.45rem',
               padding: '0.55rem 0.95rem',
-              background: '#0284c7',
+              background: despachando ? '#64748b' : '#0284c7',
               color: '#ffffff',
+              border: 'none',
               borderRadius: '8px',
-              textDecoration: 'none',
+              cursor: despachando ? 'not-allowed' : 'pointer',
               fontWeight: 'var(--fw-semibold)',
               fontSize: 'var(--text-body)',
-              boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
+              boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+              transition: 'all 0.2s ease'
             }}
-            title="Abrir consola de GitHub Actions para despachar un envío inmediato con un solo clic"
+            title="Enviar inmediatamente el reporte por correo a los destinatarios configurados"
           >
-            <span>🚀</span>
-            <span>Despachar Envío de Prueba</span>
-          </a>
+            <span>{despachando ? '⏳' : '🚀'}</span>
+            <span>{despachando ? 'Despachando Correo...' : 'Enviar Reporte de Prueba'}</span>
+          </button>
           <button
             type="button"
             className="btn-reporte-save"

@@ -385,3 +385,53 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
 }
+
+
+/**
+ * Despacha de inmediato el reporte por correo invocando la ejecución del workflow.
+ * Intenta primero el endpoint serverless `/api/despachar-reporte` y tiene fallback
+ * transparente a la API REST de GitHub Actions sin redirigir al usuario.
+ */
+export async function despacharReporteInmediato() {
+  // 1. Intentar endpoint serverless
+  try {
+    const res = await fetch('/api/despachar-reporte', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}))
+      return { ok: true, message: data.message }
+    }
+  } catch (_) {}
+
+  // 2. Fallback directo a la API de GitHub Actions
+  const token = (import.meta.env.VITE_GITHUB_DISPATCH_TOKEN || '').trim()
+  if (!token) {
+    throw new Error('Falta configurar la variable VITE_GITHUB_DISPATCH_TOKEN en el entorno.')
+  }
+  const repo = 'JCarlosCC2001/Amazonas-COVEPA'
+  const url = `https://api.github.com/repos/${repo}/actions/workflows/reporte-diario.yml/dispatches`
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      ref: 'main',
+      inputs: {
+        manual_run: 'true'
+      }
+    })
+  })
+
+  if (response.status === 204 || response.ok) {
+    return { ok: true, message: '¡Reporte despachado exitosamente!' }
+  }
+
+  const errData = await response.json().catch(() => ({}))
+  throw new Error(errData.message || `Error del servidor GitHub (${response.status})`)
+}

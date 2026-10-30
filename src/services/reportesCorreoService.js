@@ -396,9 +396,9 @@ export const DEFAULT_CRON_KEY = 'covepa_cron_7f8a9b2c3d4e5f'
 
 export async function despacharReporteInmediato() {
   const cronKey = (import.meta.env.VITE_CRON_SECRET || DEFAULT_CRON_KEY).trim()
-  // 1. Intentar endpoint serverless con clave de seguridad
+  // 1. Intentar endpoint serverless protegido con cabecera POST
   try {
-    const res = await fetch(`/api/despachar-reporte?key=${cronKey}`, {
+    const res = await fetch('/api/despachar-reporte', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

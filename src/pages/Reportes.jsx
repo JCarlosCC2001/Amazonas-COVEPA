@@ -529,15 +529,20 @@ export default function Reportes() {
                 background: '#ffffff',
                 border: '1px solid #cbd5e1',
                 borderRadius: '6px',
-                padding: '0.45rem 0.75rem',
+                padding: '0.55rem 0.85rem',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.2rem'
+                gap: '0.35rem'
               }}>
-                <span className="t-meta" style={{ color: '#475569', fontWeight: 'var(--fw-semibold)' }}>URL protegida para tu tarea en cron-job.org:</span>
-                <code style={{ fontSize: 'var(--text-xs)', color: '#003060', wordBreak: 'break-all', fontFamily: 'var(--font-mono)' }}>
-                  https://amazonas-covepa.vercel.app/api/despachar-reporte?key=covepa_cron_7f8a9b2c3d4e5f
-                </code>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                  <span className="t-meta" style={{ color: '#003060', fontWeight: 'var(--fw-bold)' }}>Configuración requerida en cron-job.org:</span>
+                  <span className="t-badge" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>🔒 Solo POST + Cabecera Oculta</span>
+                </div>
+                <div className="t-meta" style={{ color: '#334155' }}>
+                  • <strong>URL:</strong> <code style={{ color: '#003060', fontFamily: 'var(--font-mono)' }}>https://amazonas-covepa.vercel.app/api/despachar-reporte</code><br/>
+                  • <strong>Método de solicitud:</strong> <code style={{ color: '#003060', fontFamily: 'var(--font-mono)' }}>POST</code> (bloquea visitas accidentales de navegadores)<br/>
+                  • <strong>Cabecera (Header):</strong> <code style={{ color: '#003060', fontFamily: 'var(--font-mono)' }}>x-cron-key: covepa_cron_7f8a9b2c3d4e5f</code>
+                </div>
               </div>
             </div>
           </div>

@@ -89,6 +89,7 @@ async function main() {
   const isManualRun = process.env.IS_MANUAL_RUN === 'true' ||
                       process.env.IS_MANUAL_RUN === true ||
                       process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
+  const forzarEnvio = process.env.FORZAR_ENVIO === 'true' || process.env.FORZAR_ENVIO === true
 
   console.log(`[CRON-REPORTE] 🚀 Iniciando verificación de reporte diario COVEPA.`)
   console.log(`[CRON-REPORTE] 🕒 Hora actual Perú: ${horaMinuto} · Fecha: ${fechaIso} | Modo: ${isManualRun ? 'MANUAL FORZADO' : 'PROGRAMADO'}`)
@@ -158,9 +159,11 @@ async function main() {
     return
   }
 
-  // 4.2 Evitar envíos duplicados en la misma fecha (solo en modo programado)
-  // Se autoriza el reenvío si la configuración se actualizó después del último envío (ej. el usuario reprogramó la hora o notas)
-  if (!isManualRun && config.ultimo_envio_at) {
+  // 4.2 Regla Estricta: MÁXIMO 1 CORREO AL DÍA
+  // Solo se autoriza reenvío si:
+  // a) Es prueba manual forzada (forzarEnvio === true)
+  // b) O la configuración se actualizó después del último envío (updated_at > ultimo_envio_at)
+  if (!forzarEnvio && config.ultimo_envio_at) {
     const ultimoEnvioPeruDate = getPeruDateString(config.ultimo_envio_at)
     const configUpdateTime = config.updated_at ? new Date(config.updated_at).getTime() : 0
     const ultimoEnvioTime = new Date(config.ultimo_envio_at).getTime()

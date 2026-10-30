@@ -7,10 +7,10 @@ on:
     - cron: '*/10 * * * *'
   workflow_dispatch:
     inputs:
-      manual_run:
-        description: 'Forzar envío inmediato ignorando la hora'
+      forzar:
+        description: 'Forzar reenvío ignorando si ya se envió hoy'
         required: false
-        default: 'true'
+        default: 'false'
 
 jobs:
   enviar-reporte:
@@ -36,4 +36,5 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           IS_MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' }}
+          FORZAR_ENVIO: ${{ github.event.inputs.forzar == 'true' }}
         run: node scripts/enviar_reporte_diario.cjs

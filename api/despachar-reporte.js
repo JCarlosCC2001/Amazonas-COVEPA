@@ -2,17 +2,17 @@
  * Endpoint Serverless de Despacho Inmediato de Reportes
  * Proyecto: Amazonas - COVEPA
  * 
- * SEGURIDAD ESTRICTA:
- * - Solo acepta peticiones POST (bloquea completamente cualquier visita desde navegadores web).
+ * SEGURIDAD Y CONTROL DE DISPARO:
+ * - Solo acepta peticiones POST (bloquea visitas de navegadores).
  * - Exige autenticación vía cabecera HTTP oculta (x-cron-key).
- * - Ninguna clave viaja visible en la URL.
+ * - Control de duplicados: Máximo 1 correo por día (a menos que se envíe forzar=true).
  */
 
 export default async function handler(req, res) {
   // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-cron-key')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-cron-key, x-forzar')
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
@@ -49,6 +49,10 @@ export default async function handler(req, res) {
   const repo = 'JCarlosCC2001/Amazonas-COVEPA'
   const url = `https://api.github.com/repos/${repo}/actions/workflows/reporte-diario.yml/dispatches`
 
+  // Si la petición viene con forzar=true (ej: botón prueba en la app web), fuerza el reenvío
+  const forzarParam = (req.headers['x-forzar'] === 'true' ||
+                       (req.body && req.body.forzar === true))
+
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -61,7 +65,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         ref: 'main',
         inputs: {
-          manual_run: 'true'
+          forzar: forzarParam ? 'true' : 'false'
         }
       })
     })

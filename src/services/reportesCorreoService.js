@@ -394,7 +394,7 @@ function escapeHtml(str) {
  */
 export const DEFAULT_CRON_KEY = 'covepa_cron_7f8a9b2c3d4e5f'
 
-export async function despacharReporteInmediato() {
+export async function despacharReporteInmediato({ forzar = true } = {}) {
   const cronKey = (import.meta.env.VITE_CRON_SECRET || DEFAULT_CRON_KEY).trim()
   // 1. Intentar endpoint serverless protegido con cabecera POST
   try {
@@ -402,8 +402,10 @@ export async function despacharReporteInmediato() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-cron-key': cronKey
-      }
+        'x-cron-key': cronKey,
+        'x-forzar': forzar ? 'true' : 'false'
+      },
+      body: JSON.stringify({ forzar })
     })
     if (res.ok) {
       const data = await res.json().catch(() => ({}))

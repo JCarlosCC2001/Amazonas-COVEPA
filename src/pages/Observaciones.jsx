@@ -582,6 +582,28 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
 // ────────────────────────────────────────────────────────────
 // VISTA AGRUPADA POR SITIO — LAZY LOADING por acordeón
 // ────────────────────────────────────────────────────────────
+// Componente reutilizable para cabeceras ordenables
+function TableHeaderSortable({ label, field, currentField, currentDirection, onSort, className = '', align = 'left' }) {
+  const isSorted = currentField === field
+  const isAsc = currentDirection === 'asc'
+
+  return (
+    <th
+      className={`${className} th-sortable ${isSorted ? 'is-sorted' : ''}`}
+      onClick={() => onSort(field)}
+      style={{ textAlign: align }}
+      title={`Ordenar por ${label} (${isSorted ? (isAsc ? 'Mayor a menor Z-A / 9-1' : 'Menor a mayor A-Z / 1-9') : 'Clic para ordenar A-Z'})`}
+    >
+      <div className={`sort-header-inner align-${align}`}>
+        <span>{label}</span>
+        <span className={`sort-indicator ${isSorted ? 'active' : 'inactive'}`}>
+          {isSorted ? (isAsc ? '▲' : '▼') : '↕'}
+        </span>
+      </div>
+    </th>
+  )
+}
+
 function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOptions = [] }) {
   const [isOpen, setIsOpen] = useState(false)
   const [obsData, setObsData] = useState(null)
@@ -874,6 +896,19 @@ export default function Observaciones() {
   const [page, setPage] = useState(1)
   const pageSize = 20
 
+  // Ordenamiento interactivo por cabeceras de columna
+  const [sortField, setSortField] = useState('codigo') // 'codigo' | 'cuadrilla' | 'sitio' | 'localidad' | 'zona' | 'estado' | 'fecha' | 'revisor' | 'demora'
+  const [sortDirection, setSortDirection] = useState('asc') // 'asc' | 'desc'
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
   const searchTimeout = useRef(null)
 
   // Sincronizar parámetros de URL provenientes de notificaciones
@@ -925,7 +960,13 @@ export default function Observaciones() {
     setLoading(true)
     setError(null)
     try {
-      const result = await fetchObservaciones({ ...filtrosActivos, page: currentPage, pageSize })
+      const result = await fetchObservaciones({
+        ...filtrosActivos,
+        page: currentPage,
+        pageSize,
+        sortBy: sortField,
+        sortOrder: sortDirection
+      })
       setObservaciones(result.data)
       setTotalCount(result.count)
 
@@ -974,6 +1015,7 @@ export default function Observaciones() {
     }
   }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla, filtroDemora])
   useEffect(() => { if (vista === 'tabla' && page > 1) loadData() }, [page])
+  useEffect(() => { if (vista === 'tabla') loadData(false) }, [sortField, sortDirection])
   // Los medidores son métricas globales del proyecto y NO se alteran al aplicar filtros
   useEffect(() => { loadKpis() }, [loadKpis])
   useEffect(() => { loadAgrupada() }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla, filtroDemora])
@@ -1033,13 +1075,81 @@ export default function Observaciones() {
     }
   }
 
+  const observacionesOrdenadas = useMemo(() => {
+    if (!observaciones || observaciones.length === 0) return []
+    const list = [...observaciones]
+    const dir = sortDirection === 'asc' ? 1 : -1
+
+    return list.sort((a, b) => {
+      const sInfoA = sitiosMap[a.id_sitio] || {}
+      const sInfoB = sitiosMap[b.id_sitio] || {}
+
+      switch (sortField) {
+        case 'codigo': {
+          const valA = a.id_obs || ''
+          const valB = b.id_obs || ''
+          return dir * valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
+        }
+        case 'cuadrilla': {
+          const valA = sInfoA.cuadrilla || ''
+          const valB = sInfoB.cuadrilla || ''
+          return dir * valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
+        }
+        case 'sitio': {
+          const valA = a.id_sitio || ''
+          const valB = b.id_sitio || ''
+          return dir * valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
+        }
+        case 'localidad': {
+          const valA = sInfoA.localidad || ''
+          const valB = sInfoB.localidad || ''
+          return dir * valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
+        }
+        case 'zona': {
+          const valA = sInfoA.zona || ''
+          const valB = sInfoB.zona || ''
+          return dir * valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
+        }
+        case 'estado': {
+          const valA = a.estado_covepa || 'Pendiente'
+          const valB = b.estado_covepa || 'Pendiente'
+          return dir * valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
+        }
+        case 'fecha': {
+          const valA = a.fecha_subsanacion || ''
+          const valB = b.fecha_subsanacion || ''
+          if (!valA && !valB) return 0
+          if (!valA) return 1
+          if (!valB) return -1
+          return dir * (new Date(valA) - new Date(valB))
+        }
+        case 'revisor': {
+          const valA = a.revisor || a.validado_por || ''
+          const valB = b.revisor || b.validado_por || ''
+          if (!valA && !valB) return 0
+          if (!valA) return 1
+          if (!valB) return -1
+          return dir * valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
+        }
+        case 'demora': {
+          const hasDemoraA = Boolean(a.justificacion_demora && a.justificacion_demora.trim()) ? 1 : 0
+          const hasDemoraB = Boolean(b.justificacion_demora && b.justificacion_demora.trim()) ? 1 : 0
+          return dir * (hasDemoraB - hasDemoraA)
+        }
+        default:
+          return 0
+      }
+    })
+  }, [observaciones, sortField, sortDirection, sitiosMap])
+
   const totalPages = Math.ceil(totalCount / pageSize) || 1
   const totalSitios = idSitio ? 1 : (filtros.sitios?.length || 156)
 
   return (
     <div className="obs-container">
-      {/* ── MEDIDORES / KPIs REUTILIZABLES COVEPA (7 MÉTRICAS OPERATIVAS) ── */}
-      <MetricGrid columns={7}>
+      {/* ── ZONA FIJA SUPERIOR: MEDIDORES + TOOLBAR + ERROR (PÁGINA ESTÁTICA) ── */}
+      <div className="obs-fixed-top">
+        <MetricGrid columns={7}>
         <MetricCard
           icon={<ClipboardList size={22} />}
           label="Total Observaciones"
@@ -1240,10 +1350,11 @@ export default function Observaciones() {
         </div>
       </div>
 
-      {/* ── Error ── */}
-      {error && (
-        <div className="sitios-error-banner"><AlertCircle size={18}/> {error}</div>
-      )}
+        {/* ── Error ── */}
+        {error && (
+          <div className="sitios-error-banner"><AlertCircle size={18}/> {error}</div>
+        )}
+      </div>
 
       {/* ── Vista Agrupada o Tabla ── */}
       {vista === 'agrupada' ? (
@@ -1268,112 +1379,114 @@ export default function Observaciones() {
               <p>No se encontraron observaciones con los filtros aplicados.</p>
             </div>
           ) : (
-            <table className="sitios-table">
-              <colgroup>
-                <col className="col-obs-cod" />
-                <col className="col-obs-cuadrilla" />
-                <col className="col-obs-sitio" />
-                <col className="col-obs-localidad" />
-                <col className="col-obs-zona" />
-                <col className="col-obs-estado" />
-                <col className="col-obs-fecha" />
-                <col className="col-obs-revisor" />
-                <col className="col-obs-demora" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th className="col-obs-cod">Código</th>
-                  <th className="col-obs-cuadrilla">Cuadrilla</th>
-                  <th className="col-obs-sitio">Código de Sitio</th>
-                  <th className="col-obs-localidad">Localidad</th>
-                  <th className="col-obs-zona">Zona</th>
-                  <th className="col-obs-estado">Estado COVEPA</th>
-                  <th className="col-obs-fecha">Fecha de Revisión</th>
-                  <th className="col-obs-revisor">Revisado por</th>
-                  <th className="col-obs-demora" style={{ textAlign: 'center' }}>¿Tuvo Demora?</th>
-                </tr>
-              </thead>
-              <tbody>
-                {observaciones.map(o => {
-                  const sInfo = sitiosMap[o.id_sitio] || {}
-                  const revisorNombre = o.revisor || o.validado_por || ''
-                  return (
-                    <tr key={o.id_obs} className="sitio-row" onClick={() => setSelectedObs(o)}>
-                      <td><span className="site-code-badge">{o.id_obs}</span></td>
-                      <td>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '0.22rem 0.55rem',
-                            borderRadius: '6px',
-                            fontSize: 'var(--text-xs)',
-                            fontWeight: 'var(--fw-bold)',
-                            background: 'rgba(0, 48, 96, 0.08)',
-                            border: '1px solid rgba(0, 48, 96, 0.18)',
-                            color: '#003060',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {sInfo.cuadrilla || 'Sin Cuadrilla'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="site-code-badge" style={{ color: 'var(--accent)' }}>
-                          {o.id_sitio}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="obs-localidad-text" title={sInfo.localidad || ''}>
-                          {sInfo.localidad || '—'}
-                        </span>
-                      </td>
-                      <td>
-                        {sInfo.zona ? (
-                          <span className="obs-zona-pill">{sInfo.zona}</span>
-                        ) : (
-                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className={`estado-badge ${estadoCovepaBadge(o.estado_covepa)}`}>
-                          {o.estado_covepa || 'Pendiente'}
-                        </span>
-                      </td>
-                      <td>
-                        <span style={{ fontSize: 'var(--text-sm)', color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                          {o.fecha_subsanacion ? getPeruDateStr(o.fecha_subsanacion) : '—'}
-                        </span>
-                      </td>
-                      <td>
-                        {esRevisorGilat(revisorNombre, gilatOptions) ? (
-                          <span className="obs-revisor-pill" title={revisorNombre}>
-                            <Users size={12} color="#2563eb" style={{ flexShrink: 0 }} />
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {revisorNombre}
-                            </span>
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
-                        )}
-                      </td>
-                      <td className="cell-obs-demora" style={{ textAlign: 'center' }}>
-                        {o.justificacion_demora && o.justificacion_demora.trim() ? (
+            <div className="sitios-table-scroll">
+              <table className="sitios-table">
+                <colgroup>
+                  <col className="col-obs-cod" />
+                  <col className="col-obs-cuadrilla" />
+                  <col className="col-obs-sitio" />
+                  <col className="col-obs-localidad" />
+                  <col className="col-obs-zona" />
+                  <col className="col-obs-estado" />
+                  <col className="col-obs-fecha" />
+                  <col className="col-obs-revisor" />
+                  <col className="col-obs-demora" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <TableHeaderSortable label="Código" field="codigo" currentField={sortField} currentDirection={sortDirection} onSort={handleSort} className="col-obs-cod" align="left" />
+                    <TableHeaderSortable label="Cuadrilla" field="cuadrilla" currentField={sortField} currentDirection={sortDirection} onSort={handleSort} className="col-obs-cuadrilla" align="left" />
+                    <TableHeaderSortable label="Código de Sitio" field="sitio" currentField={sortField} currentDirection={sortDirection} onSort={handleSort} className="col-obs-sitio" align="left" />
+                    <TableHeaderSortable label="Localidad" field="localidad" currentField={sortField} currentDirection={sortDirection} onSort={handleSort} className="col-obs-localidad" align="left" />
+                    <TableHeaderSortable label="Zona" field="zona" currentField={sortField} currentDirection={sortDirection} onSort={handleSort} className="col-obs-zona" align="center" />
+                    <TableHeaderSortable label="Estado COVEPA" field="estado" currentField={sortField} currentDirection={sortDirection} onSort={handleSort} className="col-obs-estado" align="left" />
+                    <TableHeaderSortable label="Fecha de Revisión" field="fecha" currentField={sortField} currentDirection={sortDirection} onSort={handleSort} className="col-obs-fecha" align="center" />
+                    <TableHeaderSortable label="Revisado por" field="revisor" currentField={sortField} currentDirection={sortDirection} onSort={handleSort} className="col-obs-revisor" align="left" />
+                    <TableHeaderSortable label="¿Tuvo Demora?" field="demora" currentField={sortField} currentDirection={sortDirection} onSort={handleSort} className="col-obs-demora" align="center" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {observacionesOrdenadas.map(o => {
+                    const sInfo = sitiosMap[o.id_sitio] || {}
+                    const revisorNombre = o.revisor || o.validado_por || ''
+                    return (
+                      <tr key={o.id_obs} className="sitio-row" onClick={() => setSelectedObs(o)}>
+                        <td><span className="site-code-badge">{o.id_obs}</span></td>
+                        <td>
                           <span
-                            className="obs-demora-pill"
-                            title={`Justificación:\n${o.justificacion_demora}`}
+                            style={{
+                              display: 'inline-block',
+                              padding: '0.22rem 0.55rem',
+                              borderRadius: '6px',
+                              fontWeight: 'var(--fw-bold)',
+                              background: 'rgba(0, 48, 96, 0.08)',
+                              border: '1px solid rgba(0, 48, 96, 0.18)',
+                              color: '#003060',
+                              whiteSpace: 'nowrap'
+                            }}
+                            className="t-meta"
                           >
-                            <AlertTriangle size={12} color="#d97706" style={{ flexShrink: 0 }} />
-                            Tuvo Demora
+                            {sInfo.cuadrilla || 'Sin Cuadrilla'}
                           </span>
-                        ) : (
-                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                        </td>
+                        <td>
+                          <span className="site-code-badge" style={{ color: 'var(--accent)' }}>
+                            {o.id_sitio}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="obs-localidad-text" title={sInfo.localidad || ''}>
+                            {sInfo.localidad || '—'}
+                          </span>
+                        </td>
+                        <td className="cell-obs-zona">
+                          {sInfo.zona ? (
+                            <span className="obs-zona-pill">{sInfo.zona}</span>
+                          ) : (
+                            <span className="t-meta" style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          <span className={`estado-badge ${estadoCovepaBadge(o.estado_covepa)}`}>
+                            {o.estado_covepa || 'Pendiente'}
+                          </span>
+                        </td>
+                        <td className="cell-obs-fecha">
+                          <span className="t-meta" style={{ color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                            {o.fecha_subsanacion ? getPeruDateStr(o.fecha_subsanacion) : '—'}
+                          </span>
+                        </td>
+                        <td>
+                          {esRevisorGilat(revisorNombre, gilatOptions) ? (
+                            <span className="obs-revisor-pill" title={revisorNombre}>
+                              <Users size={12} color="#2563eb" style={{ flexShrink: 0 }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {revisorNombre}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="t-meta" style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                        </td>
+                        <td className="cell-obs-demora">
+                          {o.justificacion_demora && o.justificacion_demora.trim() ? (
+                            <span
+                              className="obs-demora-pill"
+                              title={`Justificación:\n${o.justificacion_demora}`}
+                            >
+                              <AlertTriangle size={12} color="#d97706" style={{ flexShrink: 0 }} />
+                              Tuvo Demora
+                            </span>
+                          ) : (
+                            <span className="t-meta" style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {/* Paginación */}

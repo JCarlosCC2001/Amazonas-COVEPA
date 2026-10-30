@@ -121,20 +121,39 @@ export async function fetchObservaciones({
   protocolo = '', 
   estadoCovepa = '', 
   idSitio = '',
+  idSitios = null,
   filtroDemora = '',
   page = 1,
-  pageSize = 20
+  pageSize = 20,
+  sortBy = 'id_obs',
+  sortOrder = 'asc'
 } = {}) {
   let query = supabase
     .from('observaciones')
     .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora', { count: 'exact' })
 
-  query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio, filtroDemora })
+  query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio, idSitios, filtroDemora })
 
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
-  query = query.order('id_obs').range(from, to)
+  const isAsc = sortOrder === 'asc'
+  const validDbCols = {
+    codigo: 'id_obs',
+    id_obs: 'id_obs',
+    sitio: 'id_sitio',
+    id_sitio: 'id_sitio',
+    estado: 'estado_covepa',
+    estado_covepa: 'estado_covepa',
+    fecha: 'fecha_subsanacion',
+    fecha_subsanacion: 'fecha_subsanacion',
+    revisor: 'revisor',
+    demora: 'justificacion_demora',
+    justificacion_demora: 'justificacion_demora'
+  }
+
+  const dbCol = validDbCols[sortBy] || 'id_obs'
+  query = query.order(dbCol, { ascending: isAsc, nullsFirst: false }).range(from, to)
 
   const { data, count, error } = await query
   if (error) throw new Error(error.message)

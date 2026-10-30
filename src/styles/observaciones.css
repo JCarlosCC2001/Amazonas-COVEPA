@@ -392,78 +392,217 @@
    RESPONSIVE PARA OBSERVACIONES (Desktops, Tablets y Móviles)
    ══════════════════════════════════════════════════════════ */
 
-/* ── Reglas Generales de Tabla y Contenedor ── */
+/* ── Reglas Generales de Tabla y Contenedor Fijo / Estático ── */
 .obs-container .covepa-metric-grid {
   margin-bottom: 0;
 }
 
-.obs-container .sitios-table-wrapper {
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  width: 100%;
-  max-width: 100%;
+.obs-fixed-top {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  z-index: 25;
+}
+
+@media (min-width: 861px) {
+  .page-body:has(.obs-container) {
+    overflow-y: hidden !important;
+  }
+
+  .obs-container {
+    height: calc(100vh - 64px - 3rem - 2px);
+    max-height: calc(100vh - 64px - 3rem - 2px);
+    overflow: hidden;
+    gap: 0.75rem;
+  }
+
+  .obs-container .sitios-table-wrapper {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .obs-container .sitios-table-scroll {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .obs-container .sitios-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #f0f6fc;
+    box-shadow: 0 1px 2px rgba(0, 48, 96, 0.08);
+  }
+
+  .obs-container .agrupada-container {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0.25rem 0.5rem;
+  }
+}
+
+@media (max-width: 860px) {
+  .obs-fixed-top {
+    position: sticky;
+    top: -0.85rem;
+    background: var(--bg);
+    padding-bottom: 0.5rem;
+  }
+
+  .obs-container .sitios-table-wrapper {
+    overflow-x: auto;
+    border-radius: 14px;
+    background: #ffffff;
+    border: 1px solid var(--border);
+  }
+
+  .obs-container .sitios-table-scroll {
+    overflow-x: auto;
+    max-height: 60vh;
+  }
 }
 
 .obs-container .sitios-table,
 .agrupada-obs-list .sitios-table {
   width: 100%;
-  min-width: 1040px;
+  min-width: 1030px;
   table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
-/* ── Regulación Armónica y Proporcional de Columnas en Observaciones ── */
+/* ── Cabeceras Ordenables (Sortable Headers) ── */
+.sitios-table th.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sitios-table th.th-sortable:hover {
+  background: #e2edf8;
+  color: #002244;
+}
+
+.sitios-table th.th-sortable.is-sorted {
+  background: #e0f2fe;
+  color: #003060;
+  border-bottom: 2px solid #0284c7;
+}
+
+.sitios-table .sort-header-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.sitios-table .sort-header-inner.align-center {
+  justify-content: center;
+}
+
+.sitios-table .sort-header-inner.align-left {
+  justify-content: flex-start;
+}
+
+.sitios-table .sort-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+
+.sitios-table .sort-indicator.active {
+  color: #003060;
+  opacity: 1;
+  font-weight: var(--fw-black);
+}
+
+.sitios-table .sort-indicator.inactive {
+  color: #94a3b8;
+  opacity: 0.45;
+}
+
+/* ── Proporción Exacta y Alineación por Columna ── */
 .sitios-table .col-obs-cod {
-  width: 11%;
+  width: 10%;
   min-width: 110px;
+  text-align: left;
 }
 
 .sitios-table .col-obs-cuadrilla {
   width: 10%;
   min-width: 105px;
+  text-align: left;
 }
 
 .sitios-table .col-obs-sitio {
   width: 11%;
   min-width: 115px;
+  text-align: left;
 }
 
 .sitios-table .col-obs-localidad {
-  width: 18%;
-  min-width: 155px;
+  width: 16%;
+  min-width: 150px;
+  text-align: left;
 }
 
 .sitios-table .col-obs-zona {
-  width: 9%;
-  min-width: 90px;
+  width: 7.5%;
+  min-width: 80px;
   text-align: center;
 }
 
-.sitios-table th.col-obs-zona {
+.sitios-table th.col-obs-zona,
+.sitios-table td.cell-obs-zona {
   text-align: center;
 }
 
 .sitios-table .col-obs-estado {
-  width: 14%;
-  min-width: 145px;
+  width: 12%;
+  min-width: 125px;
+  text-align: left;
 }
 
 .sitios-table .col-obs-fecha {
-  width: 9%;
-  min-width: 105px;
-}
-
-.sitios-table .col-obs-revisor {
-  width: 10%;
+  width: 10.5%;
   min-width: 115px;
-}
-
-.sitios-table .col-obs-demora {
-  width: 8%;
-  min-width: 95px;
   text-align: center;
 }
 
+.sitios-table th.col-obs-fecha,
+.sitios-table td.cell-obs-fecha {
+  text-align: center;
+}
+
+.sitios-table .col-obs-revisor {
+  width: 13%;
+  min-width: 130px;
+  text-align: left;
+}
+
+.sitios-table .col-obs-demora {
+  width: 10%;
+  min-width: 100px;
+  text-align: center;
+}
+
+.sitios-table th.col-obs-demora,
 .sitios-table td.cell-obs-demora {
   text-align: center;
 }

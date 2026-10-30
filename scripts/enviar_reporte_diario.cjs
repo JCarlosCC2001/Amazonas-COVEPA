@@ -187,45 +187,70 @@ async function main() {
     console.warn('[CRON-REPORTE] ⚠️ Aviso consultando catálogo de sitios:', errSitios.message)
   }
 
-  // 7. Consultar observaciones de la base de datos
-  const { data: rows, error: obsErr } = await supabase
+  // 7. Consultar observaciones de la jornada (Consistente con Programación y Avance del Día)
+  const startIso = `${fechaIso}T00:00:00`
+  const endIso = `${fechaIso}T23:59:59`
+
+  const { data: rawObsFecha, error: obsErr } = await supabase
     .from('observaciones')
     .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+    .gte('fecha_subsanacion', startIso)
+    .lte('fecha_subsanacion', endIso)
+    .order('fecha_subsanacion', { ascending: false })
 
   if (obsErr) {
-    console.error('[CRON-REPORTE] ❌ Error consultando observaciones:', obsErr)
+    console.error('[CRON-REPORTE] ❌ Error consultando observaciones por fecha:', obsErr)
     process.exit(1)
   }
 
-  const allObs = rows || []
-  const validadas = []
-  const rechazadas = []
-  const descartadas = []
-  const enEspera = []
+  const { data: rawObsRevision, error: revErr } = await supabase
+    .from('observaciones')
+    .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+    .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión,estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión')
 
-  allObs.forEach(o => {
+  if (revErr) {
+    console.warn('[CRON-REPORTE] ⚠️ Aviso consultando revisiones activas:', revErr.message)
+  }
+
+  // Consolidar observaciones de la fecha y de revisión activa sin duplicados
+  const obsMap = new Map()
+  ;(rawObsFecha || []).forEach(o => obsMap.set(o.id_obs, o))
+  ;(rawObsRevision || []).forEach(o => {
+    if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, o)
+  })
+
+  const rows = Array.from(obsMap.values()).map(o => {
     const rawSt = (o.estado_covepa || '').trim()
-    const fechaSub = o.fecha_subsanacion ? String(o.fecha_subsanacion).slice(0, 10) : ''
-    const site = sitiosMap[o.id_sitio] || {}
-    const loc = site.localidad || site.nombre_nodo || 'Amazonas'
-    const cuad = (site.grupo || 'Sin Cuadrilla').replace(/GRUPO/gi, 'CUADRILLA')
+    let estadoNormalizado = 'Validado'
+    if (rawSt === 'Descartado') estadoNormalizado = 'Descartado'
+    else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') estadoNormalizado = 'Solicitando Revisión'
+    else if (rawSt === 'En Revision' || rawSt === 'En Revisión') estadoNormalizado = 'En Revisión'
+    else if (rawSt === 'Rechazado') estadoNormalizado = 'Rechazado'
+    else if (rawSt === 'Pendiente') estadoNormalizado = 'Pendiente'
+    else if (rawSt === 'Validado' || rawSt === 'Enviado') estadoNormalizado = 'Validado'
+    else if (o.fecha_subsanacion) estadoNormalizado = 'Validado'
 
-    const item = { ...o, localidad: loc, cuadrilla: cuad }
-
-    if (rawSt === 'Validado' || rawSt === 'Enviado' || (fechaSub === fechaIso && rawSt !== 'Descartado' && rawSt !== 'Rechazado' && rawSt !== 'Pendiente')) {
-      if (fechaSub === fechaIso || rawSt === 'Validado') {
-        validadas.push(item)
-      }
-    } else if (rawSt === 'Rechazado') {
-      rechazadas.push(item)
-    } else if (rawSt === 'Descartado') {
-      descartadas.push(item)
-    } else if (rawSt === 'Solicitando Revisión' || rawSt === 'Solicitando Revision' || rawSt === 'En Revisión' || rawSt === 'En Revision') {
-      enEspera.push(item)
+    return {
+      ...o,
+      estado: estadoNormalizado
     }
   })
 
-  console.log(`[CRON-REPORTE] 📊 Resumen computado: Validadas: ${validadas.length} | Rechazadas: ${rechazadas.length} | Descartadas: ${descartadas.length} | En Espera: ${enEspera.length}`)
+  const validadas = rows.filter(r => r.estado === 'Validado')
+  const rechazadas = rows.filter(r => r.estado === 'Rechazado')
+  const descartadas = rows.filter(r => r.estado === 'Descartado')
+  const enEspera = rows.filter(r => r.estado === 'Solicitando Revisión' || r.estado === 'En Revisión')
+  const totalListados = validadas.length + rechazadas.length + enEspera.length + descartadas.length
+
+  const stats = {
+    validadas: validadas.length,
+    rechazadas: rechazadas.length,
+    descartadas: descartadas.length,
+    enEspera: enEspera.length,
+    total: rows.length
+  }
+
+  console.log(`[CRON-REPORTE] 📊 Resumen computado: Validadas: ${stats.validadas} | Rechazadas: ${stats.rechazadas} | En Espera: ${stats.enEspera} | Descartadas: ${stats.descartadas}`)
 
   // 8. Preparar Logo Adjunto (covepa.png con Content-ID)
   const logoPath = path.resolve(__dirname, '../covepa.png')
@@ -251,15 +276,14 @@ async function main() {
     ? subjectTemplate.replace(/\{fecha\}/gi, fechaIso)
     : subjectTemplate
 
-  // Helper para renderizar pastillas / badges compactos de códigos (Regla 2.1: Código de Sitio · Localidad)
-  const renderItemPill = (o, colorBg, colorBorder, colorText) => {
-    const loc = o.localidad || 'Amazonas'
-    const siteInfo = o.id_sitio ? `(${escapeHtml(o.id_sitio)} · ${escapeHtml(loc)})` : ''
+  // Helper para renderizar listas verticales limpias de códigos
+  const renderCodeList = (items, colorText, colorBorder) => {
     return `
-      <span style="display:inline-block;padding:5px 10px;margin:3px 4px;background:${colorBg};border:1px solid ${colorBorder};border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:${colorText};line-height:1.4;">
-        <strong style="color:${colorText};">${escapeHtml(o.id_obs || '—')}</strong>
-        ${siteInfo ? `<span style="color:#64748b;font-size:11px;margin-left:5px;">${siteInfo}</span>` : ''}
-      </span>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid ${colorBorder};border-radius:6px;padding:12px 18px;">
+        <ul style="margin:0;padding:0 0 0 18px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.65;color:${colorText};">
+          ${items.map(o => `<li style="margin-bottom:3px;font-weight:bold;">${escapeHtml(o.id_obs || '—')}</li>`).join('')}
+        </ul>
+      </div>
     `
   }
 
@@ -294,7 +318,7 @@ async function main() {
             </td>
           </tr>
 
-          <!-- Medidores / Contadores del Reporte (4 Tarjetas) -->
+          <!-- Medidores / Contadores del Reporte (Siempre los 4 medidores visibles) -->
           <tr>
             <td style="padding:20px 24px 12px 24px;">
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
@@ -302,28 +326,28 @@ async function main() {
                   <!-- Validadas -->
                   <td width="25%" style="padding:4px;">
                     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 8px;text-align:center;">
-                      <div style="font-size:22px;font-weight:bold;color:#16a34a;line-height:1;">${validadas.length}</div>
+                      <div style="font-size:22px;font-weight:bold;color:#16a34a;line-height:1;">${stats.validadas}</div>
                       <div style="font-size:11px;font-weight:bold;color:#15803d;text-transform:uppercase;margin-top:4px;">✓ Validadas</div>
                     </div>
                   </td>
                   <!-- Rechazadas -->
                   <td width="25%" style="padding:4px;">
                     <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:8px;padding:12px 8px;text-align:center;">
-                      <div style="font-size:22px;font-weight:bold;color:#e11d48;line-height:1;">${rechazadas.length}</div>
+                      <div style="font-size:22px;font-weight:bold;color:#e11d48;line-height:1;">${stats.rechazadas}</div>
                       <div style="font-size:11px;font-weight:bold;color:#be123c;text-transform:uppercase;margin-top:4px;">✕ Rechazadas</div>
                     </div>
                   </td>
                   <!-- En Espera (Solicitando Revisión + En Revisión) -->
                   <td width="25%" style="padding:4px;">
                     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 8px;text-align:center;">
-                      <div style="font-size:22px;font-weight:bold;color:#0284c7;line-height:1;">${enEspera.length}</div>
+                      <div style="font-size:22px;font-weight:bold;color:#0284c7;line-height:1;">${stats.enEspera}</div>
                       <div style="font-size:11px;font-weight:bold;color:#0369a1;text-transform:uppercase;margin-top:4px;">⏳ En Espera</div>
                     </div>
                   </td>
                   <!-- Descartadas -->
                   <td width="25%" style="padding:4px;">
                     <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px 8px;text-align:center;">
-                      <div style="font-size:22px;font-weight:bold;color:#7e22ce;line-height:1;">${descartadas.length}</div>
+                      <div style="font-size:22px;font-weight:bold;color:#7e22ce;line-height:1;">${stats.descartadas}</div>
                       <div style="font-size:11px;font-weight:bold;color:#6b21a8;text-transform:uppercase;margin-top:4px;">🚫 Descartadas</div>
                     </div>
                   </td>
@@ -332,69 +356,60 @@ async function main() {
             </td>
           </tr>
 
-          <!-- 1. Agrupación: Observaciones Validadas -->
+          <!-- 1. Agrupación: Observaciones Validadas (Solo si tiene códigos) -->
+          ${validadas.length > 0 ? `
           <tr>
-            <td style="padding:10px 28px 12px 28px;">
+            <td style="padding:8px 28px 12px 28px;">
               <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
                 <span style="color:#16a34a;margin-right:6px;">✓</span> Observaciones Validadas (${validadas.length})
               </div>
-              ${validadas.length === 0 ? `
-                <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;font-style:italic;padding:4px 0;">
-                  No se registraron observaciones validadas en esta jornada.
-                </div>
-              ` : `
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;line-height:2.0;">
-                  ${validadas.map(o => renderItemPill(o, '#f0fdf4', '#bbf7d0', '#15803d')).join('')}
-                </div>
-              `}
+              ${renderCodeList(validadas, '#15803d', '#16a34a')}
             </td>
           </tr>
+          ` : ''}
 
-          <!-- 2. Agrupación: Observaciones Rechazadas -->
+          <!-- 2. Agrupación: Observaciones Rechazadas (Solo si tiene códigos) -->
+          ${rechazadas.length > 0 ? `
           <tr>
             <td style="padding:8px 28px 12px 28px;">
               <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
                 <span style="color:#e11d48;margin-right:6px;">✕</span> Observaciones Rechazadas (${rechazadas.length})
               </div>
-              ${rechazadas.length === 0 ? `
-                <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;font-style:italic;padding:4px 0;">
-                  Ninguna observación rechazada en la jornada.
-                </div>
-              ` : `
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;line-height:2.0;">
-                  ${rechazadas.map(o => renderItemPill(o, '#fff1f2', '#fecdd3', '#be123c')).join('')}
-                </div>
-              `}
+              ${renderCodeList(rechazadas, '#be123c', '#e11d48')}
             </td>
           </tr>
+          ` : ''}
 
-          <!-- 3. Agrupación: En Espera de Revisión (Solicitando Revisión + En Revisión) -->
+          <!-- 3. Agrupación: En Espera de Revisión (Solo si tiene códigos) -->
+          ${enEspera.length > 0 ? `
           <tr>
             <td style="padding:8px 28px 12px 28px;">
               <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
                 <span style="color:#0284c7;margin-right:6px;">⏳</span> En Espera de Revisión (${enEspera.length})
               </div>
-              ${enEspera.length === 0 ? `
-                <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;font-style:italic;padding:4px 0;">
-                  No quedan observaciones a la espera de revisión para mañana.
-                </div>
-              ` : `
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;line-height:2.0;">
-                  ${enEspera.map(o => renderItemPill(o, '#f0f9ff', '#bae6fd', '#0369a1')).join('')}
-                </div>
-              `}
+              ${renderCodeList(enEspera, '#0369a1', '#0284c7')}
             </td>
           </tr>
+          ` : ''}
 
-          <!-- 4. Agrupación: Observaciones Descartadas (Solo si existen) -->
+          <!-- 4. Agrupación: Observaciones Descartadas (Solo si tiene códigos) -->
           ${descartadas.length > 0 ? `
           <tr>
             <td style="padding:8px 28px 12px 28px;">
               <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
                 <span style="color:#7e22ce;margin-right:6px;">🚫</span> Observaciones Descartadas (${descartadas.length})
               </div>
-              <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;line-height:2.0;">
-                ${descartadas.map(o => renderItemPill(o, '#faf5ff', '#e9d5ff', '#6b21a8')).join('')}
+              ${renderCodeList(descartadas, '#6b21a8', '#7e22ce')}
+            </td>
+          </tr>
+          ` : ''}
+
+          <!-- Mensaje si no hubo ninguna observación en toda la jornada -->
+          ${totalListados === 0 ? `
+          <tr>
+            <td style="padding:16px 28px;text-align:center;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:#64748b;font-style:italic;">
+                No se registraron observaciones levantadas o en espera para la jornada seleccionada.
               </div>
             </td>
           </tr>
@@ -420,8 +435,8 @@ async function main() {
               <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#334155;margin-bottom:12px;">
                 Saludos cordiales
               </div>
-              <div style="margin-bottom:14px;">
-                <img src="${logoSrc}" alt="COVEPA" style="display:block;width:150px;max-width:160px;height:auto;border:0;" />
+              <div style="margin-bottom:12px;">
+                <img src="${logoSrc}" alt="COVEPA" width="145" height="38" style="display:block;width:145px;max-width:145px;height:auto;border:0;" />
               </div>
               <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#003060;line-height:1.3;">
                 Condor Callupe Carlos
@@ -441,8 +456,8 @@ async function main() {
           <!-- Pie del Correo Institucional -->
           <tr>
             <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 28px;text-align:center;">
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:#94a3b8;">
-                Sistema de Control y Operaciones Amazonas · COVEPA
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#94a3b8;">
+                Sistema Amazonas - Covepa
               </div>
             </td>
           </tr>

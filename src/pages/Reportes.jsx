@@ -48,6 +48,25 @@ export default function Reportes() {
   const [modalPersonalOpen, setModalPersonalOpen] = useState(false)
   const [busquedaPersonal, setBusquedaPersonal] = useState('')
   const [filtroCargo, setFiltroCargo] = useState('TODOS')
+
+  // Menú de opciones (3 puntos ⋮) en cabecera
+  const [menuOpcionesOpen, setMenuOpcionesOpen] = useState(false)
+  const menuOpcionesRef = useRef(null)
+
+  // Cerrar menú al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuOpcionesRef.current && !menuOpcionesRef.current.contains(e.target)) {
+        setMenuOpcionesOpen(false)
+      }
+    }
+    if (menuOpcionesOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [menuOpcionesOpen])
   const [editingTarget, setEditingTarget] = useState(null)
   const [inputEmailPersona, setInputEmailPersona] = useState('')
   const [savingEmailPersona, setSavingEmailPersona] = useState(false)
@@ -490,7 +509,7 @@ export default function Reportes() {
                     border: `1px solid ${configDiario.activo ? '#86efac' : '#fca5a5'}`
                   }}
                 >
-                  <span style={{ fontSize: 'var(--text-xs)', lineHeight: 1 }}>●</span>
+                  <span className="t-caption" style={{ lineHeight: 1 }}>●</span>
                   {configDiario.activo ? 'Envío Activo' : 'Envío Pausado'}
                 </span>
               </div>
@@ -545,7 +564,7 @@ export default function Reportes() {
                     border: `1px solid ${configSemanal.activo ? '#86efac' : '#fca5a5'}`
                   }}
                 >
-                  <span style={{ fontSize: 'var(--text-xs)', lineHeight: 1 }}>●</span>
+                  <span className="t-caption" style={{ lineHeight: 1 }}>●</span>
                   {configSemanal.activo ? 'Envío Activo' : 'Envío Pausado'}
                 </span>
               </div>
@@ -609,113 +628,203 @@ export default function Reportes() {
               </h1>
               <p className="reportes-subtitle t-subtitle">
                 {tipoVista === 'SEMANAL'
-                  ? 'Programa el despacho consolidado semanal de observaciones (Lunes a Domingo) desde ccondor@covepa.pe con archivo Excel adjunto.'
-                  : 'Programa el despacho nocturno de observaciones consolidadas desde ccondor@covepa.pe con archivo Excel adjunto.'}
+                  ? 'En esta zona se configurará el reporte semanal consolidado por correo.'
+                  : 'En esta zona se configurará el reporte diario automático por correo.'}
               </p>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+
+            {/* Menú de opciones de 3 puntos (⋮) */}
+            <div ref={menuOpcionesRef} style={{ position: 'relative' }}>
               <button
                 type="button"
-                onClick={() => setModalPreviewOpen(true)}
+                onClick={() => setMenuOpcionesOpen(prev => !prev)}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.45rem',
-                  padding: '0.55rem 0.95rem',
-                  background: '#003060',
-                  color: '#ffffff',
-                  border: 'none',
+                  justifyContent: 'center',
+                  width: '38px',
+                  height: '38px',
                   borderRadius: '8px',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  color: '#003060',
                   cursor: 'pointer',
-                  fontWeight: 'var(--fw-semibold)',
-                  boxShadow: '0 2px 6px rgba(0, 48, 96, 0.25)',
-                  transition: 'all 0.2s ease'
+                  fontWeight: 'var(--fw-bold)',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'all 0.15s ease'
                 }}
-                className="t-body"
-                title="Abrir vista previa del correo"
+                className="t-name"
+                title="Más opciones de reporte"
+                aria-label="Más opciones"
               >
-                <span>👁️</span>
-                <span>Vista Previa</span>
+                <span>⋮</span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleDescargarExcel}
-                disabled={exportingExcel}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  padding: '0.55rem 0.9rem',
-                  background: '#ffffff',
-                  color: '#003060',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
-                  cursor: exportingExcel ? 'not-allowed' : 'pointer',
-                  fontWeight: 'var(--fw-semibold)',
-                  transition: 'all 0.2s ease'
-                }}
-                className="t-body"
-                title="Descargar archivo Excel oficial (.xlsx)"
-              >
-                <span>📊</span>
-                <span>{exportingExcel ? 'Descargando...' : 'Descargar Excel'}</span>
-              </button>
+              {menuOpcionesOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    right: 0,
+                    zIndex: 100,
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
+                    minWidth: '240px',
+                    padding: '0.45rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.2rem',
+                    animation: 'fadeIn 0.15s ease'
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpcionesOpen(false)
+                      setModalPreviewOpen(true)
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                      width: '100%',
+                      padding: '0.6rem 0.85rem',
+                      background: 'none',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      color: '#003060',
+                      transition: 'background 0.15s'
+                    }}
+                    className="t-body"
+                    onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    <span>👁️</span>
+                    <span>Vista Previa</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={handleDespacharPrueba}
-                disabled={despachando || saving}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  padding: '0.55rem 0.95rem',
-                  background: despachando ? '#64748b' : '#0284c7',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: despachando ? 'not-allowed' : 'pointer',
-                  fontWeight: 'var(--fw-semibold)',
-                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
-                  transition: 'all 0.2s ease'
-                }}
-                className="t-body"
-                title="Enviar reporte de prueba por correo"
-              >
-                <span>{despachando ? '⏳' : '🚀'}</span>
-                <span>{despachando ? 'Enviando...' : 'Enviar Reporte de Prueba'}</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpcionesOpen(false)
+                      handleDescargarExcel()
+                    }}
+                    disabled={exportingExcel}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                      width: '100%',
+                      padding: '0.6rem 0.85rem',
+                      background: 'none',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: exportingExcel ? 'not-allowed' : 'pointer',
+                      textAlign: 'left',
+                      color: '#003060',
+                      transition: 'background 0.15s'
+                    }}
+                    className="t-body"
+                    onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    <span>📊</span>
+                    <span>{exportingExcel ? 'Descargando...' : 'Descargar Excel'}</span>
+                  </button>
 
-              <a
-                href="https://console.cron-job.org/jobs"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  padding: '0.55rem 0.9rem',
-                  background: '#ffffff',
-                  color: '#003060',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
-                  textDecoration: 'none',
-                  fontWeight: 'var(--fw-semibold)',
-                  transition: 'all 0.2s ease'
-                }}
-                className="t-body"
-                title="Configurar horario en cron-job.org"
-              >
-                <span>⏰</span>
-                <span>Configurar Hora</span>
-              </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpcionesOpen(false)
+                      handleDespacharPrueba()
+                    }}
+                    disabled={despachando || saving}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                      width: '100%',
+                      padding: '0.6rem 0.85rem',
+                      background: 'none',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: despachando ? 'not-allowed' : 'pointer',
+                      textAlign: 'left',
+                      color: '#003060',
+                      transition: 'background 0.15s'
+                    }}
+                    className="t-body"
+                    onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    <span>{despachando ? '⏳' : '🚀'}</span>
+                    <span>{despachando ? 'Enviando...' : 'Enviar Reporte de Prueba'}</span>
+                  </button>
+
+                  <a
+                    href="https://console.cron-job.org/jobs"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setMenuOpcionesOpen(false)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                      width: '100%',
+                      padding: '0.6rem 0.85rem',
+                      textDecoration: 'none',
+                      borderRadius: '6px',
+                      color: '#003060',
+                      transition: 'background 0.15s',
+                      boxSizing: 'border-box'
+                    }}
+                    className="t-body"
+                    onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    <span>⏰</span>
+                    <span>Configurar Hora ↗</span>
+                  </a>
+
+                  <div style={{ height: '1px', background: '#e2e8f0', margin: '0.25rem 0' }} />
+
+                  <a
+                    href="https://github.com/JCarlosCC2001/Amazonas-COVEPA/actions/workflows/reporte-diario.yml"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setMenuOpcionesOpen(false)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                      width: '100%',
+                      padding: '0.6rem 0.85rem',
+                      textDecoration: 'none',
+                      borderRadius: '6px',
+                      color: '#475569',
+                      transition: 'background 0.15s',
+                      boxSizing: 'border-box'
+                    }}
+                    className="t-caption"
+                    onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    title="Ver consola de ejecución y disparar despacho manual en GitHub"
+                  >
+                    <span>⚙️</span>
+                    <span>Ver en GitHub Actions ↗</span>
+                  </a>
+                </div>
+              )}
             </div>
           </header>
 
           {/* Tarjeta de Configuración de Reporte (Reorganizada y Optimizada) */}
           <div className="reporte-card" style={{ maxWidth: '1060px', margin: '0 auto', width: '100%', padding: '1.25rem 1.5rem', gap: '1rem' }}>
-            {/* Cabecera de la Tarjeta con Switch Arriba */}
+            {/* Cabecera de la Tarjeta con Switch Arriba (Sin texto de configuración) */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -726,9 +835,8 @@ export default function Reportes() {
               gap: '0.75rem'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <span className="t-name" style={{ color: '#003060', fontWeight: 'var(--fw-bold)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <span>{tipoVista === 'SEMANAL' ? '🗓️' : '📅'}</span>
-                  <span>{tipoVista === 'SEMANAL' ? 'Configuración de Reporte Semanal' : 'Configuración de Reporte Diario'}</span>
+                <span className="t-name" style={{ color: '#003060', fontWeight: 'var(--fw-bold)' }}>
+                  Estado del Envío Automático
                 </span>
                 <span
                   className="t-meta"
@@ -741,183 +849,202 @@ export default function Reportes() {
                     fontWeight: 'var(--fw-medium)'
                   }}
                 >
-                  {configActual.activo ? '● Envío programado activo' : '○ Envío pausado'}
+                  {configActual.activo ? '● Programación activa' : '○ Programación pausada'}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
-                  Estado del despacho:
-                </span>
-                <button
-                  type="button"
-                  className={`reporte-switch-btn ${configActual.activo ? 'active' : 'paused'}`}
-                  onClick={() => setConfigActual(prev => ({ ...prev, activo: !prev.activo }))}
-                  title={configActual.activo ? 'Pausar el envío automático' : 'Activar el envío automático'}
-                >
-                  <span>{configActual.activo ? '✅ ACTIVO' : '⏸️ PAUSADO'}</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                className={`reporte-switch-btn ${configActual.activo ? 'active' : 'paused'}`}
+                onClick={() => setConfigActual(prev => ({ ...prev, activo: !prev.activo }))}
+                title={configActual.activo ? 'Pausar el envío automático' : 'Activar el envío automático'}
+              >
+                <span>{configActual.activo ? '✅ ACTIVO' : '⏸️ PAUSADO'}</span>
+              </button>
             </div>
 
-            {/* Fila 1: Asunto del Correo (Primero) y Remitente Autorizado (Seguido) */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem', alignItems: 'flex-start' }}>
-              {/* 1. Asunto del Correo */}
-              <div className="reporte-form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className="reporte-label" htmlFor="asunto_input">
-                    <span>🏷️</span> Asunto del Correo
-                  </label>
+            {/* Fila 1: Asunto del Correo (Primera fila de arriba) */}
+            <div className="reporte-form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label className="reporte-label" htmlFor="asunto_input">
+                  <span>🏷️</span> Asunto del Correo
+                </label>
+                <span className="t-caption">
+                  {tipoVista === 'SEMANAL' ? '{semana} dinámica' : '{fecha} dinámica'}
+                </span>
+              </div>
+              <input
+                id="asunto_input"
+                type="text"
+                className="reporte-input"
+                value={configActual.asunto}
+                onChange={e => setConfigActual(prev => ({ ...prev, asunto: e.target.value }))}
+                placeholder="Asunto oficial del reporte..."
+              />
+            </div>
+
+            {/* Fila 2: Remitente Autorizado (Debajo de este en la otra fila, no modificable) */}
+            <div className="reporte-form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label className="reporte-label">
+                  <span>📤</span> Remitente Autorizado
+                </label>
+                <span className="t-caption" style={{ color: '#166534', fontWeight: 'var(--fw-medium)' }}>
+                  ✓ Servidor SMTP Covepa (mail.covepa.pe · Puerto 465 SSL)
+                </span>
+              </div>
+              <input
+                type="text"
+                readOnly
+                disabled
+                className="reporte-input"
+                value="ccondor@covepa.pe (Servidor SMTP mail.covepa.pe)"
+                style={{
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  fontWeight: 'var(--fw-semibold)',
+                  cursor: 'not-allowed',
+                  border: '1px solid #cbd5e1'
+                }}
+                title="Este remitente está preconfigurado en el servidor y no puede modificarse"
+              />
+            </div>
+
+            {/* Fila 3: Recuadro de Destinatarios (Dividido en Para y Copia) */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.45rem' }}>
+                <span className="t-name" style={{ color: '#003060', fontWeight: 'var(--fw-bold)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>👥</span> Destinatarios del Reporte
+                </span>
+                <span className="t-caption">
+                  Configura los correos principales y de copia
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem', alignItems: 'flex-start' }}>
+                {/* Columna Para: */}
+                <div className="reporte-form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                    <label className="reporte-label">
+                      <span>Para:</span>
+                    </label>
+                    <button
+                      type="button"
+                      className="btn-open-personal"
+                      onClick={() => setModalPersonalOpen(true)}
+                    >
+                      <span>👥</span>
+                      <span>Seleccionar Personal</span>
+                    </button>
+                  </div>
+                  <div className="reporte-chips-wrap" style={{ minHeight: '44px', maxHeight: '110px', overflowY: 'auto', background: '#ffffff' }}>
+                    {configActual.destinatarios.map(email => (
+                      <span key={email} className="reporte-email-chip">
+                        <span>{email}</span>
+                        <button
+                          type="button"
+                          className="reporte-chip-remove"
+                          onClick={() => removerPara(email)}
+                          title="Remover correo"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="email"
+                      className="reporte-chip-input"
+                      placeholder="Escribe un correo y pulsa Enter..."
+                      value={nuevoPara}
+                      onChange={e => setNuevoPara(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault()
+                          agregarPara()
+                        }
+                      }}
+                      onBlur={agregarPara}
+                    />
+                  </div>
                   <span className="t-caption">
-                    {tipoVista === 'SEMANAL' ? '{semana} dinámica' : '{fecha} dinámica'}
+                    Reciben directamente el informe y archivo Excel adjunto.
                   </span>
                 </div>
-                <input
-                  id="asunto_input"
-                  type="text"
-                  className="reporte-input"
-                  value={configActual.asunto}
-                  onChange={e => setConfigActual(prev => ({ ...prev, asunto: e.target.value }))}
-                  placeholder="Asunto oficial del reporte..."
-                />
-              </div>
 
-              {/* 2. Remitente Autorizado */}
-              <div className="reporte-form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className="reporte-label">
-                    <span>📤</span> Remitente Autorizado (Covepa)
-                  </label>
-                  <span className="t-caption" style={{ color: '#166534', fontWeight: 'var(--fw-medium)' }}>
-                    ✓ SMTP Seguro 465 SSL
+                {/* Columna Copia (CC:): */}
+                <div className="reporte-form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                    <label className="reporte-label">
+                      <span>Con Copia (CC:):</span>
+                    </label>
+                    <button
+                      type="button"
+                      className="btn-open-personal"
+                      onClick={() => setModalPersonalOpen(true)}
+                    >
+                      <span>👥</span>
+                      <span>Seleccionar Personal</span>
+                    </button>
+                  </div>
+                  <div className="reporte-chips-wrap" style={{ minHeight: '44px', maxHeight: '110px', overflowY: 'auto', background: '#ffffff' }}>
+                    {configActual.destinatarios_cc.map(email => (
+                      <span key={email} className="reporte-email-chip" style={{ background: '#f1f5f9', borderColor: '#cbd5e1', color: '#334155' }}>
+                        <span>{email}</span>
+                        <button
+                          type="button"
+                          className="reporte-chip-remove"
+                          onClick={() => removerCC(email)}
+                          title="Remover correo"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="email"
+                      className="reporte-chip-input"
+                      placeholder="Escribe un correo de copia..."
+                      value={nuevoCC}
+                      onChange={e => setNuevoCC(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault()
+                          agregarCC()
+                        }
+                      }}
+                      onBlur={agregarCC}
+                    />
+                  </div>
+                  <span className="t-caption">
+                    Opcional. Reciben copia visible informativa.
                   </span>
                 </div>
-                <input
-                  type="text"
-                  readOnly
-                  className="reporte-input"
-                  value="ccondor@covepa.pe (Servidor mail.covepa.pe)"
-                  style={{ background: '#f8fafc', color: '#003060', fontWeight: 'var(--fw-semibold)' }}
-                />
               </div>
             </div>
 
-            {/* Fila 2: Destinatarios (Para y Con Copia en 2 columnas paralelas) */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1rem', alignItems: 'flex-start' }}>
-              {/* Destinatarios Principales (Para:) */}
-              <div className="reporte-form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                  <label className="reporte-label">
-                    <span>👥</span> Destinatarios (Para:)
-                  </label>
-                  <button
-                    type="button"
-                    className="btn-open-personal"
-                    onClick={() => setModalPersonalOpen(true)}
-                  >
-                    <span>👥</span>
-                    <span>Seleccionar Personal</span>
-                  </button>
-                </div>
-                <div className="reporte-chips-wrap" style={{ minHeight: '42px', maxHeight: '110px', overflowY: 'auto' }}>
-                  {configActual.destinatarios.map(email => (
-                    <span key={email} className="reporte-email-chip">
-                      <span>{email}</span>
-                      <button
-                        type="button"
-                        className="reporte-chip-remove"
-                        onClick={() => removerPara(email)}
-                        title="Remover correo"
-                      >
-                        ✕
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    type="email"
-                    className="reporte-chip-input"
-                    placeholder="Escribe un correo y pulsa Enter..."
-                    value={nuevoPara}
-                    onChange={e => setNuevoPara(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' || e.key === ',') {
-                        e.preventDefault()
-                        agregarPara()
-                      }
-                    }}
-                    onBlur={agregarPara}
-                  />
-                </div>
-                <span className="t-caption">
-                  Reciben directamente el informe y archivo Excel adjunto.
-                </span>
-              </div>
-
-              {/* Destinatarios Con Copia (CC: opcional) */}
-              <div className="reporte-form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                  <label className="reporte-label">
-                    <span>📋</span> Con Copia (CC: opcional)
-                  </label>
-                  <button
-                    type="button"
-                    className="btn-open-personal"
-                    onClick={() => setModalPersonalOpen(true)}
-                  >
-                    <span>👥</span>
-                    <span>Seleccionar Personal</span>
-                  </button>
-                </div>
-                <div className="reporte-chips-wrap" style={{ minHeight: '42px', maxHeight: '110px', overflowY: 'auto' }}>
-                  {configActual.destinatarios_cc.map(email => (
-                    <span key={email} className="reporte-email-chip" style={{ background: '#f1f5f9', borderColor: '#cbd5e1', color: '#334155' }}>
-                      <span>{email}</span>
-                      <button
-                        type="button"
-                        className="reporte-chip-remove"
-                        onClick={() => removerCC(email)}
-                        title="Remover correo"
-                      >
-                        ✕
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    type="email"
-                    className="reporte-chip-input"
-                    placeholder="Escribe un correo de copia..."
-                    value={nuevoCC}
-                    onChange={e => setNuevoCC(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' || e.key === ',') {
-                        e.preventDefault()
-                        agregarCC()
-                      }
-                    }}
-                    onBlur={agregarCC}
-                  />
-                </div>
-                <span className="t-caption">
-                  Opcional. Reciben copia visible del despacho.
-                </span>
-              </div>
-            </div>
-
-            {/* Fila 3: Comentarios y Observaciones (Por debajo) */}
+            {/* Fila 4: Comentarios (Un cuadro de texto un poco más alto) */}
             <div className="reporte-form-group">
               <label className="reporte-label" htmlFor="notas_input">
                 <span>💬</span> {tipoVista === 'SEMANAL' ? 'Comentarios y Conclusiones de la Semana (Opcional)' : 'Comentarios u Observaciones de la Jornada (Opcional)'}
               </label>
               <textarea
                 id="notas_input"
-                rows={2}
+                rows={4}
                 className="reporte-textarea"
                 placeholder={tipoVista === 'SEMANAL'
                   ? 'Escribe acuerdos de cierre semanal, hitos alcanzados, contingencias de ruta...'
                   : 'Escribe acuerdos de la jornada, contingencias o comentarios especiales...'}
                 value={configActual.notas_jornada}
                 onChange={e => setConfigActual(prev => ({ ...prev, notas_jornada: e.target.value }))}
-                style={{ minHeight: '52px', resize: 'vertical' }}
+                style={{ minHeight: '85px', resize: 'vertical' }}
               />
               <span className="t-caption">
                 Se incluye en el cuerpo del correo antes de la firma institucional. Si se deja vacío, no aparecerá.
@@ -936,7 +1063,7 @@ export default function Reportes() {
             {/* Header del Modal */}
             <div className="modal-preview-header">
               <div className="modal-preview-title-wrap">
-                <span style={{ fontSize: 'var(--text-xl)' }}>👁️</span>
+                <span className="t-title-page">👁️</span>
                 <div>
                   <h3 className="t-title-section" style={{ margin: 0, color: '#003060' }}>
                     Vista Previa del Correo Oficial ({tipoVista === 'SEMANAL' ? 'Reporte Semanal' : 'Reporte Diario'})

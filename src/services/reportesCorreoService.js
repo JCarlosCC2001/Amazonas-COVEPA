@@ -1157,14 +1157,24 @@ export async function despacharReporteInmediato({ forzar = true } = {}) {
     })
     if (res.ok) {
       const data = await res.json().catch(() => ({}))
-      return { ok: true, message: data.message }
+      return { ok: true, message: data.message || '¡Reporte diario despachado exitosamente!' }
     }
-  } catch (_) {}
+    if (res.status !== 404) {
+      const errData = await res.json().catch(() => ({}))
+      if (errData && errData.error) {
+        throw new Error(errData.error)
+      }
+    }
+  } catch (apiErr) {
+    if (apiErr.message && !apiErr.message.includes('fetch') && !apiErr.message.includes('Failed to fetch')) {
+      throw apiErr
+    }
+  }
 
   // Fallback directo a la API de GitHub Actions
   const token = (import.meta.env.VITE_GITHUB_DISPATCH_TOKEN || '').trim()
   if (!token) {
-    throw new Error('Falta configurar la variable VITE_GITHUB_DISPATCH_TOKEN en el entorno.')
+    throw new Error('Falta configurar GITHUB_DISPATCH_TOKEN en Vercel (o VITE_GITHUB_DISPATCH_TOKEN en local) para autorizar el despacho desde la web. Puedes ejecutarlo con 1 clic en la pestaña Actions de GitHub.')
   }
   const repo = 'JCarlosCC2001/Amazonas-COVEPA'
   const url = `https://api.github.com/repos/${repo}/actions/workflows/reporte-diario.yml/dispatches`

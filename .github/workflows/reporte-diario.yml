@@ -25,7 +25,7 @@ jobs:
           node-version: 22
 
       - name: Instalar dependencias de correo
-        run: npm install nodemailer @supabase/supabase-js --no-save
+        run: npm install nodemailer @supabase/supabase-js exceljs --no-save
 
       - name: Compilar y enviar reporte diario
         env:

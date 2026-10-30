@@ -6,6 +6,7 @@
 
 const nodemailer = require('nodemailer')
 const { createClient } = require('@supabase/supabase-js')
+const ExcelJS = require('exceljs')
 const path = require('path')
 const fs = require('fs')
 
@@ -34,10 +35,10 @@ const supabase = createClient(supabaseUrl, supabaseKey, clientOptions)
 const supabaseExt = createClient(DEFAULT_EXT_URL, DEFAULT_EXT_KEY, clientOptions)
 
 // 2. Helper de fecha en hora Perú (UTC-5)
-function getPeruDateInfo() {
+function getPeruDateInfo(offsetDays = 0) {
   const now = new Date()
   const utc = now.getTime() + (now.getTimezoneOffset() * 60000)
-  const peruTime = new Date(utc - (5 * 3600000))
+  const peruTime = new Date(utc - (5 * 3600000) + (offsetDays * 86400000))
 
   const y = peruTime.getFullYear()
   const m = String(peruTime.getMonth() + 1).padStart(2, '0')
@@ -62,12 +63,12 @@ function getPeruDateInfo() {
   }
 }
 
-function getPeruDateString(dateInput) {
+function getPeruDateString(dateInput, offsetDays = 0) {
   if (!dateInput) return null
   const d = new Date(dateInput)
   if (isNaN(d.getTime())) return null
   const utc = d.getTime() + (d.getTimezoneOffset() * 60000)
-  const peruTime = new Date(utc - (5 * 3600000))
+  const peruTime = new Date(utc - (5 * 3600000) + (offsetDays * 86400000))
   const y = peruTime.getFullYear()
   const m = String(peruTime.getMonth() + 1).padStart(2, '0')
   const day = String(peruTime.getDate()).padStart(2, '0')
@@ -101,7 +102,8 @@ async function main() {
     destinatarios: ['ccondor@covepa.pe'],
     destinatarios_cc: [],
     asunto: 'Reporte Diario de Levantamiento de Observaciones Amazonas - Zona 2 y Zona 7',
-    notas_jornada: ''
+    notas_jornada: '',
+    periodo_reporte: 'dia_actual'
   }
 
   try {
@@ -133,6 +135,13 @@ async function main() {
       } catch (_) {}
     }
   }
+
+  // 3.2 Determinar jornada objetivo (Día actual vs Día anterior)
+  const periodoReporte = config.periodo_reporte || 'dia_actual'
+  const targetDateInfo = periodoReporte === 'dia_anterior' ? getPeruDateInfo(-1) : getPeruDateInfo(0)
+  const targetFechaIso = targetDateInfo.fechaIso
+  const targetFechaFormateada = targetDateInfo.fechaFormateada
+  console.log(`[CRON-REPORTE] 📅 Configuración de jornada: ${periodoReporte === 'dia_anterior' ? 'DÍA ANTERIOR' : 'DÍA ACTUAL'} -> Reportando fecha: ${targetFechaIso} (${targetFechaFormateada})`)
 
   // 4. Si el envío automático está desactivado y no es corrida manual, salir
   if (!config.activo && !isManualRun) {
@@ -216,8 +225,8 @@ async function main() {
   }
 
   // 7. Consultar observaciones de la jornada (Consistente con Programación y Avance del Día)
-  const startIso = `${fechaIso}T00:00:00`
-  const endIso = `${fechaIso}T23:59:59`
+  const startIso = `${targetFechaIso}T00:00:00`
+  const endIso = `${targetFechaIso}T23:59:59`
 
   const { data: rawObsFecha, error: obsErr } = await supabase
     .from('observaciones')
@@ -260,6 +269,7 @@ async function main() {
 
     return {
       ...o,
+      localidad: (sitiosMap[o.id_sitio]?.localidad || sitiosMap[o.id_sitio]?.nombre_nodo || ''),
       estado: estadoNormalizado
     }
   })
@@ -298,10 +308,100 @@ async function main() {
 
   const logoSrc = hasLogo ? 'cid:covepa-logo' : 'https://byywikicdvmmmndhkooe.supabase.co/storage/v1/object/public/covepa.png'
 
+  // 8.1 Generar archivo Excel (.xlsx) adjunto con las 5 columnas oficiales y fondo #003060
+  try {
+    const wb = new ExcelJS.Workbook()
+    wb.creator = 'Amazonas-COVEPA'
+    const ws = wb.addWorksheet('Reporte_Observaciones', {
+      views: [{ showGridLines: true }]
+    })
+
+    // 5 Columnas Oficiales requeridas
+    ws.columns = [
+      { header: 'ID', key: 'id_obs', width: 22 },
+      { header: 'Código de lugar', key: 'codigo_lugar', width: 20 },
+      { header: 'Nombre de localidad', key: 'localidad', width: 28 },
+      { header: 'Persona que validó', key: 'revisor', width: 24 },
+      { header: 'Estado observación', key: 'estado', width: 22 }
+    ]
+
+    // Encabezado institucional en color #003060
+    const headerRow = ws.getRow(1)
+    headerRow.height = 26
+    headerRow.eachCell((cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF003060' }
+      }
+      cell.font = {
+        name: 'Arial',
+        size: 11,
+        bold: true,
+        color: { argb: 'FFFFFFFF' }
+      }
+      cell.alignment = { vertical: 'middle', horizontal: 'center' }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF002040' } },
+        left: { style: 'thin', color: { argb: 'FF002040' } },
+        bottom: { style: 'medium', color: { argb: 'FF002040' } },
+        right: { style: 'thin', color: { argb: 'FF002040' } }
+      }
+    })
+
+    // Consolidado de todas las observaciones trabajadas en la jornada
+    const allRows = [
+      ...validadas,
+      ...rechazadas,
+      ...enEspera,
+      ...descartadas
+    ]
+
+    allRows.forEach((r, idx) => {
+      const rowNum = idx + 2
+      let estadoDisplay = r.estado || 'Validado'
+      if (estadoDisplay === 'Descartado') estadoDisplay = 'No Aplica'
+
+      ws.addRow({
+        id_obs: r.id_obs || '',
+        codigo_lugar: r.id_sitio || '',
+        localidad: r.localidad || '',
+        revisor: r.revisor || 'Sin revisor',
+        estado: estadoDisplay
+      })
+
+      const row = ws.getRow(rowNum)
+      row.height = 20
+      row.eachCell((cell, colNum) => {
+        cell.font = { name: 'Arial', size: 10 }
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: (colNum === 1 || colNum === 2 || colNum === 5) ? 'center' : 'left'
+        }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+        }
+      })
+    })
+
+    const excelBuffer = await wb.xlsx.writeBuffer()
+    attachments.push({
+      filename: `Reporte_Observaciones_${targetFechaIso}.xlsx`,
+      content: excelBuffer,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
+    console.log(`[CRON-REPORTE] 📊 Archivo Excel generado y adjuntado: Reporte_Observaciones_${targetFechaIso}.xlsx (${allRows.length} registros)`)
+  } catch (errExcel) {
+    console.error('[CRON-REPORTE] ⚠️ Error generando Excel adjunto:', errExcel)
+  }
+
   // 9. Asunto oficial
   const subjectTemplate = config.asunto || 'Reporte Diario de Levantamiento de Observaciones Amazonas - Zona 2 y Zona 7'
   const subjectFinal = subjectTemplate.includes('{fecha}')
-    ? subjectTemplate.replace(/\{fecha\}/gi, fechaIso)
+    ? subjectTemplate.replace(/\{fecha\}/gi, targetFechaIso)
     : subjectTemplate
 
   // Helper para renderizar listas verticales limpias de códigos
@@ -341,8 +441,28 @@ async function main() {
                 Amazonas - Zona 2 y Zona 7
               </div>
               <div style="font-size:12px;color:#cbd5e1;margin-top:6px;">
-                📅 <strong>Jornada:</strong> ${escapeHtml(fechaFormateada)}
+                📅 <strong>Jornada:</strong> ${escapeHtml(targetFechaFormateada)}
               </div>
+            </td>
+          </tr>
+
+          <!-- Contador Total General Encima de los 4 Medidores -->
+          <tr>
+            <td style="padding:16px 28px 4px 28px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="background-color:#f8fafc;border:1px solid #cbd5e1;border-top:3px solid #003060;border-radius:8px;padding:12px 16px;text-align:center;">
+                    <div style="font-family:Arial,Helvetica,sans-serif;">
+                      <span style="font-size:12px;font-weight:bold;color:#003060;text-transform:uppercase;letter-spacing:0.8px;">
+                        TOTAL DE OBSERVACIONES TRABAJADAS EN LA JORNADA
+                      </span>
+                      <div style="font-size:26px;font-weight:bold;color:#003060;line-height:1.2;margin-top:2px;">
+                        ${stats.total}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 
@@ -376,7 +496,22 @@ async function main() {
                   <td width="25%" style="padding:4px;">
                     <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px 8px;text-align:center;">
                       <div style="font-size:22px;font-weight:bold;color:#7e22ce;line-height:1;">${stats.descartadas}</div>
-                      <div style="font-size:11px;font-weight:bold;color:#6b21a8;text-transform:uppercase;margin-top:4px;">🚫 Descartadas</div>
+                      <div style="font-size:11px;font-weight:bold;color:#6b21a8;text-transform:uppercase;margin-top:4px;">🚫 No Aplica</div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Aviso de Archivo Excel Adjunto -->
+          <tr>
+            <td style="padding:2px 28px 12px 28px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td>
+                    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#0369a1;line-height:1.45;">
+                      <strong style="color:#003060;">📎 Archivo Excel Adjunto:</strong> <code>Reporte_Observaciones_${escapeHtml(targetFechaIso)}.xlsx</code> (Consolidado de 5 columnas con ID, Código de lugar, Nombre de localidad, Persona que validó y Estado).
                     </div>
                   </td>
                 </tr>
@@ -420,12 +555,12 @@ async function main() {
           </tr>
           ` : ''}
 
-          <!-- 4. Agrupación: Observaciones Descartadas (Solo si tiene códigos) -->
+          <!-- 4. Agrupación: Observaciones No Aplica (Solo si tiene códigos) -->
           ${descartadas.length > 0 ? `
           <tr>
             <td style="padding:8px 28px 12px 28px;">
               <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
-                <span style="color:#7e22ce;margin-right:6px;">🚫</span> Observaciones Descartadas (${descartadas.length})
+                <span style="color:#7e22ce;margin-right:6px;">🚫</span> Observaciones No Aplica (${descartadas.length})
               </div>
               ${renderCodeList(descartadas, '#6b21a8', '#7e22ce')}
             </td>

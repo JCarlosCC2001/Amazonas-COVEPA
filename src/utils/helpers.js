@@ -32,6 +32,18 @@ export function getPeruDateStr(dateInput = new Date()) {
   }
 }
 
+/** Obtiene la fecha de ayer en zona horaria Perú (America/Lima) en formato YYYY-MM-DD */
+export function getAyerPeruStr(dateInput = new Date()) {
+  const hoyPeru = getPeruDateStr(dateInput)
+  const [y, m, d] = hoyPeru.split('-').map(Number)
+  const fecha = new Date(y, m - 1, d, 12, 0, 0)
+  fecha.setDate(fecha.getDate() - 1)
+  const ayY = fecha.getFullYear()
+  const ayM = String(fecha.getMonth() + 1).padStart(2, '0')
+  const ayD = String(fecha.getDate()).padStart(2, '0')
+  return `${ayY}-${ayM}-${ayD}`
+}
+
 /** Genera timestamp ISO seguro para la fecha Perú (mediodía UTC 12:00:00Z para evitar saltos de día por huso horario) */
 export function getPeruISOString(dateYmd = null) {
   const ymd = dateYmd || getPeruDateStr(new Date())

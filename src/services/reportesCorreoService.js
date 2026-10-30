@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { getAvancePorFecha } from './dashboardService'
 import { getCachedSitiosAsignados } from './sitiosService'
-import { toLocalDateString } from '../utils/helpers'
+import { toLocalDateString, getPeruDateStr, getAyerPeruStr } from '../utils/helpers'
 
 const LOCAL_STORAGE_KEY = 'covepa_config_reporte_correo'
 
@@ -12,7 +12,8 @@ const DEFAULT_CONFIG = {
   destinatarios: ['ccondor@covepa.pe'],
   destinatarios_cc: [],
   asunto: 'Reporte Diario de Levantamiento de Observaciones Amazonas - Zona 2 y Zona 7',
-  notas_jornada: ''
+  notas_jornada: '',
+  periodo_reporte: 'dia_actual' // 'dia_actual' | 'dia_anterior'
 }
 
 /**
@@ -21,7 +22,7 @@ const DEFAULT_CONFIG = {
  * Borra automáticamente notas_jornada si provienen de un día anterior (cierre diario 00:00).
  */
 export async function fetchConfiguracionReporte() {
-  const hoyPeru = toLocalDateString(new Date())
+  const hoyPeru = getPeruDateStr() || toLocalDateString(new Date())
 
   try {
     const { data, error } = await supabase
@@ -53,6 +54,7 @@ export async function fetchConfiguracionReporte() {
         ...data,
         notas_jornada: notasLimpias,
         asunto: data.asunto || DEFAULT_CONFIG.asunto,
+        periodo_reporte: data.periodo_reporte || DEFAULT_CONFIG.periodo_reporte,
         hora_envio: (data.hora_envio || '21:00:00').slice(0, 5) // normalizar a HH:MM
       }
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged))
@@ -71,6 +73,7 @@ export async function fetchConfiguracionReporte() {
         ...DEFAULT_CONFIG,
         ...parsed,
         asunto: parsed.asunto || DEFAULT_CONFIG.asunto,
+        periodo_reporte: parsed.periodo_reporte || DEFAULT_CONFIG.periodo_reporte,
         hora_envio: (parsed.hora_envio || '21:00:00').slice(0, 5)
       }
     }
@@ -92,6 +95,7 @@ export async function saveConfiguracionReporte(config, userEmail = null) {
     destinatarios_cc: Array.isArray(config.destinatarios_cc) ? config.destinatarios_cc : [],
     asunto: config.asunto || DEFAULT_CONFIG.asunto,
     notas_jornada: config.notas_jornada || '',
+    periodo_reporte: config.periodo_reporte || 'dia_actual',
     updated_at: new Date().toISOString(),
     updated_by: userEmail
   }
@@ -108,7 +112,18 @@ export async function saveConfiguracionReporte(config, userEmail = null) {
       .maybeSingle()
 
     if (error) {
-      console.warn('[REPORTES-CORREO] Aviso al guardar en Supabase (usando respaldo local):', error.message)
+      console.warn('[REPORTES-CORREO] Aviso al guardar en Supabase:', error.message)
+      // Si la columna periodo_reporte aún no existe en Supabase, reintentar sin ella
+      if (error.message && error.message.includes('periodo_reporte')) {
+        const fallbackPayload = { ...payload }
+        delete fallbackPayload.periodo_reporte
+        const { data: retryData } = await supabase
+          .from('configuracion_reportes_correo')
+          .upsert(fallbackPayload, { onConflict: 'id' })
+          .select()
+          .maybeSingle()
+        return retryData || payload
+      }
     }
     return data || payload
   } catch (err) {
@@ -121,11 +136,18 @@ export async function saveConfiguracionReporte(config, userEmail = null) {
  * Obtiene las observaciones de la fecha indicada clasificadas para el reporte diario.
  * Utiliza getAvancePorFecha para garantizar coincidencia matemática 100% con Programación y Avance del Día.
  */
-export async function fetchDatosReporteDiario(fechaFiltro = null) {
-  const hoyStr = fechaFiltro || toLocalDateString(new Date())
+export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte = null) {
+  let targetDate = fechaFiltro
+  if (!targetDate) {
+    if (periodoReporte === 'dia_anterior') {
+      targetDate = getAyerPeruStr()
+    } else {
+      targetDate = getPeruDateStr() || toLocalDateString(new Date())
+    }
+  }
 
   // Fuente de verdad unificada: utiliza getAvancePorFecha para consistencia total con Programación
-  const avance = await getAvancePorFecha(hoyStr)
+  const avance = await getAvancePorFecha(targetDate)
   const rows = avance?.rows || []
   const statsAvance = avance?.stats || {}
 
@@ -135,9 +157,9 @@ export async function fetchDatosReporteDiario(fechaFiltro = null) {
   const enEspera = rows.filter(r => r.estado === 'Solicitando Revisión' || r.estado === 'En Revisión')
 
   // Formato formal en español: ej. "Jueves, 29 de Octubre de 2026"
-  let fechaFormateada = hoyStr
+  let fechaFormateada = targetDate
   try {
-    const [y, m, d] = hoyStr.split('-').map(Number)
+    const [y, m, d] = targetDate.split('-').map(Number)
     const fechaObj = new Date(y, m - 1, d, 12, 0, 0)
     fechaFormateada = fechaObj.toLocaleDateString('es-PE', {
       weekday: 'long',
@@ -149,7 +171,7 @@ export async function fetchDatosReporteDiario(fechaFiltro = null) {
   } catch (_) {}
 
   return {
-    fechaStr: hoyStr,
+    fechaStr: targetDate,
     fechaFormateada,
     stats: {
       validadas: statsAvance.validadas ?? validadas.length,
@@ -163,6 +185,102 @@ export async function fetchDatosReporteDiario(fechaFiltro = null) {
     descartadas,
     enEspera
   }
+}
+
+/**
+ * Genera y descarga un archivo Excel (.xlsx) estructurado con las observaciones de la jornada
+ * con el encabezado institucional oficial en color corporativo #003060.
+ */
+export async function exportarExcelReporteDiario(datos) {
+  if (!datos) return
+  const ExcelJS = (await import('exceljs')).default || (await import('exceljs'))
+  const wb = new ExcelJS.Workbook()
+  wb.creator = 'Amazonas-COVEPA'
+  const ws = wb.addWorksheet('Reporte_Observaciones', {
+    views: [{ showGridLines: true }]
+  })
+
+  // 5 Columnas Oficiales solicitadas
+  ws.columns = [
+    { header: 'ID', key: 'id_obs', width: 22 },
+    { header: 'Código de lugar', key: 'codigo_lugar', width: 20 },
+    { header: 'Nombre de localidad', key: 'localidad', width: 28 },
+    { header: 'Persona que validó', key: 'revisor', width: 24 },
+    { header: 'Estado observación', key: 'estado', width: 22 }
+  ]
+
+  // Fila de encabezado institucional en color #003060
+  const headerRow = ws.getRow(1)
+  headerRow.height = 26
+  headerRow.eachCell((cell) => {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF003060' }
+    }
+    cell.font = {
+      name: 'Arial',
+      size: 11,
+      bold: true,
+      color: { argb: 'FFFFFFFF' }
+    }
+    cell.alignment = { vertical: 'middle', horizontal: 'center' }
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FF002040' } },
+      left: { style: 'thin', color: { argb: 'FF002040' } },
+      bottom: { style: 'medium', color: { argb: 'FF002040' } },
+      right: { style: 'thin', color: { argb: 'FF002040' } }
+    }
+  })
+
+  // Lista unificada de todas las observaciones trabajadas ese día
+  const allRows = [
+    ...(datos.validadas || []),
+    ...(datos.rechazadas || []),
+    ...(datos.enEspera || []),
+    ...(datos.descartadas || [])
+  ]
+
+  allRows.forEach((r, idx) => {
+    const rowNum = idx + 2
+    let estadoDisplay = r.estado || 'Validado'
+    if (estadoDisplay === 'Descartado') estadoDisplay = 'No Aplica'
+
+    ws.addRow({
+      id_obs: r.id_obs || '',
+      codigo_lugar: r.id_sitio || r.codigo_lugar || '',
+      localidad: r.localidad || '',
+      revisor: r.revisor || 'Sin revisor',
+      estado: estadoDisplay
+    })
+
+    const row = ws.getRow(rowNum)
+    row.height = 20
+    row.eachCell((cell, colNum) => {
+      cell.font = { name: 'Arial', size: 10 }
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: (colNum === 1 || colNum === 2 || colNum === 5) ? 'center' : 'left'
+      }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+      }
+    })
+  })
+
+  const buffer = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Reporte_Observaciones_${datos.fechaStr || 'jornada'}.xlsx`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 /**
@@ -223,9 +341,29 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
             </td>
           </tr>
 
-          <!-- Resumen de Medidores / Contadores (Siempre los 4 medidores visibles) -->
+          <!-- Contador Total General de Observaciones Trabajadas ese Día (Encima de los 4 Medidores) -->
           <tr>
-            <td style="padding:20px 24px 12px 24px;">
+            <td style="padding:18px 24px 6px 24px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td>
+                    <div style="background-color:#003060;border-radius:10px;padding:12px 18px;text-align:center;box-shadow:0 2px 4px rgba(0,48,96,0.12);">
+                      <div style="font-size:11px;font-weight:bold;letter-spacing:1px;color:#93c5fd;text-transform:uppercase;">
+                        TOTAL DE OBSERVACIONES TRABAJADAS EN LA JORNADA
+                      </div>
+                      <div style="font-size:32px;font-weight:bold;color:#ffffff;line-height:1.15;margin-top:2px;">
+                        ${stats.total}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Resumen de los 4 Medidores (Siempre los 4 medidores visibles) -->
+          <tr>
+            <td style="padding:6px 24px 12px 24px;">
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
                 <tr>
                   <!-- Validadas -->
@@ -249,11 +387,26 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
                       <div style="font-size:11px;font-weight:bold;color:#0369a1;text-transform:uppercase;margin-top:4px;">⏳ En Espera</div>
                     </div>
                   </td>
-                  <!-- Descartadas -->
+                  <!-- No Aplica (Antes Descartadas) -->
                   <td width="25%" style="padding:4px;">
                     <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px 8px;text-align:center;">
                       <div style="font-size:22px;font-weight:bold;color:#7e22ce;line-height:1;">${stats.descartadas}</div>
-                      <div style="font-size:11px;font-weight:bold;color:#6b21a8;text-transform:uppercase;margin-top:4px;">🚫 Descartadas</div>
+                      <div style="font-size:11px;font-weight:bold;color:#6b21a8;text-transform:uppercase;margin-top:4px;">🚫 No Aplica</div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Aviso de Archivo Excel Adjunto -->
+          <tr>
+            <td style="padding:2px 28px 12px 28px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td>
+                    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#0369a1;line-height:1.45;">
+                      <strong style="color:#003060;">📎 Archivo Excel Adjunto:</strong> <code>Reporte_Observaciones_${escapeHtml(datos.fechaStr)}.xlsx</code> (Consolidado de 5 columnas con ID, Código de lugar, Nombre de localidad, Persona que validó y Estado).
                     </div>
                   </td>
                 </tr>
@@ -297,12 +450,12 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
           </tr>
           ` : ''}
 
-          <!-- 4. Agrupación: Observaciones Descartadas (Solo si tiene códigos) -->
+          <!-- 4. Agrupación: Observaciones No Aplica (Solo si tiene códigos) -->
           ${descartadas.length > 0 ? `
           <tr>
             <td style="padding:8px 28px 12px 28px;">
               <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
-                <span style="color:#7e22ce;margin-right:6px;">🚫</span> Observaciones Descartadas (${descartadas.length})
+                <span style="color:#7e22ce;margin-right:6px;">🚫</span> Observaciones No Aplica (${descartadas.length})
               </div>
               ${renderCodeList(descartadas, '#6b21a8', '#7e22ce')}
             </td>
@@ -386,7 +539,6 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;')
 }
 
-
 /**
  * Despacha de inmediato el reporte por correo invocando la ejecución del workflow.
  * Intenta primero el endpoint serverless `/api/despachar-reporte` y tiene fallback
@@ -431,7 +583,7 @@ export async function despacharReporteInmediato({ forzar = true } = {}) {
     body: JSON.stringify({
       ref: 'main',
       inputs: {
-        manual_run: 'true'
+        forzar: forzar ? 'true' : 'false'
       }
     })
   })

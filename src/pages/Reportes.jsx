@@ -5,7 +5,8 @@ import {
   saveConfiguracionReporte,
   fetchDatosReporteDiario,
   despacharReporteInmediato,
-  generarHTMLReporte
+  generarHTMLReporte,
+  exportarExcelReporteDiario
 } from '../services/reportesCorreoService'
 import { fetchPersonal, updatePersonal } from '../services/personalService'
 
@@ -20,6 +21,7 @@ export default function Reportes() {
   const [despachando, setDespachando] = useState(false)
   const [refreshingData, setRefreshingData] = useState(false)
   const [toast, setToast] = useState(null)
+  const [exportingExcel, setExportingExcel] = useState(false)
 
   // Estados de configuración
   const [config, setConfig] = useState({
@@ -28,7 +30,8 @@ export default function Reportes() {
     destinatarios: ['ccondor@covepa.pe'],
     destinatarios_cc: [],
     asunto: '[COVEPA] Reporte Diario de Observaciones - {fecha}',
-    notas_jornada: 'Cierre operativo de observaciones de la jornada.'
+    notas_jornada: 'Cierre operativo de observaciones de la jornada.',
+    periodo_reporte: 'dia_actual'
   })
 
   // Inputs temporales para escribir nuevos correos manualmente
@@ -65,7 +68,7 @@ export default function Reportes() {
     try {
       const [cfg, datos, personal] = await Promise.all([
         fetchConfiguracionReporte(),
-        fetchDatosReporteDiario(),
+        fetchDatosReporteDiario(null, (JSON.parse(localStorage.getItem('covepa_config_reporte_correo') || '{}')).periodo_reporte || 'dia_actual'),
         fetchPersonal()
       ])
       setConfig(cfg)
@@ -90,7 +93,7 @@ export default function Reportes() {
   const handleRefrescarDatos = async () => {
     setRefreshingData(true)
     try {
-      const datos = await fetchDatosReporteDiario()
+      const datos = await fetchDatosReporteDiario(null, config.periodo_reporte || 'dia_actual')
       setDatosReporte(datos)
       showNotification('Datos de observaciones actualizados.', 'info')
     } catch (err) {
@@ -98,6 +101,38 @@ export default function Reportes() {
       showNotification('No se pudo refrescar los datos del reporte.', 'error')
     } finally {
       setRefreshingData(false)
+    }
+  }
+
+  // Cambiar entre día actual y día anterior
+  const handleCambiarPeriodo = async (nuevoPeriodo) => {
+    if (config.periodo_reporte === nuevoPeriodo) return
+    setConfig(prev => ({ ...prev, periodo_reporte: nuevoPeriodo }))
+    setRefreshingData(true)
+    try {
+      const datos = await fetchDatosReporteDiario(null, nuevoPeriodo)
+      setDatosReporte(datos)
+      showNotification(`Vista previa actualizada para ${nuevoPeriodo === 'dia_anterior' ? 'el día anterior (Ayer)' : 'el día actual (Hoy)'}.`, 'info')
+    } catch (err) {
+      console.error('Error cambiando período de reporte:', err)
+      showNotification('Error al cargar datos del período: ' + err.message, 'error')
+    } finally {
+      setRefreshingData(false)
+    }
+  }
+
+  // Descarga del consolidado en Excel (.xlsx) con 5 columnas oficiales
+  const handleDescargarExcel = async () => {
+    if (!datosReporte) return
+    setExportingExcel(true)
+    try {
+      await exportarExcelReporteDiario(datosReporte)
+      showNotification(`Descargando Reporte_Observaciones_${datosReporte.fechaStr || 'jornada'}.xlsx`, 'success')
+    } catch (err) {
+      console.error('Error descargando Excel:', err)
+      showNotification('Error al exportar Excel: ' + err.message, 'error')
+    } finally {
+      setExportingExcel(false)
     }
   }
 
@@ -484,6 +519,79 @@ export default function Reportes() {
             </button>
           </div>
 
+          {/* Selector de Período a Reportar (Día actual vs Día anterior) */}
+          <div className="reporte-form-group">
+            <label className="reporte-label">
+              <span>📅</span> Período de Observaciones a Reportar
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+              <button
+                type="button"
+                onClick={() => handleCambiarPeriodo('dia_actual')}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  padding: '0.75rem 0.6rem',
+                  borderRadius: '8px',
+                  border: config.periodo_reporte === 'dia_actual'
+                    ? '2px solid #003060'
+                    : '1px solid #cbd5e1',
+                  background: config.periodo_reporte === 'dia_actual'
+                    ? '#eff6ff'
+                    : '#ffffff',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span style={{ fontSize: 'var(--text-base)' }}>☀️</span>
+                <span className="t-name" style={{ color: config.periodo_reporte === 'dia_actual' ? '#003060' : 'var(--text-primary)', textAlign: 'center' }}>
+                  Día actual (Hoy)
+                </span>
+                <span className="t-meta" style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>
+                  Observaciones de la jornada de hoy
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleCambiarPeriodo('dia_anterior')}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  padding: '0.75rem 0.6rem',
+                  borderRadius: '8px',
+                  border: config.periodo_reporte === 'dia_anterior'
+                    ? '2px solid #003060'
+                    : '1px solid #cbd5e1',
+                  background: config.periodo_reporte === 'dia_anterior'
+                    ? '#eff6ff'
+                    : '#ffffff',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span style={{ fontSize: 'var(--text-base)' }}>⏮️</span>
+                <span className="t-name" style={{ color: config.periodo_reporte === 'dia_anterior' ? '#003060' : 'var(--text-primary)', textAlign: 'center' }}>
+                  Día anterior (Ayer)
+                </span>
+                <span className="t-meta" style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>
+                  Observaciones cerradas el día de ayer
+                </span>
+              </button>
+            </div>
+            <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
+              {config.periodo_reporte === 'dia_anterior'
+                ? 'El reporte computará y agrupará las observaciones del día de ayer.'
+                : 'El reporte computará y agrupará las observaciones del día de hoy.'}
+            </span>
+          </div>
+
           {/* Horario de Envío Autónomo en la Nube */}
           <div className="reporte-form-group">
             <label className="reporte-label">
@@ -711,26 +819,50 @@ export default function Reportes() {
             <h2 className="t-title-section" style={{ margin: 0, color: '#003060', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
               <span>👁️</span> Simulador de Vista Previa en Vivo
             </h2>
-            <button
-              type="button"
-              onClick={handleRefrescarDatos}
-              disabled={refreshingData}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                padding: '0.35rem 0.75rem',
-                background: '#f1f5f9',
-                border: '1px solid #cbd5e1',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                color: '#334155'
-              }}
-              className="t-meta"
-            >
-              <span>🔄</span>
-              <span>{refreshingData ? 'Actualizando...' : 'Recargar Observaciones'}</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleDescargarExcel}
+                disabled={exportingExcel || !datosReporte}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.35rem 0.75rem',
+                  background: '#003060',
+                  border: '1px solid #002244',
+                  borderRadius: '6px',
+                  cursor: exportingExcel ? 'not-allowed' : 'pointer',
+                  color: '#ffffff',
+                  fontWeight: 'var(--fw-semibold)'
+                }}
+                className="t-meta"
+                title="Descargar archivo Excel oficial (.xlsx) de 5 columnas con color corporativo #003060"
+              >
+                <span>📊</span>
+                <span>{exportingExcel ? 'Generando...' : 'Descargar Excel Adjunto'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleRefrescarDatos}
+                disabled={refreshingData}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.35rem 0.75rem',
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  color: '#334155'
+                }}
+                className="t-meta"
+              >
+                <span>🔄</span>
+                <span>{refreshingData ? 'Actualizando...' : 'Recargar Observaciones'}</span>
+              </button>
+            </div>
           </div>
 
           <div className="email-sim-window">
@@ -766,6 +898,24 @@ export default function Reportes() {
                 <span className="email-sim-meta-label">Hora:</span>
                 <span className="email-sim-meta-val" style={{ color: '#64748b' }}>
                   Programado en la nube (cron-job.org) · Hora Perú
+                </span>
+              </div>
+              <div className="email-sim-meta-row">
+                <span className="email-sim-meta-label">Adjunto:</span>
+                <span className="email-sim-meta-val" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <span
+                    className="t-badge"
+                    style={{
+                      background: '#f0f9ff',
+                      color: '#003060',
+                      border: '1px solid #bae6fd',
+                      padding: '0.2rem 0.55rem',
+                      borderRadius: '6px',
+                      fontWeight: 'var(--fw-semibold)'
+                    }}
+                  >
+                    📎 Reporte_Observaciones_{datosReporte?.fechaStr || 'jornada'}.xlsx (5 columnas · #003060)
+                  </span>
                 </span>
               </div>
             </div>

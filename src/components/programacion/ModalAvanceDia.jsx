@@ -9,7 +9,7 @@ import { getAvancePorFecha } from '../../services/dashboardService'
 import { ASIGNACIONES_BASE } from '../../services/sitiosService'
 import { DEFAULT_CUADRILLAS_CONFIG } from '../../services/personalService'
 import CuadrillasMatrixTable from '../shared/CuadrillasMatrixTable'
-import { formatNombrePersona } from '../../utils/helpers'
+import { formatNombrePersona, getPeruDateStr } from '../../utils/helpers'
 // M3: imageExportService importado dinamicamente en handleCopyPNG / handleDownloadPNG
 import { usePresentationMode } from '../../context/PresentationContext'
 
@@ -380,7 +380,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
         getLocalidad(r.id_sitio) || '',
         r.estado || '',
         r.revisor || 'Sin revisor',
-        r.fecha_subsanacion ? String(r.fecha_subsanacion).slice(0, 10) : '',
+        r.fecha_subsanacion ? getPeruDateStr(r.fecha_subsanacion) : '',
         r.detalle || ''
       ])
 

@@ -33,7 +33,7 @@ import { ASIGNACIONES_BASE, getCachedSitiosAsignados } from '../services/sitiosS
 import { useAuth } from '../hooks/useAuth'
 import { usePresentationMode } from '../context/PresentationContext'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
-import { hasMeaningfulText, toLocalDateString, getInitials, getCargoClass } from '../utils/helpers'
+import { hasMeaningfulText, toLocalDateString, getPeruDateStr, getPeruISOString, getInitials, getCargoClass } from '../utils/helpers'
 import { supabase } from '../lib/supabase'
 
 // Helper para obtener el lunes de la semana actual
@@ -2287,7 +2287,7 @@ function ModalDetallesProgramacion({
       const revisorGilatActual = esRevisorGilat(obs.revisor, gilatOptions) ? obs.revisor : null
 
       const comentarioActual = comments[obs.id_obs] ?? obs.comentario_covepa ?? null
-      const fechaIso = new Date().toISOString()
+      const fechaIso = getPeruISOString()
 
       // Sincronización oficial con Control Fotos + Historial de Estados
       await sincronizarEstadoConControlFotos(
@@ -2354,7 +2354,7 @@ function ModalDetallesProgramacion({
   // Modificar fecha de validación o descarte
   const handleUpdateFecha = async (obs, newFecha) => {
     try {
-      const valFecha = newFecha || null
+      const valFecha = newFecha ? getPeruISOString(newFecha) : null
       await updateObservacionCovepa(obs.id_obs, { fecha_subsanacion: valFecha })
       setObservaciones(prev => prev.map(o => {
         if (o.id_obs === obs.id_obs) {
@@ -2640,7 +2640,7 @@ function ModalDetallesProgramacion({
         const rawSt = o.estado_covepa || (o.fecha_subsanacion ? 'Validado' : 'Pendiente')
         const isRevision = rawSt === 'En Revision' || rawSt === 'En Revisión'
         const revisor = isRevision ? '' : (o.revisor || 'Sin revisor')
-        const fechaRev = isRevision ? '' : (o.fecha_subsanacion ? String(o.fecha_subsanacion).slice(0, 10) : '')
+        const fechaRev = isRevision ? '' : getPeruDateStr(o.fecha_subsanacion)
         const comentario = comments[o.id_obs] || o.comentario_covepa || ''
         const demora = delays[o.id_obs] !== undefined ? delays[o.id_obs] : (o.justificacion_demora || '')
         const sId = o.id_sitio || currentSitioId
@@ -3081,7 +3081,7 @@ function ModalDetallesProgramacion({
                         </label>
                         <input
                           type="date"
-                          value={obs.fecha_subsanacion ? String(obs.fecha_subsanacion).split('T')[0].split(' ')[0] : ''}
+                          value={getPeruDateStr(obs.fecha_subsanacion)}
                           disabled={isUpdating}
                           onChange={(e) => handleUpdateFecha(obs, e.target.value)}
                           className="audit-date-input"

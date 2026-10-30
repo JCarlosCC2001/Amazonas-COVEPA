@@ -20,6 +20,7 @@
 
 import { supabase } from '../lib/supabase'
 import { asegurarProgramacionSitio } from './programacionService'
+import { getPeruISOString } from '../utils/helpers'
 
 /**
  * Catálogo estricto de los 6 estados oficiales permitidos por la integración
@@ -181,7 +182,7 @@ export async function fetchHistorialObservacion(idObs) {
 export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, comentario = null, extraContext = {}) {
   try {
     const estadoNorm = normalizarEstadoOficial(estado)
-    const fechaIso = extraContext.fechaIso || new Date().toISOString()
+    const fechaIso = extraContext.fechaIso || getPeruISOString()
 
     // Regla de Auto-Programación:
     // Verificar si existe programación para esa fecha; de no existir, primero genera la programación y luego continúa.
@@ -294,7 +295,7 @@ export async function sincronizarAuditoriaObservacion(idObs, {
   }
 
   const estadoNormalizado = normalizarEstadoOficial(nuevoEstado)
-  const fechaFinal = fechaSubsanacion || new Date().toISOString()
+  const fechaFinal = fechaSubsanacion ? (fechaSubsanacion.includes('T') ? fechaSubsanacion : getPeruISOString(fechaSubsanacion)) : getPeruISOString()
 
   // Regla de Auto-Programación:
   // Verificar si existe programación para esa fecha; de no existir, primero genera la programación y luego continúa.

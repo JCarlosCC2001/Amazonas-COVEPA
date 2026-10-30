@@ -1,6 +1,7 @@
 // M3: ExcelJS se importa dinamicamente dentro de generateStyledExcel
 import { supabase } from '../lib/supabase'
 import { fetchSitios } from './sitiosService'
+import { getPeruDateStr } from '../utils/helpers'
 
 // Consulta completa de todas las columnas de la tabla 'observaciones'
 const OBS_COLUMNS = '*'
@@ -197,7 +198,7 @@ async function generateStyledExcel({ observations, siteMap, sheetName, fileName 
   observations.forEach((o, idx) => {
     const site = siteMap.get(o.id_sitio) || {}
     const rawSt = o.estado_covepa || (o.fecha_subsanacion ? 'Validado' : 'Pendiente')
-    const fechaSub = o.fecha_subsanacion ? String(o.fecha_subsanacion).slice(0, 10) : ''
+    const fechaSub = o.fecha_subsanacion ? getPeruDateStr(o.fecha_subsanacion) : ''
 
     const rowValues = [
       idx + 1,

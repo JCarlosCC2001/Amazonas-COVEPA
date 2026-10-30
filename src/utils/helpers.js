@@ -15,6 +15,29 @@ export function toLocalDateString(d) {
   return `${year}-${month}-${day}`
 }
 
+/** Obtiene la fecha en zona horaria Perú (America/Lima) en formato YYYY-MM-DD sin desviaciones de huso horario */
+export function getPeruDateStr(dateInput = new Date()) {
+  if (!dateInput) return ''
+  const s = String(dateInput).trim()
+  if (!s) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  try {
+    const d = (dateInput instanceof Date) ? dateInput : new Date(dateInput)
+    if (isNaN(d.getTime())) return s.slice(0, 10)
+    // Si viene como medianoche UTC pura (ej: '2026-10-26T00:00:00+00:00'), no retroceder de día
+    if (s.includes('T00:00:00')) return s.split('T')[0]
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(d)
+  } catch {
+    return s.slice(0, 10)
+  }
+}
+
+/** Genera timestamp ISO seguro para la fecha Perú (mediodía UTC 12:00:00Z para evitar saltos de día por huso horario) */
+export function getPeruISOString(dateYmd = null) {
+  const ymd = dateYmd || getPeruDateStr(new Date())
+  return new Date(`${ymd}T12:00:00.000Z`).toISOString()
+}
+
 /** Iniciales de un nombre (2 letras). */
 export function getInitials(name) {
   if (!name) return '?'

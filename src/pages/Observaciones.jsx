@@ -25,7 +25,7 @@ import { getPersonalActivo } from '../services/programacionService'
 import { useAuth } from '../hooks/useAuth'
 import { getCachedSitiosAsignados } from '../services/sitiosService'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
-import { estadoCovepaBadge, hasMeaningfulText } from '../utils/helpers'
+import { estadoCovepaBadge, hasMeaningfulText, getPeruDateStr, getPeruISOString } from '../utils/helpers'
 
 // ────────────────────────────────────────────────────────────
 // VENTANA EMERGENTE — Detalle Completo de Observación (Flujo Programación)
@@ -160,7 +160,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       const revisorGilatActual = esRevisorGilat(obsLocal.revisor, gilatOptions) ? obsLocal.revisor : null
 
       const comentarioActual = commentValRef.current ?? obsLocal.comentario_covepa ?? null
-      const fechaIso = new Date().toISOString()
+      const fechaIso = getPeruISOString()
 
       await sincronizarEstadoConControlFotos(
         obsLocal.id_obs,
@@ -216,7 +216,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const handleUpdateFecha = async (newFecha) => {
     setUpdating(true)
     try {
-      const valFecha = newFecha ? new Date(newFecha + 'T12:00:00Z').toISOString() : null
+      const valFecha = newFecha ? getPeruISOString(newFecha) : null
       await updateObservacionCovepa(obsLocal.id_obs, { fecha_subsanacion: valFecha })
       const updatedRow = { ...obsLocal, fecha_subsanacion: valFecha }
       setObsLocal(updatedRow)
@@ -512,7 +512,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
             <div className="obs-meta-card">
               <span className="obs-meta-label">F. Subsanación</span>
               <span className="obs-meta-value" style={{ fontFamily: 'var(--font-mono)', color: obsLocal.fecha_subsanacion ? '#059669' : '#64748b' }}>
-                {obsLocal.fecha_subsanacion ? String(obsLocal.fecha_subsanacion).split('T')[0] : 'Sin fecha'}
+                {obsLocal.fecha_subsanacion ? getPeruDateStr(obsLocal.fecha_subsanacion) : 'Sin fecha'}
               </span>
             </div>
           </div>
@@ -736,7 +736,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                         </td>
                         <td>
                           <span style={{ fontSize: 'var(--text-sm)', color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                            {o.fecha_subsanacion ? o.fecha_subsanacion.split('T')[0] : '—'}
+                            {o.fecha_subsanacion ? getPeruDateStr(o.fecha_subsanacion) : '—'}
                           </span>
                         </td>
                         <td>
@@ -1316,7 +1316,7 @@ export default function Observaciones() {
                       </td>
                       <td>
                         <span style={{ fontSize: 'var(--text-sm)', color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                          {o.fecha_subsanacion ? o.fecha_subsanacion.split('T')[0] : '—'}
+                          {o.fecha_subsanacion ? getPeruDateStr(o.fecha_subsanacion) : '—'}
                         </span>
                       </td>
                       <td>

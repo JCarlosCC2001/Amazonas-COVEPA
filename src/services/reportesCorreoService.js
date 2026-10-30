@@ -38,7 +38,7 @@ export const DEFAULT_CONFIG_SEMANAL = {
 // Registro en memoria de columnas opcionales admitidas en la tabla configuracion_reportes_correo
 // Evita peticiones con columnas inexistentes que provoquen errores 400 en consola
 const dbColumnsSupport = {
-  destinatario_prueba: false, // Inicia false para proteger contra 400 hasta que Supabase devuelva la columna
+  destinatario_prueba: true, // Columna migrada exitosamente en Supabase
   periodo_reporte: true,
   dia_semana_envio: true
 }
@@ -168,8 +168,8 @@ export async function saveConfiguracionReporte(config, userEmail = null, tipo = 
   if (dbColumnsSupport.dia_semana_envio !== false && config.dia_semana_envio) {
     payload.dia_semana_envio = config.dia_semana_envio
   }
-  if (dbColumnsSupport.destinatario_prueba === true && config.destinatario_prueba) {
-    payload.destinatario_prueba = config.destinatario_prueba.trim()
+  if (dbColumnsSupport.destinatario_prueba !== false && config.destinatario_prueba !== undefined) {
+    payload.destinatario_prueba = (config.destinatario_prueba || '').trim()
   }
 
   try {

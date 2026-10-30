@@ -1193,6 +1193,7 @@ export async function despacharReporteInmediato({ forzar = true, destinatarioPru
       registrarEnvioLocal({
         id: `local-${Date.now()}`,
         created_at: new Date().toISOString(),
+        tipo_reporte: 'diario',
         tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
         origen: 'web',
         destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
@@ -1242,6 +1243,7 @@ export async function despacharReporteInmediato({ forzar = true, destinatarioPru
     registrarEnvioLocal({
       id: `local-${Date.now()}`,
       created_at: new Date().toISOString(),
+      tipo_reporte: 'diario',
       tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
       origen: 'web_direct',
       destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
@@ -1277,6 +1279,7 @@ export async function despacharReporteSemanalInmediato({ forzar = true, destinat
       registrarEnvioLocal({
         id: `local-${Date.now()}`,
         created_at: new Date().toISOString(),
+        tipo_reporte: 'semanal',
         tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
         origen: 'web',
         destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
@@ -1291,6 +1294,7 @@ export async function despacharReporteSemanalInmediato({ forzar = true, destinat
   registrarEnvioLocal({
     id: `local-${Date.now()}`,
     created_at: new Date().toISOString(),
+    tipo_reporte: 'semanal',
     tipo: destinatarioPrueba ? 'prueba' : 'manual',
     origen: 'simulacion',
     destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
@@ -1319,10 +1323,10 @@ export function registrarEnvioLocal(registro) {
 
 /**
  * Consulta y unifica el historial completo de envíos de reportes.
- * Combina la tabla historial_reportes_correo en Supabase, los Workflow Runs
- * de GitHub Actions y los despachos registrados localmente.
+ * Permite filtrar por tipo de reporte ('diario' | 'semanal') para que cada
+ * tipo de informe conserve su propio historial independiente.
  */
-export async function fetchHistorialEnvios() {
+export async function fetchHistorialEnvios(tipoReporte = null) {
   const unified = []
   const seenRunIds = new Set()
 
@@ -1332,15 +1336,18 @@ export async function fetchHistorialEnvios() {
       .from('historial_reportes_correo')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(60)
 
     if (!error && Array.isArray(data)) {
       data.forEach(item => {
         if (item.github_run_id) seenRunIds.add(String(item.github_run_id))
+        const itemTipoReporte = item.tipo_reporte || 
+          ((item.asunto || '').toLowerCase().includes('semanal') ? 'semanal' : 'diario')
 
         unified.push({
           id: item.id || `sb-${item.created_at}`,
           created_at: item.created_at,
+          tipo_reporte: itemTipoReporte,
           tipo: item.tipo || 'oficial', // 'oficial' | 'prueba' | 'manual'
           origen: item.origen || 'supabase',
           destinatarios: Array.isArray(item.destinatarios) ? item.destinatarios : [item.destinatarios].filter(Boolean),
@@ -1375,7 +1382,7 @@ export async function fetchHistorialEnvios() {
       headers['Authorization'] = `token ${token}`
     }
 
-    const res = await fetch('https://api.github.com/repos/JCarlosCC2001/Amazonas-COVEPA/actions/workflows/reporte-diario.yml/runs?per_page=30', {
+    const res = await fetch('https://api.github.com/repos/JCarlosCC2001/Amazonas-COVEPA/actions/workflows/reporte-diario.yml/runs?per_page=35', {
       headers
     })
 
@@ -1396,10 +1403,13 @@ export async function fetchHistorialEnvios() {
 
         const isSchedule = run.event === 'schedule'
         const tipoFinal = isSchedule ? 'oficial' : 'manual'
+        const runNameLower = (run.name || '').toLowerCase()
+        const runTipoReporte = runNameLower.includes('semanal') ? 'semanal' : 'diario'
 
         unified.push({
           id: `gh-${run.id}`,
           created_at: run.created_at,
+          tipo_reporte: runTipoReporte,
           tipo: tipoFinal,
           origen: isSchedule ? 'cron' : 'github_actions',
           destinatarios: [],
@@ -1432,6 +1442,7 @@ export async function fetchHistorialEnvios() {
           ))
           if (!yaExiste) {
             unified.push({
+              tipo_reporte: loc.tipo_reporte || ((loc.asunto || '').toLowerCase().includes('semanal') ? 'semanal' : 'diario'),
               ...loc,
               source: 'local'
             })
@@ -1443,6 +1454,11 @@ export async function fetchHistorialEnvios() {
 
   // 4. Ordenar cronológicamente descendente (más reciente arriba)
   unified.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+  // 5. Filtrar por tipo específico si se solicita
+  if (tipoReporte) {
+    return unified.filter(item => item.tipo_reporte === tipoReporte)
+  }
 
   return unified
 }

@@ -970,6 +970,7 @@ async function main() {
   try {
     const esPrueba = Boolean(forzarEnvio && rawDestinatarioPrueba)
     const logItem = {
+      tipo_reporte: 'diario',
       tipo: esPrueba ? 'prueba' : (forzarEnvio ? 'manual' : 'oficial'),
       origen: process.env.GITHUB_RUN_ID ? (isManual ? 'github_actions' : 'cron') : 'manual',
       destinatarios: recipients,

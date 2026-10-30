@@ -47,6 +47,25 @@ export default function ModalConfiguracionCuenta({ isOpen, onClose }) {
     return 'unsupported'
   })
 
+  // Preferencia local de silenciar/activar notificaciones de escritorio
+  const [desktopNotifEnabled, setDesktopNotifEnabled] = useState(() => {
+    try {
+      return localStorage.getItem('covepa_desktop_notif_enabled') !== 'false'
+    } catch {
+      return true
+    }
+  })
+
+  const toggleDesktopNotif = () => {
+    setDesktopNotifEnabled(prev => {
+      const next = !prev
+      try {
+        localStorage.setItem('covepa_desktop_notif_enabled', String(next))
+      } catch (_) {}
+      return next
+    })
+  }
+
   // Cerrar con Escape
   useEffect(() => {
     if (!isOpen) return
@@ -133,7 +152,7 @@ export default function ModalConfiguracionCuenta({ isOpen, onClose }) {
     }
   }
 
-  // Solicitar o probar notificaciones de escritorio
+  // Solicitar permiso de notificaciones de escritorio
   const handleSolicitarNotificaciones = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
       alert('Tu navegador no soporta notificaciones de escritorio.')
@@ -143,16 +162,29 @@ export default function ModalConfiguracionCuenta({ isOpen, onClose }) {
     try {
       const perm = await Notification.requestPermission()
       setDesktopPermission(perm)
-      if (perm === 'granted') {
-        playNotificationChime()
-        new Notification('🔔 Alertas COVEPA Activadas', {
-          body: 'Las notificaciones del sistema están funcionando correctamente en este dispositivo.',
-          icon: '/icon-192.png'
-        })
-      }
     } catch (err) {
       console.warn('Error solicitando permisos:', err)
     }
+  }
+
+  // Prueba manual voluntaria: se auto-cierra en 3 segundos y usa tag único para no acumularse
+  const handleProbarNotificacion = () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    if (Notification.permission !== 'granted') {
+      handleSolicitarNotificaciones()
+      return
+    }
+    playNotificationChime()
+    try {
+      const notif = new Notification('🔔 Prueba de Notificación COVEPA', {
+        body: 'Notificación de prueba puntual. Se cerrará automáticamente en 3 segundos.',
+        icon: '/icon-192.png',
+        tag: 'covepa-test-user-click'
+      })
+      setTimeout(() => {
+        try { notif.close() } catch (_) {}
+      }, 3000)
+    } catch (_) {}
   }
 
   if (!isOpen) return null
@@ -564,43 +596,96 @@ export default function ModalConfiguracionCuenta({ isOpen, onClose }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div className="t-name" style={{ color: '#003060', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                     <Laptop size={17} color="#0284c7" />
-                    <span>Notificaciones de Escritorio (Windows / Celular)</span>
+                    <span>Notificaciones de Escritorio (Windows / Chrome)</span>
                   </div>
                   <span
                     className="t-badge"
                     style={{
-                      background: desktopPermission === 'granted' ? '#dcfce7' : '#fee2e2',
-                      color: desktopPermission === 'granted' ? '#15803d' : '#b91c1c',
-                      border: `1px solid ${desktopPermission === 'granted' ? '#86efac' : '#fca5a5'}`
+                      background: desktopPermission !== 'granted' ? '#fee2e2' : desktopNotifEnabled ? '#dcfce7' : '#f1f5f9',
+                      color: desktopPermission !== 'granted' ? '#b91c1c' : desktopNotifEnabled ? '#15803d' : '#475569',
+                      border: `1px solid ${desktopPermission !== 'granted' ? '#fca5a5' : desktopNotifEnabled ? '#86efac' : '#cbd5e1'}`
                     }}
                   >
-                    {desktopPermission === 'granted' ? '✓ Activas' : 'Inactivas / Bloqueadas'}
+                    {desktopPermission !== 'granted'
+                      ? 'Inactivas / Bloqueadas'
+                      : desktopNotifEnabled
+                        ? '✓ Habilitadas'
+                        : '⏸️ Silenciadas por el usuario'}
                   </span>
                 </div>
                 <p className="t-meta" style={{ color: 'var(--text-secondary)', margin: 0 }}>
-                  Te alertan cuando entra una nueva solicitud de revisión de campo o cuando el reporte diario por correo ha sido enviado, incluso con el navegador minimizado.
+                  Avisos flotantes de Windows cuando un técnico solicita revisión o se despacha el reporte. Puedes silenciarlas aquí en cualquier momento si no deseas que salgan avisos en pantalla.
                 </p>
-                <div>
-                  <button
-                    type="button"
-                    onClick={handleSolicitarNotificaciones}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                      padding: '0.5rem 0.95rem',
-                      background: '#f0f7ff',
-                      border: '1px solid #bfdbfe',
-                      color: '#1d4ed8',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontWeight: 'var(--fw-semibold)'
-                    }}
-                    className="t-meta"
-                  >
-                    <Bell size={14} />
-                    <span>Solicitar / Probar Notificación de Escritorio</span>
-                  </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                  {desktopPermission !== 'granted' ? (
+                    <button
+                      type="button"
+                      onClick={handleSolicitarNotificaciones}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        padding: '0.5rem 0.95rem',
+                        background: '#f0f7ff',
+                        border: '1px solid #bfdbfe',
+                        color: '#1d4ed8',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: 'var(--fw-semibold)'
+                      }}
+                      className="t-meta"
+                    >
+                      <Bell size={14} />
+                      <span>Habilitar Notificaciones en este Navegador</span>
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={toggleDesktopNotif}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          padding: '0.5rem 0.95rem',
+                          background: desktopNotifEnabled ? '#fee2e2' : '#f0fdf4',
+                          border: `1px solid ${desktopNotifEnabled ? '#fca5a5' : '#86efac'}`,
+                          color: desktopNotifEnabled ? '#991b1b' : '#166534',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontWeight: 'var(--fw-semibold)'
+                        }}
+                        className="t-meta"
+                        title={desktopNotifEnabled ? 'Silenciar notificaciones de Windows' : 'Activar notificaciones de Windows'}
+                      >
+                        <Bell size={14} />
+                        <span>{desktopNotifEnabled ? '🔕 Silenciar / Desactivar Avisos de Escritorio' : '🔔 Activar Avisos de Escritorio'}</span>
+                      </button>
+
+                      {desktopNotifEnabled && (
+                        <button
+                          type="button"
+                          onClick={handleProbarNotificacion}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            padding: '0.5rem 0.85rem',
+                            background: '#f8fafc',
+                            border: '1px solid #cbd5e1',
+                            color: '#334155',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontWeight: 'var(--fw-semibold)'
+                          }}
+                          className="t-meta"
+                          title="Envía una sola alerta que se auto-cierra en 3 segundos"
+                        >
+                          <span>Probar Aviso Único (3s)</span>
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
 

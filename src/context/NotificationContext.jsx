@@ -344,6 +344,9 @@ export function NotificationProvider({ children }) {
   const dispararNotificacionEscritorio = useCallback((obs, localidad) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return
     if (Notification.permission !== 'granted') return
+    try {
+      if (localStorage.getItem('covepa_desktop_notif_enabled') === 'false') return
+    } catch (_) {}
 
     try {
       const locText = localidad ? ` · ${localidad}` : ''
@@ -360,6 +363,11 @@ export function NotificationProvider({ children }) {
         window.location.href = `/observaciones?search=${encodeURIComponent(obs.id_obs)}`
         notif.close()
       }
+
+      // Auto-cerrar después de 6 segundos para evitar acumulación en Windows
+      setTimeout(() => {
+        try { notif.close() } catch (_) {}
+      }, 6000)
     } catch (err) {
       console.warn('Aviso de notificación de escritorio no emitido:', err)
     }
@@ -466,12 +474,17 @@ export function NotificationProvider({ children }) {
 
           if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
             try {
-              new Notification(titulo, {
-                body: mensaje,
-                icon: '/icon-192.png',
-                tag: 'covepa-alerta-acumulacion-revision',
-                renotify: true
-              })
+              if (localStorage.getItem('covepa_desktop_notif_enabled') !== 'false') {
+                const notif = new Notification(titulo, {
+                  body: mensaje,
+                  icon: '/icon-192.png',
+                  tag: 'covepa-alerta-acumulacion-revision',
+                  renotify: true
+                })
+                setTimeout(() => {
+                  try { notif.close() } catch (_) {}
+                }, 6000)
+              }
             } catch {}
           }
         }
@@ -676,16 +689,21 @@ export function NotificationProvider({ children }) {
             // Notificación nativa de escritorio (Windows / Celular)
             if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
               try {
-                const notif = new Notification('📬 Reporte Diario COVEPA Enviado', {
-                  body: `El consolidado de observaciones fue despachado exitosamente por correo a las ${horaStr}.`,
-                  icon: '/icon-192.png',
-                  tag: 'covepa-reporte-despachado',
-                  renotify: true
-                })
-                notif.onclick = () => {
-                  window.focus()
-                  window.location.href = '/reportes'
-                  notif.close()
+                if (localStorage.getItem('covepa_desktop_notif_enabled') !== 'false') {
+                  const notif = new Notification('📬 Reporte Diario COVEPA Enviado', {
+                    body: `El consolidado de observaciones fue despachado exitosamente por correo a las ${horaStr}.`,
+                    icon: '/icon-192.png',
+                    tag: 'covepa-reporte-despachado',
+                    renotify: true
+                  })
+                  notif.onclick = () => {
+                    window.focus()
+                    window.location.href = '/reportes'
+                    notif.close()
+                  }
+                  setTimeout(() => {
+                    try { notif.close() } catch (_) {}
+                  }, 6000)
                 }
               } catch (_) {}
             }
@@ -709,13 +727,6 @@ export function NotificationProvider({ children }) {
     try {
       const perm = await Notification.requestPermission()
       setDesktopPermission(perm)
-      if (perm === 'granted') {
-        playNotificationChime()
-        new Notification('🔔 Alertas COVEPA Activadas', {
-          body: 'Recibirás avisos instantáneos cuando un técnico solicite revisión.',
-          icon: '/icon-192.png'
-        })
-      }
       return perm
     } catch (err) {
       console.warn('Error solicitando permiso de notificación:', err)

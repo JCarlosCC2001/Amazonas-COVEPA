@@ -14,7 +14,8 @@ export const DEFAULT_CONFIG_DIARIO = {
   destinatarios_cc: [],
   asunto: '[COVEPA] Reporte Diario de Observaciones - {fecha}',
   notas_jornada: 'Cierre operativo de observaciones de la jornada.',
-  periodo_reporte: 'dia_actual' // 'dia_actual' | 'dia_anterior'
+  periodo_reporte: 'dia_actual', // 'dia_actual' | 'dia_anterior'
+  destinatario_prueba: ''
 }
 
 export const DEFAULT_CONFIG_SEMANAL = {
@@ -26,7 +27,8 @@ export const DEFAULT_CONFIG_SEMANAL = {
   destinatarios_cc: [],
   asunto: '[COVEPA] Reporte Semanal de Levantamiento de Observaciones Amazonas - Semana {semana}',
   notas_jornada: 'Consolidado semanal de observaciones levantadas y avances de cuadrillas.',
-  periodo_reporte: 'semana_actual' // 'semana_actual' | 'semana_anterior'
+  periodo_reporte: 'semana_actual', // 'semana_actual' | 'semana_anterior'
+  destinatario_prueba: ''
 }
 
 /**
@@ -70,6 +72,7 @@ export async function fetchConfiguracionReporte(tipo = 'diario') {
         notas_jornada: notasLimpias,
         asunto: data.asunto || defaults.asunto,
         periodo_reporte: data.periodo_reporte || defaults.periodo_reporte,
+        destinatario_prueba: data.destinatario_prueba || defaults.destinatario_prueba || '',
         hora_envio: (data.hora_envio || defaults.hora_envio).slice(0, 5)
       }
       localStorage.setItem(storageKey, JSON.stringify(merged))
@@ -89,6 +92,7 @@ export async function fetchConfiguracionReporte(tipo = 'diario') {
         ...parsed,
         asunto: parsed.asunto || defaults.asunto,
         periodo_reporte: parsed.periodo_reporte || defaults.periodo_reporte,
+        destinatario_prueba: parsed.destinatario_prueba || defaults.destinatario_prueba || '',
         hora_envio: (parsed.hora_envio || defaults.hora_envio).slice(0, 5)
       }
     }
@@ -117,6 +121,7 @@ export async function saveConfiguracionReporte(config, userEmail = null, tipo = 
     notas_jornada: config.notas_jornada || '',
     periodo_reporte: config.periodo_reporte || defaults.periodo_reporte,
     dia_semana_envio: config.dia_semana_envio || defaults.dia_semana_envio || '5',
+    destinatario_prueba: (config.destinatario_prueba || '').trim(),
     updated_at: new Date().toISOString(),
     updated_by: userEmail
   }
@@ -134,10 +139,11 @@ export async function saveConfiguracionReporte(config, userEmail = null, tipo = 
 
     if (error) {
       console.warn(`[REPORTES-CORREO] Aviso al guardar ${configId} en Supabase:`, error.message)
-      // Si la BD no tiene alguna columna extra (dia_semana_envio o periodo_reporte), reintentar sin ellas
+      // Si la BD no tiene alguna columna extra (dia_semana_envio, periodo_reporte o destinatario_prueba), reintentar sin ellas
       const safePayload = { ...payload }
       delete safePayload.dia_semana_envio
       delete safePayload.periodo_reporte
+      delete safePayload.destinatario_prueba
       const { data: retryData } = await supabase
         .from('configuracion_reportes_correo')
         .upsert(safePayload, { onConflict: 'id' })
@@ -1169,7 +1175,7 @@ function escapeHtml(str) {
  */
 export const DEFAULT_CRON_KEY = 'covepa_cron_7f8a9b2c3d4e5f'
 
-export async function despacharReporteInmediato({ forzar = true } = {}) {
+export async function despacharReporteInmediato({ forzar = true, destinatarioPrueba = '' } = {}) {
   const cronKey = (import.meta.env.VITE_CRON_SECRET || DEFAULT_CRON_KEY).trim()
   try {
     const res = await fetch('/api/despachar-reporte', {
@@ -1177,9 +1183,10 @@ export async function despacharReporteInmediato({ forzar = true } = {}) {
       headers: {
         'Content-Type': 'application/json',
         'x-cron-key': cronKey,
-        'x-forzar': forzar ? 'true' : 'false'
+        'x-forzar': forzar ? 'true' : 'false',
+        'x-destinatario-prueba': destinatarioPrueba || ''
       },
-      body: JSON.stringify({ forzar })
+      body: JSON.stringify({ forzar, destinatario_prueba: destinatarioPrueba || '' })
     })
     if (res.ok) {
       const data = await res.json().catch(() => ({}))
@@ -1215,7 +1222,8 @@ export async function despacharReporteInmediato({ forzar = true } = {}) {
     body: JSON.stringify({
       ref: 'main',
       inputs: {
-        forzar: forzar ? 'true' : 'false'
+        forzar: forzar ? 'true' : 'false',
+        destinatario_prueba: destinatarioPrueba || ''
       }
     })
   })
@@ -1231,7 +1239,7 @@ export async function despacharReporteInmediato({ forzar = true } = {}) {
 /**
  * Despacha el reporte semanal de inmediato (prueba de envío).
  */
-export async function despacharReporteSemanalInmediato({ forzar = true } = {}) {
+export async function despacharReporteSemanalInmediato({ forzar = true, destinatarioPrueba = '' } = {}) {
   const cronKey = (import.meta.env.VITE_CRON_SECRET || DEFAULT_CRON_KEY).trim()
   try {
     const res = await fetch('/api/despachar-reporte-semanal', {
@@ -1239,9 +1247,10 @@ export async function despacharReporteSemanalInmediato({ forzar = true } = {}) {
       headers: {
         'Content-Type': 'application/json',
         'x-cron-key': cronKey,
-        'x-forzar': forzar ? 'true' : 'false'
+        'x-forzar': forzar ? 'true' : 'false',
+        'x-destinatario-prueba': destinatarioPrueba || ''
       },
-      body: JSON.stringify({ forzar })
+      body: JSON.stringify({ forzar, destinatario_prueba: destinatarioPrueba || '' })
     })
     if (res.ok) {
       const data = await res.json().catch(() => ({}))

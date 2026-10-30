@@ -189,11 +189,19 @@ async function main() {
   }
 
   // 5. Destinatarios
-  const recipients = (config.destinatarios || []).filter(Boolean)
-  if (recipients.length === 0) {
-    recipients.push('ccondor@covepa.pe')
+  const rawDestinatarioPrueba = (process.env.DESTINATARIO_PRUEBA || '').trim()
+  let recipients = (config.destinatarios || []).filter(Boolean)
+  let recipientsCC = (config.destinatarios_cc || []).filter(Boolean)
+
+  if (forzarEnvio && rawDestinatarioPrueba) {
+    console.log(`[CRON-REPORTE] 🧪 MODO PRUEBA ACTIVO: Enviando exclusivamente al destinatario de prueba: ${rawDestinatarioPrueba}`)
+    recipients = [rawDestinatarioPrueba]
+    recipientsCC = []
+  } else {
+    if (recipients.length === 0) {
+      recipients.push('ccondor@covepa.pe')
+    }
   }
-  const recipientsCC = (config.destinatarios_cc || []).filter(Boolean)
 
   console.log(`[CRON-REPORTE] 📬 Destinatarios: ${recipients.join(', ')} | CC: ${recipientsCC.join(', ') || 'Ninguno'}`)
 
@@ -931,7 +939,7 @@ async function main() {
     from: `"COVEPA - Gestión de Calidad" <${smtpUser}>`,
     to: formattedTo,
     cc: formattedCC.length > 0 ? formattedCC : undefined,
-    bcc: [smtpUser], // Notificación inmediata en Outlook para ccondor@covepa.pe
+    bcc: (forzarEnvio && rawDestinatarioPrueba) ? undefined : [smtpUser], // Notificación inmediata para ccondor
     subject: subjectFinal,
     html: htmlBody,
     attachments: attachments.length > 0 ? attachments : undefined

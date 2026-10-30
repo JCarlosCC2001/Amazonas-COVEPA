@@ -11,6 +11,10 @@ on:
         description: 'Forzar reenvío ignorando si ya se envió hoy'
         required: false
         default: 'false'
+      destinatario_prueba:
+        description: 'Correo de destino para la prueba (opcional)'
+        required: false
+        default: ''
 
 jobs:
   enviar-reporte:
@@ -37,4 +41,5 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           IS_MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' }}
           FORZAR_ENVIO: ${{ github.event.inputs.forzar == 'true' }}
+          DESTINATARIO_PRUEBA: ${{ github.event.inputs.destinatario_prueba }}
         run: node scripts/enviar_reporte_diario.cjs

@@ -53,6 +53,9 @@ export default async function handler(req, res) {
   const forzarParam = (req.headers['x-forzar'] === 'true' ||
                        (req.body && req.body.forzar === true))
 
+  const destinatarioPrueba = (req.body && req.body.destinatario_prueba) ||
+                             req.headers['x-destinatario-prueba'] || ''
+
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -65,7 +68,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         ref: 'main',
         inputs: {
-          forzar: forzarParam ? 'true' : 'false'
+          forzar: forzarParam ? 'true' : 'false',
+          destinatario_prueba: String(destinatarioPrueba || '').trim()
         }
       })
     })

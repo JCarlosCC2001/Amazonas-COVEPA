@@ -206,14 +206,25 @@ export default function Reportes() {
   // Despachar reporte de prueba
   const handleDespacharPrueba = async () => {
     if (despachando) return
+    const destinatarioPrueba = (configActual.destinatario_prueba || '').trim()
     setDespachando(true)
     try {
       if (tipoVista === 'SEMANAL') {
-        await despacharReporteSemanalInmediato()
-        showNotification('¡Prueba de reporte semanal despachada! Llegará a tu correo en breve.', 'success')
+        await despacharReporteSemanalInmediato({ forzar: true, destinatarioPrueba })
+        showNotification(
+          destinatarioPrueba 
+            ? `¡Prueba de reporte semanal enviada a ${destinatarioPrueba}!` 
+            : '¡Prueba de reporte semanal despachada! Llegará a tu correo en breve.', 
+          'success'
+        )
       } else {
-        await despacharReporteInmediato()
-        showNotification('¡Envío de prueba diario iniciado! Llegará a tu bandeja en unos segundos.', 'success')
+        await despacharReporteInmediato({ forzar: true, destinatarioPrueba })
+        showNotification(
+          destinatarioPrueba 
+            ? `¡Envío de prueba diario despachado exclusivamente a ${destinatarioPrueba}!` 
+            : '¡Envío de prueba diario iniciado! Llegará a tu bandeja en unos segundos.', 
+          'success'
+        )
       }
     } catch (err) {
       console.error('Error despachando reporte:', err)
@@ -1210,6 +1221,66 @@ export default function Reportes() {
               />
               <span className="t-caption">
                 Se incluye en el cuerpo del correo antes de la firma institucional. Si se deja vacío, no aparecerá.
+              </span>
+            </div>
+
+            {/* Fila 5: Destinatario Exclusivo para Correo de Prueba */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              borderRadius: '12px',
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.65rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.45rem' }}>
+                <span className="t-name" style={{ color: '#003060', fontWeight: 'var(--fw-bold)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>🧪</span> Destinatario para Correo de Prueba
+                </span>
+                <span className="t-badge" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: '12px', fontWeight: 'var(--fw-semibold)' }}>
+                  ✓ No contabiliza en el reporte diario
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  id="destinatario_prueba_input"
+                  type="email"
+                  className="reporte-input"
+                  placeholder="ejemplo@covepa.pe o tu-correo@gmail.com"
+                  value={configActual.destinatario_prueba || ''}
+                  onChange={e => setConfigActual(prev => ({ ...prev, destinatario_prueba: e.target.value }))}
+                  style={{ flex: '1 1 260px' }}
+                />
+                <button
+                  type="button"
+                  onClick={handleDespacharPrueba}
+                  disabled={despachando}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    padding: '0.55rem 1.15rem',
+                    background: despachando ? '#64748b' : '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: despachando ? 'not-allowed' : 'pointer',
+                    fontWeight: 'var(--fw-semibold)',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease'
+                  }}
+                  className="t-meta"
+                  title="Despachar correo de prueba únicamente a esta dirección"
+                >
+                  <span>{despachando ? '⏳' : '🚀'}</span>
+                  <span>{despachando ? 'Despachando...' : 'Enviar Prueba'}</span>
+                </button>
+              </div>
+
+              <span className="t-caption">
+                Al enviar una prueba, el correo se dirigirá <strong>únicamente a esta dirección</strong> (sin enviar a los destinatarios principales ni con copia). No incrementa el contador de envíos del día, por lo que el despacho automático nocturno se ejecutará con normalidad.
               </span>
             </div>
           </div>

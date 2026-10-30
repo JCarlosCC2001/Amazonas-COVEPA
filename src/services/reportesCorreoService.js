@@ -35,12 +35,27 @@ export const DEFAULT_CONFIG_SEMANAL = {
  * Obtiene la configuración guardada del reporte automático (diario o semanal).
  * Intenta leer desde Supabase y cuenta con fallback transparente en localStorage.
  */
+// Registro en memoria de columnas opcionales admitidas en la tabla configuracion_reportes_correo
+// Evita peticiones con columnas inexistentes que provoquen errores 400 en consola
+const dbColumnsSupport = {
+  destinatario_prueba: false, // Inicia false para proteger contra 400 hasta que Supabase devuelva la columna
+  periodo_reporte: true,
+  dia_semana_envio: true
+}
+
 export async function fetchConfiguracionReporte(tipo = 'diario') {
   const isSemanal = tipo === 'semanal'
   const configId = isSemanal ? 'config_semanal' : 'config_diario'
   const storageKey = isSemanal ? LOCAL_STORAGE_KEY_SEMANAL : LOCAL_STORAGE_KEY_DIARIO
   const defaults = isSemanal ? DEFAULT_CONFIG_SEMANAL : DEFAULT_CONFIG_DIARIO
   const hoyPeru = getPeruDateStr() || toLocalDateString(new Date())
+
+  // Recuperar cualquier dato local previo (ej. destinatario_prueba)
+  let localPrev = {}
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (raw) localPrev = JSON.parse(raw)
+  } catch (_) {}
 
   try {
     const { data, error } = await supabase
@@ -50,6 +65,17 @@ export async function fetchConfiguracionReporte(tipo = 'diario') {
       .maybeSingle()
 
     if (!error && data) {
+      // Detectar dinámicamente si la columna destinatario_prueba existe en la base de datos
+      if ('destinatario_prueba' in data) {
+        dbColumnsSupport.destinatario_prueba = true
+      }
+      if ('periodo_reporte' in data) {
+        dbColumnsSupport.periodo_reporte = true
+      }
+      if ('dia_semana_envio' in data) {
+        dbColumnsSupport.dia_semana_envio = true
+      }
+
       let notasLimpias = data.notas_jornada || ''
       // Para diario, limpiar notas si son de un día anterior
       if (!isSemanal && data.updated_at) {
@@ -68,12 +94,13 @@ export async function fetchConfiguracionReporte(tipo = 'diario') {
 
       const merged = {
         ...defaults,
+        ...localPrev,
         ...data,
         notas_jornada: notasLimpias,
-        asunto: data.asunto || defaults.asunto,
-        periodo_reporte: data.periodo_reporte || defaults.periodo_reporte,
-        destinatario_prueba: data.destinatario_prueba || defaults.destinatario_prueba || '',
-        hora_envio: (data.hora_envio || defaults.hora_envio).slice(0, 5)
+        asunto: data.asunto || localPrev.asunto || defaults.asunto,
+        periodo_reporte: data.periodo_reporte || localPrev.periodo_reporte || defaults.periodo_reporte,
+        destinatario_prueba: data.destinatario_prueba || localPrev.destinatario_prueba || defaults.destinatario_prueba || '',
+        hora_envio: (data.hora_envio || localPrev.hora_envio || defaults.hora_envio).slice(0, 5)
       }
       localStorage.setItem(storageKey, JSON.stringify(merged))
       return merged
@@ -119,16 +146,31 @@ export async function saveConfiguracionReporte(config, userEmail = null, tipo = 
     destinatarios_cc: Array.isArray(config.destinatarios_cc) ? config.destinatarios_cc : [],
     asunto: config.asunto || defaults.asunto,
     notas_jornada: config.notas_jornada || '',
-    periodo_reporte: config.periodo_reporte || defaults.periodo_reporte,
-    dia_semana_envio: config.dia_semana_envio || defaults.dia_semana_envio || '5',
-    destinatario_prueba: (config.destinatario_prueba || '').trim(),
     updated_at: new Date().toISOString(),
     updated_by: userEmail
   }
 
+  // Guardar siempre el estado completo en localStorage para resguardar la configuración del usuario
+  const fullLocal = {
+    ...payload,
+    periodo_reporte: config.periodo_reporte || defaults.periodo_reporte,
+    dia_semana_envio: config.dia_semana_envio || defaults.dia_semana_envio || '5',
+    destinatario_prueba: (config.destinatario_prueba || '').trim()
+  }
   try {
-    localStorage.setItem(storageKey, JSON.stringify(payload))
+    localStorage.setItem(storageKey, JSON.stringify(fullLocal))
   } catch (_) {}
+
+  // Enviar a Supabase solo las columnas que la base de datos admite actualmente
+  if (dbColumnsSupport.periodo_reporte !== false && config.periodo_reporte) {
+    payload.periodo_reporte = config.periodo_reporte
+  }
+  if (dbColumnsSupport.dia_semana_envio !== false && config.dia_semana_envio) {
+    payload.dia_semana_envio = config.dia_semana_envio
+  }
+  if (dbColumnsSupport.destinatario_prueba === true && config.destinatario_prueba) {
+    payload.destinatario_prueba = config.destinatario_prueba.trim()
+  }
 
   try {
     const { data, error } = await supabase
@@ -138,23 +180,33 @@ export async function saveConfiguracionReporte(config, userEmail = null, tipo = 
       .maybeSingle()
 
     if (error) {
-      console.warn(`[REPORTES-CORREO] Aviso al guardar ${configId} en Supabase:`, error.message)
-      // Si la BD no tiene alguna columna extra (dia_semana_envio, periodo_reporte o destinatario_prueba), reintentar sin ellas
+      // Si la BD rechazó alguna columna opcional, marcarla como no soportada y reintentar limpiamente
+      if (error.message?.includes('destinatario_prueba')) {
+        dbColumnsSupport.destinatario_prueba = false
+      }
+      if (error.message?.includes('dia_semana_envio')) {
+        dbColumnsSupport.dia_semana_envio = false
+      }
+      if (error.message?.includes('periodo_reporte')) {
+        dbColumnsSupport.periodo_reporte = false
+      }
+
       const safePayload = { ...payload }
+      delete safePayload.destinatario_prueba
       delete safePayload.dia_semana_envio
       delete safePayload.periodo_reporte
-      delete safePayload.destinatario_prueba
+
       const { data: retryData } = await supabase
         .from('configuracion_reportes_correo')
         .upsert(safePayload, { onConflict: 'id' })
         .select()
         .maybeSingle()
-      return retryData || payload
+      return retryData ? { ...fullLocal, ...retryData } : fullLocal
     }
-    return data || payload
+    return data ? { ...fullLocal, ...data } : fullLocal
   } catch (err) {
-    console.warn(`[REPORTES-CORREO] Error de red al guardar ${configId} en Supabase, guardado en local:`, err)
-    return payload
+    console.warn(`[REPORTES-CORREO] Error al guardar ${configId} en Supabase, guardado en local:`, err)
+    return fullLocal
   }
 }
 

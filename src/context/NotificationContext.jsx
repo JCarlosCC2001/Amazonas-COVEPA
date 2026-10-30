@@ -23,6 +23,13 @@ function getAudioContext() {
   if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
     try {
       sharedAudioCtx = new AudioContextClass()
+      if (sharedAudioCtx) {
+        sharedAudioCtx.onstatechange = () => {
+          if (sharedAudioCtx?.state === 'closed' || sharedAudioCtx?.state === 'interrupted') {
+            sharedAudioCtx = null
+          }
+        }
+      }
     } catch {
       sharedAudioCtx = null
       return null

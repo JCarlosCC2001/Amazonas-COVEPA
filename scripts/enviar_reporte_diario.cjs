@@ -428,13 +428,15 @@ async function main() {
     ? subjectTemplate.replace(/\{fecha\}/gi, targetFechaIso)
     : subjectTemplate
 
-  // Helper para renderizar listas verticales limpias de códigos
-  const renderCodeList = (items, colorText, colorBorder) => {
+  // Helper para renderizar insignias (chips) limpias y legibles de códigos
+  const renderCodeList = (items, colorText, colorBorder, bgLight = '#f8fafc') => {
     return `
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid ${colorBorder};border-radius:6px;padding:12px 18px;">
-        <ul style="margin:0;padding:0 0 0 18px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.65;color:${colorText};">
-          ${items.map(o => `<li style="margin-bottom:3px;font-weight:bold;">${escapeHtml(o.id_obs || '—')}</li>`).join('')}
-        </ul>
+      <div style="background-color:${bgLight};border:1px solid ${colorBorder};border-radius:6px;padding:10px 14px;">
+        ${items.map(o => `
+          <span style="display:inline-block;padding:3px 9px;margin:2px 3px;background-color:#ffffff;border:1px solid ${colorBorder};border-radius:4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${colorText};line-height:1.4;">
+            ${escapeHtml(o.id_obs || '—')}
+          </span>
+        `).join('')}
       </div>
     `
   }
@@ -444,45 +446,38 @@ async function main() {
 <html lang="es">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Reporte Diario COVEPA</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
-  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f1f5f9;padding:20px 10px;">
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f1f5f9;padding:24px 12px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:680px;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #cbd5e1;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+        <!--[if mso]>
+        <table role="presentation" width="700" align="center" border="0" cellspacing="0" cellpadding="0">
+        <tr><td>
+        <![endif]-->
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:700px;width:100%;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #cbd5e1;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
           
           <!-- Cabecera Institucional COVEPA -->
           <tr>
-            <td style="background-color:#003060;padding:22px 28px;text-align:left;">
-              <div style="font-size:11px;font-weight:bold;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:4px;">
-                AMAZONAS · COVEPA
-              </div>
-              <h1 style="margin:0;font-size:19px;font-weight:bold;color:#ffffff;line-height:1.25;">
-                Reporte Diario de Levantamiento de Observaciones
-              </h1>
-              <div style="font-size:13px;color:#93c5fd;margin-top:2px;font-weight:500;">
-                Amazonas - Zona 2 y Zona 7
-              </div>
-              <div style="font-size:12px;color:#cbd5e1;margin-top:6px;">
-                📅 <strong>Jornada:</strong> ${escapeHtml(targetFechaFormateada)}
-              </div>
-            </td>
-          </tr>
-
-          <!-- Contador Total General Encima de los 4 Medidores -->
-          <tr>
-            <td style="padding:16px 28px 4px 28px;">
+            <td style="background-color:#003060;padding:24px 30px;text-align:left;">
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
                 <tr>
-                  <td style="background-color:#f8fafc;border:1px solid #cbd5e1;border-top:3px solid #003060;border-radius:8px;padding:12px 16px;text-align:center;">
-                    <div style="font-family:Arial,Helvetica,sans-serif;">
-                      <span style="font-size:12px;font-weight:bold;color:#003060;text-transform:uppercase;letter-spacing:0.8px;">
-                        TOTAL DE OBSERVACIONES TRABAJADAS EN LA JORNADA
-                      </span>
-                      <div style="font-size:26px;font-weight:bold;color:#003060;line-height:1.2;margin-top:2px;">
-                        ${stats.total}
-                      </div>
+                  <td valign="middle">
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:4px;">
+                      AMAZONAS · COVEPA
+                    </div>
+                    <h1 style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:19px;font-weight:bold;color:#ffffff;line-height:1.25;">
+                      Reporte Diario de Levantamiento de Observaciones
+                    </h1>
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#bfdbfe;margin-top:3px;font-weight:500;">
+                      Amazonas — Zona 2 y Zona 7
+                    </div>
+                  </td>
+                  <td align="right" valign="middle" style="text-align:right;">
+                    <div style="display:inline-block;background-color:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:16px;padding:6px 12px;color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;white-space:nowrap;">
+                      📅 ${escapeHtml(targetFechaFormateada)}
                     </div>
                   </td>
                 </tr>
@@ -490,53 +485,74 @@ async function main() {
             </td>
           </tr>
 
-          <!-- Medidores / Contadores del Reporte (Siempre los 4 medidores visibles) -->
+          <!-- Panel de Control de Métricas (Dashboard KPI Integrado) -->
           <tr>
-            <td style="padding:20px 24px 12px 24px;">
+            <td style="background-color:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 24px;">
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <!-- Total General Trabajado -->
+                <tr>
+                  <td colspan="4" style="padding-bottom:10px;">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #cbd5e1;border-left:4px solid #003060;border-radius:6px;">
+                      <tr>
+                        <td style="padding:10px 16px;text-align:left;">
+                          <span style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;">
+                            Total de Observaciones Trabajadas en la Jornada
+                          </span>
+                        </td>
+                        <td style="padding:10px 16px;text-align:right;">
+                          <span style="font-family:'Segoe UI',Arial,sans-serif;font-size:26px;font-weight:bold;color:#003060;line-height:1;">
+                            ${stats.total}
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <!-- Fila de los 4 Medidores -->
                 <tr>
                   <!-- Validadas -->
-                  <td width="25%" style="padding:4px;">
-                    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 8px;text-align:center;">
-                      <div style="font-size:22px;font-weight:bold;color:#16a34a;line-height:1;">${stats.validadas}</div>
-                      <div style="font-size:11px;font-weight:bold;color:#15803d;text-transform:uppercase;margin-top:4px;">✓ Validadas</div>
-                    </div>
+                  <td width="25%" style="padding:0 3px 0 0;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bbf7d0;border-top:3px solid #16a34a;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:10px 4px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#16a34a;line-height:1;">${stats.validadas}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#15803d;text-transform:uppercase;margin-top:4px;">✓ Validadas</div>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                   <!-- Rechazadas -->
-                  <td width="25%" style="padding:4px;">
-                    <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:8px;padding:12px 8px;text-align:center;">
-                      <div style="font-size:22px;font-weight:bold;color:#e11d48;line-height:1;">${stats.rechazadas}</div>
-                      <div style="font-size:11px;font-weight:bold;color:#be123c;text-transform:uppercase;margin-top:4px;">✕ Rechazadas</div>
-                    </div>
+                  <td width="25%" style="padding:0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fecdd3;border-top:3px solid #e11d48;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:10px 4px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#e11d48;line-height:1;">${stats.rechazadas}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#be123c;text-transform:uppercase;margin-top:4px;">✕ Rechazadas</div>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
-                  <!-- En Espera (Solicitando Revisión + En Revisión) -->
-                  <td width="25%" style="padding:4px;">
-                    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 8px;text-align:center;">
-                      <div style="font-size:22px;font-weight:bold;color:#0284c7;line-height:1;">${stats.enEspera}</div>
-                      <div style="font-size:11px;font-weight:bold;color:#0369a1;text-transform:uppercase;margin-top:4px;">⏳ En Espera</div>
-                    </div>
+                  <!-- En Espera -->
+                  <td width="25%" style="padding:0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bfdbfe;border-top:3px solid #0284c7;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:10px 4px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#0284c7;line-height:1;">${stats.enEspera}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#0369a1;text-transform:uppercase;margin-top:4px;">⏳ En Espera</div>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
-                  <!-- Descartadas -->
-                  <td width="25%" style="padding:4px;">
-                    <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px 8px;text-align:center;">
-                      <div style="font-size:22px;font-weight:bold;color:#7e22ce;line-height:1;">${stats.descartadas}</div>
-                      <div style="font-size:11px;font-weight:bold;color:#6b21a8;text-transform:uppercase;margin-top:4px;">🚫 No Aplica</div>
-                    </div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Aviso de Archivo Excel Adjunto -->
-          <tr>
-            <td style="padding:2px 28px 12px 28px;">
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td>
-                    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#0369a1;line-height:1.45;">
-                      <strong style="color:#003060;">📎 Archivo Excel Adjunto:</strong> <code>Reporte_Observaciones_${escapeHtml(targetFechaIso)}.xlsx</code> (Consolidado oficial con ID, Zona, Código de lugar, Nombre de localidad, Persona que validó y Estado).
-                    </div>
+                  <!-- No Aplica -->
+                  <td width="25%" style="padding:0 0 0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #e9d5ff;border-top:3px solid #9333ea;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:10px 4px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#9333ea;line-height:1;">${stats.descartadas}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#7e22ce;text-transform:uppercase;margin-top:4px;">🚫 No Aplica</div>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                 </tr>
               </table>
@@ -546,11 +562,11 @@ async function main() {
           <!-- 1. Agrupación: Observaciones Validadas (Solo si tiene códigos) -->
           ${validadas.length > 0 ? `
           <tr>
-            <td style="padding:8px 28px 12px 28px;">
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
+            <td style="padding:14px 28px 10px 28px;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
                 <span style="color:#16a34a;margin-right:6px;">✓</span> Observaciones Validadas (${validadas.length})
               </div>
-              ${renderCodeList(validadas, '#15803d', '#16a34a')}
+              ${renderCodeList(validadas, '#15803d', '#86efac', '#f0fdf4')}
             </td>
           </tr>
           ` : ''}
@@ -558,11 +574,11 @@ async function main() {
           <!-- 2. Agrupación: Observaciones Rechazadas (Solo si tiene códigos) -->
           ${rechazadas.length > 0 ? `
           <tr>
-            <td style="padding:8px 28px 12px 28px;">
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
+            <td style="padding:10px 28px 10px 28px;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
                 <span style="color:#e11d48;margin-right:6px;">✕</span> Observaciones Rechazadas (${rechazadas.length})
               </div>
-              ${renderCodeList(rechazadas, '#be123c', '#e11d48')}
+              ${renderCodeList(rechazadas, '#b91c1c', '#fca5a5', '#fff1f2')}
             </td>
           </tr>
           ` : ''}
@@ -570,11 +586,11 @@ async function main() {
           <!-- 3. Agrupación: En Espera de Revisión (Solo si tiene códigos) -->
           ${enEspera.length > 0 ? `
           <tr>
-            <td style="padding:8px 28px 12px 28px;">
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
+            <td style="padding:10px 28px 10px 28px;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
                 <span style="color:#0284c7;margin-right:6px;">⏳</span> En Espera de Revisión (${enEspera.length})
               </div>
-              ${renderCodeList(enEspera, '#0369a1', '#0284c7')}
+              ${renderCodeList(enEspera, '#0369a1', '#93c5fd', '#f0f9ff')}
             </td>
           </tr>
           ` : ''}
@@ -582,11 +598,11 @@ async function main() {
           <!-- 4. Agrupación: Observaciones No Aplica (Solo si tiene códigos) -->
           ${descartadas.length > 0 ? `
           <tr>
-            <td style="padding:8px 28px 12px 28px;">
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
+            <td style="padding:10px 28px 10px 28px;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
                 <span style="color:#7e22ce;margin-right:6px;">🚫</span> Observaciones No Aplica (${descartadas.length})
               </div>
-              ${renderCodeList(descartadas, '#6b21a8', '#7e22ce')}
+              ${renderCodeList(descartadas, '#6b21a8', '#d8b4fe', '#faf5ff')}
             </td>
           </tr>
           ` : ''}
@@ -594,8 +610,8 @@ async function main() {
           <!-- Mensaje si no hubo ninguna observación en toda la jornada -->
           ${totalListados === 0 ? `
           <tr>
-            <td style="padding:16px 28px;text-align:center;">
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:#64748b;font-style:italic;">
+            <td style="padding:20px 28px;text-align:center;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#64748b;font-style:italic;">
                 No se registraron observaciones levantadas o en espera para la jornada seleccionada.
               </div>
             </td>
@@ -606,11 +622,11 @@ async function main() {
           ${notasLimpias ? `
           <tr>
             <td style="padding:10px 28px 16px 28px;">
-              <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #003060;border-radius:6px;padding:14px 16px;">
-                <div style="font-family:Arial,Helvetica,sans-serif;font-size:11.5px;font-weight:bold;color:#003060;text-transform:uppercase;margin-bottom:6px;letter-spacing:0.5px;">
-                  💬 Comentarios u Observaciones de la Jornada:
+              <div style="background-color:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #003060;border-radius:6px;padding:14px 18px;">
+                <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#003060;text-transform:uppercase;margin-bottom:6px;letter-spacing:0.8px;">
+                  💬 Comentarios u Observaciones de la Jornada
                 </div>
-                <div style="font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:#334155;line-height:1.55;white-space:pre-wrap;">${escapeHtml(notasLimpias)}</div>
+                <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#334155;line-height:1.55;white-space:pre-wrap;">${escapeHtml(notasLimpias)}</div>
               </div>
             </td>
           </tr>
@@ -618,29 +634,33 @@ async function main() {
 
           <!-- Firma Institucional COVEPA con Logo Oficial -->
           <tr>
-            <td style="background-color:#ffffff;border-top:1px solid #e2e8f0;padding:24px 28px 18px 28px;text-align:left;">
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#334155;margin-bottom:12px;">
-                Saludos cordiales
+            <td style="background-color:#ffffff;border-top:1px solid #e2e8f0;padding:24px 30px;text-align:left;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#475569;margin-bottom:12px;">
+                Saludos cordiales,
               </div>
               <div style="margin-bottom:12px;">
-                <img src="${logoSrc}" alt="COVEPA" width="145" height="38" style="display:block;width:145px;max-width:145px;height:auto;border:0;" />
+                <img src="${logoSrc}" alt="COVEPA" width="145" height="38" border="0" style="display:block;width:145px;max-width:145px;height:auto;border:0;outline:none;" />
               </div>
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#003060;line-height:1.3;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:14px;font-weight:bold;color:#003060;line-height:1.3;">
                 Condor Callupe Carlos
               </div>
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:#475569;font-weight:600;margin-top:2px;">
-                Gestor de calidad
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#64748b;font-weight:600;margin-top:2px;">
+                Gestor de Calidad
               </div>
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;margin-top:5px;">
-                Cel: <a href="tel:+51958086874" style="color:#0284c7;text-decoration:none;font-weight:500;">+51 958 086 874</a>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#64748b;margin-top:6px;">
+                Cel: <a href="tel:+51958086874" style="color:#0284c7;text-decoration:none;font-weight:600;">+51 958 086 874</a>
               </div>
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;margin-top:3px;">
-                Correo: <a href="mailto:ccondor@covepa.pe" style="color:#0284c7;text-decoration:none;font-weight:500;">ccondor@covepa.pe</a>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#64748b;margin-top:3px;">
+                Correo: <a href="mailto:ccondor@covepa.pe" style="color:#0284c7;text-decoration:none;font-weight:600;">ccondor@covepa.pe</a>
               </div>
             </td>
           </tr>
 
         </table>
+        <!--[if mso]>
+        </td></tr>
+        </table>
+        <![endif]-->
       </td>
     </tr>
   </table>

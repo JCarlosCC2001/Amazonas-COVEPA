@@ -713,392 +713,214 @@ export default function Reportes() {
             </div>
           </header>
 
-          {/* Tarjeta de Parámetros de Programación (Estructura Unificada) */}
-          <div className="reporte-card" style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
-            <div className="reporte-card-header">
-              <h2 className="reporte-card-title t-title-section">
-                <span>⚙️</span> Parámetros de Configuración ({tipoVista === 'SEMANAL' ? 'Reporte Semanal' : 'Reporte Diario'})
-              </h2>
-              <span
-                className={`t-badge ${configActual.activo ? 'badge-activo' : 'badge-pausado'}`}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.25rem 0.65rem',
-                  borderRadius: '12px',
-                  background: configActual.activo ? '#dcfce7' : '#fee2e2',
-                  color: configActual.activo ? '#15803d' : '#b91c1c',
-                  border: `1px solid ${configActual.activo ? '#86efac' : '#fca5a5'}`
-                }}
-              >
-                <span style={{ fontSize: 'var(--text-xs)', lineHeight: 1 }}>●</span>
-                {configActual.activo ? 'Envío automático activo' : 'Envío pausado'}
-              </span>
-            </div>
-
-            {/* 1. Toggle Activo / Pausado */}
-            <div className="reporte-toggle-box">
-              <div className="reporte-toggle-label">
-                <span className="reporte-toggle-title t-name">Estado del Envío Programado</span>
-                <span className="reporte-toggle-sub t-meta">
-                  {configActual.activo
-                    ? 'El despacho nocturno enviará el informe en la fecha y hora programada.'
-                    : 'El despacho automático está suspendido temporalmente.'}
+          {/* Tarjeta de Configuración de Reporte (Reorganizada y Optimizada) */}
+          <div className="reporte-card" style={{ maxWidth: '1060px', margin: '0 auto', width: '100%', padding: '1.25rem 1.5rem', gap: '1rem' }}>
+            {/* Cabecera de la Tarjeta con Switch Arriba */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid #e2e8f0',
+              paddingBottom: '0.75rem',
+              flexWrap: 'wrap',
+              gap: '0.75rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <span className="t-name" style={{ color: '#003060', fontWeight: 'var(--fw-bold)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <span>{tipoVista === 'SEMANAL' ? '🗓️' : '📅'}</span>
+                  <span>{tipoVista === 'SEMANAL' ? 'Configuración de Reporte Semanal' : 'Configuración de Reporte Diario'}</span>
+                </span>
+                <span
+                  className="t-meta"
+                  style={{
+                    color: configActual.activo ? '#166534' : '#991b1b',
+                    background: configActual.activo ? '#f0fdf4' : '#fef2f2',
+                    border: `1px solid ${configActual.activo ? '#bbf7d0' : '#fecaca'}`,
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '12px',
+                    fontWeight: 'var(--fw-medium)'
+                  }}
+                >
+                  {configActual.activo ? '● Envío programado activo' : '○ Envío pausado'}
                 </span>
               </div>
-              <button
-                type="button"
-                className={`reporte-switch-btn ${configActual.activo ? 'active' : 'paused'}`}
-                onClick={() => setConfigActual(prev => ({ ...prev, activo: !prev.activo }))}
-              >
-                <span>{configActual.activo ? '✅ ACTIVO' : '⏸️ PAUSADO'}</span>
-              </button>
-            </div>
 
-            {/* 2. Selector de Período a Reportar */}
-            <div className="reporte-form-group">
-              <label className="reporte-label">
-                <span>📅</span> {tipoVista === 'SEMANAL' ? 'Período Semanal a Reportar' : 'Período de Observaciones a Reportar'}
-              </label>
-              {tipoVista === 'SEMANAL' ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleCambiarPeriodo('semana_actual')}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.35rem',
-                      padding: '0.75rem 0.6rem',
-                      borderRadius: '8px',
-                      border: configSemanal.periodo_reporte === 'semana_actual'
-                        ? '2px solid #003060'
-                        : '1px solid #cbd5e1',
-                      background: configSemanal.periodo_reporte === 'semana_actual'
-                        ? '#eff6ff'
-                        : '#ffffff',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <span style={{ fontSize: 'var(--text-base)' }}>📅</span>
-                    <span className="t-name" style={{ color: configSemanal.periodo_reporte === 'semana_actual' ? '#003060' : 'var(--text-primary)', textAlign: 'center' }}>
-                      Semana en Curso
-                    </span>
-                    <span className="t-meta" style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>
-                      Consolidado de Lunes a Domingo de esta semana
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleCambiarPeriodo('semana_anterior')}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.35rem',
-                      padding: '0.75rem 0.6rem',
-                      borderRadius: '8px',
-                      border: configSemanal.periodo_reporte === 'semana_anterior'
-                        ? '2px solid #003060'
-                        : '1px solid #cbd5e1',
-                      background: configSemanal.periodo_reporte === 'semana_anterior'
-                        ? '#eff6ff'
-                        : '#ffffff',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <span style={{ fontSize: 'var(--text-base)' }}>⏮️</span>
-                    <span className="t-name" style={{ color: configSemanal.periodo_reporte === 'semana_anterior' ? '#003060' : 'var(--text-primary)', textAlign: 'center' }}>
-                      Semana Anterior
-                    </span>
-                    <span className="t-meta" style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>
-                      Consolidado cerrado de los 7 días de la semana pasada
-                    </span>
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleCambiarPeriodo('dia_actual')}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.35rem',
-                      padding: '0.75rem 0.6rem',
-                      borderRadius: '8px',
-                      border: configDiario.periodo_reporte === 'dia_actual'
-                        ? '2px solid #003060'
-                        : '1px solid #cbd5e1',
-                      background: configDiario.periodo_reporte === 'dia_actual'
-                        ? '#eff6ff'
-                        : '#ffffff',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <span style={{ fontSize: 'var(--text-base)' }}>☀️</span>
-                    <span className="t-name" style={{ color: configDiario.periodo_reporte === 'dia_actual' ? '#003060' : 'var(--text-primary)', textAlign: 'center' }}>
-                      Día actual (Hoy)
-                    </span>
-                    <span className="t-meta" style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>
-                      Observaciones de la jornada de hoy
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleCambiarPeriodo('dia_anterior')}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.35rem',
-                      padding: '0.75rem 0.6rem',
-                      borderRadius: '8px',
-                      border: configDiario.periodo_reporte === 'dia_anterior'
-                        ? '2px solid #003060'
-                        : '1px solid #cbd5e1',
-                      background: configDiario.periodo_reporte === 'dia_anterior'
-                        ? '#eff6ff'
-                        : '#ffffff',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <span style={{ fontSize: 'var(--text-base)' }}>⏮️</span>
-                    <span className="t-name" style={{ color: configDiario.periodo_reporte === 'dia_anterior' ? '#003060' : 'var(--text-primary)', textAlign: 'center' }}>
-                      Día anterior (Ayer)
-                    </span>
-                    <span className="t-meta" style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>
-                      Observaciones cerradas el día de ayer
-                    </span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* 3. Programación y Horario de Envío */}
-            <div className="reporte-form-group">
-              <label className="reporte-label">
-                <span>⏰</span> {tipoVista === 'SEMANAL' ? 'Programación y Día de Despacho Semanal' : 'Horario de Envío Automático'}
-              </label>
-
-              {tipoVista === 'SEMANAL' ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <span className="t-meta" style={{ color: '#003060', fontWeight: 'var(--fw-semibold)' }}>Día de la semana:</span>
-                    <select
-                      className="reporte-select"
-                      value={configSemanal.dia_semana_envio || '5'}
-                      onChange={e => setConfigSemanal(prev => ({ ...prev, dia_semana_envio: e.target.value }))}
-                    >
-                      <option value="5">Viernes (Cierre semanal de operaciones)</option>
-                      <option value="6">Sábado (Cierre fin de semana)</option>
-                      <option value="7">Domingo (Consolidado semanal completo)</option>
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <span className="t-meta" style={{ color: '#003060', fontWeight: 'var(--fw-semibold)' }}>Hora programada (Hora Perú):</span>
-                    <input
-                      type="time"
-                      className="reporte-input"
-                      value={configSemanal.hora_envio || '20:00'}
-                      onChange={e => setConfigSemanal(prev => ({ ...prev, hora_envio: e.target.value }))}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.65rem', alignItems: 'flex-end' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <span className="t-meta" style={{ color: '#003060', fontWeight: 'var(--fw-semibold)' }}>Hora programada (Hora Perú):</span>
-                    <input
-                      type="time"
-                      className="reporte-input"
-                      value={configDiario.hora_envio || '21:00'}
-                      onChange={e => setConfigDiario(prev => ({ ...prev, hora_envio: e.target.value }))}
-                    />
-                  </div>
-                  <a
-                    href="https://console.cron-job.org/jobs"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      background: '#f8fafc',
-                      color: '#003060',
-                      border: '1px solid #cbd5e1',
-                      padding: '0.65rem 0.95rem',
-                      borderRadius: '8px',
-                      textDecoration: 'none',
-                      fontWeight: 'var(--fw-semibold)'
-                    }}
-                    className="t-meta"
-                    title="Configurar hora en cron-job.org"
-                  >
-                    <span>⏰ Configurar Hora</span>
-                  </a>
-                </div>
-              )}
-            </div>
-
-            {/* 4. Remitente Fijo Autorizado */}
-            <div className="reporte-form-group">
-              <label className="reporte-label">
-                <span>📤</span> Remitente Autorizado (Servidor Covepa)
-              </label>
-              <input
-                type="text"
-                readOnly
-                className="reporte-input"
-                value="ccondor@covepa.pe (Servidor SMTP mail.covepa.pe · Puerto 465 SSL)"
-                style={{ background: '#f8fafc', color: '#003060', fontWeight: 'var(--fw-semibold)' }}
-              />
-            </div>
-
-            {/* 5. Destinatarios Principales (Para:) */}
-            <div className="reporte-form-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <label className="reporte-label">
-                  <span>👥</span> Destinatarios Principales (Para:)
-                </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
+                  Estado del despacho:
+                </span>
                 <button
                   type="button"
-                  className="btn-open-personal"
-                  onClick={() => setModalPersonalOpen(true)}
+                  className={`reporte-switch-btn ${configActual.activo ? 'active' : 'paused'}`}
+                  onClick={() => setConfigActual(prev => ({ ...prev, activo: !prev.activo }))}
+                  title={configActual.activo ? 'Pausar el envío automático' : 'Activar el envío automático'}
                 >
-                  <span>👥</span>
-                  <span>Seleccionar desde Personal</span>
+                  <span>{configActual.activo ? '✅ ACTIVO' : '⏸️ PAUSADO'}</span>
                 </button>
               </div>
-              <div className="reporte-chips-wrap">
-                {configActual.destinatarios.map(email => (
-                  <span key={email} className="reporte-email-chip">
-                    <span>{email}</span>
-                    <button
-                      type="button"
-                      className="reporte-chip-remove"
-                      onClick={() => removerPara(email)}
-                      title="Remover correo"
-                    >
-                      ✕
-                    </button>
+            </div>
+
+            {/* Fila 1: Asunto del Correo (Primero) y Remitente Autorizado (Seguido) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem', alignItems: 'flex-start' }}>
+              {/* 1. Asunto del Correo */}
+              <div className="reporte-form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className="reporte-label" htmlFor="asunto_input">
+                    <span>🏷️</span> Asunto del Correo
+                  </label>
+                  <span className="t-caption">
+                    {tipoVista === 'SEMANAL' ? '{semana} dinámica' : '{fecha} dinámica'}
                   </span>
-                ))}
+                </div>
                 <input
-                  type="email"
-                  className="reporte-chip-input"
-                  placeholder="Escribe un correo o usa 'Seleccionar desde Personal'..."
-                  value={nuevoPara}
-                  onChange={e => setNuevoPara(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' || e.key === ',') {
-                      e.preventDefault()
-                      agregarPara()
-                    }
-                  }}
-                  onBlur={agregarPara}
+                  id="asunto_input"
+                  type="text"
+                  className="reporte-input"
+                  value={configActual.asunto}
+                  onChange={e => setConfigActual(prev => ({ ...prev, asunto: e.target.value }))}
+                  placeholder="Asunto oficial del reporte..."
                 />
               </div>
-              <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
-                Pulsa <strong>Enter</strong> o coma tras escribir cada dirección, o pulsa <strong>"Seleccionar desde Personal"</strong>.
-              </span>
-            </div>
 
-            {/* 6. Destinatarios Con Copia (CC: opcional) */}
-            <div className="reporte-form-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <label className="reporte-label">
-                  <span>📋</span> Con Copia (CC: opcional)
-                </label>
-                <button
-                  type="button"
-                  className="btn-open-personal"
-                  onClick={() => setModalPersonalOpen(true)}
-                >
-                  <span>👥</span>
-                  <span>Seleccionar desde Personal</span>
-                </button>
-              </div>
-              <div className="reporte-chips-wrap">
-                {configActual.destinatarios_cc.map(email => (
-                  <span key={email} className="reporte-email-chip" style={{ background: '#f1f5f9', borderColor: '#cbd5e1', color: '#334155' }}>
-                    <span>{email}</span>
-                    <button
-                      type="button"
-                      className="reporte-chip-remove"
-                      onClick={() => removerCC(email)}
-                      title="Remover correo"
-                    >
-                      ✕
-                    </button>
+              {/* 2. Remitente Autorizado */}
+              <div className="reporte-form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className="reporte-label">
+                    <span>📤</span> Remitente Autorizado (Covepa)
+                  </label>
+                  <span className="t-caption" style={{ color: '#166534', fontWeight: 'var(--fw-medium)' }}>
+                    ✓ SMTP Seguro 465 SSL
                   </span>
-                ))}
+                </div>
                 <input
-                  type="email"
-                  className="reporte-chip-input"
-                  placeholder="Escribe un correo de copia o selecciónalo..."
-                  value={nuevoCC}
-                  onChange={e => setNuevoCC(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' || e.key === ',') {
-                      e.preventDefault()
-                      agregarCC()
-                    }
-                  }}
-                  onBlur={agregarCC}
+                  type="text"
+                  readOnly
+                  className="reporte-input"
+                  value="ccondor@covepa.pe (Servidor mail.covepa.pe)"
+                  style={{ background: '#f8fafc', color: '#003060', fontWeight: 'var(--fw-semibold)' }}
                 />
               </div>
             </div>
 
-            {/* 7. Asunto */}
-            <div className="reporte-form-group">
-              <label className="reporte-label" htmlFor="asunto_input">
-                <span>🏷️</span> Asunto del Correo
-              </label>
-              <input
-                id="asunto_input"
-                type="text"
-                className="reporte-input"
-                value={configActual.asunto}
-                onChange={e => setConfigActual(prev => ({ ...prev, asunto: e.target.value }))}
-              />
-              <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
-                {tipoVista === 'SEMANAL'
-                  ? 'Puedes incluir {semana} para insertar el número de semana automáticamente.'
-                  : 'Puedes incluir {fecha} para insertar la fecha de la jornada automáticamente.'}
-              </span>
+            {/* Fila 2: Destinatarios (Para y Con Copia en 2 columnas paralelas) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1rem', alignItems: 'flex-start' }}>
+              {/* Destinatarios Principales (Para:) */}
+              <div className="reporte-form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                  <label className="reporte-label">
+                    <span>👥</span> Destinatarios (Para:)
+                  </label>
+                  <button
+                    type="button"
+                    className="btn-open-personal"
+                    onClick={() => setModalPersonalOpen(true)}
+                  >
+                    <span>👥</span>
+                    <span>Seleccionar Personal</span>
+                  </button>
+                </div>
+                <div className="reporte-chips-wrap" style={{ minHeight: '42px', maxHeight: '110px', overflowY: 'auto' }}>
+                  {configActual.destinatarios.map(email => (
+                    <span key={email} className="reporte-email-chip">
+                      <span>{email}</span>
+                      <button
+                        type="button"
+                        className="reporte-chip-remove"
+                        onClick={() => removerPara(email)}
+                        title="Remover correo"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    type="email"
+                    className="reporte-chip-input"
+                    placeholder="Escribe un correo y pulsa Enter..."
+                    value={nuevoPara}
+                    onChange={e => setNuevoPara(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault()
+                        agregarPara()
+                      }
+                    }}
+                    onBlur={agregarPara}
+                  />
+                </div>
+                <span className="t-caption">
+                  Reciben directamente el informe y archivo Excel adjunto.
+                </span>
+              </div>
+
+              {/* Destinatarios Con Copia (CC: opcional) */}
+              <div className="reporte-form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                  <label className="reporte-label">
+                    <span>📋</span> Con Copia (CC: opcional)
+                  </label>
+                  <button
+                    type="button"
+                    className="btn-open-personal"
+                    onClick={() => setModalPersonalOpen(true)}
+                  >
+                    <span>👥</span>
+                    <span>Seleccionar Personal</span>
+                  </button>
+                </div>
+                <div className="reporte-chips-wrap" style={{ minHeight: '42px', maxHeight: '110px', overflowY: 'auto' }}>
+                  {configActual.destinatarios_cc.map(email => (
+                    <span key={email} className="reporte-email-chip" style={{ background: '#f1f5f9', borderColor: '#cbd5e1', color: '#334155' }}>
+                      <span>{email}</span>
+                      <button
+                        type="button"
+                        className="reporte-chip-remove"
+                        onClick={() => removerCC(email)}
+                        title="Remover correo"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    type="email"
+                    className="reporte-chip-input"
+                    placeholder="Escribe un correo de copia..."
+                    value={nuevoCC}
+                    onChange={e => setNuevoCC(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault()
+                        agregarCC()
+                      }
+                    }}
+                    onBlur={agregarCC}
+                  />
+                </div>
+                <span className="t-caption">
+                  Opcional. Reciben copia visible del despacho.
+                </span>
+              </div>
             </div>
 
-            {/* 8. Notas y Comentarios */}
+            {/* Fila 3: Comentarios y Observaciones (Por debajo) */}
             <div className="reporte-form-group">
               <label className="reporte-label" htmlFor="notas_input">
                 <span>💬</span> {tipoVista === 'SEMANAL' ? 'Comentarios y Conclusiones de la Semana (Opcional)' : 'Comentarios u Observaciones de la Jornada (Opcional)'}
               </label>
               <textarea
                 id="notas_input"
-                rows={3}
+                rows={2}
                 className="reporte-textarea"
                 placeholder={tipoVista === 'SEMANAL'
                   ? 'Escribe acuerdos de cierre semanal, hitos alcanzados, contingencias de ruta...'
                   : 'Escribe acuerdos de la jornada, contingencias o comentarios especiales...'}
                 value={configActual.notas_jornada}
                 onChange={e => setConfigActual(prev => ({ ...prev, notas_jornada: e.target.value }))}
+                style={{ minHeight: '52px', resize: 'vertical' }}
               />
-              <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>
-                Aparecerá en el cuerpo del correo antes de la firma. Si se deja vacío, no se incluirá nada.
+              <span className="t-caption">
+                Se incluye en el cuerpo del correo antes de la firma institucional. Si se deja vacío, no aparecerá.
               </span>
             </div>
           </div>

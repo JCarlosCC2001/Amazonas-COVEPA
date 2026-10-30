@@ -53,6 +53,9 @@ export default function Reportes() {
   const [menuOpcionesOpen, setMenuOpcionesOpen] = useState(false)
   const menuOpcionesRef = useRef(null)
 
+  // Zona activa de arrastre para chips de correos ('para' | 'cc' | null)
+  const [dragOverZone, setDragOverZone] = useState(null)
+
   // Cerrar menú al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -92,8 +95,15 @@ export default function Reportes() {
         fetchConfiguracionReporte('semanal'),
         fetchPersonal()
       ])
-      setConfigDiario(cfgDiario)
-      setConfigSemanal(cfgSemanal)
+      // Limpiar duplicados cruzados entre destinatarios y destinatarios_cc (exclusividad mutua)
+      const limpiarExclusividad = (cfg) => {
+        if (!cfg) return cfg
+        const dest = (cfg.destinatarios || []).map(e => e.toLowerCase().trim())
+        const destCC = (cfg.destinatarios_cc || []).map(e => e.toLowerCase().trim()).filter(e => !dest.includes(e))
+        return { ...cfg, destinatarios: dest, destinatarios_cc: destCC }
+      }
+      setConfigDiario(limpiarExclusividad(cfgDiario))
+      setConfigSemanal(limpiarExclusividad(cfgSemanal))
       setPersonalList(personal || [])
 
       // Cargar datos de observaciones de fondo
@@ -261,7 +271,34 @@ export default function Reportes() {
     }
   }, [userEmail])
 
-  // Manejo de chips de correos: Para
+  // Mover destinatario entre Para y Copia mediante arrastre o acción (Exclusividad Mutua)
+  const moverDestinatario = (email, destino) => {
+    if (!email) return
+    const norm = email.toLowerCase().trim()
+    if (destino === 'para') {
+      setConfigActual(prev => {
+        if (prev.destinatarios.includes(norm)) return prev
+        return {
+          ...prev,
+          destinatarios: [...prev.destinatarios, norm],
+          destinatarios_cc: prev.destinatarios_cc.filter(e => e !== norm)
+        }
+      })
+      showNotification(`"${norm}" movido a Para:`, 'info')
+    } else if (destino === 'cc') {
+      setConfigActual(prev => {
+        if (prev.destinatarios_cc.includes(norm)) return prev
+        return {
+          ...prev,
+          destinatarios_cc: [...prev.destinatarios_cc, norm],
+          destinatarios: prev.destinatarios.filter(e => e !== norm)
+        }
+      })
+      showNotification(`"${norm}" movido a Con Copia (CC:):`, 'info')
+    }
+  }
+
+  // Manejo de chips de correos: Para (con exclusividad mutua)
   const agregarPara = () => {
     const val = (nuevoPara || '').trim().toLowerCase()
     if (!val) return
@@ -270,11 +307,16 @@ export default function Reportes() {
       return
     }
     if (configActual.destinatarios.includes(val)) {
-      showNotification(`El correo "${val}" ya está en la lista.`, 'info')
+      showNotification(`El correo "${val}" ya está en Para:.`, 'info')
       setNuevoPara('')
       return
     }
-    setConfigActual(prev => ({ ...prev, destinatarios: [...prev.destinatarios, val] }))
+    // Si estaba en CC, se mueve a Para automáticamente
+    setConfigActual(prev => ({
+      ...prev,
+      destinatarios: [...prev.destinatarios, val],
+      destinatarios_cc: prev.destinatarios_cc.filter(e => e !== val)
+    }))
     setNuevoPara('')
   }
 
@@ -285,7 +327,7 @@ export default function Reportes() {
     }))
   }
 
-  // Manejo de chips de correos: CC
+  // Manejo de chips de correos: CC (con exclusividad mutua)
   const agregarCC = () => {
     const val = (nuevoCC || '').trim().toLowerCase()
     if (!val) return
@@ -294,11 +336,16 @@ export default function Reportes() {
       return
     }
     if (configActual.destinatarios_cc.includes(val)) {
-      showNotification(`El correo "${val}" ya está en la lista de CC.`, 'info')
+      showNotification(`El correo "${val}" ya está en la lista de CC:.`, 'info')
       setNuevoCC('')
       return
     }
-    setConfigActual(prev => ({ ...prev, destinatarios_cc: [...prev.destinatarios_cc, val] }))
+    // Si estaba en Para, se mueve a CC automáticamente
+    setConfigActual(prev => ({
+      ...prev,
+      destinatarios_cc: [...prev.destinatarios_cc, val],
+      destinatarios: prev.destinatarios.filter(e => e !== val)
+    }))
     setNuevoCC('')
   }
 
@@ -309,7 +356,7 @@ export default function Reportes() {
     }))
   }
 
-  // Alternar destinatario desde modal de personal
+  // Alternar destinatario desde modal de personal con exclusividad mutua
   const toggleDestinatarioPara = (email) => {
     if (!email) return
     const norm = email.toLowerCase().trim()
@@ -317,7 +364,8 @@ export default function Reportes() {
       const exists = prev.destinatarios.includes(norm)
       return {
         ...prev,
-        destinatarios: exists ? prev.destinatarios.filter(e => e !== norm) : [...prev.destinatarios, norm]
+        destinatarios: exists ? prev.destinatarios.filter(e => e !== norm) : [...prev.destinatarios, norm],
+        destinatarios_cc: prev.destinatarios_cc.filter(e => e !== norm)
       }
     })
   }
@@ -329,7 +377,8 @@ export default function Reportes() {
       const exists = prev.destinatarios_cc.includes(norm)
       return {
         ...prev,
-        destinatarios_cc: exists ? prev.destinatarios_cc.filter(e => e !== norm) : [...prev.destinatarios_cc, norm]
+        destinatarios_cc: exists ? prev.destinatarios_cc.filter(e => e !== norm) : [...prev.destinatarios_cc, norm],
+        destinatarios: prev.destinatarios.filter(e => e !== norm)
       }
     })
   }
@@ -930,7 +979,7 @@ export default function Reportes() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem', alignItems: 'flex-start' }}>
-                {/* Columna Para: */}
+                {/* Columna Para: (Zona de recepción Droppable) */}
                 <div className="reporte-form-group">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
                     <label className="reporte-label">
@@ -945,9 +994,45 @@ export default function Reportes() {
                       <span>Seleccionar Personal</span>
                     </button>
                   </div>
-                  <div className="reporte-chips-wrap" style={{ minHeight: '44px', maxHeight: '110px', overflowY: 'auto', background: '#ffffff' }}>
+                  <div
+                    className="reporte-chips-wrap"
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      if (dragOverZone !== 'para') setDragOverZone('para')
+                    }}
+                    onDragLeave={(e) => {
+                      if (e.currentTarget.contains(e.relatedTarget)) return
+                      setDragOverZone(null)
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setDragOverZone(null)
+                      const email = e.dataTransfer.getData('text/plain')
+                      if (email) moverDestinatario(email, 'para')
+                    }}
+                    style={{
+                      minHeight: '44px',
+                      maxHeight: '110px',
+                      overflowY: 'auto',
+                      background: dragOverZone === 'para' ? '#eff6ff' : '#ffffff',
+                      border: dragOverZone === 'para' ? '2px dashed #0284c7' : '1px solid var(--border)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
                     {configActual.destinatarios.map(email => (
-                      <span key={email} className="reporte-email-chip">
+                      <span
+                        key={email}
+                        className="reporte-email-chip"
+                        draggable={true}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', email)
+                          e.dataTransfer.setData('sourceZone', 'para')
+                        }}
+                        style={{ cursor: 'grab', userSelect: 'none' }}
+                        title="Arrastra este correo a 'Con Copia' para moverlo"
+                      >
+                        <span style={{ opacity: 0.45, marginRight: '2px', cursor: 'grab' }}>⠿</span>
                         <span>{email}</span>
                         <button
                           type="button"
@@ -979,7 +1064,7 @@ export default function Reportes() {
                   </span>
                 </div>
 
-                {/* Columna Copia (CC:): */}
+                {/* Columna Copia (CC:): (Zona de recepción Droppable) */}
                 <div className="reporte-form-group">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
                     <label className="reporte-label">
@@ -994,9 +1079,45 @@ export default function Reportes() {
                       <span>Seleccionar Personal</span>
                     </button>
                   </div>
-                  <div className="reporte-chips-wrap" style={{ minHeight: '44px', maxHeight: '110px', overflowY: 'auto', background: '#ffffff' }}>
+                  <div
+                    className="reporte-chips-wrap"
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      if (dragOverZone !== 'cc') setDragOverZone('cc')
+                    }}
+                    onDragLeave={(e) => {
+                      if (e.currentTarget.contains(e.relatedTarget)) return
+                      setDragOverZone(null)
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setDragOverZone(null)
+                      const email = e.dataTransfer.getData('text/plain')
+                      if (email) moverDestinatario(email, 'cc')
+                    }}
+                    style={{
+                      minHeight: '44px',
+                      maxHeight: '110px',
+                      overflowY: 'auto',
+                      background: dragOverZone === 'cc' ? '#eff6ff' : '#ffffff',
+                      border: dragOverZone === 'cc' ? '2px dashed #0284c7' : '1px solid var(--border)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
                     {configActual.destinatarios_cc.map(email => (
-                      <span key={email} className="reporte-email-chip" style={{ background: '#f1f5f9', borderColor: '#cbd5e1', color: '#334155' }}>
+                      <span
+                        key={email}
+                        className="reporte-email-chip"
+                        style={{ background: '#f1f5f9', borderColor: '#cbd5e1', color: '#334155', cursor: 'grab', userSelect: 'none' }}
+                        draggable={true}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', email)
+                          e.dataTransfer.setData('sourceZone', 'cc')
+                        }}
+                        title="Arrastra este correo a 'Para:' para moverlo"
+                      >
+                        <span style={{ opacity: 0.45, marginRight: '2px', cursor: 'grab' }}>⠿</span>
                         <span>{email}</span>
                         <button
                           type="button"
@@ -1027,6 +1148,17 @@ export default function Reportes() {
                     Opcional. Reciben copia visible informativa.
                   </span>
                 </div>
+              </div>
+
+              {/* Indicador de Ayuda de Arrastre y Exclusividad */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', paddingTop: '0.45rem', borderTop: '1px dashed #e2e8f0' }}>
+                <span className="t-caption" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span>✋</span>
+                  <span>Puedes <strong>arrastrar los correos</strong> entre Para y Copia para cambiarlos de lista al instante.</span>
+                </span>
+                <span className="t-caption" style={{ color: '#0369a1', fontWeight: 'var(--fw-medium)' }}>
+                  ✓ Exclusividad mutua activa (nunca en ambos)
+                </span>
               </div>
             </div>
 

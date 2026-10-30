@@ -818,13 +818,13 @@ function GrupadaView({ resumen, loading, filtros, sitiosMap = {}, onSelectObs, g
   const sitios = Object.keys(resumen).sort()
 
   if (loading) return (
-    <div className="table-loading-state">
+    <div className="table-loading-state" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid var(--border)', padding: '3.5rem 1.5rem', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
       <div className="loader-spinner"/>
       <p>Cargando observaciones agrupadas por sitio...</p>
     </div>
   )
   if (sitios.length === 0) return (
-    <div className="table-empty-state">
+    <div className="table-empty-state" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid var(--border)', padding: '3.5rem 1.5rem', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
       <ClipboardList size={48} opacity={0.3}/>
       <h3>Sin resultados</h3>
       <p>Ningún sitio tiene observaciones con los filtros aplicados.</p>
@@ -1469,7 +1469,7 @@ export default function Observaciones() {
 
       {/* ── Vista Agrupada o Tabla ── */}
       {vista === 'agrupada' ? (
-        <div className="sitios-table-wrapper">
+        <div className="obs-agrupada-wrapper">
           <GrupadaView
             resumen={gruposData}
             loading={loadingAgrupada}

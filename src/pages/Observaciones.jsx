@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
-  Search, Filter, RefreshCw, FileDown, X, Eye, ChevronLeft,
+  Search, Filter, RefreshCw, SlidersHorizontal, X, Eye, ChevronLeft,
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,
   AlertTriangle, FileText, Save, LayoutList, Table2,
   ChevronDown, ChevronUp, MapPin, Loader2, Calendar, Ban, UploadCloud, Layers, Clock,
@@ -900,6 +900,47 @@ export default function Observaciones() {
   const [sortField, setSortField] = useState('codigo') // 'codigo' | 'cuadrilla' | 'sitio' | 'localidad' | 'zona' | 'estado' | 'fecha' | 'revisor' | 'demora'
   const [sortDirection, setSortDirection] = useState('asc') // 'asc' | 'desc'
 
+  // Panel flotante superpuesto para filtros (Popover)
+  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false)
+  const filterPopoverRef = useRef(null)
+
+  useEffect(() => {
+    if (!filterPopoverOpen) return
+    const handleClickOutside = (e) => {
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(e.target)) {
+        setFilterPopoverOpen(false)
+      }
+    }
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setFilterPopoverOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [filterPopoverOpen])
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (cuadrilla) count++
+    if (protocolo) count++
+    if (idSitio) count++
+    if (estadoCovepa) count++
+    if (filtroDemora) count++
+    return count
+  }, [cuadrilla, protocolo, idSitio, estadoCovepa, filtroDemora])
+
+  const clearAdvancedFilters = () => {
+    setCuadrilla('')
+    setProtocolo('')
+    setIdSitio('')
+    setEstadoCovepa('')
+    setFiltroDemora('')
+    setPage(1)
+  }
+
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'))
@@ -1222,7 +1263,7 @@ export default function Observaciones() {
         />
       </MetricGrid>
 
-      {/* ── Toolbar Filtros ── */}
+      {/* ── Toolbar Filtros — Fila Única y Compacta ── */}
       <div className="obs-toolbar">
         <div className="obs-search-box">
           <Search size={16} className="obs-search-icon" />
@@ -1241,110 +1282,180 @@ export default function Observaciones() {
                 const el = document.getElementById('obs-search-input')
                 if (el) el.value = ''
               }}
+              title="Borrar texto de búsqueda"
             >
               <X size={15}/>
             </button>
           )}
         </div>
 
-        <div className="obs-filter-group">
-          {/* Filtro por Cuadrilla */}
-          <div className="obs-select-wrap">
-            <Layers size={13} className="select-icon"/>
-            <select className="toolbar-select" value={cuadrilla} onChange={e => { setCuadrilla(e.target.value); setPage(1) }}>
-              <option value="">Todas las Cuadrillas</option>
-              <option value="CUADRILLA 1">CUADRILLA 1</option>
-              <option value="CUADRILLA 2">CUADRILLA 2</option>
-              <option value="CUADRILLA 3">CUADRILLA 3</option>
-              <option value="CUADRILLA 4">CUADRILLA 4</option>
-              <option value="CUADRILLA 5">CUADRILLA 5</option>
-              <option value="CUADRILLA 6">CUADRILLA 6</option>
-            </select>
-          </div>
-
-          <div className="obs-select-wrap">
-            <FileText size={13} className="select-icon"/>
-            <select className="toolbar-select" value={protocolo} onChange={e => setProtocolo(e.target.value)}>
-              <option value="">Todos los Protocolos</option>
-              {filtros.protocolos.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-
-          <div className="obs-select-wrap">
-            <MapPin size={13} className="select-icon"/>
-            <select className="toolbar-select" value={idSitio} onChange={e => setIdSitio(e.target.value)}>
-              <option value="">Todos los Sitios</option>
-              {filtros.sitios.map(s => {
-                const loc = sitiosMap[s]?.localidad
-                return (
-                  <option key={s} value={s}>
-                    {s}{loc ? ` · ${loc}` : ''}
-                  </option>
-                )
-              })}
-            </select>
-          </div>
-
-          <div className="obs-select-wrap">
-            <Filter size={13} className="select-icon"/>
-            <select className="toolbar-select" value={estadoCovepa} onChange={e => setEstadoCovepa(e.target.value)}>
-              <option value="">Estado COVEPA</option>
-              {filtros.estadosCovepa.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-
-          <div className="obs-select-wrap">
-            <AlertTriangle size={13} className="select-icon"/>
-            <select
-              className="toolbar-select"
-              value={filtroDemora}
-              onChange={e => { setFiltroDemora(e.target.value); setPage(1) }}
-              title="Filtrar por observaciones con demora o plazo normal"
-            >
-              <option value="">Todas (Demora / Incidentes)</option>
-              <option value="CON_DEMORA">⚠️ Con Demora Justificada</option>
-              <option value="SIN_DEMORA">✓ Sin Demora (Normal)</option>
-            </select>
-          </div>
-
-          {hasActiveFilters && (
-            <button className="obs-clear-filters-btn" onClick={clearFilters} title="Limpiar todos los filtros">
-              <X size={14}/> Limpiar
-            </button>
-          )}
-
-          <div className="obs-toolbar-actions">
+        <div className="obs-toolbar-right">
+          {/* Ancla y Tarjeta Superpuesta de Filtros (Popover) */}
+          <div className="obs-filter-popover-anchor" ref={filterPopoverRef}>
             <button
-              className="refresh-btn"
-              onClick={() => { loadData(true); loadKpis(); loadAgrupada() }}
-              disabled={loading || loadingAgrupada}
-              title="Refrescar datos"
+              type="button"
+              className={`obs-filter-trigger-btn ${activeFilterCount > 0 ? 'has-active' : ''}`}
+              onClick={() => setFilterPopoverOpen(prev => !prev)}
+              title="Filtros avanzados"
             >
-              <RefreshCw size={15} className={loading || loadingAgrupada ? 'spinning' : ''}/>
+              <SlidersHorizontal size={15} />
+              <span>Filtros</span>
+              {activeFilterCount > 0 && (
+                <span className="obs-filter-count-badge">{activeFilterCount}</span>
+              )}
             </button>
 
-            {/* Toggle vista: Por sitio (predeterminada) / Tabla */}
-            <div className="vista-toggle">
-              <button
-                className={`vista-toggle-btn ${vista === 'agrupada' ? 'active' : ''}`}
-                onClick={() => setVista('agrupada')}
-                title="Vista agrupada por sitio"
-              >
-                <LayoutList size={15}/> Por sitio
-              </button>
-              <button
-                className={`vista-toggle-btn ${vista === 'tabla' ? 'active' : ''}`}
-                onClick={() => setVista('tabla')}
-                title="Vista tabla detallada"
-              >
-                <Table2 size={15}/> Tabla
-              </button>
-            </div>
+            {filterPopoverOpen && (
+              <div className="obs-filter-popover-card">
+                <div className="obs-filter-popover-header">
+                  <div className="t-name flex items-center gap-1.5" style={{ color: 'var(--primary)' }}>
+                    <Filter size={14} />
+                    <span>Filtros de observaciones</span>
+                  </div>
+                  {activeFilterCount > 0 && (
+                    <button
+                      type="button"
+                      className="obs-popover-clear-btn"
+                      onClick={clearAdvancedFilters}
+                      title="Restablecer filtros"
+                    >
+                      <X size={12} /> Limpiar ({activeFilterCount})
+                    </button>
+                  )}
+                </div>
 
-            <button className="obs-export-btn" onClick={handleExport} disabled={exporting} title="Exportar CSV">
-              <FileDown size={15}/>
-              <span className="obs-export-text-full">{exporting ? 'Exportando...' : 'Exportar CSV'}</span>
-              <span className="obs-export-text-short">{exporting ? '...' : 'CSV'}</span>
+                <div className="obs-filter-popover-body">
+                  {/* Cuadrilla */}
+                  <div className="obs-popover-field">
+                    <label className="obs-popover-label">
+                      <Layers size={12} /> Cuadrilla
+                    </label>
+                    <select
+                      className="popover-select"
+                      value={cuadrilla}
+                      onChange={e => { setCuadrilla(e.target.value); setPage(1) }}
+                    >
+                      <option value="">Todas las Cuadrillas</option>
+                      <option value="CUADRILLA 1">CUADRILLA 1</option>
+                      <option value="CUADRILLA 2">CUADRILLA 2</option>
+                      <option value="CUADRILLA 3">CUADRILLA 3</option>
+                      <option value="CUADRILLA 4">CUADRILLA 4</option>
+                      <option value="CUADRILLA 5">CUADRILLA 5</option>
+                      <option value="CUADRILLA 6">CUADRILLA 6</option>
+                    </select>
+                  </div>
+
+                  {/* Protocolo */}
+                  <div className="obs-popover-field">
+                    <label className="obs-popover-label">
+                      <FileText size={12} /> Protocolo
+                    </label>
+                    <select
+                      className="popover-select"
+                      value={protocolo}
+                      onChange={e => { setProtocolo(e.target.value); setPage(1) }}
+                    >
+                      <option value="">Todos los Protocolos</option>
+                      {filtros.protocolos.map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Sitio */}
+                  <div className="obs-popover-field">
+                    <label className="obs-popover-label">
+                      <MapPin size={12} /> Sitio / Localidad
+                    </label>
+                    <select
+                      className="popover-select"
+                      value={idSitio}
+                      onChange={e => { setIdSitio(e.target.value); setPage(1) }}
+                    >
+                      <option value="">Todos los Sitios</option>
+                      {filtros.sitios.map(s => {
+                        const loc = sitiosMap[s]?.localidad
+                        return (
+                          <option key={s} value={s}>
+                            {s}{loc ? ` · ${loc}` : ''}
+                          </option>
+                        )
+                      })}
+                    </select>
+                  </div>
+
+                  {/* Estado COVEPA */}
+                  <div className="obs-popover-field">
+                    <label className="obs-popover-label">
+                      <Filter size={12} /> Estado COVEPA
+                    </label>
+                    <select
+                      className="popover-select"
+                      value={estadoCovepa}
+                      onChange={e => { setEstadoCovepa(e.target.value); setPage(1) }}
+                    >
+                      <option value="">Todos los Estados</option>
+                      {filtros.estadosCovepa.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Demora / Incidentes */}
+                  <div className="obs-popover-field">
+                    <label className="obs-popover-label">
+                      <AlertTriangle size={12} /> Demora / Incidentes
+                    </label>
+                    <select
+                      className="popover-select"
+                      value={filtroDemora}
+                      onChange={e => { setFiltroDemora(e.target.value); setPage(1) }}
+                    >
+                      <option value="">Todas (Demora / Incidentes)</option>
+                      <option value="CON_DEMORA">⚠️ Con Demora Justificada</option>
+                      <option value="SIN_DEMORA">✓ Sin Demora (Normal)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="obs-filter-popover-footer">
+                  <button
+                    type="button"
+                    className="obs-popover-apply-btn"
+                    onClick={() => setFilterPopoverOpen(false)}
+                  >
+                    Listo
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Botón Refrescar */}
+          <button
+            className="refresh-btn"
+            onClick={() => { loadData(true); loadKpis(); loadAgrupada() }}
+            disabled={loading || loadingAgrupada}
+            title="Refrescar datos"
+          >
+            <RefreshCw size={15} className={loading || loadingAgrupada ? 'spinning' : ''}/>
+          </button>
+
+          {/* Toggle vista: Por sitio (predeterminada) / Tabla */}
+          <div className="vista-toggle">
+            <button
+              className={`vista-toggle-btn ${vista === 'agrupada' ? 'active' : ''}`}
+              onClick={() => setVista('agrupada')}
+              title="Vista agrupada por sitio"
+            >
+              <LayoutList size={15}/> Por sitio
+            </button>
+            <button
+              className={`vista-toggle-btn ${vista === 'tabla' ? 'active' : ''}`}
+              onClick={() => setVista('tabla')}
+              title="Vista tabla detallada"
+            >
+              <Table2 size={15}/> Tabla
             </button>
           </div>
         </div>

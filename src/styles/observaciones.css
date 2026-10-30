@@ -29,48 +29,256 @@
 .obs-kpi-sub { font-size: var(--text-2xs); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Toolbar observaciones */
+/* Toolbar observaciones — Fila Única y Compacta */
 .obs-toolbar {
-  display: flex; flex-wrap: wrap; gap: 0.75rem;
-  align-items: center; justify-content: space-between;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   background: #ffffff;
-  padding: 0.85rem 1.15rem; border-radius: 16px; border: 1px solid var(--border);
+  padding: 0.55rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
+  flex-wrap: nowrap;
 }
+
 .obs-search-box {
-  position: relative; display: flex; align-items: center; flex: 1 1 280px; min-width: 220px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 220px;
 }
-.obs-search-icon { position: absolute; left: 0.8rem; color: var(--text-muted); pointer-events: none; }
+
+.obs-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
 .obs-search-input {
-  width: 100%; background: #ffffff; border: 1px solid var(--border);
-  border-radius: 10px; padding: 0.55rem 2rem 0.55rem 2.3rem;
-  color: var(--text-primary); font-size: var(--text-sm); font-family: var(--font-sans); outline: none;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0.45rem 2rem 0.45rem 2.25rem;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  outline: none;
   transition: all var(--transition);
 }
-.obs-search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0, 48, 96, 0.12); }
 
-.obs-filter-group { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 2 1 auto; justify-content: flex-end; }
-.obs-select-wrap { position: relative; display: flex; align-items: center; min-width: 135px; }
-
-.obs-toolbar-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-
-.obs-clear-filters-btn {
-  display: flex; align-items: center; gap: 0.3rem;
-  background: #fee2e2; border: 1px solid #fca5a5;
-  border-radius: 9px; padding: 0.5rem 0.75rem;
-  color: #991b1b; font-size: var(--text-sm); cursor: pointer;
-  transition: all var(--transition);
+.obs-search-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 48, 96, 0.12);
 }
-.obs-clear-filters-btn:hover { background: #fecaca; }
 
-.obs-export-btn {
-  display: flex; align-items: center; gap: 0.4rem;
-  background: #ecfdf5; border: 1px solid #a7f3d0;
-  border-radius: 10px; padding: 0.5rem 0.85rem;
-  color: #065f46; font-size: var(--text-sm); font-weight: var(--fw-semibold); cursor: pointer;
-  transition: all var(--transition); font-family: var(--font-sans);
+/* Grupo Derecho de Barra: Filtros Popover + Refrescar + Vistas */
+.obs-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
-.obs-export-btn:hover { background: #d1fae5; border-color: #059669; }
-.obs-export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Ancla y Botón Disparador del Panel de Filtros */
+.obs-filter-popover-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.obs-filter-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: #003060;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+.obs-filter-trigger-btn:hover {
+  background: #f0f6fc;
+  border-color: #003060;
+}
+
+.obs-filter-trigger-btn.has-active {
+  background: #e0f2fe;
+  border-color: #0284c7;
+  color: #003060;
+}
+
+.obs-filter-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #0284c7;
+  color: #ffffff;
+  border-radius: 10px;
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Tarjeta Flotante / Cuadro Desplegable Superpuesto de Filtros (Popover) */
+.obs-filter-popover-card {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  max-width: calc(100vw - 2rem);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 35px rgba(0, 48, 96, 0.16), 0 2px 6px rgba(0, 0, 0, 0.04);
+  z-index: 100;
+  padding: 0.95rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  animation: popoverFadeIn 0.15s ease-out;
+}
+
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.obs-filter-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.obs-popover-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.obs-popover-clear-btn:hover {
+  background: #fca5a5;
+}
+
+.obs-filter-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.obs-popover-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.obs-popover-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.popover-select {
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  font-size: var(--text-sm);
+  color: #003060;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  box-sizing: border-box;
+}
+
+.popover-select:focus {
+  border-color: #003060;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(0, 48, 96, 0.1);
+}
+
+.obs-filter-popover-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-light);
+}
+
+.obs-popover-apply-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 1rem;
+  background: #003060;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.obs-popover-apply-btn:hover {
+  background: #002244;
+}
+
+@media (max-width: 680px) {
+  .obs-toolbar {
+    flex-wrap: wrap !important;
+  }
+  .obs-search-box {
+    flex: 1 1 100% !important;
+    width: 100%;
+  }
+  .obs-toolbar-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .obs-filter-popover-card {
+    right: auto !important;
+    left: 0 !important;
+    width: 290px !important;
+  }
+}
 
 /* Badges de estado */
 .estado-badge {

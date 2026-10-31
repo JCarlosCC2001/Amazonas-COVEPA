@@ -4,7 +4,7 @@ import {
   ClipboardList, CheckCircle2, Clock, AlertTriangle, XCircle,
   Ban, MapPin, Layers, Award, TrendingUp, RefreshCw, Search,
   ArrowRight, ExternalLink, Calendar, ChevronRight, ShieldCheck,
-  Radio, Sparkles, Filter, Users, Globe, UploadCloud, User, RotateCcw
+  Radio, Sparkles, Filter, Users, UploadCloud, User, RotateCcw
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { usePresentationMode } from '../context/PresentationContext'
@@ -65,7 +65,7 @@ export default function Dashboard() {
   const [errorMsg, setErrorMsg] = useState('')
 
   // Control de sub-pestaña ejecutiva activa (100vh sin scroll de página)
-  const [tab, setTab] = useState('operativo') // 'operativo' | 'sitios' | 'cobertura'
+  const [tab, setTab] = useState('operativo') // 'operativo' | 'sitios'
 
   // Estado con las métricas consolidadas del proyecto
   const [data, setData] = useState({
@@ -267,16 +267,6 @@ export default function Dashboard() {
             <MapPin size={14} />
             <span>Monitoreo de Sitios</span>
             <span className="dash-subtab-badge">{sitios.length}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`dash-subtab-btn ${tab === 'cobertura' ? 'is-active' : ''}`}
-            onClick={() => setTab('cobertura')}
-          >
-            <Globe size={14} />
-            <span>Cobertura Territorial</span>
-            <span className="dash-subtab-badge">2 Zonas</span>
           </button>
         </div>
 
@@ -710,215 +700,6 @@ export default function Dashboard() {
                 )}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════
-          PESTAÑA 3: COBERTURA TERRITORIAL (PÁGINA COMPLETA 2 ZONAS)
-          ════════════════════════════════════════════════════════════ */}
-      {tab === 'cobertura' && (
-        <div className="dash-cobertura-view">
-          {/* Barra Resumen Superior */}
-          <div className="dash-cobertura-kpi-bar">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <Globe size={18} color="#003060" />
-              <div>
-                <h3 className="t-name" style={{ margin: 0, color: '#003060' }}>
-                  Distribución Territorial del Proyecto COVEPA
-                </h3>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <span className="dash-subtab-badge" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                156 Sitios Totales
-              </span>
-              <span className="dash-subtab-badge-accent" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {kpis.total.toLocaleString()} Observaciones Totales
-              </span>
-            </div>
-          </div>
-
-          {/* 2 Grandes Tarjetas de Zona */}
-          <div className="dash-cobertura-cards-2col">
-            {/* Zona 2 - Norte */}
-            <div className="dash-zone-full-card">
-              <div>
-                <div className="dash-zone-card-top">
-                  <div>
-                    <h4 className="dash-zone-name">ZONA 2 · Norte</h4>
-                    <div className="dash-zone-provinces">
-                      Provincias: Utcubamba, Bagua, Condorcanqui
-                    </div>
-                  </div>
-                  <span className="dash-progreso-resueltas-badge" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {statsZona2.porcentajeSitios}% del Proyecto
-                  </span>
-                </div>
-
-                <div className="dash-zone-big-stat">
-                  <span className="dash-zone-big-num">{statsZona2.sitiosCount}</span>
-                  <span className="dash-zone-big-label">Sitios Operativos</span>
-                  <span style={{ color: 'var(--border)', margin: '0 0.35rem' }}>|</span>
-                  <span className="dash-zone-big-num" style={{ color: '#0284c7' }}>{statsZona2.totalObs.toLocaleString()}</span>
-                  <span className="dash-zone-big-label">Observaciones</span>
-                </div>
-
-                {/* Avance */}
-                <div className="dash-zone-progress-box">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }} className="t-meta">
-                    <span style={{ fontWeight: 'var(--fw-bold)', color: '#003060' }}>Avance de Levantamiento</span>
-                    <strong style={{ color: '#10b981', fontVariantNumeric: 'tabular-nums' }}>{statsZona2.porcentaje}% Conforme</strong>
-                  </div>
-                  <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: '#e2e8f0', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${Math.min(100, statsZona2.porcentaje)}%`,
-                        height: '100%',
-                        background: 'linear-gradient(90deg, #10b981, #0284c7)',
-                        borderRadius: '4px',
-                        transition: 'width 1s ease'
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* 4 Métricas Cuadrantes */}
-                <div className="dash-zone-quad-grid">
-                  <div className="dash-zone-quad-item">
-                    <span style={{ color: 'var(--text-muted)' }}>TOTAL</span>
-                    <strong style={{ color: '#003060' }}>{statsZona2.totalObs}</strong>
-                  </div>
-                  <div className="dash-zone-quad-item">
-                    <span style={{ color: '#059669' }}>SUBSANADAS</span>
-                    <strong style={{ color: '#10b981' }}>{statsZona2.subsanadas}</strong>
-                  </div>
-                  <div className="dash-zone-quad-item">
-                    <span style={{ color: '#0284c7' }}>EN REVISIÓN</span>
-                    <strong style={{ color: '#0284c7' }}>{statsZona2.enRevision}</strong>
-                  </div>
-                  <div className="dash-zone-quad-item">
-                    <span style={{ color: '#d97706' }}>PENDIENTES</span>
-                    <strong style={{ color: '#d97706' }}>{statsZona2.pendientes}</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Botones de acción */}
-              <div className="dash-zone-footer-actions">
-                <button
-                  type="button"
-                  className="dash-zone-btn-action btn-outline"
-                  onClick={() => navigate('/sitios')}
-                  title="Abrir directorio de sitios"
-                >
-                  <ExternalLink size={13} />
-                  <span>Directorio General</span>
-                </button>
-                <button
-                  type="button"
-                  className="dash-zone-btn-action btn-primary"
-                  onClick={() => {
-                    setFilterZona('ZONA 2')
-                    setTab('sitios')
-                  }}
-                  title="Filtrar tabla de sitios por Zona 2"
-                >
-                  <MapPin size={13} />
-                  <span>Ver Sitios de Zona 2</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Zona 7 - Sur */}
-            <div className="dash-zone-full-card">
-              <div>
-                <div className="dash-zone-card-top">
-                  <div>
-                    <h4 className="dash-zone-name">ZONA 7 · Sur</h4>
-                    <div className="dash-zone-provinces">
-                      Provincias: Chachapoyas, Luya, Bongará, Rodríguez de Mendoza
-                    </div>
-                  </div>
-                  <span className="dash-progreso-resueltas-badge" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {statsZona7.porcentajeSitios}% del Proyecto
-                  </span>
-                </div>
-
-                <div className="dash-zone-big-stat">
-                  <span className="dash-zone-big-num">{statsZona7.sitiosCount}</span>
-                  <span className="dash-zone-big-label">Sitios Operativos</span>
-                  <span style={{ color: 'var(--border)', margin: '0 0.35rem' }}>|</span>
-                  <span className="dash-zone-big-num" style={{ color: '#0284c7' }}>{statsZona7.totalObs.toLocaleString()}</span>
-                  <span className="dash-zone-big-label">Observaciones</span>
-                </div>
-
-                {/* Avance */}
-                <div className="dash-zone-progress-box">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }} className="t-meta">
-                    <span style={{ fontWeight: 'var(--fw-bold)', color: '#003060' }}>Avance de Levantamiento</span>
-                    <strong style={{ color: '#10b981', fontVariantNumeric: 'tabular-nums' }}>{statsZona7.porcentaje}% Conforme</strong>
-                  </div>
-                  <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: '#e2e8f0', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${Math.min(100, statsZona7.porcentaje)}%`,
-                        height: '100%',
-                        background: 'linear-gradient(90deg, #10b981, #0284c7)',
-                        borderRadius: '4px',
-                        transition: 'width 1s ease'
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* 4 Métricas Cuadrantes */}
-                <div className="dash-zone-quad-grid">
-                  <div className="dash-zone-quad-item">
-                    <span style={{ color: 'var(--text-muted)' }}>TOTAL</span>
-                    <strong style={{ color: '#003060' }}>{statsZona7.totalObs}</strong>
-                  </div>
-                  <div className="dash-zone-quad-item">
-                    <span style={{ color: '#059669' }}>SUBSANADAS</span>
-                    <strong style={{ color: '#10b981' }}>{statsZona7.subsanadas}</strong>
-                  </div>
-                  <div className="dash-zone-quad-item">
-                    <span style={{ color: '#0284c7' }}>EN REVISIÓN</span>
-                    <strong style={{ color: '#0284c7' }}>{statsZona7.enRevision}</strong>
-                  </div>
-                  <div className="dash-zone-quad-item">
-                    <span style={{ color: '#d97706' }}>PENDIENTES</span>
-                    <strong style={{ color: '#d97706' }}>{statsZona7.pendientes}</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Botones de acción */}
-              <div className="dash-zone-footer-actions">
-                <button
-                  type="button"
-                  className="dash-zone-btn-action btn-outline"
-                  onClick={() => navigate('/sitios')}
-                  title="Abrir directorio de sitios"
-                >
-                  <ExternalLink size={13} />
-                  <span>Directorio General</span>
-                </button>
-                <button
-                  type="button"
-                  className="dash-zone-btn-action btn-primary"
-                  onClick={() => {
-                    setFilterZona('ZONA 7')
-                    setTab('sitios')
-                  }}
-                  title="Filtrar tabla de sitios por Zona 7"
-                >
-                  <MapPin size={13} />
-                  <span>Ver Sitios de Zona 7</span>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}

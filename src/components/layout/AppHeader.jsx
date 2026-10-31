@@ -4,10 +4,9 @@ import {
   Bell, Eye, EyeOff, CheckCircle2,
   X, ExternalLink, Clock, MapPin,
   User, Trash2, RotateCcw, AlertTriangle,
-  Copy, Check, CheckCheck
+  Copy, Check
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
-import { pasarTodasSolicitudesAEnRevision } from '../../services/observacionesService'
 import { usePresentationMode } from '../../context/PresentationContext'
 import { useNotifications, formatTiempoRelativo, copyObservacionesList } from '../../context/NotificationContext'
 
@@ -51,9 +50,7 @@ export default function AppHeader() {
   const navigate = useNavigate()
   const { presentationMode, togglePresentationMode } = usePresentationMode()
   const { user } = useAuth()
-  const [batchHeaderLoading, setBatchHeaderLoading] = useState(false)
   const {
-    notificarPaseEnRevision,
     solicitudes,
     unreadCount,
     readIds,
@@ -101,28 +98,6 @@ export default function AppHeader() {
     markAsRead(obs.id_obs)
     setNotifOpen(false)
     navigate(`/observaciones?search=${encodeURIComponent(obs.id_obs)}`)
-  }
-
-  const handleBatchRevisionHeader = async () => {
-    if (solicitudes.length === 0 || batchHeaderLoading) return
-    setBatchHeaderLoading(true)
-    try {
-      const res = await pasarTodasSolicitudesAEnRevision({
-        nombre: user?.nombre || user?.email || 'Coordinador COVEPA',
-        email: user?.email,
-        id: user?.id
-      })
-      if (res.count > 0) {
-        setNotifOpen(false)
-        if (notificarPaseEnRevision) {
-          await notificarPaseEnRevision(res)
-        }
-      }
-    } catch (err) {
-      console.error('[BATCH-REVISION-HEADER] Error al pasar observaciones a En Revisión:', err)
-    } finally {
-      setBatchHeaderLoading(false)
-    }
   }
 
   const handleViewAll = () => {
@@ -193,18 +168,7 @@ export default function AppHeader() {
                   <span>Solicitudes de Revisión ({solicitudes.length})</span>
                 </div>
                 <div className="notif-header-actions">
-                  {solicitudes.length > 0 && (
-                    <button
-                      type="button"
-                      className="notif-batch-btn"
-                      onClick={handleBatchRevisionHeader}
-                      disabled={batchHeaderLoading}
-                      title="Pasar todas las solicitudes a En Revisión"
-                    >
-                      <CheckCheck size={12} />
-                      <span>{batchHeaderLoading ? 'Procesando...' : `Pasar a En Revisión (${solicitudes.length})`}</span>
-                    </button>
-                  )}
+
                   {unreadCount > 0 && (
                     <button
                       type="button"

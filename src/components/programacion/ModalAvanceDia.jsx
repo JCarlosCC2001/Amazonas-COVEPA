@@ -450,18 +450,20 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     }
   }
 
-  // Copiar imagen PNG del reporte al portapapeles
+  // Copiar imagen PNG del cuadro de resumen por cuadrillas al portapapeles
   const handleCopyPNG = async () => {
-    if (filteredRows.length === 0 || exportingPng) return
+    if (exportingPng) return
     setExportingPng(true)
     try {
       const { copyAvanceDiaPNG } = await import('../../services/imageExportService')
       const res = await copyAvanceDiaPNG({
         fecha,
         formattedDate,
-        rows: filteredRows,
+        rows: avanceData.rows || [],
         stats,
-        getLocalidad,
+        matrixData,
+        statusColumns,
+        presentationMode,
         filterEstado
       })
       if (res.method === 'clipboard') {
@@ -478,18 +480,20 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     }
   }
 
-  // Descargar imagen PNG del reporte
+  // Descargar imagen PNG del cuadro de resumen por cuadrillas
   const handleDownloadPNG = async () => {
-    if (filteredRows.length === 0 || exportingPng) return
+    if (exportingPng) return
     setExportingPng(true)
     try {
       const { downloadAvanceDiaPNG } = await import('../../services/imageExportService')
       await downloadAvanceDiaPNG({
         fecha,
         formattedDate,
-        rows: filteredRows,
+        rows: avanceData.rows || [],
         stats,
-        getLocalidad,
+        matrixData,
+        statusColumns,
+        presentationMode,
         filterEstado
       })
     } catch (err) {
@@ -665,8 +669,8 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
               type="button"
               className={`prog-export-btn prog-export-copy-btn ${copiedPng ? 'copied' : ''}`}
               onClick={handleCopyPNG}
-              disabled={exportingPng || filteredRows.length === 0}
-              title="Copiar imagen PNG al portapapeles para pegar directamente en WhatsApp o correo (Ctrl+V)"
+              disabled={exportingPng || (matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0))}
+              title="Copiar imagen del cuadro de resumen por cuadrillas al portapapeles para WhatsApp o correo (Ctrl+V)"
             >
               {copiedPng ? <Check size={14} /> : <Copy size={14} />}
               <span>{copiedPng ? '¡Copiado!' : (exportingPng ? 'Generando...' : 'Copiar PNG')}</span>
@@ -676,8 +680,8 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
               type="button"
               className="prog-export-btn prog-export-png-btn"
               onClick={handleDownloadPNG}
-              disabled={exportingPng || filteredRows.length === 0}
-              title="Descargar imagen PNG de alta definición"
+              disabled={exportingPng || (matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0))}
+              title="Descargar imagen PNG del cuadro de resumen por cuadrillas de alta definición"
             >
               <Image size={14} />
               <span>{exportingPng ? 'Generando...' : 'Descargar PNG'}</span>

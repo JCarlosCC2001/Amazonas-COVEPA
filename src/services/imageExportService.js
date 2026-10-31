@@ -1,6 +1,6 @@
 /**
  * Servicio de Generación de Imagen (PNG) y Exportación al Portapapeles / Descarga
- * para el Reporte de Avance del Día de Amazonas-COVEPA.
+ * del Cuadro de Resumen por Cuadrillas para Amazonas-COVEPA.
  */
 
 /**
@@ -36,30 +36,85 @@ function roundRect(ctx, x, y, width, height, radius, fill = true, stroke = false
 }
 
 /**
- * Genera un Blob PNG de alta definición (2x Retina) con el reporte de avance diario.
+ * Genera un Blob PNG de alta definición (2x Retina) con el Cuadro de Resumen por Cuadrillas.
  */
 export async function generateAvanceDiaPNG({
   fecha,
   formattedDate,
   rows = [],
   stats = {},
-  getLocalidad = () => '',
+  matrixData = null,
+  statusColumns = null,
+  presentationMode = false,
   filterEstado = 'TODOS'
 }) {
   const scale = 2
-  const width = 1100
-  const marginX = 40
-  const printableWidth = width - marginX * 2 // 1020px
+  const width = 1000
+  const marginX = 36
+  const printableWidth = width - marginX * 2 // 928px
 
-  const headerHeight = 110
-  const kpiHeight = 74
-  const tableHeaderHeight = 40
-  const rowHeight = 44
-  const tableBodyHeight = Math.max(rows.length * rowHeight, 90)
-  const footerHeight = 45
-  const paddingBottom = 25
+  // Resolver datos de la matriz de cuadrillas
+  let mData = matrixData
+  if (!mData || !mData.matrixRows || mData.matrixRows.length === 0) {
+    const cuadrillasMap = {
+      'CUADRILLA 1': { cuadrilla: 'CUADRILLA 1', tecnico: 'Jhonatan Flores', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
+      'CUADRILLA 2': { cuadrilla: 'CUADRILLA 2', tecnico: 'Cristian Isla', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
+      'CUADRILLA 3': { cuadrilla: 'CUADRILLA 3', tecnico: 'Daniel Javier', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
+      'CUADRILLA 4': { cuadrilla: 'CUADRILLA 4', tecnico: 'Alfonso Curi', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
+      'CUADRILLA 5': { cuadrilla: 'CUADRILLA 5', tecnico: 'William Avila', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
+      'CUADRILLA 6': { cuadrilla: 'CUADRILLA 6', tecnico: 'Gabriel Farro', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 }
+    }
 
-  const height = headerHeight + kpiHeight + tableHeaderHeight + tableBodyHeight + footerHeight + paddingBottom
+    rows.forEach(r => {
+      const cName = (r.cuadrilla || '').toUpperCase()
+      const match = cName.match(/CUADRILLA\s*([1-6])/i)
+      const targetCuadrilla = match ? `CUADRILLA ${match[1]}` : null
+      const targetObj = targetCuadrilla ? cuadrillasMap[targetCuadrilla] : null
+      if (targetObj) {
+        if (r.tecnico && !r.tecnico.toLowerCase().includes('no asignado')) {
+          targetObj.tecnico = r.tecnico
+        }
+        const st = (r.estado || '').toLowerCase()
+        if (st.includes('solicitando')) targetObj.values.solicitando++
+        else if (st.includes('en revision') || st.includes('en revisión')) targetObj.values.enRevision++
+        else if (st.includes('rechazad')) targetObj.values.rechazados++
+        else if (st.includes('validad') || st.includes('enviad')) targetObj.values.validados++
+      }
+    })
+
+    const mRows = Object.values(cuadrillasMap).map(c => ({
+      ...c,
+      total: c.values.solicitando + c.values.enRevision + c.values.rechazados + c.values.validados
+    }))
+
+    const mTotals = {
+      solicitando: mRows.reduce((a, b) => a + b.values.solicitando, 0),
+      enRevision: mRows.reduce((a, b) => a + b.values.enRevision, 0),
+      rechazados: mRows.reduce((a, b) => a + b.values.rechazados, 0),
+      validados: mRows.reduce((a, b) => a + b.values.validados, 0)
+    }
+
+    mData = {
+      matrixRows: mRows,
+      matrixTotals: mTotals,
+      matrixGrandTotal: mTotals.solicitando + mTotals.enRevision + mTotals.rechazados + mTotals.validados
+    }
+  }
+
+  const matrixRows = mData.matrixRows || []
+  const matrixTotals = mData.matrixTotals || { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }
+  const grandTotal = mData.matrixGrandTotal ?? (matrixTotals.solicitando + matrixTotals.enRevision + matrixTotals.rechazados + matrixTotals.validados)
+
+  const headerHeight = 105
+  const kpiHeight = 65
+  const matrixHeaderHeight = 44
+  const rowHeight = 42
+  const tableRowsHeight = matrixRows.length * rowHeight
+  const footerRowHeight = 46
+  const footerHeight = 52
+  const paddingBottom = 20
+
+  const height = headerHeight + kpiHeight + matrixHeaderHeight + tableRowsHeight + footerRowHeight + footerHeight + paddingBottom
 
   const canvas = document.createElement('canvas')
   canvas.width = width * scale
@@ -85,42 +140,35 @@ export async function generateAvanceDiaPNG({
 
   // Identificador de proyecto
   ctx.fillStyle = '#0284c7'
-  ctx.font = '800 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  ctx.fillText('COVEPA · PROYECTO REGIONAL AMAZONAS', marginX, 36)
+  ctx.font = '700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  ctx.fillText('COVEPA · PROYECTO REGIONAL AMAZONAS', marginX, 35)
 
-  // Título del reporte
+  // Título del cuadro
   ctx.fillStyle = '#003060'
   ctx.font = '800 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  ctx.fillText('Reporte de Avance Diario de Subsanación', marginX, 64)
+  ctx.fillText('Resumen Operativo por Cuadrilla', marginX, 64)
 
   // Subtítulo con fecha
   ctx.fillStyle = '#475569'
-  ctx.font = '500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  const dateStr = formattedDate || fecha
-  ctx.fillText(`Jornada técnica: ${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}`, marginX, 88)
+  ctx.font = '500 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  const dateStr = formattedDate || fecha || ''
+  const dateFormatted = dateStr ? (dateStr.charAt(0).toUpperCase() + dateStr.slice(1)) : ''
+  ctx.fillText(`Distribución de estados para la jornada: ${dateFormatted}`, marginX, 86)
 
-  // Badge derecho de conteo
-  const countLabel = `${rows.length} ${rows.length === 1 ? 'OBSERVACIÓN' : 'OBSERVACIONES'}`
-  ctx.font = '700 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  // Badge derecho de conteo total
+  const countLabel = `${grandTotal} Obs. Totales`
+  ctx.font = '700 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   const countWidth = ctx.measureText(countLabel).width + 24
   const countX = width - marginX - countWidth
-  const countY = 38
+  const countY = 40
 
   ctx.fillStyle = '#f0f9ff'
   ctx.strokeStyle = '#bae6fd'
   ctx.lineWidth = 1
-  roundRect(ctx, countX, countY, countWidth, 30, 8, true, true)
+  roundRect(ctx, countX, countY, countWidth, 32, 8, true, true)
 
   ctx.fillStyle = '#0369a1'
-  ctx.fillText(countLabel, countX + 12, countY + 19)
-
-  if (filterEstado !== 'TODOS') {
-    ctx.fillStyle = '#64748b'
-    ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-    const filterText = `(Filtro: ${filterEstado})`
-    const fw = ctx.measureText(filterText).width
-    ctx.fillText(filterText, width - marginX - fw, countY + 48)
-  }
+  ctx.fillText(countLabel, countX + 12, countY + 21)
 
   // Línea divisoria
   ctx.strokeStyle = '#e2e8f0'
@@ -132,22 +180,18 @@ export async function generateAvanceDiaPNG({
 
   // 3. Tarjetas Resumen de KPIs (Métricas Superiores)
   const kpis = [
-    { label: 'TOTAL', val: stats.total || rows.length, color: '#003060', bg: '#f1f5f9', border: '#cbd5e1' },
-    { label: '✓ POR SUBIR', val: stats.validadas || 0, color: '#15803d', bg: '#dcfce7', border: '#bbf7d0' },
-    { label: '🔍 EN REVISIÓN', val: stats.enRevision || 0, color: '#b45309', bg: '#fef3c7', border: '#fde68a' },
-    { label: '✉ ENVIADAS', val: stats.enviadas || 0, color: '#4338ca', bg: '#e0e7ff', border: '#c7d2fe' },
-    { label: '🚫 DESCARTADAS', val: stats.descartadas || 0, color: '#475569', bg: '#f8fafc', border: '#e2e8f0' }
+    { label: 'TOTAL DIARIO', val: grandTotal, color: '#003060', bg: '#f1f5f9', border: '#cbd5e1' },
+    { label: 'SOLICITANDO REVISIÓN', val: matrixTotals.solicitando || 0, color: '#b45309', bg: '#fef3c7', border: '#fde68a' },
+    { label: 'EN REVISIÓN', val: matrixTotals.enRevision || 0, color: '#0369a1', bg: '#e0f2fe', border: '#bae6fd' },
+    { label: 'RECHAZADOS', val: matrixTotals.rechazados || 0, color: '#b91c1c', bg: '#fee2e2', border: '#fecaca' },
+    { label: 'VALIDADOS', val: matrixTotals.validados || 0, color: '#15803d', bg: '#dcfce7', border: '#bbf7d0' }
   ]
-
-  if ((stats.rechazadas || 0) > 0) {
-    kpis.push({ label: '✕ RECHAZADAS', val: stats.rechazadas, color: '#b91c1c', bg: '#fee2e2', border: '#fecaca' })
-  }
 
   const kpiGap = 10
   const kpiCount = kpis.length
   const kpiWidth = (printableWidth - (kpiCount - 1) * kpiGap) / kpiCount
-  const kpiY = headerHeight + 14
-  const kpiBoxHeight = 46
+  const kpiY = headerHeight + 12
+  const kpiBoxHeight = 44
 
   kpis.forEach((kpi, i) => {
     const kx = marginX + i * (kpiWidth + kpiGap)
@@ -158,114 +202,203 @@ export async function generateAvanceDiaPNG({
 
     // Número
     ctx.fillStyle = kpi.color
-    ctx.font = '800 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    ctx.font = '800 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     const numText = String(kpi.val)
-    ctx.fillText(numText, kx + 10, kpiY + 28)
+    ctx.fillText(numText, kx + 10, kpiY + 25)
 
     // Etiqueta
-    ctx.font = '700 9.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-    ctx.fillText(kpi.label, kx + 10, kpiY + 41)
+    ctx.font = '700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    ctx.fillText(kpi.label, kx + 10, kpiY + 38)
   })
 
-  // 4. Encabezados de la Tabla
-  // Columnas: CÓD. OBS, TÉCNICO / CUADRILLA, CÓDIGO DE SITIO · LOCALIDAD, ESTADO, REVISADO POR
+  // 4. Definición de Columnas de la Matriz de Cuadrillas
   const colDef = [
-    { label: 'CÓD. OBS', x: marginX + 12, w: 140 },
-    { label: 'TÉCNICO / CUADRILLA', x: marginX + 155, w: 245 },
-    { label: 'CÓDIGO DE SITIO · LOCALIDAD', x: marginX + 405, w: 320 },
-    { label: 'ESTADO', x: marginX + 730, w: 135 },
-    { label: 'REVISADO POR', x: marginX + 870, w: 145 }
+    { key: 'cuadrilla', label: 'Cuadrilla', align: 'left', x: marginX, w: 155 },
+    { key: 'tecnico', label: 'Técnico Asignado', align: 'left', x: marginX + 155, w: 195 },
+    { key: 'solicitando', label: 'Solicitando Revisión', align: 'center', x: marginX + 350, w: 145 },
+    { key: 'enRevision', label: 'En Revisión', align: 'center', x: marginX + 495, w: 125 },
+    { key: 'rechazados', label: 'Rechazados', align: 'center', x: marginX + 620, w: 110 },
+    { key: 'validados', label: 'Validados', align: 'center', x: marginX + 730, w: 110 },
+    { key: 'total', label: 'Total', align: 'center', x: marginX + 840, w: 88 }
   ]
 
   const thY = headerHeight + kpiHeight + 10
+
+  // Fondo del Encabezado de la Tabla
   ctx.fillStyle = '#003060'
-  roundRect(ctx, marginX, thY, printableWidth, tableHeaderHeight, 6, true, false)
+  roundRect(ctx, marginX, thY, printableWidth, matrixHeaderHeight, 8, true, false)
 
   ctx.fillStyle = '#ffffff'
-  ctx.font = '700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  ctx.font = '700 11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+
   colDef.forEach(col => {
-    ctx.fillText(col.label, col.x, thY + 25)
+    if (col.align === 'left') {
+      ctx.textAlign = 'left'
+      ctx.fillText(col.label, col.x + 14, thY + 27)
+    } else {
+      ctx.textAlign = 'center'
+      ctx.fillText(col.label, col.x + col.w / 2, thY + 27)
+    }
+  })
+  ctx.textAlign = 'left'
+
+  // 5. Filas de la Tabla (Cuadrillas 1 a 6)
+  const tbodyStartY = thY + matrixHeaderHeight
+
+  matrixRows.forEach((r, idx) => {
+    const ry = tbodyStartY + idx * rowHeight
+    const isEven = idx % 2 === 0
+
+    // Fondo alternado
+    ctx.fillStyle = isEven ? '#ffffff' : '#f8fafc'
+    ctx.fillRect(marginX, ry, printableWidth, rowHeight)
+
+    // Borde inferior
+    ctx.strokeStyle = '#e2e8f0'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(marginX, ry + rowHeight)
+    ctx.lineTo(marginX + printableWidth, ry + rowHeight)
+    ctx.stroke()
+
+    // Borde vertical sutil entre cuadrilla/técnico y métricas
+    ctx.strokeStyle = '#f1f5f9'
+    ctx.beginPath()
+    ctx.moveTo(marginX + 350, ry)
+    ctx.lineTo(marginX + 350, ry + rowHeight)
+    ctx.stroke()
+
+    // Col 0: Cuadrilla
+    ctx.fillStyle = '#003060'
+    ctx.font = '800 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    ctx.fillText(r.cuadrilla || `CUADRILLA ${idx + 1}`, colDef[0].x + 14, ry + 26)
+
+    // Col 1: Técnico
+    ctx.fillStyle = '#334155'
+    ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    const techName = !presentationMode ? (r.tecnico || 'No asignado') : '—'
+    ctx.fillText(fitText(ctx, techName, 180), colDef[1].x + 10, ry + 26)
+
+    // Helper para dibujar celda numérica con píldora
+    const renderCellPill = (val, col, pillConfig) => {
+      const centerX = col.x + col.w / 2
+      if (val <= 0) {
+        ctx.fillStyle = '#94a3b8'
+        ctx.font = '500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillText('0', centerX, ry + 26)
+        ctx.textAlign = 'left'
+      } else {
+        const pw = 48
+        const ph = 24
+        const px = centerX - pw / 2
+        const py = ry + (rowHeight - ph) / 2
+        ctx.fillStyle = pillConfig.bg
+        ctx.strokeStyle = pillConfig.border
+        ctx.lineWidth = 1
+        roundRect(ctx, px, py, pw, ph, 12, true, true)
+
+        ctx.fillStyle = pillConfig.color
+        ctx.font = '800 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillText(String(val), centerX, py + 16.5)
+        ctx.textAlign = 'left'
+      }
+    }
+
+    // Col 2: Solicitando Revisión
+    renderCellPill(r.values?.solicitando || 0, colDef[2], { bg: '#fef3c7', border: '#fde68a', color: '#b45309' })
+
+    // Col 3: En Revisión
+    renderCellPill(r.values?.enRevision || 0, colDef[3], { bg: '#e0f2fe', border: '#bae6fd', color: '#0369a1' })
+
+    // Col 4: Rechazados
+    renderCellPill(r.values?.rechazados || 0, colDef[4], { bg: '#fee2e2', border: '#fecaca', color: '#b91c1c' })
+
+    // Col 5: Validados
+    renderCellPill(r.values?.validados || 0, colDef[5], { bg: '#dcfce7', border: '#bbf7d0', color: '#15803d' })
+
+    // Col 6: Total de Fila
+    const rowTotal = r.total ?? ((r.values?.solicitando || 0) + (r.values?.enRevision || 0) + (r.values?.rechazados || 0) + (r.values?.validados || 0))
+    ctx.textAlign = 'center'
+    if (rowTotal > 0) {
+      ctx.fillStyle = '#003060'
+      ctx.font = '800 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      ctx.fillText(String(rowTotal), colDef[6].x + colDef[6].w / 2, ry + 26)
+    } else {
+      ctx.fillStyle = '#94a3b8'
+      ctx.font = '500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      ctx.fillText('0', colDef[6].x + colDef[6].w / 2, ry + 26)
+    }
+    ctx.textAlign = 'left'
   })
 
-  // 5. Filas de la Tabla
-  const tbodyStartY = thY + tableHeaderHeight
+  // 6. Fila de TOTAL DIARIO (Pie de la Tabla)
+  const tfootY = tbodyStartY + tableRowsHeight
+  ctx.fillStyle = '#f1f5f9'
+  ctx.strokeStyle = '#cbd5e1'
+  ctx.lineWidth = 1
+  roundRect(ctx, marginX, tfootY, printableWidth, footerRowHeight, 8, true, true)
 
-  if (rows.length === 0) {
-    ctx.fillStyle = '#f8fafc'
-    ctx.fillRect(marginX, tbodyStartY, printableWidth, 80)
-    ctx.fillStyle = '#64748b'
-    ctx.font = '500 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText('No hay observaciones registradas en este estado para la fecha seleccionada.', width / 2, tbodyStartY + 45)
-    ctx.textAlign = 'left'
-  } else {
-    rows.forEach((r, idx) => {
-      const ry = tbodyStartY + idx * rowHeight
-      const isEven = idx % 2 === 0
+  // Label TOTAL DIARIO
+  ctx.fillStyle = '#003060'
+  ctx.font = '800 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  ctx.fillText('TOTAL DIARIO', marginX + 14, tfootY + 28)
 
-      // Fondo de fila alternado
-      ctx.fillStyle = isEven ? '#ffffff' : '#f8fafc'
-      ctx.fillRect(marginX, ry, printableWidth, rowHeight)
+  // Subtítulo en columna técnico
+  ctx.fillStyle = '#64748b'
+  ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  ctx.fillText('Consolidado 6 Cuadrillas', colDef[1].x + 10, tfootY + 28)
 
-      // Borde inferior
-      ctx.strokeStyle = '#f1f5f9'
-      ctx.lineWidth = 1
-      ctx.beginPath()
-      ctx.moveTo(marginX, ry + rowHeight)
-      ctx.lineTo(marginX + printableWidth, ry + rowHeight)
-      ctx.stroke()
-
-      // Col 1: Cód. Obs
-      ctx.fillStyle = '#003060'
-      ctx.font = '700 11.5px "SF Mono", Consolas, "Liberation Mono", Menlo, monospace'
-      ctx.fillText(fitText(ctx, r.id_obs || '—', 130), colDef[0].x, ry + 27)
-
-      // Col 2: Técnico y Cuadrilla
-      ctx.fillStyle = '#1e293b'
+  // Función para totales en pie
+  const renderFootTotal = (val, col, pillConfig) => {
+    const centerX = col.x + col.w / 2
+    if (val <= 0) {
+      ctx.fillStyle = '#94a3b8'
       ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      ctx.fillText(fitText(ctx, r.tecnico || 'No asignado', 230), colDef[1].x, ry + 20)
-
-      if (r.cuadrilla) {
-        ctx.fillStyle = '#64748b'
-        ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-        ctx.fillText(fitText(ctx, r.cuadrilla, 230), colDef[1].x, ry + 34)
-      }
-
-      // Col 3: Código de Sitio · Localidad (Regla inmutable)
-      const loc = getLocalidad(r.id_sitio)
-      const siteDisplay = `${r.id_sitio || '—'}${loc ? ` · ${loc}` : ''}`
-      ctx.fillStyle = '#003060'
-      ctx.font = '700 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      ctx.fillText(fitText(ctx, siteDisplay, 305), colDef[2].x, ry + 27)
-
-      // Col 4: Estado (Insignia Semántica)
-      const estadoConfig = getEstadoBadgeConfig(r.estado)
-      const badgeW = 108
-      const badgeH = 24
-      const badgeX = colDef[3].x
-      const badgeY = ry + (rowHeight - badgeH) / 2
-
-      ctx.fillStyle = estadoConfig.bg
-      ctx.strokeStyle = estadoConfig.border
-      ctx.lineWidth = 1
-      roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 12, true, true)
-
-      ctx.fillStyle = estadoConfig.color
-      ctx.font = '700 10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(estadoConfig.label, badgeX + badgeW / 2, badgeY + 16)
+      ctx.fillText('0', centerX, tfootY + 28)
       ctx.textAlign = 'left'
+    } else {
+      const pw = 50
+      const ph = 26
+      const px = centerX - pw / 2
+      const py = tfootY + (footerRowHeight - ph) / 2
+      ctx.fillStyle = pillConfig.bg
+      ctx.strokeStyle = pillConfig.border
+      ctx.lineWidth = 1.2
+      roundRect(ctx, px, py, pw, ph, 13, true, true)
 
-      // Col 5: Revisado Por
-      ctx.fillStyle = '#334155'
-      ctx.font = '500 11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      const revisorDisplay = r.revisor || (r.estado?.toLowerCase().includes('revision') ? 'En proceso' : '—')
-      ctx.fillText(fitText(ctx, revisorDisplay, 140), colDef[4].x, ry + 27)
-    })
+      ctx.fillStyle = pillConfig.color
+      ctx.font = '800 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(String(val), centerX, py + 18)
+      ctx.textAlign = 'left'
+    }
   }
 
-  // 6. Pie de Página Institucional
-  const footY = tbodyStartY + tableBodyHeight + 22
+  renderFootTotal(matrixTotals.solicitando || 0, colDef[2], { bg: '#fef3c7', border: '#fde68a', color: '#b45309' })
+  renderFootTotal(matrixTotals.enRevision || 0, colDef[3], { bg: '#e0f2fe', border: '#bae6fd', color: '#0369a1' })
+  renderFootTotal(matrixTotals.rechazados || 0, colDef[4], { bg: '#fee2e2', border: '#fecaca', color: '#b91c1c' })
+  renderFootTotal(matrixTotals.validados || 0, colDef[5], { bg: '#dcfce7', border: '#bbf7d0', color: '#15803d' })
+
+  // Gran Total en Foot
+  const grandTotalCenterX = colDef[6].x + colDef[6].w / 2
+  const gtw = 52
+  const gth = 28
+  const gtx = grandTotalCenterX - gtw / 2
+  const gty = tfootY + (footerRowHeight - gth) / 2
+  ctx.fillStyle = '#003060'
+  roundRect(ctx, gtx, gty, gtw, gth, 14, true, false)
+
+  ctx.fillStyle = '#ffffff'
+  ctx.font = '800 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.fillText(String(grandTotal), grandTotalCenterX, gty + 19)
+  ctx.textAlign = 'left'
+
+  // 7. Pie de Página Institucional
+  const footY = tfootY + footerRowHeight + 24
   ctx.strokeStyle = '#e2e8f0'
   ctx.lineWidth = 1
   ctx.beginPath()
@@ -274,12 +407,12 @@ export async function generateAvanceDiaPNG({
   ctx.stroke()
 
   ctx.fillStyle = '#94a3b8'
-  ctx.font = '500 10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-  ctx.fillText(`Sistema ERP Amazonas-COVEPA · Generado el ${new Date().toLocaleDateString('es-ES')} a las ${timeStr}`, marginX, footY + 18)
+  ctx.font = '500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  const timeStr = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+  ctx.fillText(`Sistema COVEPA · Generado el ${new Date().toLocaleDateString('es-PE')} a las ${timeStr}`, marginX, footY + 18)
 
   ctx.textAlign = 'right'
-  ctx.fillText('Reporte Oficial de Subsanación ZONA 2 y 7', width - marginX, footY + 18)
+  ctx.fillText('Reporte Oficial de Subsanación · ZONA 2 y ZONA 7', width - marginX, footY + 18)
   ctx.textAlign = 'left'
 
   // Convertir canvas a Blob
@@ -288,34 +421,13 @@ export async function generateAvanceDiaPNG({
       if (blob) {
         resolve({
           blob,
-          filename: `Avance_COVEPA_${fecha}.png`
+          filename: `Resumen_Cuadrillas_${fecha || 'COVEPA'}.png`
         })
       } else {
         reject(new Error('No se pudo generar el archivo Blob PNG'))
       }
     }, 'image/png')
   })
-}
-
-/**
- * Retorna colores y texto para la insignia de estado según los valores de COVEPA.
- */
-function getEstadoBadgeConfig(st) {
-  switch (st) {
-    case 'Validado':
-      return { label: '✓ Por Subir', color: '#15803d', bg: '#dcfce7', border: '#bbf7d0' }
-    case 'Enviado':
-      return { label: '✉ Enviada', color: '#4338ca', bg: '#e0e7ff', border: '#c7d2fe' }
-    case 'En Revision':
-    case 'En Revisión':
-      return { label: '🔍 En Revisión', color: '#b45309', bg: '#fef3c7', border: '#fde68a' }
-    case 'Descartado':
-      return { label: '🚫 Descartada', color: '#475569', bg: '#f1f5f9', border: '#cbd5e1' }
-    case 'Rechazado':
-      return { label: '✕ Rechazada', color: '#b91c1c', bg: '#fee2e2', border: '#fecaca' }
-    default:
-      return { label: `● ${st || 'Pendiente'}`, color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' }
-  }
 }
 
 /**

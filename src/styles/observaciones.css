@@ -4680,6 +4680,18 @@
   overflow: hidden;
 }
 
+@media (max-width: 991px) {
+  .dash-operativo-view {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: none !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    gap: 0.75rem !important;
+  }
+}
+
 /* Medidores Strip 6 Columnas */
 .dash-metrics-strip-6col {
   display: grid;
@@ -4721,32 +4733,62 @@
 }
 
 /* Responsividad de Medidores */
-@media (max-width: 1199px) and (min-width: 681px) {
+@media (max-width: 1199px) and (min-width: 769px) {
   .dash-metrics-strip-6col {
     grid-template-columns: repeat(3, 1fr);
     gap: 0.5rem;
   }
 }
 
-@media (max-width: 680px) {
+/* En Móviles y Tablets Compactas (≤ 768px): ESTRICTAMENTE 2 COLUMNAS */
+@media (max-width: 768px) {
   .dash-metrics-strip-6col {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.45rem;
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.45rem !important;
+    flex-shrink: 0 !important;
+    flex: none !important;
+  }
+
+  .dash-metrics-strip-6col .covepa-metric-card {
+    min-width: 0 !important;
   }
 
   .dash-metrics-strip-6col .metric-card-inner {
-    padding: 0.45rem 0.55rem;
-    gap: 0.45rem;
+    padding: 0.35rem 0.5rem !important;
+    gap: 0.4rem !important;
+  }
+
+  .dash-metrics-strip-6col .metric-icon-box {
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    border-radius: 6px !important;
+  }
+
+  .dash-metrics-strip-6col .metric-icon-box svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+
+  .dash-metrics-strip-6col .metric-label {
+    font-size: var(--text-2xs) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   .dash-metrics-strip-6col .metric-value {
-    font-size: var(--text-md);
+    font-size: var(--text-md) !important;
+    line-height: 1.1 !important;
   }
-}
 
-@media (max-width: 380px) {
-  .dash-metrics-strip-6col {
-    grid-template-columns: 1fr;
+  .dash-metrics-strip-6col .metric-watermark {
+    display: none !important;
+  }
+
+  .dash-metrics-strip-6col .metric-sub-pill {
+    display: none !important;
   }
 }
 
@@ -4790,18 +4832,37 @@
 
 @media (max-width: 991px) {
   .dash-operativo-middle-grid {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: none !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    gap: 0.75rem !important;
   }
 
   .dash-operativo-middle-grid .dash-progreso-panel {
-    min-height: auto;
-    padding: 1rem;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: none !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: hidden !important;
+    position: relative !important;
+    padding: 0.85rem 1rem !important;
+    gap: 0.6rem !important;
   }
 
   .dash-operativo-middle-grid .dash-weekly-card {
-    min-height: auto;
-    padding: 1rem;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: none !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: hidden !important;
+    position: relative !important;
+    padding: 0.85rem 1rem !important;
+    gap: 0.6rem !important;
   }
 }
 
@@ -4881,22 +4942,28 @@
 /* Responsividad de Cuadrillas */
 @media (max-width: 1199px) and (min-width: 768px) {
   .dash-cuadrillas-strip-6col {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.5rem;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.5rem !important;
   }
 }
 
-@media (max-width: 767px) and (min-width: 481px) {
+@media (max-width: 767px) and (min-width: 580px) {
   .dash-cuadrillas-strip-6col {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.5rem !important;
+    flex: none !important;
+    height: auto !important;
+    min-height: auto !important;
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 579px) {
   .dash-cuadrillas-strip-6col {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
+    grid-template-columns: 1fr !important;
+    gap: 0.5rem !important;
+    flex: none !important;
+    height: auto !important;
+    min-height: auto !important;
   }
 }
 

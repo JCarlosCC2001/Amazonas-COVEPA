@@ -168,6 +168,15 @@ export default function AppHeader() {
                   <span>Notificaciones ({solicitudes.length})</span>
                 </div>
                 <div className="notif-header-actions">
+                  <button
+                    type="button"
+                    className="notif-close-mobile-btn"
+                    onClick={() => setNotifOpen(false)}
+                    title="Cerrar panel de notificaciones"
+                    aria-label="Cerrar panel"
+                  >
+                    <X size={15} />
+                  </button>
 
                   {unreadCount > 0 && (
                     <button

@@ -21,6 +21,12 @@ self.addEventListener('fetch', () => {
 // Manejo de clic en notificaciones en celulares (Android), Windows y PWA
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
+
+  // Si el usuario presionó la acción de descartar o cerrar, no abre la aplicación
+  if (event.action === 'dismiss') {
+    return
+  }
+
   const targetUrl = event.notification.data?.url || '/observaciones'
 
   event.waitUntil(

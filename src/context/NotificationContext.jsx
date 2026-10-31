@@ -337,10 +337,10 @@ export function formatTiempoRelativo(isoString) {
  * - Escritorio: Utiliza Service Worker o el constructor new Notification() con cierre automático.
  */
 export async function despacharNotificacionSistema(titulo, options = {}) {
-  // 1. Vibración táctil para dispositivos móviles (patrón suave de aviso)
+  // 1. Vibración táctil para dispositivos móviles (patrón háptico dinámico: dos toques cortos y uno mediano)
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     try {
-      navigator.vibrate([200, 100, 200])
+      navigator.vibrate([120, 80, 120, 80, 240])
     } catch (_) {}
   }
 
@@ -356,7 +356,7 @@ export async function despacharNotificacionSistema(titulo, options = {}) {
   const notifOptions = {
     icon: '/icon-192.png',
     badge: '/icon-192.png',
-    vibrate: [200, 100, 200],
+    vibrate: [120, 80, 120, 80, 240],
     ...options
   }
 
@@ -462,14 +462,20 @@ export function NotificationProvider({ children }) {
   // Despachar notificación nativa de Sistema (Android, iOS PWA, Windows, Mac)
   const dispararNotificacionEscritorio = useCallback(async (obs, localidad) => {
     const locText = localidad ? ` · ${localidad}` : ''
-    const revisorText = obs.revisor ? `Solicitado por: ${obs.revisor}` : 'Técnico en campo solicita revisión técnica.'
-    await despacharNotificacionSistema(`🔔 Solicitud de Revisión: ${obs.id_obs}`, {
-      body: `${obs.id_sitio}${locText}\n${revisorText}`,
+    const revisorText = obs.revisor ? `👤 Revisor: ${obs.revisor}` : '👤 Técnico en campo'
+    const detalleResumen = obs.detalle ? `\n📝 ${obs.detalle.slice(0, 95)}${obs.detalle.length > 95 ? '...' : ''}` : ''
+
+    await despacharNotificacionSistema(`🔔 Solicitud: ${obs.id_obs}`, {
+      body: `📍 ${obs.id_sitio}${locText}\n${revisorText}${detalleResumen}`,
       tag: `covepa-solicitud-${obs.id_obs}`,
       renotify: true,
       data: {
         url: `/observaciones?search=${encodeURIComponent(obs.id_obs)}`
-      }
+      },
+      actions: [
+        { action: 'open_obs', title: '🔍 Revisar ahora' },
+        { action: 'dismiss', title: '✖ Cerrar' }
+      ]
     })
   }, [])
 
@@ -1063,13 +1069,17 @@ export function NotificationProvider({ children }) {
 
     playAccumulationChime()
 
-    despacharNotificacionSistema(`[PRUEBA] ⚠️ Observaciones en Revisión Acumuladas (${ordenadas.length})`, {
-      body: `Hay ${ordenadas.length} observaciones en revisión (+10 min) en espera.`,
+    despacharNotificacionSistema(`[PRUEBA] ⚠️ Observaciones Acumuladas (${ordenadas.length})`, {
+      body: `⏱️ ${ordenadas.length} observaciones en espera sin dictaminar.\n📍 Más antigua: ${masAntigua.id_sitio}${loc ? ` · ${loc}` : ''} (${tiempoTxt})`,
       tag: 'covepa-alerta-acumulacion-revision-prueba',
       renotify: true,
       data: {
-        url: '/observaciones'
-      }
+        url: '/observaciones?estado=En%20Revisi%C3%B3n'
+      },
+      actions: [
+        { action: 'open_queue', title: '📋 Atender Cola' },
+        { action: 'dismiss', title: '✖ Cerrar' }
+      ]
     })
   }, [enRevision, dispararToast])
 
@@ -1105,13 +1115,17 @@ export function NotificationProvider({ children }) {
     }, 15000)
 
     // 3. Notificación nativa de sistema (Android / Windows)
-    despacharNotificacionSistema(`🚀 ${codes.length} Observaciones pasaron a En Revisión`, {
-      body: `Códigos copiados: ${codes.slice(0, 8).join(', ')}${codes.length > 8 ? '...' : ''}`,
+    despacharNotificacionSistema(`🚀 ${codes.length} Observaciones a En Revisión`, {
+      body: `📋 Lista copiada al portapapeles\n🔢 ${codes.slice(0, 5).join(', ')}${codes.length > 5 ? ` (+ ${codes.length - 5} más)` : ''}`,
       tag: 'covepa-pase-en-revision',
       renotify: true,
       data: {
         url: '/observaciones?estado=En%20Revisi%C3%B3n'
-      }
+      },
+      actions: [
+        { action: 'open_queue', title: '👁️ Ver Lista' },
+        { action: 'dismiss', title: '✖ Listo' }
+      ]
     })
 
     // 4. Refrescar solicitudes en tiempo real
@@ -1152,12 +1166,16 @@ export function NotificationProvider({ children }) {
     dispararToast(pruebaReporte, 'Despacho por Correo')
 
     despacharNotificacionSistema('📬 Reporte Diario COVEPA Enviado', {
-      body: `El consolidado de observaciones fue despachado exitosamente por correo a las ${horaActual}.`,
+      body: `✉️ Despachado por correo a las ${horaActual}\n📊 Consolidado oficial de levantamiento de observaciones\n👥 4 principales · 7 en copia`,
       tag: 'covepa-reporte-despachado',
       renotify: true,
       data: {
         url: '/reportes'
-      }
+      },
+      actions: [
+        { action: 'open_report', title: '📊 Ver Reporte' },
+        { action: 'dismiss', title: '✖ Listo' }
+      ]
     })
   }, [dispararToast])
 

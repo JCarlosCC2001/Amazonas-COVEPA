@@ -11,14 +11,13 @@ import {
   RefreshCw,
   Eye,
   X,
-  ChevronLeft,
-  ChevronRight,
   Database,
   CheckCircle2,
   AlertCircle
 } from 'lucide-react'
 import { fetchSitios } from '../services/sitiosService'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
+import ErpTable from '../components/shared/ErpTable'
 
 export default function Sitios() {
   const [sitios, setSitios] = useState([])
@@ -31,9 +30,11 @@ export default function Sitios() {
   const [selectedZona, setSelectedZona] = useState('TODAS')
   const [soloAsignados, setSoloAsignados] = useState(true)
 
-  // Paginación
+  // Paginación y Ordenamiento
   const [page, setPage] = useState(1)
-  const pageSize = 12
+  const pageSize = 20
+  const [sortField, setSortField] = useState('id_site')
+  const [sortDirection, setSortDirection] = useState('asc')
 
   // Modal de detalle
   const [selectedSite, setSelectedSite] = useState(null)
@@ -95,17 +96,159 @@ export default function Sitios() {
     })
   }, [sitios, search, selectedGrupo, selectedZona])
 
-  // Paginación
-  const totalPages = Math.ceil(filteredSitios.length / pageSize) || 1
+  // Manejo de ordenamiento de columnas
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+    setPage(1)
+  }
+
+  // Sitios ordenados
+  const sortedSitios = useMemo(() => {
+    if (!sortField) return filteredSitios
+    return [...filteredSitios].sort((a, b) => {
+      let aVal = a[sortField] ?? ''
+      let bVal = b[sortField] ?? ''
+      if (typeof aVal === 'string') {
+        return sortDirection === 'asc'
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal)
+      }
+      return sortDirection === 'asc'
+        ? (Number(aVal) > Number(bVal) ? 1 : -1)
+        : (Number(aVal) < Number(bVal) ? 1 : -1)
+    })
+  }, [filteredSitios, sortField, sortDirection])
+
+  // Paginación reactiva
   const paginatedSitios = useMemo(() => {
     const start = (page - 1) * pageSize
-    return filteredSitios.slice(start, start + pageSize)
-  }, [filteredSitios, page, pageSize])
+    return sortedSitios.slice(start, start + pageSize)
+  }, [sortedSitios, page, pageSize])
 
   // Reset page al filtrar
   useEffect(() => {
     setPage(1)
   }, [search, selectedGrupo, selectedZona])
+
+  // Columnas para ErpTable reutilizable
+  const sitiosColumns = useMemo(() => [
+    {
+      key: 'id_site',
+      label: 'CÓDIGO / ID',
+      width: '145px',
+      sortable: true,
+      render: s => (
+        <span className="site-code-badge" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {s.id_site}
+        </span>
+      )
+    },
+    {
+      key: 'nombre_nodo',
+      label: 'NOMBRE DEL NODO',
+      sortable: true,
+      render: s => (
+        <div className="site-name-wrap">
+          <span className="site-name">{s.nombre_nodo || 'Sin nombre'}</span>
+          {s.categoria && <span className="site-category">{s.categoria}</span>}
+        </div>
+      )
+    },
+    {
+      key: 'grupo',
+      label: 'CUADRILLA',
+      width: '140px',
+      sortable: true,
+      render: s => (
+        <span className={`grupo-badge grupo-${s.grupo?.replace(/\s+/g, '-').toLowerCase()}`}>
+          {s.grupo}
+        </span>
+      )
+    },
+    {
+      key: 'zona',
+      label: 'ZONA',
+      width: '110px',
+      sortable: true,
+      render: s => (
+        <span className="zona-badge">{s.zona}</span>
+      )
+    },
+    {
+      key: 'distrito',
+      label: 'UBICACIÓN',
+      sortable: true,
+      render: s => (
+        <div className="location-cell">
+          <span>{s.distrito || s.provincia || 'Amazonas'}</span>
+          <small>{s.localidad || s.region}</small>
+        </div>
+      )
+    },
+    {
+      key: 'red',
+      label: 'RED / TIPO',
+      width: '130px',
+      sortable: true,
+      render: s => (
+        <div className="tech-cell">
+          <span className="tech-red">{s.red || '—'}</span>
+          <small>{s.tipo || ''}</small>
+        </div>
+      )
+    },
+    {
+      key: 'tiene_coordenadas',
+      label: 'COORDENADAS GPS',
+      width: '180px',
+      sortable: true,
+      render: s => (
+        s.tiene_coordenadas ? (
+          <a
+            href={`https://www.google.com/maps?q=${s.latitud},${s.longitud}&t=k`}
+            target="_blank"
+            rel="noreferrer"
+            className="coords-link"
+            onClick={e => e.stopPropagation()}
+            title="Ver en Google Maps Satelital"
+          >
+            <MapPin size={13} />
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {Number(s.latitud).toFixed(4)}, {Number(s.longitud).toFixed(4)}
+            </span>
+            <ExternalLink size={12} className="ext-icon" />
+          </a>
+        ) : (
+          <span className="no-coords">Sin GPS</span>
+        )
+      )
+    },
+    {
+      key: 'actions',
+      label: 'DETALLE',
+      width: '70px',
+      align: 'center',
+      sortable: false,
+      render: s => (
+        <button
+          type="button"
+          className="view-site-btn"
+          onClick={e => {
+            e.stopPropagation()
+            setSelectedSite(s)
+          }}
+          title="Ver ficha técnica completa"
+        >
+          <Eye size={16} />
+        </button>
+      )
+    }
+  ], [])
 
   // Estadísticas rápidas globales (no afectadas por filtros de búsqueda o zona)
   const stats = useMemo(() => {
@@ -238,129 +381,29 @@ export default function Sitios() {
         </div>
       )}
 
-      {/* Tabla de Sitios */}
-      <div className="sitios-table-wrapper">
-        {loading ? (
-          <div className="table-loading-state">
-            <div className="loader-spinner" />
-            <p>Consultando base de datos externa...</p>
-          </div>
-        ) : filteredSitios.length === 0 ? (
-          <div className="table-empty-state">
-            <MapPin size={48} opacity={0.3} />
-            <h3>No se encontraron sitios</h3>
-            <p>Intenta ajustar los términos de búsqueda o los filtros de Grupo y Zona.</p>
-          </div>
-        ) : (
-          <table className="sitios-table">
-            <thead>
-              <tr>
-                <th>Código / ID</th>
-                <th>Nombre del Nodo</th>
-                <th>Cuadrilla</th>
-                <th>Zona</th>
-                <th>Ubicación</th>
-                <th>Red / Tipo</th>
-                <th>Coordenadas GPS</th>
-                <th style={{ textAlign: 'center' }}>Detalle</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedSitios.map(s => (
-                <tr key={s.id_site} onClick={() => setSelectedSite(s)} className="sitio-row">
-                  <td>
-                    <span className="site-code-badge">{s.id_site}</span>
-                  </td>
-                  <td>
-                    <div className="site-name-wrap">
-                      <span className="site-name">{s.nombre_nodo || 'Sin nombre'}</span>
-                      {s.categoria && <span className="site-category">{s.categoria}</span>}
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`grupo-badge grupo-${s.grupo?.replace(/\s+/g, '-').toLowerCase()}`}>
-                      {s.grupo}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="zona-badge">{s.zona}</span>
-                  </td>
-                  <td>
-                    <div className="location-cell">
-                      <span>{s.distrito || s.provincia || 'Amazonas'}</span>
-                      <small>{s.localidad || s.region}</small>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="tech-cell">
-                      <span className="tech-red">{s.red || '—'}</span>
-                      <small>{s.tipo || ''}</small>
-                    </div>
-                  </td>
-                  <td>
-                    {s.tiene_coordenadas ? (
-                      <a
-                        href={`https://www.google.com/maps?q=${s.latitud},${s.longitud}&t=k`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="coords-link"
-                        onClick={e => e.stopPropagation()}
-                        title="Ver en Google Maps Satelital"
-                      >
-                        <MapPin size={13} />
-                        <span>{Number(s.latitud).toFixed(4)}, {Number(s.longitud).toFixed(4)}</span>
-                        <ExternalLink size={12} className="ext-icon" />
-                      </a>
-                    ) : (
-                      <span className="no-coords">Sin GPS</span>
-                    )}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <button
-                      className="view-site-btn"
-                      onClick={e => {
-                        e.stopPropagation()
-                        setSelectedSite(s)
-                      }}
-                      title="Ver ficha técnica completa"
-                    >
-                      <Eye size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {/* Paginación */}
-        {!loading && filteredSitios.length > 0 && (
-          <div className="table-pagination">
-            <span className="pagination-info">
-              Mostrando {(page - 1) * pageSize + 1} a {Math.min(page * pageSize, filteredSitios.length)} de {filteredSitios.length} sitios
-            </span>
-            <div className="pagination-controls">
-              <button
-                className="page-btn"
-                disabled={page === 1}
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-              >
-                <ChevronLeft size={16} /> Anterior
-              </button>
-              <span className="current-page-tag">
-                Pág. {page} / {totalPages}
-              </span>
-              <button
-                className="page-btn"
-                disabled={page >= totalPages}
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              >
-                Siguiente <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Tabla de Sitios con ErpTable reutilizable */}
+      <ErpTable
+        columns={sitiosColumns}
+        data={paginatedSitios}
+        keyField="id_site"
+        loading={loading}
+        loadingMessage="Consultando base de datos externa..."
+        emptyIcon={<MapPin size={48} opacity={0.3} />}
+        emptyTitle="No se encontraron sitios"
+        emptyDescription="Intenta ajustar los términos de búsqueda o los filtros de Grupo y Zona."
+        sortField={sortField}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+        onRowClick={s => setSelectedSite(s)}
+        rowClassName="sitio-row"
+        page={page}
+        pageSize={pageSize}
+        totalCount={filteredSitios.length}
+        onPageChange={setPage}
+        hasActiveFilters={Boolean(search || selectedGrupo !== 'TODOS' || selectedZona !== 'TODAS')}
+        entityName="sitios"
+        minWidth="980px"
+      />
 
       {/* MODAL DE FICHA TÉCNICA DETALLADA */}
       {selectedSite && (

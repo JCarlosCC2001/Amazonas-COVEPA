@@ -104,11 +104,7 @@ export default function AppHeader() {
   }
 
   const handleBatchRevisionHeader = async () => {
-    if (solicitudes.length === 0) return
-    const conf = window.confirm(
-      `¿Deseas pasar ${solicitudes.length} ${solicitudes.length === 1 ? 'observación' : 'observaciones'} a 'En Revisión'?\n\nSe actualizará su estado y se generará una notificación interactiva con la lista de códigos copiable.`
-    )
-    if (!conf) return
+    if (solicitudes.length === 0 || batchHeaderLoading) return
     setBatchHeaderLoading(true)
     try {
       const res = await pasarTodasSolicitudesAEnRevision({
@@ -123,8 +119,7 @@ export default function AppHeader() {
         }
       }
     } catch (err) {
-      console.error('Error al pasar observaciones a En Revisión:', err)
-      alert(`Error: ${err.message}`)
+      console.error('[BATCH-REVISION-HEADER] Error al pasar observaciones a En Revisión:', err)
     } finally {
       setBatchHeaderLoading(false)
     }

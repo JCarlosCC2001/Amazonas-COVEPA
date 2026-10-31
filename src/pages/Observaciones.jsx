@@ -903,21 +903,13 @@ export default function Observaciones() {
   const [sortField, setSortField] = useState('codigo') // 'codigo' | 'cuadrilla' | 'sitio' | 'localidad' | 'zona' | 'estado' | 'fecha' | 'revisor' | 'demora'
   const [sortDirection, setSortDirection] = useState('asc') // 'asc' | 'desc'
 
+  const { user } = useAuth()
   const { notificarPaseEnRevision } = useNotifications()
   const [batchLoading, setBatchLoading] = useState(false)
 
-  // Pasar todas las observaciones que solicitan revisión a En Revisión
+  // Pasar todas las observaciones que solicitan revisión a En Revisión (un solo clic, sin ventanas emergentes de navegador)
   const handlePasarTodasAEnRevision = async () => {
-    if ((kpis.solicitando || 0) === 0) {
-      alert('No hay observaciones en estado "Solicitando Revisión" en este momento.')
-      return
-    }
-
-    const count = kpis.solicitando
-    const conf = window.confirm(
-      `¿Deseas pasar ${count} ${count === 1 ? 'observación' : 'observaciones'} de "Solicitando Revisión" a "En Revisión"?\n\nAl confirmar, se actualizará su estado y se generará una notificación interactiva con la lista de códigos copiable.`
-    )
-    if (!conf) return
+    if ((kpis.solicitando || 0) === 0 || batchLoading) return
 
     setBatchLoading(true)
     try {
@@ -936,12 +928,9 @@ export default function Observaciones() {
           loadData(true),
           vista === 'agrupada' ? loadAgrupada() : Promise.resolve()
         ])
-      } else {
-        alert('No se encontraron observaciones en "Solicitando Revisión".')
       }
     } catch (err) {
-      console.error('Error al pasar observaciones a En Revisión:', err)
-      alert(`Ocurrió un error: ${err.message}`)
+      console.error('[BATCH-REVISION] Error al pasar observaciones a En Revisión:', err)
     } finally {
       setBatchLoading(false)
     }

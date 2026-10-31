@@ -10,6 +10,8 @@ import {
   registrarHistorialEstado,
   esRevisorGilat
 } from './auditoriaSyncService'
+import { asegurarProgramacionSitio } from './programacionService'
+import { getPeruDateStr, getPeruISOString } from '../utils/helpers'
 
 export {
   sincronizarAuditoriaObservacion,
@@ -341,6 +343,9 @@ export async function fetchObservacionesPorSitio(idSitio, filters = {}) {
 
 // ────────────────────────────────────────────────────────────
 // 8. TRANSICIÓN MASIVA: Pasar todas las que están 'Solicitando Revisión' a 'En Revisión'
+//    Cumple estrictamente la Regla de Auto-Programación:
+//    Verifica si existe programación en el día para el sitio; de no existir,
+//    genera automáticamente la programación antes de actualizar el estado.
 // ────────────────────────────────────────────────────────────
 export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
   // 1. Consultar todas las observaciones que están solicitando revisión
@@ -353,13 +358,64 @@ export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
     throw new Error(`Error al consultar observaciones solicitando revisión: ${fetchErr.message}`)
   }
 
+  const hoyPeru = getPeruDateStr(new Date())
+  const hoyPeruIso = getPeruISOString()
+
+  // Si no hay observaciones en Solicitando Revisión, verificar y sincronizar las que están hoy en 'En Revisión'
   if (!rows || rows.length === 0) {
-    return { count: 0, items: [], codes: [] }
+    const syncHoy = await sincronizarProgramacionesEnRevisionHoy()
+    return {
+      count: 0,
+      items: [],
+      codes: [],
+      programaciones: syncHoy.results || []
+    }
+  }
+
+  // 2. Regla de Auto-Programación:
+  // Agrupar por sitio y fecha para verificar si existe programación en esa fecha;
+  // de no existir, generar automáticamente la programación con la cuadrilla y técnico oficial.
+  const sitiosFechasMap = new Map()
+
+  rows.forEach(r => {
+    const siteId = (r.id_sitio || '').trim().toUpperCase()
+    if (!siteId) return
+
+    let fechaYmd = hoyPeru
+    if (r.fecha_subsanacion) {
+      try {
+        const parsed = getPeruDateStr(r.fecha_subsanacion)
+        if (parsed) fechaYmd = parsed
+      } catch {
+        fechaYmd = hoyPeru
+      }
+    }
+
+    const key = `${siteId}|${fechaYmd}`
+    if (!sitiosFechasMap.has(key)) {
+      sitiosFechasMap.set(key, { idSitio: siteId, fecha: fechaYmd, idObs: r.id_obs })
+    }
+  })
+
+  // Ejecutar asegurarProgramacionSitio para cada sitio de forma secuencial
+  const progResults = []
+  for (const item of sitiosFechasMap.values()) {
+    try {
+      const resProg = await asegurarProgramacionSitio({
+        idSitio: item.idSitio,
+        idObs: item.idObs,
+        fecha: item.fecha
+      })
+      progResults.push(resProg)
+    } catch (autoProgErr) {
+      console.warn(`[AUTO-PROG-BULK-WARN] Error asegurando programación para ${item.idSitio}:`, autoProgErr)
+    }
   }
 
   const idObsList = rows.map(r => r.id_obs)
+  const auditorNombre = usuarioInfo.nombre || usuarioInfo.email || 'Coordinador COVEPA'
 
-  // 2. Actualizar estado a 'En Revisión'
+  // 3. Actualizar estado a 'En Revisión'
   const { error: updateErr } = await supabase
     .from('observaciones')
     .update({
@@ -371,24 +427,77 @@ export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
     throw new Error(`Error al actualizar estado a En Revisión: ${updateErr.message}`)
   }
 
-  // 3. Registrar trazabilidad en historial_estados_observaciones (no bloqueante)
+  // Si alguna observación no tenía fecha_subsanacion, asignarle la fecha actual de Perú
+  const obsSinFecha = rows.filter(r => !r.fecha_subsanacion).map(r => r.id_obs)
+  if (obsSinFecha.length > 0) {
+    await supabase
+      .from('observaciones')
+      .update({ fecha_subsanacion: hoyPeruIso })
+      .in('id_obs', obsSinFecha)
+  }
+
+  // 4. Registrar trazabilidad en historial_estados_observaciones (no bloqueante)
   rows.forEach(r => {
     registrarHistorialEstado({
       idObs: r.id_obs,
       idSitio: r.id_sitio,
       estadoAnterior: r.estado_covepa || 'Solicitando Revisión',
       estadoNuevo: 'En Revisión',
-      usuarioNombre: usuarioInfo.nombre || usuarioInfo.email || 'Coordinador COVEPA',
+      usuarioNombre: auditorNombre,
       usuarioEmail: usuarioInfo.email || null,
       usuarioId: usuarioInfo.id || null,
-      comentario: 'Pase masivo a En Revisión',
+      comentario: 'Pase masivo a En Revisión (con verificación/generación de programación)',
       origen: 'web_erp'
     }).catch(err => console.warn('[HISTORIAL-WARN] Error registrando historial masivo:', err))
   })
 
+  // 5. Emitir evento para refrescar vistas de Programación
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('covepa-programacion-actualizada', {
+      detail: { bulk: true, count: idObsList.length, programaciones: progResults }
+    }))
+  }
+
   return {
     count: idObsList.length,
     items: rows,
-    codes: idObsList
+    codes: idObsList,
+    programaciones: progResults
   }
+}
+
+/**
+ * Asegura que todas las observaciones que estén hoy en 'En Revisión' cuenten con su programación en el día.
+ */
+export async function sincronizarProgramacionesEnRevisionHoy() {
+  const hoyPeru = getPeruDateStr(new Date())
+  const { data: rows, error } = await supabase
+    .from('observaciones')
+    .select('id_obs, id_sitio, fecha_subsanacion, estado_covepa')
+    .eq('estado_covepa', 'En Revisión')
+    .gte('fecha_subsanacion', `${hoyPeru}T00:00:00`)
+
+  if (error || !rows || rows.length === 0) {
+    return { count: 0, sitios: [], results: [] }
+  }
+
+  const uniqueSites = Array.from(new Set(rows.map(r => (r.id_sitio || '').trim().toUpperCase()).filter(Boolean)))
+  const results = []
+
+  for (const siteId of uniqueSites) {
+    try {
+      const res = await asegurarProgramacionSitio({ idSitio: siteId, fecha: hoyPeru })
+      results.push(res)
+    } catch (err) {
+      console.warn(`[SYNC-HOY-WARN] Error asegurando programación para ${siteId}:`, err)
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('covepa-programacion-actualizada', {
+      detail: { syncHoy: true, sitios: uniqueSites, results }
+    }))
+  }
+
+  return { count: uniqueSites.length, sitios: uniqueSites, results }
 }

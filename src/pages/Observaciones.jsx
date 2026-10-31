@@ -909,7 +909,7 @@ export default function Observaciones() {
 
   // Pasar todas las observaciones que solicitan revisión a En Revisión (un solo clic, sin ventanas emergentes de navegador)
   const handlePasarTodasAEnRevision = async () => {
-    if ((kpis.solicitando || 0) === 0 || batchLoading) return
+    if (batchLoading) return
 
     setBatchLoading(true)
     try {
@@ -928,6 +928,14 @@ export default function Observaciones() {
           loadData(true),
           vista === 'agrupada' ? loadAgrupada() : Promise.resolve()
         ])
+      } else if (res.programaciones && res.programaciones.length > 0) {
+        if (notificarPaseEnRevision) {
+          await notificarPaseEnRevision({
+            count: res.programaciones.length,
+            items: [],
+            codes: res.programaciones.map(p => p.idSitio || p.cuadrilla || 'Programación').filter(Boolean)
+          })
+        }
       }
     } catch (err) {
       console.error('[BATCH-REVISION] Error al pasar observaciones a En Revisión:', err)

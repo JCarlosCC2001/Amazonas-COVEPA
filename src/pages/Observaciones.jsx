@@ -5,13 +5,14 @@ import {
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,
   AlertTriangle, FileText, Save, LayoutList, Table2,
   ChevronDown, ChevronUp, MapPin, Loader2, Calendar, Ban, UploadCloud, Layers, Clock,
-  Users, Check, Info, History
+  Users, Check, Info, History, CheckCheck, Send
 } from 'lucide-react'
 import HistorialEstadosTimeline from '../components/shared/HistorialEstadosTimeline'
 import {
   fetchObservaciones, fetchObservacionesKPIs, fetchFiltrosObservaciones,
   updateObservacionCovepa, exportObservacionesCSV,
   fetchResumenPorSitio, fetchObservacionesPorSitio,
+  pasarTodasSolicitudesAEnRevision,
   sincronizarEstadoConControlFotos,
   esRevisorGilat
 } from '../services/observacionesService'
@@ -23,6 +24,7 @@ import {
 } from '../services/auditoriaSyncService'
 import { getPersonalActivo } from '../services/programacionService'
 import { useAuth } from '../hooks/useAuth'
+import { useNotifications } from '../context/NotificationContext'
 import { getCachedSitiosAsignados } from '../services/sitiosService'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 import ErpTable from '../components/shared/ErpTable'
@@ -901,6 +903,50 @@ export default function Observaciones() {
   const [sortField, setSortField] = useState('codigo') // 'codigo' | 'cuadrilla' | 'sitio' | 'localidad' | 'zona' | 'estado' | 'fecha' | 'revisor' | 'demora'
   const [sortDirection, setSortDirection] = useState('asc') // 'asc' | 'desc'
 
+  const { notificarPaseEnRevision } = useNotifications()
+  const [batchLoading, setBatchLoading] = useState(false)
+
+  // Pasar todas las observaciones que solicitan revisión a En Revisión
+  const handlePasarTodasAEnRevision = async () => {
+    if ((kpis.solicitando || 0) === 0) {
+      alert('No hay observaciones en estado "Solicitando Revisión" en este momento.')
+      return
+    }
+
+    const count = kpis.solicitando
+    const conf = window.confirm(
+      `¿Deseas pasar ${count} ${count === 1 ? 'observación' : 'observaciones'} de "Solicitando Revisión" a "En Revisión"?\n\nAl confirmar, se actualizará su estado y se generará una notificación interactiva con la lista de códigos copiable.`
+    )
+    if (!conf) return
+
+    setBatchLoading(true)
+    try {
+      const res = await pasarTodasSolicitudesAEnRevision({
+        nombre: user?.nombre || user?.email || 'Coordinador COVEPA',
+        email: user?.email,
+        id: user?.id
+      })
+
+      if (res.count > 0) {
+        if (notificarPaseEnRevision) {
+          await notificarPaseEnRevision(res)
+        }
+        await Promise.all([
+          loadKpis(),
+          loadData(true),
+          vista === 'agrupada' ? loadAgrupada() : Promise.resolve()
+        ])
+      } else {
+        alert('No se encontraron observaciones en "Solicitando Revisión".')
+      }
+    } catch (err) {
+      console.error('Error al pasar observaciones a En Revisión:', err)
+      alert(`Ocurrió un error: ${err.message}`)
+    } finally {
+      setBatchLoading(false)
+    }
+  }
+
   // Panel flotante superpuesto para filtros (Popover)
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false)
   const filterPopoverRef = useRef(null)
@@ -1438,6 +1484,31 @@ export default function Observaciones() {
         </div>
 
         <div className="obs-toolbar-right">
+          {/* Botón Pasar a En Revisión */}
+          <button
+            type="button"
+            className={`obs-batch-revision-btn ${(kpis.solicitando || 0) === 0 ? 'is-empty' : ''}`}
+            onClick={handlePasarTodasAEnRevision}
+            disabled={batchLoading}
+            title={
+              (kpis.solicitando || 0) > 0
+                ? `Pasar las ${kpis.solicitando} observaciones en espera a 'En Revisión'`
+                : 'Pasar observaciones solicitando revisión a En Revisión'
+            }
+          >
+            {batchLoading ? (
+              <RefreshCw size={14} className="spinning" />
+            ) : (
+              <CheckCheck size={15} />
+            )}
+            <span>
+              {batchLoading ? 'Procesando...' : 'Pasar a En Revisión'}
+            </span>
+            <span className="obs-batch-count-badge">
+              {kpis.solicitando || 0}
+            </span>
+          </button>
+
           {/* Ancla y Tarjeta Superpuesta de Filtros (Popover) */}
           <div className="obs-filter-popover-anchor" ref={filterPopoverRef}>
             <button

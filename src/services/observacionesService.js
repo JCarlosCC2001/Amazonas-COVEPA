@@ -338,3 +338,57 @@ export async function fetchObservacionesPorSitio(idSitio, filters = {}) {
   if (error) throw new Error(error.message)
   return data || []
 }
+
+// ────────────────────────────────────────────────────────────
+// 8. TRANSICIÓN MASIVA: Pasar todas las que están 'Solicitando Revisión' a 'En Revisión'
+// ────────────────────────────────────────────────────────────
+export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
+  // 1. Consultar todas las observaciones que están solicitando revisión
+  const { data: rows, error: fetchErr } = await supabase
+    .from('observaciones')
+    .select('id_obs, id_sitio, revisor, detalle, subsistema, fecha_subsanacion, estado_covepa')
+    .or('estado_covepa.eq.Solicitando Revisión,estado_covepa.eq.Solicitando Revision')
+
+  if (fetchErr) {
+    throw new Error(`Error al consultar observaciones solicitando revisión: ${fetchErr.message}`)
+  }
+
+  if (!rows || rows.length === 0) {
+    return { count: 0, items: [], codes: [] }
+  }
+
+  const idObsList = rows.map(r => r.id_obs)
+
+  // 2. Actualizar estado a 'En Revisión'
+  const { error: updateErr } = await supabase
+    .from('observaciones')
+    .update({
+      estado_covepa: 'En Revisión'
+    })
+    .in('id_obs', idObsList)
+
+  if (updateErr) {
+    throw new Error(`Error al actualizar estado a En Revisión: ${updateErr.message}`)
+  }
+
+  // 3. Registrar trazabilidad en historial_estados_observaciones (no bloqueante)
+  rows.forEach(r => {
+    registrarHistorialEstado({
+      idObs: r.id_obs,
+      idSitio: r.id_sitio,
+      estadoAnterior: r.estado_covepa || 'Solicitando Revisión',
+      estadoNuevo: 'En Revisión',
+      usuarioNombre: usuarioInfo.nombre || usuarioInfo.email || 'Coordinador COVEPA',
+      usuarioEmail: usuarioInfo.email || null,
+      usuarioId: usuarioInfo.id || null,
+      comentario: 'Pase masivo a En Revisión',
+      origen: 'web_erp'
+    }).catch(err => console.warn('[HISTORIAL-WARN] Error registrando historial masivo:', err))
+  })
+
+  return {
+    count: idObsList.length,
+    items: rows,
+    codes: idObsList
+  }
+}

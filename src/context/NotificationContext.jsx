@@ -260,6 +260,53 @@ export async function copyObservacionesList(items) {
 }
 
 /**
+ * Copia al portapapeles una lista limpia de códigos de observación (un código por línea),
+ * ideal para pegar directamente en Excel o reportes de revisión.
+ */
+export async function copyPlainCodesList(items) {
+  if (!items || items.length === 0) return false
+
+  const codes = Array.from(
+    new Set(
+      items
+        .map(it => (typeof it === 'object' ? it.id_obs : String(it)))
+        .filter(Boolean)
+    )
+  )
+
+  if (codes.length === 0) return false
+  const fullText = codes.join('\n')
+
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(fullText)
+      return true
+    }
+  } catch (err) {
+    console.warn('Error con navigator.clipboard.writeText, usando fallback:', err)
+  }
+
+  try {
+    const textArea = document.createElement('textarea')
+    textArea.value = fullText
+    textArea.style.position = 'fixed'
+    textArea.style.left = '-999999px'
+    textArea.style.top = '-999999px'
+    textArea.setAttribute('readonly', '')
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    const successful = document.execCommand('copy')
+    document.body.removeChild(textArea)
+    if (successful) return true
+  } catch (fallbackErr) {
+    console.warn('Error en fallback execCommand:', fallbackErr)
+  }
+
+  return false
+}
+
+/**
  * Helper para formatear tiempo relativo legible en español
  */
 export function formatTiempoRelativo(isoString) {
@@ -876,6 +923,53 @@ export function NotificationProvider({ children }) {
     }
   }, [enRevision, dispararToast])
 
+  // Disparar notificación tras el pase masivo de observaciones a En Revisión
+  const notificarPaseEnRevision = useCallback(async ({ count, items, codes }) => {
+    if (!codes || codes.length === 0) return
+
+    // 1. Copiar automáticamente los códigos al portapapeles de inmediato
+    await copyPlainCodesList(codes)
+
+    // 2. Despachar Toast flotante interactivo enriquecido
+    const toastId = `toast-batch-revision-${Date.now()}`
+    const nuevoToast = {
+      id: toastId,
+      obs: {
+        id_obs: `PASE-REVISION-${Date.now()}`,
+        isTransicionBatch: true,
+        count: codes.length,
+        titulo: 'Pase a En Revisión completado',
+        detalle: `${codes.length} ${codes.length === 1 ? 'observación pasó' : 'observaciones pasaron'} a En Revisión. La lista fue copiada al portapapeles.`,
+        items: items || [],
+        codes: codes
+      },
+      createdAt: Date.now()
+    }
+
+    setToasts(prev => [nuevoToast, ...prev].slice(0, 3))
+    playNotificationChime()
+
+    // 15 segundos para dar tiempo suficiente para interactuar o re-copiar
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== toastId))
+    }, 15000)
+
+    // 3. Notificación nativa de escritorio de Windows si está concedida
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(`🚀 ${codes.length} Observaciones pasaron a En Revisión`, {
+          body: `Códigos copiados: ${codes.slice(0, 8).join(', ')}${codes.length > 8 ? '...' : ''}`,
+          icon: '/icon-192.png',
+          tag: 'covepa-pase-en-revision',
+          renotify: true
+        })
+      } catch {}
+    }
+
+    // 4. Refrescar solicitudes en tiempo real
+    fetchSolicitudes()
+  }, [fetchSolicitudes])
+
   // Exponer globalmente en window para pruebas en cualquier momento
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -895,6 +989,8 @@ export function NotificationProvider({ children }) {
         restoreDismissedNotifications,
         dispararPruebaRevision,
         copyObservacionesList,
+        copyPlainCodesList,
+        notificarPaseEnRevision,
         readIds,
         toasts,
         desktopPermission,
@@ -932,6 +1028,8 @@ export function useNotifications() {
       restoreDismissed: () => {},
       dismissedIdsCount: 0,
       dismissToast: () => {},
+      notificarPaseEnRevision: async () => {},
+      copyPlainCodesList: async () => false,
       requestDesktopPermission: async () => 'default'
     }
   }

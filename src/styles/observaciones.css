@@ -135,6 +135,68 @@
   line-height: 1;
 }
 
+/* Botón de Transición Masiva: Pasar a En Revisión */
+.obs-batch-revision-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 9px;
+  color: #c2410c;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+.obs-batch-revision-btn:hover:not(:disabled) {
+  background: #ffedd5;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+
+.obs-batch-revision-btn.is-empty {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
+  opacity: 0.85;
+}
+
+.obs-batch-revision-btn.is-empty:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.obs-batch-revision-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.obs-batch-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #ea580c;
+  color: #ffffff;
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.obs-batch-revision-btn.is-empty .obs-batch-count-badge {
+  background: #94a3b8;
+}
+
 /* Tarjeta Flotante / Cuadro Desplegable Superpuesto de Filtros (Popover) */
 .obs-filter-popover-card {
   position: absolute;

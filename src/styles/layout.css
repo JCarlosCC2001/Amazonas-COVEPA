@@ -656,6 +656,32 @@
   border-color: #9ca3af;
 }
 
+.notif-batch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: var(--text-badge);
+  font-weight: var(--fw-bold);
+  color: #c2410c;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.notif-batch-btn:hover:not(:disabled) {
+  background: #ffedd5;
+  border-color: #fb923c;
+  color: #9a3412;
+}
+
+.notif-batch-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .notif-test-btn {
   background: transparent;
   border: 1px solid #bfdbfe;

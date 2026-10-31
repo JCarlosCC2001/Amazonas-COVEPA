@@ -7,7 +7,8 @@ import {
 } from 'lucide-react'
 import {
   useNotifications,
-  copyObservacionesList
+  copyObservacionesList,
+  copyPlainCodesList
 } from '../../context/NotificationContext'
 
 /**
@@ -22,8 +23,13 @@ export default function NotificationToastContainer() {
 
   if (!toasts || toasts.length === 0) return null
 
-  const handleCopyList = async (toastId, items) => {
-    const ok = await copyObservacionesList(items)
+  const handleCopyList = async (toastId, items, codes = null) => {
+    let ok = false
+    if (codes && codes.length > 0) {
+      ok = await copyPlainCodesList(codes)
+    } else {
+      ok = await copyObservacionesList(items)
+    }
     if (ok) {
       setCopiedToastId(toastId)
       setTimeout(() => {
@@ -55,15 +61,16 @@ export default function NotificationToastContainer() {
         const obs = toast.obs || {}
         const loc = obs.localidad ? ` · ${obs.localidad}` : ''
         const isAccumulation = Boolean(obs.isAccumulationAlert && obs.items && obs.items.length > 0)
+        const isTransicionBatch = Boolean(obs.isTransicionBatch && obs.codes && obs.codes.length > 0)
         const isCopied = copiedToastId === toast.id
         const items = obs.items || []
 
         return (
           <div
             key={toast.id}
-            className={`notif-toast-card ${isAccumulation ? 'toast-accumulation-card' : ''}`}
+            className={`notif-toast-card ${(isAccumulation || isTransicionBatch) ? 'toast-accumulation-card' : ''}`}
           >
-            <div className={`notif-toast-accent ${isAccumulation ? (obs.queueType === 'auditores' ? 'accent-auditores' : 'accent-accumulation') : ''}`} />
+            <div className={`notif-toast-accent ${(isAccumulation || isTransicionBatch) ? ((obs.queueType === 'auditores' || isTransicionBatch) ? 'accent-auditores' : 'accent-accumulation') : ''}`} />
 
             <div className="notif-toast-main">
               {/* Cabecera del Toast */}
@@ -73,6 +80,11 @@ export default function NotificationToastContainer() {
                     <span className="notif-toast-badge-pill" style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>
                       <CheckCircle2 size={12} />
                       <span>Reporte Diario Despachado</span>
+                    </span>
+                  ) : isTransicionBatch ? (
+                    <span className="notif-toast-badge-pill badge-auditores">
+                      <CheckCircle2 size={12} />
+                      <span>Pase a En Revisión ({obs.codes.length})</span>
                     </span>
                   ) : isAccumulation ? (
                     <span className="notif-toast-badge-pill badge-accumulation">
@@ -100,7 +112,64 @@ export default function NotificationToastContainer() {
 
               {/* Cuerpo del Toast */}
               <div className="notif-toast-body">
-                {isAccumulation ? (
+                {isTransicionBatch ? (
+                  <>
+                    <div className="notif-toast-code-row">
+                      <span className="notif-toast-acc-title" style={{ color: '#0369a1' }}>
+                        ¡{obs.codes.length} {obs.codes.length === 1 ? 'Observación pasó' : 'Observaciones pasaron'} a En Revisión!
+                      </span>
+                      <span className="notif-toast-count-tag" style={{ background: '#e0f2fe', color: '#0284c7' }}>
+                        {obs.codes.length} en revisión
+                      </span>
+                    </div>
+
+                    {obs.detalle && (
+                      <p className="notif-toast-detail-text notif-toast-acc-desc" style={{ marginTop: '0.25rem' }}>
+                        {obs.detalle}
+                      </p>
+                    )}
+
+                    {/* Chips de códigos */}
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '4px',
+                      maxHeight: '68px',
+                      overflowY: 'auto',
+                      background: '#f8fafc',
+                      padding: '6px',
+                      borderRadius: '6px',
+                      border: '1px solid #e2e8f0',
+                      marginTop: '0.35rem'
+                    }}>
+                      {obs.codes.map(c => (
+                        <span key={c} style={{
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          color: '#003060',
+                          fontWeight: 'var(--fw-semibold)'
+                        }} className="t-meta">
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="notif-toast-action-row" style={{ marginTop: '0.45rem' }}>
+                      <button
+                        type="button"
+                        className={`notif-toast-copy-btn ${isCopied ? 'is-copied' : ''}`}
+                        onClick={() => handleCopyList(toast.id, obs.items, obs.codes)}
+                        style={!isCopied ? { background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' } : {}}
+                        title="Copiar lista de códigos de observación al portapapeles"
+                      >
+                        {isCopied ? <Check size={13} /> : <Copy size={13} />}
+                        <span>{isCopied ? '¡Códigos copiados al portapapeles!' : `Copiar ${obs.codes.length} códigos de observación`}</span>
+                      </button>
+                    </div>
+                  </>
+                ) : isAccumulation ? (
                   <>
                     <div className="notif-toast-code-row">
                       <span className="notif-toast-acc-title">
@@ -171,11 +240,14 @@ export default function NotificationToastContainer() {
                     <span>Ir a Reportes</span>
                     <ChevronRight size={13} />
                   </button>
-                ) : isAccumulation ? (
+                ) : (isAccumulation || isTransicionBatch) ? (
                   <button
                     type="button"
                     className="notif-toast-action-btn btn-view-queue"
-                    onClick={() => handleViewAllQueue('auditores')}
+                    onClick={() => {
+                      handleViewAllQueue('auditores')
+                      dismissToast(toast.id)
+                    }}
                   >
                     <span>Ver en Observaciones</span>
                     <ExternalLink size={12} />

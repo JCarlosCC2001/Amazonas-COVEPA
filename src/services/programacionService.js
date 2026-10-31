@@ -457,7 +457,7 @@ export async function getSitiosObservacionesResumen(sitiosIds = []) {
 // ────────────────────────────────────────────────────────────
 export async function getObservacionesSitioDetalle(idSitio) {
   // Intentar traer campos con comentario_inicial, revisor, protocolo, subsistema y justificacion_demora
-  const selectConRevisor = 'id_obs, id_sitio, protocolo, subsistema, detalle, comentario_inicial, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, comentario_covepa, revisor, justificacion_demora'
+  const selectConRevisor = 'id_obs, id_sitio, protocolo, subsistema, detalle, comentario_inicial, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, comentario_covepa, revisor, justificacion_demora, tiempo_ejecucion_real, tiempo_ejecucion_demora'
   const selectConValidador = 'id_obs, id_sitio, protocolo, subsistema, detalle, comentario_inicial, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, comentario_covepa, validado_por, justificacion_demora'
   const selectSinRevisor = 'id_obs, id_sitio, protocolo, subsistema, detalle, comentario_inicial, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, comentario_covepa, justificacion_demora'
 
@@ -466,6 +466,18 @@ export async function getObservacionesSitioDetalle(idSitio) {
     .select(selectConRevisor)
     .eq('id_sitio', idSitio)
     .order('id_obs', { ascending: true })
+
+  if (error && (error.code === 'PGRST204' || error.message?.includes('tiempo_ejecucion'))) {
+    const fallbackTiempos = await supabase
+      .from('observaciones')
+      .select('id_obs, id_sitio, protocolo, subsistema, detalle, comentario_inicial, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, comentario_covepa, revisor, justificacion_demora')
+      .eq('id_sitio', idSitio)
+      .order('id_obs', { ascending: true })
+    if (!fallbackTiempos.error && fallbackTiempos.data) {
+      data = fallbackTiempos.data
+      error = null
+    }
+  }
 
   if (error && error.code === 'PGRST204') {
     // Si aún se llama validado_por en Supabase

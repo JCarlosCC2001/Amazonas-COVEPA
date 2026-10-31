@@ -8,6 +8,7 @@ import {
   Users, Check, Info, History, CheckCheck, Send
 } from 'lucide-react'
 import HistorialEstadosTimeline from '../components/shared/HistorialEstadosTimeline'
+import TimeMaskInput, { diffTimeHHMM } from '../components/shared/TimeMaskInput'
 import {
   fetchObservaciones, fetchObservacionesKPIs, fetchFiltrosObservaciones,
   updateObservacionCovepa, exportObservacionesCSV,
@@ -20,6 +21,7 @@ import {
   sincronizarAuditoriaObservacion,
   sincronizarComentarioObservacion,
   sincronizarJustificacionDemora,
+  sincronizarTiemposEjecucion,
   resolverNombreAuditor
 } from '../services/auditoriaSyncService'
 import { getPersonalActivo } from '../services/programacionService'
@@ -43,6 +45,10 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const [delayVal, setDelayVal] = useState(obs?.justificacion_demora || '')
   const [savingDelay, setSavingDelay] = useState(false)
   const [savedDelay, setSavedDelay] = useState(false)
+  const [realTimeVal, setRealTimeVal] = useState(obs?.tiempo_ejecucion_real || '')
+  const [delayTimeVal, setDelayTimeVal] = useState(obs?.tiempo_ejecucion_demora || '')
+  const [savingTime, setSavingTime] = useState(false)
+  const [savedTime, setSavedTime] = useState(false)
   const [showHistorial, setShowHistorial] = useState(false)
   const [historialRefreshKey, setHistorialRefreshKey] = useState(0)
   const isDirtyCommentRef = useRef(false)
@@ -51,6 +57,11 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const isDirtyDelayRef = useRef(false)
   const delayValRef = useRef(delayVal)
   delayValRef.current = delayVal
+  const isDirtyTimeRef = useRef(false)
+  const realTimeRef = useRef(realTimeVal)
+  realTimeRef.current = realTimeVal
+  const delayTimeRef = useRef(delayTimeVal)
+  delayTimeRef.current = delayTimeVal
 
   const sitioInfo = sitiosMap[obsLocal?.id_sitio] || {}
   const localidad = sitioInfo.localidad || sitioInfo.nombre_nodo || ''
@@ -62,8 +73,11 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       setObsLocal(obs)
       setCommentVal(obs.comentario_covepa || '')
       setDelayVal(obs.justificacion_demora || '')
+      setRealTimeVal(obs.tiempo_ejecucion_real || '')
+      setDelayTimeVal(obs.tiempo_ejecucion_demora || '')
       isDirtyCommentRef.current = false
       isDirtyDelayRef.current = false
+      isDirtyTimeRef.current = false
     }
   }, [obs?.id_obs])
 
@@ -114,6 +128,29 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     }
   }, [obsLocal, onSaved])
 
+  // Guardado de tiempos de ejecución en tiempo real (COVEPA)
+  const saveTimeNow = useCallback(async () => {
+    if (!isDirtyTimeRef.current || !obsLocal?.id_obs) return
+    setSavingTime(true)
+    try {
+      const tReal = realTimeRef.current ? realTimeRef.current.trim() : null
+      const tDemora = delayTimeRef.current ? delayTimeRef.current.trim() : null
+      await sincronizarTiemposEjecucion(obsLocal.id_obs, { tiempoReal: tReal, tiempoDemora: tDemora })
+      isDirtyTimeRef.current = false
+      setSavedTime(true)
+      setTimeout(() => setSavedTime(false), 2500)
+      if (onSaved) {
+        onSaved({ ...obsLocal, tiempo_ejecucion_real: tReal, tiempo_ejecucion_demora: tDemora })
+      }
+    } catch (err) {
+      console.error('Error al guardar tiempos de ejecución:', err)
+    } finally {
+      setSavingTime(false)
+    }
+  }, [obsLocal, onSaved])
+
+  const diffInfo = useMemo(() => diffTimeHHMM(realTimeVal, delayTimeVal), [realTimeVal, delayTimeVal])
+
   const handleCommentChange = (e) => {
     setCommentVal(e.target.value)
     isDirtyCommentRef.current = true
@@ -138,6 +175,9 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     }
     if (isDirtyDelayRef.current) {
       await saveDelayNow()
+    }
+    if (isDirtyTimeRef.current) {
+      await saveTimeNow()
     }
     onClose()
   }, [onClose, saveCommentNow, saveDelayNow])
@@ -418,21 +458,69 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
             <div className="obs-content-box box-demora" style={{ margin: '0.85rem 0 0 0', borderLeft: '4px solid #f59e0b', background: '#fffdf5', border: '1px solid #fde68a', borderLeftWidth: '4px', borderRadius: '8px', padding: '0.75rem' }}>
               <div className="box-covepa-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                 <span className="box-label" style={{ color: '#b45309', fontWeight: 'var(--fw-bold)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                  <AlertTriangle size={13} color="#d97706" /> Control de Incidentes / Justificación de Demora:
+                  <AlertTriangle size={13} color="#d97706" /> Tiempos de Ejecución y Control de Demoras:
                 </span>
                 <div className="covepa-save-cluster">
-                  {savingDelay && (
+                  {(savingDelay || savingTime) && (
                     <span className="save-tag saving">
                       <RefreshCw size={11} className="spin" /> Guardando...
                     </span>
                   )}
-                  {savedDelay && (
+                  {(savedDelay || savedTime) && (
                     <span className="save-tag saved">
                       <Check size={12} /> Guardado
                     </span>
                   )}
                 </div>
               </div>
+
+              {/* Selectores con máscara de tiempo (HH:MM) */}
+              <div className="time-cluster-grid">
+                <TimeMaskInput
+                  label="⏱️ Tiempo Real de Ejecución:"
+                  value={realTimeVal}
+                  placeholder="00:00"
+                  title="Tiempo neto/real trabajado en la subsanación (HH:MM)"
+                  onChange={(val) => {
+                    setRealTimeVal(val)
+                    isDirtyTimeRef.current = true
+                  }}
+                  onBlur={saveTimeNow}
+                />
+                <TimeMaskInput
+                  label="⏳ Tiempo de Ejecución con Demoras:"
+                  value={delayTimeVal}
+                  placeholder="00:00"
+                  variant="warning"
+                  title="Tiempo total considerando demoras o incidentes (HH:MM)"
+                  onChange={(val) => {
+                    setDelayTimeVal(val)
+                    isDirtyTimeRef.current = true
+                  }}
+                  onBlur={saveTimeNow}
+                />
+              </div>
+
+              {diffInfo && (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '0.45rem' }}>
+                  {diffInfo.hasDelay && (
+                    <span className="time-diff-badge delay">
+                      ⚠️ Retraso neto: +{diffInfo.formatted} ({diffInfo.diffMins} min adicionales)
+                    </span>
+                  )}
+                  {diffInfo.isEqual && (
+                    <span className="time-diff-badge ontime">
+                      ✓ Ejecutado dentro del plazo regular estimado
+                    </span>
+                  )}
+                  {diffInfo.isFaster && (
+                    <span className="time-diff-badge faster">
+                      ⚡ Finalizado {diffInfo.formatted} antes del tiempo estimado
+                    </span>
+                  )}
+                </div>
+              )}
+
               <textarea
                 value={delayVal}
                 onChange={handleDelayChange}

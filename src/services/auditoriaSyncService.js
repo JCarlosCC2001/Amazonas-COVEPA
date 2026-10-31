@@ -446,3 +446,57 @@ export async function sincronizarJustificacionDemora(idObs, justificacionTexto) 
 
   return { data: data?.[0] || null, error: null }
 }
+
+
+/**
+ * Actualiza los tiempos de ejecución de una observación técnica (tiempo real y tiempo con demoras).
+ * Formato esperado: 'HH:MM' (ej: '01:30', '00:45') o null.
+ *
+ * @param {string} idObs
+ * @param {Object} tiempos
+ * @param {string|null} [tiempos.tiempoReal]
+ * @param {string|null} [tiempos.tiempoDemora]
+ * @returns {Promise<{ data: Object|null, error: Object|null, pendingMigration?: boolean }>}
+ */
+export async function sincronizarTiemposEjecucion(idObs, { tiempoReal, tiempoDemora } = {}) {
+  if (!idObs) return { data: null, error: null }
+
+  const payload = {}
+  if (tiempoReal !== undefined) {
+    payload.tiempo_ejecucion_real = (tiempoReal && String(tiempoReal).trim() !== '')
+      ? String(tiempoReal).trim()
+      : null
+  }
+  if (tiempoDemora !== undefined) {
+    payload.tiempo_ejecucion_demora = (tiempoDemora && String(tiempoDemora).trim() !== '')
+      ? String(tiempoDemora).trim()
+      : null
+  }
+
+  if (Object.keys(payload).length === 0) return { data: null, error: null }
+
+  try {
+    const { data, error } = await supabase
+      .from('observaciones')
+      .update(payload)
+      .eq('id_obs', idObs)
+      .select()
+
+    if (error) {
+      if (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('does not exist')) {
+        console.warn(`[AUDITORIA-SYNC] ⚠️ Columnas de tiempos no encontradas en Supabase para ${idObs}. Ejecuta el script sql/migraciones/20261031_anadir_tiempos_ejecucion_observaciones.sql.`)
+        return { data: null, error: null, pendingMigration: true }
+      }
+      console.error(`[AUDITORIA-SYNC] ❌ Error sincronizando tiempos en observación ${idObs}:`, error)
+      throw new Error(`Error sincronizando tiempos de ejecución: ${error.message}`)
+    }
+
+    return { data: data?.[0] || null, error: null }
+  } catch (err) {
+    if (err.message?.includes('schema cache') || err.message?.includes('does not exist')) {
+      console.warn(`[AUDITORIA-SYNC] ⚠️ Columnas pendientes de migración en Supabase:`, err.message)
+      return { data: null, error: null, pendingMigration: true }
+    }
+    throw err
+  }
+}

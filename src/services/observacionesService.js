@@ -132,7 +132,7 @@ export async function fetchObservaciones({
 } = {}) {
   let query = supabase
     .from('observaciones')
-    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora', { count: 'exact' })
+    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora', { count: 'exact' })
 
   query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio, idSitios, filtroDemora })
 
@@ -157,7 +157,18 @@ export async function fetchObservaciones({
   const dbCol = validDbCols[sortBy] || 'id_obs'
   query = query.order(dbCol, { ascending: isAsc, nullsFirst: false }).range(from, to)
 
-  const { data, count, error } = await query
+  let { data, count, error } = await query
+  if (error && (error.code === 'PGRST204' || error.message?.includes('tiempo_ejecucion'))) {
+    // Fallback sin columnas nuevas si aún no se ejecutó la migración SQL
+    let fallbackQuery = supabase
+      .from('observaciones')
+      .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora', { count: 'exact' })
+    fallbackQuery = applyQueryFilters(fallbackQuery, { search, protocolo, estadoCovepa, idSitio, idSitios, filtroDemora })
+    const res = await fallbackQuery.order(dbCol, { ascending: isAsc, nullsFirst: false }).range(from, to)
+    data = res.data
+    count = res.count
+    error = res.error
+  }
   if (error) throw new Error(error.message)
   return { data: data || [], count: count || 0 }
 }
@@ -276,7 +287,7 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
 // 5. Exporta a CSV todas las observaciones del filtro actual
 // ────────────────────────────────────────────────────────────
 export async function exportObservacionesCSV(filters = {}) {
-  const selectCols = 'id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora'
+  const selectCols = 'id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora'
   const allRows = await fetchAllRowsInBatches('observaciones', selectCols, filters)
   return allRows.sort((a, b) => (a.id_obs || '').localeCompare(b.id_obs || ''))
 }
@@ -330,13 +341,24 @@ export async function fetchResumenPorSitio(filters = {}) {
 export async function fetchObservacionesPorSitio(idSitio, filters = {}) {
   let query = supabase
     .from('observaciones')
-    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora')
+    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora')
     .eq('id_sitio', idSitio)
 
   query = applyQueryFilters(query, filters)
   query = query.order('id_obs')
 
-  const { data, error } = await query
+  let { data, error } = await query
+  if (error && (error.code === 'PGRST204' || error.message?.includes('tiempo_ejecucion'))) {
+    let fallbackQuery = supabase
+      .from('observaciones')
+      .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora')
+      .eq('id_sitio', idSitio)
+    fallbackQuery = applyQueryFilters(fallbackQuery, filters)
+    fallbackQuery = fallbackQuery.order('id_obs')
+    const res = await fallbackQuery
+    data = res.data
+    error = res.error
+  }
   if (error) throw new Error(error.message)
   return data || []
 }

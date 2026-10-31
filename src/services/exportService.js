@@ -138,7 +138,9 @@ async function generateStyledExcel({ observations, siteMap, sheetName, fileName 
     { name: 'FECHA SUBSANACIÓN', width: 18, align: 'center' },
     { name: 'REVISOR / SUBSANADOR', width: 24, align: 'left' },
     { name: 'COMENTARIO COVEPA', width: 38, align: 'left', wrap: true },
-    { name: 'JUSTIFICACIÓN DE DEMORA', width: 38, align: 'left', wrap: true }
+    { name: 'JUSTIFICACIÓN DE DEMORA', width: 38, align: 'left', wrap: true },
+    { name: 'TIEMPO EJECUCIÓN REAL (HH:MM)', width: 22, align: 'center' },
+    { name: 'TIEMPO CON DEMORAS (HH:MM)', width: 22, align: 'center' }
   ]
 
   // Configurar anchos de columna
@@ -227,7 +229,9 @@ async function generateStyledExcel({ observations, siteMap, sheetName, fileName 
       fechaSub,
       o.revisor || '',
       o.comentario_covepa || '',
-      o.justificacion_demora || ''
+      o.justificacion_demora || '',
+      o.tiempo_ejecucion_real || '',
+      o.tiempo_ejecucion_demora || ''
     ]
 
     const row = worksheet.addRow(rowValues)

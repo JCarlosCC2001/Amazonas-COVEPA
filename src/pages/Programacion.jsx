@@ -10,6 +10,7 @@ import {
 import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
 import ModalTimelineTecnico from '../components/programacion/ModalTimelineTecnico'
 import HistorialEstadosTimeline from '../components/shared/HistorialEstadosTimeline'
+import TimeMaskInput, { diffTimeHHMM } from '../components/shared/TimeMaskInput'
 import { getAvancePorFecha } from '../services/dashboardService'
 import { fetchUltimosReportesDelDia } from '../services/actividadService'
 import {
@@ -27,6 +28,7 @@ import {
   sincronizarAuditoriaObservacion,
   sincronizarComentarioObservacion,
   sincronizarJustificacionDemora,
+  sincronizarTiemposEjecucion,
   resolverNombreAuditor
 } from '../services/auditoriaSyncService'
 import { ASIGNACIONES_BASE, getCachedSitiosAsignados } from '../services/sitiosService'
@@ -2244,6 +2246,11 @@ function ModalDetallesProgramacion({
   const dirtyDelaysRef = useRef(new Set())
   const delaysRef = useRef({})
   delaysRef.current = delays
+  const dirtyTiemposRef = useRef(new Set())
+  const tiemposRealRef = useRef({})
+  tiemposRealRef.current = tiemposReal
+  const tiemposDemoraRef = useRef({})
+  tiemposDemoraRef.current = tiemposDemora
 
   const team = (prog?.equipo && prog.equipo.length > 0) ? prog.equipo : [prog?.personal || {}]
 
@@ -2271,14 +2278,21 @@ function ModalDetallesProgramacion({
       setObservaciones(data)
       const initialComments = {}
       const initialDelays = {}
+      const initialTiemposReal = {}
+      const initialTiemposDemora = {}
       data.forEach(o => {
         initialComments[o.id_obs] = o.comentario_covepa || ''
         initialDelays[o.id_obs] = o.justificacion_demora || ''
+        initialTiemposReal[o.id_obs] = o.tiempo_ejecucion_real || ''
+        initialTiemposDemora[o.id_obs] = o.tiempo_ejecucion_demora || ''
       })
       setComments(initialComments)
       setDelays(initialDelays)
+      setTiemposReal(initialTiemposReal)
+      setTiemposDemora(initialTiemposDemora)
       dirtyCommentsRef.current.clear()
       dirtyDelaysRef.current.clear()
+      dirtyTiemposRef.current.clear()
     } catch (err) {
       setErrorMsg(err.message)
     } finally {
@@ -2437,10 +2451,44 @@ function ModalDetallesProgramacion({
     }
   }
 
+  // Manejo de cambio en tiempos de ejecución (HH:MM)
+  const handleTimeRealChange = (obsId, value) => {
+    setTiemposReal(prev => ({ ...prev, [obsId]: value }))
+    dirtyTiemposRef.current.add(obsId)
+  }
+
+  const handleTimeDemoraChange = (obsId, value) => {
+    setTiemposDemora(prev => ({ ...prev, [obsId]: value }))
+    dirtyTiemposRef.current.add(obsId)
+  }
+
+  // Guardado al perder el foco (blur) en tiempos de ejecución
+  const handleBlurTime = async (obsId) => {
+    if (!dirtyTiemposRef.current.has(obsId)) return
+    setSavingTimeId(obsId)
+    try {
+      const tReal = tiemposRealRef.current[obsId] ? tiemposRealRef.current[obsId].trim() : null
+      const tDemora = tiemposDemoraRef.current[obsId] ? tiemposDemoraRef.current[obsId].trim() : null
+      await sincronizarTiemposEjecucion(obsId, { tiempoReal: tReal, tiempoDemora: tDemora })
+      dirtyTiemposRef.current.delete(obsId)
+      setSavedTimeId(obsId)
+      setTimeout(() => {
+        setSavedTimeId(prev => (prev === obsId ? null : prev))
+      }, 2000)
+      setObservaciones(prev => prev.map(o => o.id_obs === obsId ? { ...o, tiempo_ejecucion_real: tReal, tiempo_ejecucion_demora: tDemora } : o))
+      onObservationUpdated()
+    } catch (err) {
+      console.error('Error al guardar tiempos de ejecución:', err)
+    } finally {
+      setSavingTimeId(null)
+    }
+  }
+
   // Guardado automático global de comentarios y demoras pendientes al cerrar la ventana
   const handleCloseWithAutoSave = useCallback(async () => {
     const dirtyIds = Array.from(dirtyCommentsRef.current)
     const dirtyDelayIds = Array.from(dirtyDelaysRef.current)
+    const dirtyTimeIds = Array.from(dirtyTiemposRef.current)
     const promises = []
 
     if (dirtyIds.length > 0) {
@@ -2460,6 +2508,17 @@ function ModalDetallesProgramacion({
         })
       )
       dirtyDelaysRef.current.clear()
+    }
+
+    if (dirtyTimeIds.length > 0) {
+      promises.push(
+        ...dirtyTimeIds.map(id => {
+          const tReal = tiemposRealRef.current[id] ? tiemposRealRef.current[id].trim() : null
+          const tDemora = tiemposDemoraRef.current[id] ? tiemposDemoraRef.current[id].trim() : null
+          return sincronizarTiemposEjecucion(id, { tiempoReal: tReal, tiempoDemora: tDemora })
+        })
+      )
+      dirtyTiemposRef.current.clear()
     }
 
     if (promises.length > 0) {
@@ -2703,13 +2762,15 @@ function ModalDetallesProgramacion({
           { name: 'REVISADO POR', filterButton: true },
           { name: 'FECHA DE REVISIÓN', filterButton: true },
           { name: 'COMENTARIO COVEPA', filterButton: true },
-          { name: 'JUSTIFICACIÓN DE DEMORA', filterButton: true }
+          { name: 'JUSTIFICACIÓN DE DEMORA', filterButton: true },
+          { name: 'TIEMPO EJECUCIÓN REAL (HH:MM)', filterButton: true },
+          { name: 'TIEMPO CON DEMORAS (HH:MM)', filterButton: true }
         ],
         rows: tableRows
       })
 
       // Anchos de columna óptimos
-      const colWidths = [6, 20, 18, 26, 14, 16, 44, 44, 44, 24, 18, 35, 38]
+      const colWidths = [6, 20, 18, 26, 14, 16, 44, 44, 44, 24, 18, 35, 38, 22, 22]
       colWidths.forEach((w, i) => {
         worksheet.getColumn(i + 1).width = w
       })
@@ -3162,25 +3223,71 @@ function ModalDetallesProgramacion({
                       />
                     </div>
 
-                    {/* Caja de Justificación de Demora / Control de Incidentes con autoguardado */}
+                    {/* Caja de Justificación de Demora y Tiempos de Ejecución con autoguardado */}
                     <div className="obs-content-box box-demora" style={{ borderLeft: '4px solid #f59e0b', background: '#fffdf5', border: '1px solid #fde68a', borderLeftWidth: '4px', borderRadius: '8px', padding: '0.75rem' }}>
                       <div className="box-covepa-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                         <span className="box-label" style={{ color: '#b45309', fontWeight: 'var(--fw-bold)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                          <AlertTriangle size={13} color="#d97706" /> Control de Incidentes / Justificación de Demora:
+                          <AlertTriangle size={13} color="#d97706" /> Tiempos de Ejecución y Control de Demoras:
                         </span>
                         <div className="covepa-save-cluster">
-                          {savingDelayId === obs.id_obs && (
+                          {(savingDelayId === obs.id_obs || savingTimeId === obs.id_obs) && (
                             <span className="save-tag saving">
                               <RefreshCw size={11} className="spin" /> Guardando...
                             </span>
                           )}
-                          {savedDelayId === obs.id_obs && (
+                          {(savedDelayId === obs.id_obs || savedTimeId === obs.id_obs) && (
                             <span className="save-tag saved">
                               <Check size={12} /> Guardado
                             </span>
                           )}
                         </div>
                       </div>
+
+                      {/* Selectores con máscara de tiempo (HH:MM) */}
+                      <div className="time-cluster-grid">
+                        <TimeMaskInput
+                          label="⏱️ Tiempo Real de Ejecución:"
+                          value={tiemposReal[obs.id_obs] ?? ''}
+                          placeholder="00:00"
+                          title="Tiempo neto/real trabajado en la subsanación (HH:MM)"
+                          onChange={(val) => handleTimeRealChange(obs.id_obs, val)}
+                          onBlur={() => handleBlurTime(obs.id_obs)}
+                        />
+                        <TimeMaskInput
+                          label="⏳ Tiempo de Ejecución con Demoras:"
+                          value={tiemposDemora[obs.id_obs] ?? ''}
+                          placeholder="00:00"
+                          variant="warning"
+                          title="Tiempo total considerando demoras o incidentes (HH:MM)"
+                          onChange={(val) => handleTimeDemoraChange(obs.id_obs, val)}
+                          onBlur={() => handleBlurTime(obs.id_obs)}
+                        />
+                      </div>
+
+                      {(() => {
+                        const diff = diffTimeHHMM(tiemposReal[obs.id_obs], tiemposDemora[obs.id_obs])
+                        if (!diff) return null
+                        return (
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '0.45rem' }}>
+                            {diff.hasDelay && (
+                              <span className="time-diff-badge delay">
+                                ⚠️ Retraso neto: +{diff.formatted} ({diff.diffMins} min adicionales)
+                              </span>
+                            )}
+                            {diff.isEqual && (
+                              <span className="time-diff-badge ontime">
+                                ✓ Ejecutado dentro del plazo regular estimado
+                              </span>
+                            )}
+                            {diff.isFaster && (
+                              <span className="time-diff-badge faster">
+                                ⚡ Finalizado {diff.formatted} antes del tiempo estimado
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })()}
+
                       <textarea
                         rows={2}
                         value={delays[obs.id_obs] ?? ''}

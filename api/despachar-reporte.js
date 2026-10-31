@@ -11,28 +11,30 @@
 export default async function handler(req, res) {
   // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-cron-key, x-forzar')
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
   }
 
-  // 1. Bloqueo estricto de navegadores: Solo se permite POST
-  if (req.method !== 'POST') {
+  // 1. Permitir solicitudes GET y POST automatizadas
+  if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({
-      error: 'Método no permitido. Este endpoint es un webhook que solo admite solicitudes POST automatizadas.'
+      error: 'Método no permitido. Este endpoint solo admite solicitudes GET o POST automatizadas.'
     })
   }
 
-  // 2. Validación de Seguridad mediante Cabecera Oculta (Header)
+  // 2. Validación de Seguridad (Soporta parámetro URL ?key=..., cabecera x-cron-key o Bearer token)
   const expectedSecret = (process.env.CRON_SECRET || 'covepa_cron_7f8a9b2c3d4e5f').trim()
-  const providedKey = (req.headers['x-cron-key'] ||
+  const providedKey = (req.query?.key ||
+                       req.query?.apiKey ||
+                       req.headers['x-cron-key'] ||
                        (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '') || '').trim()
 
   if (!providedKey || providedKey !== expectedSecret) {
     return res.status(401).json({
-      error: 'No autorizado. Se requiere la cabecera x-cron-key válida.'
+      error: 'No autorizado. Se requiere una clave válida vía parámetro ?key= o cabecera x-cron-key.'
     })
   }
 
@@ -49,11 +51,13 @@ export default async function handler(req, res) {
   const repo = 'JCarlosCC2001/Amazonas-COVEPA'
   const url = `https://api.github.com/repos/${repo}/actions/workflows/reporte-diario.yml/dispatches`
 
-  // Si la petición viene con forzar=true (ej: botón prueba en la app web), fuerza el reenvío
-  const forzarParam = (req.headers['x-forzar'] === 'true' ||
+  // Si la petición viene con forzar=true (ej: botón prueba en la app web o URL ?forzar=true), fuerza el reenvío
+  const forzarParam = (req.query?.forzar === 'true' ||
+                       req.headers['x-forzar'] === 'true' ||
                        (req.body && req.body.forzar === true))
 
-  const destinatarioPrueba = (req.body && req.body.destinatario_prueba) ||
+  const destinatarioPrueba = (req.query?.destinatario_prueba) ||
+                             (req.body && req.body.destinatario_prueba) ||
                              req.headers['x-destinatario-prueba'] || ''
 
   try {

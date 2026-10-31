@@ -29,7 +29,7 @@
 .obs-kpi-sub { font-size: var(--text-2xs); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Toolbar observaciones */
-/* Toolbar observaciones — Fila Única y Compacta */
+/* Toolbar observaciones — 2 Filas en Móvil / 1 Fila en Desktop */
 .obs-toolbar {
   display: flex;
   flex-direction: row;
@@ -44,12 +44,34 @@
   flex-wrap: nowrap;
 }
 
+.obs-toolbar-row-search-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  min-width: 260px;
+  max-width: 650px;
+}
+
+.obs-toolbar-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+
+.obs-toolbar-actions-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .obs-search-box {
   position: relative;
   display: flex;
   align-items: center;
   flex: 1 1 auto;
-  min-width: 220px;
+  min-width: 180px;
 }
 
 .obs-search-icon {
@@ -323,53 +345,96 @@
   background: #002244;
 }
 
-@media (max-width: 680px) {
+@media (max-width: 860px) {
   .obs-toolbar {
     flex-direction: column !important;
     align-items: stretch !important;
-    flex-wrap: wrap !important;
     gap: 0.55rem !important;
     padding: 0.65rem 0.75rem !important;
   }
-  .obs-search-box {
-    flex: 1 1 100% !important;
-    width: 100% !important;
-    min-width: 100% !important;
-  }
-  .obs-toolbar-right {
-    width: 100% !important;
+
+  /* Fila 1: Buscador y Filtros comparten siempre el 100% del ancho */
+  .obs-toolbar-row-search-filter {
     display: flex !important;
-    flex-wrap: wrap !important;
+    flex-direction: row !important;
     align-items: center !important;
-    justify-content: space-between !important;
+    width: 100% !important;
+    max-width: 100% !important;
     gap: 0.45rem !important;
   }
+
+  .obs-search-box {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: auto !important;
+  }
+
+  .obs-search-input {
+    height: 38px !important;
+    font-size: var(--text-xs) !important;
+  }
+
+  .obs-filter-popover-anchor {
+    flex: 0 0 auto !important;
+  }
+
+  .obs-filter-trigger-btn {
+    height: 38px !important;
+    padding: 0.45rem 0.75rem !important;
+    font-size: var(--text-xs) !important;
+    white-space: nowrap !important;
+  }
+
+  /* Fila 2: Pasar a En Revisión + Refrescar + Switch Por sitio/Tabla */
+  .obs-toolbar-row-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 0.45rem !important;
+  }
+
+  .obs-toolbar-actions-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
   .obs-batch-revision-btn {
     flex: 1 1 auto !important;
+    min-width: 0 !important;
     font-size: var(--text-xs) !important;
     padding: 0.42rem 0.65rem !important;
     justify-content: center !important;
+    height: 38px !important;
+    white-space: nowrap !important;
   }
-  .obs-filter-trigger-btn {
-    font-size: var(--text-xs) !important;
-    padding: 0.42rem 0.65rem !important;
-  }
+
   .refresh-btn {
-    width: 36px !important;
-    height: 36px !important;
+    width: 38px !important;
+    height: 38px !important;
     flex-shrink: 0 !important;
   }
+
   .vista-toggle {
     display: inline-flex !important;
     flex-shrink: 0 !important;
+    height: 38px !important;
   }
+
   .vista-toggle-btn {
     font-size: var(--text-xs) !important;
-    padding: 0.35rem 0.55rem !important;
+    padding: 0.35rem 0.65rem !important;
+    height: 100% !important;
+    white-space: nowrap !important;
   }
+
   .obs-filter-popover-card {
-    right: auto !important;
-    left: 0 !important;
+    right: 0 !important;
+    left: auto !important;
     width: calc(100vw - 2rem) !important;
     max-width: 340px !important;
   }

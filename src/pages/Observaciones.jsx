@@ -1572,57 +1572,33 @@ export default function Observaciones() {
         />
       </MetricGrid>
 
-      {/* ── Toolbar Filtros — Fila Única y Compacta ── */}
+      {/* ── Toolbar Filtros — Fila 1: Buscador + Filtros | Fila 2: Acciones + Switch ── */}
       <div className="obs-toolbar">
-        <div className="obs-search-box">
-          <Search size={16} className="obs-search-icon" />
-          <input
-            id="obs-search-input"
-            type="text"
-            placeholder="Buscar por código, sitio, detalle, subsistema, medidor..."
-            className="obs-search-input"
-            onChange={e => handleSearchChange(e.target.value)}
-          />
-          {search && (
-            <button
-              className="clear-search-btn"
-              onClick={() => {
-                setSearch('')
-                const el = document.getElementById('obs-search-input')
-                if (el) el.value = ''
-              }}
-              title="Borrar texto de búsqueda"
-            >
-              <X size={15}/>
-            </button>
-          )}
-        </div>
-
-        <div className="obs-toolbar-right">
-          {/* Botón Pasar a En Revisión */}
-          <button
-            type="button"
-            className={`obs-batch-revision-btn ${(kpis.solicitando || 0) === 0 ? 'is-empty' : ''}`}
-            onClick={handlePasarTodasAEnRevision}
-            disabled={batchLoading}
-            title={
-              (kpis.solicitando || 0) > 0
-                ? `Pasar las ${kpis.solicitando} observaciones en espera a 'En Revisión'`
-                : 'Pasar observaciones solicitando revisión a En Revisión'
-            }
-          >
-            {batchLoading ? (
-              <RefreshCw size={14} className="spinning" />
-            ) : (
-              <CheckCheck size={15} />
+        {/* Fila 1: Buscador y Filtros comparten el espacio */}
+        <div className="obs-toolbar-row-search-filter">
+          <div className="obs-search-box">
+            <Search size={16} className="obs-search-icon" />
+            <input
+              id="obs-search-input"
+              type="text"
+              placeholder="Buscar por código, sitio, detalle, subsistema, medidor..."
+              className="obs-search-input"
+              onChange={e => handleSearchChange(e.target.value)}
+            />
+            {search && (
+              <button
+                className="clear-search-btn"
+                onClick={() => {
+                  setSearch('')
+                  const el = document.getElementById('obs-search-input')
+                  if (el) el.value = ''
+                }}
+                title="Borrar texto de búsqueda"
+              >
+                <X size={15}/>
+              </button>
             )}
-            <span>
-              {batchLoading ? 'Procesando...' : 'Pasar a En Revisión'}
-            </span>
-            <span className="obs-batch-count-badge">
-              {kpis.solicitando || 0}
-            </span>
-          </button>
+          </div>
 
           {/* Ancla y Tarjeta Superpuesta de Filtros (Popover) */}
           <div className="obs-filter-popover-anchor" ref={filterPopoverRef}>
@@ -1764,16 +1740,46 @@ export default function Observaciones() {
               </div>
             )}
           </div>
+        </div>
 
-          {/* Botón Refrescar */}
-          <button
-            className="refresh-btn"
-            onClick={() => { loadData(true); loadKpis(); loadAgrupada() }}
-            disabled={loading || loadingAgrupada}
-            title="Refrescar datos"
-          >
-            <RefreshCw size={15} className={loading || loadingAgrupada ? 'spinning' : ''}/>
-          </button>
+        {/* Fila 2: Acciones a la izquierda y Switch de Vistas a la derecha */}
+        <div className="obs-toolbar-row-actions">
+          <div className="obs-toolbar-actions-left">
+            {/* Botón Pasar a En Revisión */}
+            <button
+              type="button"
+              className={`obs-batch-revision-btn ${(kpis.solicitando || 0) === 0 ? 'is-empty' : ''}`}
+              onClick={handlePasarTodasAEnRevision}
+              disabled={batchLoading}
+              title={
+                (kpis.solicitando || 0) > 0
+                  ? `Pasar las ${kpis.solicitando} observaciones en espera a 'En Revisión'`
+                  : 'Pasar observaciones solicitando revisión a En Revisión'
+              }
+            >
+              {batchLoading ? (
+                <RefreshCw size={14} className="spinning" />
+              ) : (
+                <CheckCheck size={15} />
+              )}
+              <span>
+                {batchLoading ? 'Procesando...' : 'Pasar a En Revisión'}
+              </span>
+              <span className="obs-batch-count-badge">
+                {kpis.solicitando || 0}
+              </span>
+            </button>
+
+            {/* Botón Refrescar */}
+            <button
+              className="refresh-btn"
+              onClick={() => { loadData(true); loadKpis(); loadAgrupada() }}
+              disabled={loading || loadingAgrupada}
+              title="Refrescar datos"
+            >
+              <RefreshCw size={15} className={loading || loadingAgrupada ? 'spinning' : ''}/>
+            </button>
+          </div>
 
           {/* Toggle vista: Por sitio (predeterminada) / Tabla */}
           <div className="vista-toggle">

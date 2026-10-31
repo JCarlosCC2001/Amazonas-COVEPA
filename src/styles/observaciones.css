@@ -4464,8 +4464,11 @@
 /* ────────────────────────────────────────────────────────────
    MÓDULO DE DASHBOARD DE OPERACIONES Y MEDIDORES
    ──────────────────────────────────────────────────────────── */
-/* Módulo de Dashboard sin Scroll (Opción B: Pestañas Temáticas) */
-@media (min-width: 861px) {
+/* Módulo de Dashboard sin Scroll (Opción B: Pestañas Temáticas)
+   Calibración Responsiva Integral (4 Niveles) */
+
+/* 1. MONITOR / DESKTOP (≥ 992px y altura ≥ 720px) */
+@media (min-width: 992px) and (min-height: 720px) {
   .page-body:has(.dash-page-container) {
     overflow-y: hidden !important;
   }
@@ -4482,13 +4485,62 @@
   }
 }
 
-@media (max-width: 860px) {
+/* Fallback para Laptops con altura reducida (< 720px) */
+@media (min-width: 992px) and (max-height: 719px) {
+  .page-body:has(.dash-page-container) {
+    overflow-y: auto !important;
+  }
+
+  .dash-page-container {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+    gap: 0.65rem;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding-bottom: 2rem;
+  }
+
+  .dash-operativo-view {
+    overflow: visible !important;
+    height: auto !important;
+  }
+}
+
+/* 2. TABLETS Y CELULARES (≤ 991px): Scroll natural fluido sin cortes */
+@media (max-width: 991px) {
+  .page-body:has(.dash-page-container) {
+    overflow-y: auto !important;
+  }
+
   .dash-page-container {
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
+    gap: 0.75rem;
     width: 100%;
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+    padding-bottom: 4rem;
     animation: fadeIn 0.25s ease-out;
+  }
+
+  .dash-operativo-view {
+    overflow: visible !important;
+    height: auto !important;
+    gap: 0.75rem;
+  }
+
+  .dash-sitios-view {
+    height: calc(100vh - 170px);
+    min-height: 520px;
+  }
+
+  .dash-cobertura-view {
+    overflow: visible !important;
+    height: auto !important;
+    gap: 0.75rem;
   }
 }
 
@@ -4527,6 +4579,7 @@
   cursor: pointer;
   transition: all 0.18s ease;
   user-select: none;
+  white-space: nowrap;
 }
 
 .dash-subtab-btn:hover {
@@ -4575,6 +4628,46 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Responsividad de barra superior en Celulares (≤ 768px) */
+@media (max-width: 768px) {
+  .dash-subtabs-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+    padding: 0.4rem 0.55rem;
+  }
+
+  .dash-subtabs-group {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0.35rem;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+  }
+
+  .dash-subtabs-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dash-subtab-btn {
+    flex-shrink: 0;
+    padding: 0.38rem 0.65rem;
+    font-size: var(--text-xs);
+  }
+
+  .dash-subtabs-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding-top: 0.35rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+  }
 }
 
 /* --- PESTAÑA 1: RESUMEN OPERATIVO --- */
@@ -4587,6 +4680,7 @@
   overflow: hidden;
 }
 
+/* Medidores Strip 6 Columnas */
 .dash-metrics-strip-6col {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -4626,6 +4720,37 @@
   display: none;
 }
 
+/* Responsividad de Medidores */
+@media (max-width: 1199px) and (min-width: 681px) {
+  .dash-metrics-strip-6col {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 680px) {
+  .dash-metrics-strip-6col {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.45rem;
+  }
+
+  .dash-metrics-strip-6col .metric-card-inner {
+    padding: 0.45rem 0.55rem;
+    gap: 0.45rem;
+  }
+
+  .dash-metrics-strip-6col .metric-value {
+    font-size: var(--text-md);
+  }
+}
+
+@media (max-width: 380px) {
+  .dash-metrics-strip-6col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Bloque central: Tacómetro & Matriz Semanal */
 .dash-operativo-middle-grid {
   display: grid;
   grid-template-columns: minmax(320px, 0.82fr) minmax(480px, 1.4fr);
@@ -4654,11 +4779,30 @@
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .dash-operativo-middle-grid .dash-weekly-table th,
 .dash-operativo-middle-grid .dash-weekly-table td {
   padding: 0.35rem 0.55rem;
+}
+
+@media (max-width: 991px) {
+  .dash-operativo-middle-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .dash-operativo-middle-grid .dash-progreso-panel {
+    min-height: auto;
+    padding: 1rem;
+  }
+
+  .dash-operativo-middle-grid .dash-weekly-card {
+    min-height: auto;
+    padding: 1rem;
+  }
 }
 
 .dash-zone-mini-chips {
@@ -4698,6 +4842,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+@media (max-width: 480px) {
+  .dash-zone-mini-chips {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Tira de 6 Cuadrillas en fila horizontal */
 .dash-cuadrillas-strip-6col {
   display: grid;
@@ -4726,6 +4876,28 @@
 
 .dash-cuadrillas-strip-6col .dash-cuadrilla-kpi-item strong {
   font-size: var(--text-2xs);
+}
+
+/* Responsividad de Cuadrillas */
+@media (max-width: 1199px) and (min-width: 768px) {
+  .dash-cuadrillas-strip-6col {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 767px) and (min-width: 481px) {
+  .dash-cuadrillas-strip-6col {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .dash-cuadrillas-strip-6col {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
 }
 
 /* --- PESTAÑA 2: MONITOREO DE SITIOS --- */
@@ -4774,12 +4946,23 @@
   flex-wrap: wrap;
 }
 
+.dash-sites-search-box {
+  min-width: 220px;
+  max-width: 280px;
+}
+
 .dash-sites-table-scroll {
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
+}
+
+.dash-sites-table-scroll .dash-table {
+  min-width: 780px;
 }
 
 .dash-sites-table-scroll .dash-table thead th {
@@ -4792,6 +4975,36 @@
 
 .dash-sites-table-scroll .dash-table td {
   padding: 0.45rem 0.7rem;
+}
+
+@media (max-width: 768px) {
+  .dash-sites-toolbar-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .dash-sites-filters-wrap {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+  }
+
+  .dash-sites-search-box {
+    grid-column: 1 / -1;
+    min-width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .dash-sites-filters-wrap select {
+    width: 100%;
+  }
+
+  .dash-sites-filters-wrap button {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
 }
 
 /* --- PESTAÑA 3: COBERTURA TERRITORIAL --- */
@@ -4814,6 +5027,8 @@
   justify-content: space-between;
   box-shadow: var(--shadow-sm);
   flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .dash-cobertura-cards-2col {
@@ -4846,6 +5061,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .dash-zone-name {
@@ -4866,6 +5082,7 @@
   align-items: baseline;
   gap: 0.5rem;
   margin: 0.75rem 0 0.5rem 0;
+  flex-wrap: wrap;
 }
 
 .dash-zone-big-num {
@@ -4919,6 +5136,7 @@
   margin-top: 0.85rem;
   padding-top: 0.75rem;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap;
 }
 
 .dash-zone-btn-action {
@@ -4955,20 +5173,30 @@
   border-color: #003060;
 }
 
-@media (max-width: 1100px) {
-  .dash-metrics-strip-6col {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .dash-cuadrillas-strip-6col {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .dash-operativo-middle-grid {
-    grid-template-columns: 1fr;
-  }
+@media (max-width: 991px) {
   .dash-cobertura-cards-2col {
     grid-template-columns: 1fr;
+    gap: 0.85rem;
   }
 }
+
+@media (max-width: 580px) {
+  .dash-zone-quad-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.45rem;
+  }
+
+  .dash-zone-footer-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .dash-zone-btn-action {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 
 
 /* Header Card */

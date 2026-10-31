@@ -533,7 +533,7 @@ export default function Dashboard() {
 
             <div className="dash-sites-filters-wrap">
               {/* Buscador */}
-              <div className="dash-search-box" style={{ minWidth: '220px', maxWidth: '280px' }}>
+              <div className="dash-search-box dash-sites-search-box">
                 <Search size={14} color="var(--text-muted)" />
                 <input
                   type="text"

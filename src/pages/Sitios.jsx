@@ -9,7 +9,6 @@ import {
   Battery,
   ExternalLink,
   RefreshCw,
-  Eye,
   X,
   Database,
   CheckCircle2,
@@ -113,6 +112,10 @@ export default function Sitios() {
     return [...filteredSitios].sort((a, b) => {
       let aVal = a[sortField] ?? ''
       let bVal = b[sortField] ?? ''
+      if (sortField === 'localidad') {
+        aVal = a.localidad || a.distrito || a.nombre_nodo || ''
+        bVal = b.localidad || b.distrito || b.nombre_nodo || ''
+      }
       if (typeof aVal === 'string') {
         return sortDirection === 'asc'
           ? aVal.localeCompare(bVal)
@@ -149,14 +152,13 @@ export default function Sitios() {
       )
     },
     {
-      key: 'nombre_nodo',
-      label: 'NOMBRE DEL NODO',
+      key: 'localidad',
+      label: 'LOCALIDAD',
       sortable: true,
       render: s => (
-        <div className="site-name-wrap">
-          <span className="site-name">{s.nombre_nodo || 'Sin nombre'}</span>
-          {s.categoria && <span className="site-category">{s.categoria}</span>}
-        </div>
+        <span className="site-name">
+          {s.localidad || s.distrito || s.nombre_nodo || '—'}
+        </span>
       )
     },
     {
@@ -177,17 +179,6 @@ export default function Sitios() {
       sortable: true,
       render: s => (
         <span className="zona-badge">{s.zona}</span>
-      )
-    },
-    {
-      key: 'distrito',
-      label: 'UBICACIÓN',
-      sortable: true,
-      render: s => (
-        <div className="location-cell">
-          <span>{s.distrito || s.provincia || 'Amazonas'}</span>
-          <small>{s.localidad || s.region}</small>
-        </div>
       )
     },
     {
@@ -226,26 +217,6 @@ export default function Sitios() {
         ) : (
           <span className="no-coords">Sin GPS</span>
         )
-      )
-    },
-    {
-      key: 'actions',
-      label: 'DETALLE',
-      width: '70px',
-      align: 'center',
-      sortable: false,
-      render: s => (
-        <button
-          type="button"
-          className="view-site-btn"
-          onClick={e => {
-            e.stopPropagation()
-            setSelectedSite(s)
-          }}
-          title="Ver ficha técnica completa"
-        >
-          <Eye size={16} />
-        </button>
       )
     }
   ], [])
@@ -402,7 +373,7 @@ export default function Sitios() {
         onPageChange={setPage}
         hasActiveFilters={Boolean(search || selectedGrupo !== 'TODOS' || selectedZona !== 'TODAS')}
         entityName="sitios"
-        minWidth="980px"
+        minWidth="840px"
       />
 
       {/* MODAL DE FICHA TÉCNICA DETALLADA */}

@@ -1,3 +1,5 @@
+.col-header-full { display: inline; }
+.col-header-short { display: none; }
 /* ============================================================
    MÓDULO OBSERVACIONES
    ============================================================ */
@@ -449,6 +451,50 @@
     left: auto !important;
     width: calc(100vw - 2rem) !important;
     max-width: 340px !important;
+  }
+
+  /* ── Vista Tabla Responsiva: Ocultar cuadrilla, zona, localidad, revisor y demora ── */
+  .col-header-full {
+    display: none !important;
+  }
+  .col-header-short {
+    display: inline !important;
+  }
+
+  .sitios-table,
+  .erp-table {
+    min-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .sitios-table .col-obs-cuadrilla,
+  .sitios-table .col-obs-zona,
+  .sitios-table .col-obs-localidad,
+  .sitios-table .col-obs-revisor,
+  .sitios-table .col-obs-demora {
+    display: none !important;
+  }
+
+  /* Distribución equilibrada al 100% de las 4 columnas visibles */
+  .sitios-table .col-obs-cod {
+    width: 25% !important;
+    min-width: 75px !important;
+  }
+
+  .sitios-table .col-obs-sitio {
+    width: 27% !important;
+    min-width: 85px !important;
+  }
+
+  .sitios-table .col-obs-estado {
+    width: 28% !important;
+    min-width: 90px !important;
+  }
+
+  .sitios-table .col-obs-fecha {
+    width: 20% !important;
+    min-width: 70px !important;
+    text-align: right !important;
   }
 }
 

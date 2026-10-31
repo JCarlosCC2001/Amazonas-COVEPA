@@ -25,7 +25,7 @@ export function TableHeaderSortable({
       title={
         title ||
         (onSort && field
-          ? `Ordenar por ${label} (${isSorted ? (isAsc ? 'Mayor a menor (Z-A / 9-1)' : 'Menor a mayor (A-Z / 1-9)') : 'Clic para ordenar A-Z'})`
+          ? `Ordenar por ${typeof label === 'string' ? label : (title || field)} (${isSorted ? (isAsc ? 'Mayor a menor (Z-A / 9-1)' : 'Menor a mayor (A-Z / 1-9)') : 'Clic para ordenar A-Z'})`
           : undefined)
       }
     >
@@ -142,7 +142,7 @@ export default function ErpTable({
         </div>
       ) : (
         <div className={`erp-table-scroll sitios-table-scroll ${scrollClassName}`.trim()}>
-          <table className={`erp-table sitios-table ${tableClassName}`.trim()} style={{ minWidth }}>
+          <table className={`erp-table sitios-table ${tableClassName}`.trim()} style={minWidth ? { minWidth } : undefined}>
             {/* Colgroup para proporción y ancho fijo de columnas */}
             <colgroup>
               {columns.map((col, idx) => (
@@ -208,7 +208,7 @@ export default function ErpTable({
                       {columns.map((col, colIdx) => (
                         <td
                           key={col.key || colIdx}
-                          className={col.cellClassName || ''}
+                          className={`${col.className || ''} ${col.cellClassName || ''}`.trim()}
                           style={{ textAlign: col.align || 'left' }}
                         >
                           {col.render ? col.render(row, rowIdx) : row[col.key]}

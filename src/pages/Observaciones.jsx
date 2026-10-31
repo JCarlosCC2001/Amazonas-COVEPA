@@ -834,11 +834,20 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                   <tr>
                     <th className="col-obs-cod">Código</th>
                     <th className="col-obs-cuadrilla">Cuadrilla</th>
-                    <th className="col-obs-sitio">Código de Sitio</th>
+                    <th className="col-obs-sitio">
+                      <span className="col-header-full">Código de Sitio</span>
+                      <span className="col-header-short">Sitio</span>
+                    </th>
                     <th className="col-obs-localidad">Localidad</th>
                     <th className="col-obs-zona">Zona</th>
-                    <th className="col-obs-estado">Estado COVEPA</th>
-                    <th className="col-obs-fecha">Fecha de Revisión</th>
+                    <th className="col-obs-estado">
+                      <span className="col-header-full">Estado COVEPA</span>
+                      <span className="col-header-short">Estado</span>
+                    </th>
+                    <th className="col-obs-fecha">
+                      <span className="col-header-full">Fecha de Revisión</span>
+                      <span className="col-header-short">Fecha</span>
+                    </th>
                     <th className="col-obs-revisor">Revisado por</th>
                     <th className="col-obs-demora" style={{ textAlign: 'center' }}>¿Tuvo Demora?</th>
                   </tr>
@@ -852,8 +861,8 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                         className="sitio-row"
                         onClick={() => onSelectObs({ ...o, id_sitio: sitio })}
                       >
-                        <td><span className="site-code-badge">{o.id_obs}</span></td>
-                        <td>
+                        <td className="col-obs-cod"><span className="site-code-badge">{o.id_obs}</span></td>
+                        <td className="col-obs-cuadrilla">
                           <span
                             style={{
                               display: 'inline-block',
@@ -870,34 +879,34 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                             {sitioInfo?.cuadrilla || 'Sin Cuadrilla'}
                           </span>
                         </td>
-                        <td>
+                        <td className="col-obs-sitio">
                           <span className="site-code-badge" style={{ color: 'var(--accent)' }}>
                             {sitio}
                           </span>
                         </td>
-                        <td>
+                        <td className="col-obs-localidad">
                           <span className="obs-localidad-text" title={localidad || ''}>
                             {localidad || '—'}
                           </span>
                         </td>
-                        <td>
+                        <td className="col-obs-zona">
                           {sitioInfo?.zona ? (
                             <span className="obs-zona-pill">{sitioInfo.zona}</span>
                           ) : (
                             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
                           )}
                         </td>
-                        <td>
+                        <td className="col-obs-estado">
                           <span className={`estado-badge ${estadoCovepaBadge(o.estado_covepa)}`}>
                             {o.estado_covepa || 'Pendiente'}
                           </span>
                         </td>
-                        <td>
+                        <td className="col-obs-fecha">
                           <span style={{ fontSize: 'var(--text-sm)', color: o.fecha_subsanacion ? 'var(--accent)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                             {o.fecha_subsanacion ? getPeruDateStr(o.fecha_subsanacion) : '—'}
                           </span>
                         </td>
-                        <td>
+                        <td className="col-obs-revisor">
                           {esRevisorGilat(revisorNombre, gilatOptions) ? (
                             <span className="obs-revisor-pill" title={revisorNombre}>
                               <Users size={12} color="#2563eb" style={{ flexShrink: 0 }} />
@@ -909,7 +918,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
                           )}
                         </td>
-                        <td className="cell-obs-demora" style={{ textAlign: 'center' }}>
+                        <td className="col-obs-demora cell-obs-demora" style={{ textAlign: 'center' }}>
                           {o.justificacion_demora && o.justificacion_demora.trim() ? (
                             <span
                               className="obs-demora-pill"
@@ -1386,7 +1395,13 @@ export default function Observaciones() {
     },
     {
       key: 'sitio',
-      label: 'Código de Sitio',
+      label: (
+        <>
+          <span className="col-header-full">Código de Sitio</span>
+          <span className="col-header-short">Sitio</span>
+        </>
+      ),
+      title: 'Código de Sitio',
       className: 'col-obs-sitio',
       align: 'left',
       sortable: true,
@@ -1429,7 +1444,13 @@ export default function Observaciones() {
     },
     {
       key: 'estado',
-      label: 'Estado COVEPA',
+      label: (
+        <>
+          <span className="col-header-full">Estado COVEPA</span>
+          <span className="col-header-short">Estado</span>
+        </>
+      ),
+      title: 'Estado COVEPA',
       className: 'col-obs-estado',
       align: 'left',
       sortable: true,
@@ -1441,7 +1462,13 @@ export default function Observaciones() {
     },
     {
       key: 'fecha',
-      label: 'Fecha de Revisión',
+      label: (
+        <>
+          <span className="col-header-full">Fecha de Revisión</span>
+          <span className="col-header-short">Fecha</span>
+        </>
+      ),
+      title: 'Fecha de Revisión',
       className: 'col-obs-fecha',
       cellClassName: 'cell-obs-fecha',
       align: 'center',
@@ -1841,7 +1868,7 @@ export default function Observaciones() {
           onPageChange={setPage}
           hasActiveFilters={hasActiveFilters}
           entityName="observaciones"
-          minWidth="1030px"
+          minWidth={null}
         />
       )}
 

@@ -2107,3 +2107,17 @@
   }
 }
 
+
+/* ── Toasts de Notificación en Móviles (<= 600px) ── */
+@media (max-width: 600px) {
+  .notif-toasts-container {
+    top: 0.65rem;
+    right: 0.65rem;
+    left: 0.65rem;
+    align-items: center;
+  }
+  .notif-toast-card {
+    width: 100%;
+    max-width: 100%;
+  }
+}

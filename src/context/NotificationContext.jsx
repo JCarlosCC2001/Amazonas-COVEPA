@@ -331,6 +331,69 @@ export function formatTiempoRelativo(isoString) {
   }
 }
 
+/**
+ * Despacha notificaciones nativas de sistema compatibles con Celulares (Android/iOS) y Escritorio (Windows/Mac)
+ * - Celular: Utiliza ServiceWorkerRegistration.showNotification() (obligatorio en Android) y vibración física.
+ * - Escritorio: Utiliza Service Worker o el constructor new Notification() con cierre automático.
+ */
+export async function despacharNotificacionSistema(titulo, options = {}) {
+  // 1. Vibración táctil para dispositivos móviles (patrón suave de aviso)
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    try {
+      navigator.vibrate([200, 100, 200])
+    } catch (_) {}
+  }
+
+  // 2. Comprobar si el usuario las desactivó manualmente en la app
+  try {
+    if (localStorage.getItem('covepa_desktop_notif_enabled') === 'false') return false
+  } catch (_) {}
+
+  // 3. Comprobar permisos del navegador
+  if (typeof window === 'undefined' || !('Notification' in window)) return false
+  if (Notification.permission !== 'granted') return false
+
+  const notifOptions = {
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    vibrate: [200, 100, 200],
+    ...options
+  }
+
+  // 4. Intentar vía Service Worker (REQUERIDO en Android Chrome, Edge móvil y Samsung Internet)
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready
+      if (reg && typeof reg.showNotification === 'function') {
+        await reg.showNotification(titulo, notifOptions)
+        return true
+      }
+    } catch (swErr) {
+      console.warn('[NOTIF-SW] Error mostrando notificación vía Service Worker, recurriendo a fallback:', swErr)
+    }
+  }
+
+  // 5. Fallback con constructor Notification (Windows Desktop, Mac, Linux)
+  try {
+    const notif = new Notification(titulo, notifOptions)
+    if (options?.data?.url) {
+      notif.onclick = () => {
+        window.focus()
+        window.location.href = options.data.url
+        notif.close()
+      }
+    }
+    setTimeout(() => {
+      try { notif.close() } catch (_) {}
+    }, 6000)
+    return true
+  } catch (notifErr) {
+    console.warn('[NOTIF-WINDOW] Error mostrando notificación vía constructor Notification:', notifErr)
+  }
+
+  return false
+}
+
 export function NotificationProvider({ children }) {
   const [solicitudes, setSolicitudes] = useState([]) // Técnicos: Solicitando Revisión
   const [enRevision, setEnRevision] = useState([])     // Auditores: En Revisión
@@ -394,37 +457,18 @@ export function NotificationProvider({ children }) {
     }
   }, [dismissedIds])
 
-  // Despachar notificación nativa de Windows / Navegador
-  const dispararNotificacionEscritorio = useCallback((obs, localidad) => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return
-    if (Notification.permission !== 'granted') return
-    try {
-      if (localStorage.getItem('covepa_desktop_notif_enabled') === 'false') return
-    } catch (_) {}
-
-    try {
-      const locText = localidad ? ` · ${localidad}` : ''
-      const revisorText = obs.revisor ? `Solicitado por: ${obs.revisor}` : 'Técnico en campo solicita revisión técnica.'
-      const notif = new Notification(`🔔 Solicitud de Revisión: ${obs.id_obs}`, {
-        body: `${obs.id_sitio}${locText}\n${revisorText}`,
-        icon: '/icon-192.png',
-        tag: `covepa-solicitud-${obs.id_obs}`,
-        renotify: true
-      })
-
-      notif.onclick = () => {
-        window.focus()
-        window.location.href = `/observaciones?search=${encodeURIComponent(obs.id_obs)}`
-        notif.close()
+  // Despachar notificación nativa de Sistema (Android, iOS PWA, Windows, Mac)
+  const dispararNotificacionEscritorio = useCallback(async (obs, localidad) => {
+    const locText = localidad ? ` · ${localidad}` : ''
+    const revisorText = obs.revisor ? `Solicitado por: ${obs.revisor}` : 'Técnico en campo solicita revisión técnica.'
+    await despacharNotificacionSistema(`🔔 Solicitud de Revisión: ${obs.id_obs}`, {
+      body: `${obs.id_sitio}${locText}\n${revisorText}`,
+      tag: `covepa-solicitud-${obs.id_obs}`,
+      renotify: true,
+      data: {
+        url: `/observaciones?search=${encodeURIComponent(obs.id_obs)}`
       }
-
-      // Auto-cerrar después de 6 segundos para evitar acumulación en Windows
-      setTimeout(() => {
-        try { notif.close() } catch (_) {}
-      }, 6000)
-    } catch (err) {
-      console.warn('Aviso de notificación de escritorio no emitido:', err)
-    }
+    })
   }, [])
 
   // Despachar Toast flotante interactivo
@@ -526,21 +570,14 @@ export function NotificationProvider({ children }) {
 
           playAccumulationChime()
 
-          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-            try {
-              if (localStorage.getItem('covepa_desktop_notif_enabled') !== 'false') {
-                const notif = new Notification(titulo, {
-                  body: mensaje,
-                  icon: '/icon-192.png',
-                  tag: 'covepa-alerta-acumulacion-revision',
-                  renotify: true
-                })
-                setTimeout(() => {
-                  try { notif.close() } catch (_) {}
-                }, 6000)
-              }
-            } catch {}
-          }
+          despacharNotificacionSistema(titulo, {
+            body: mensaje,
+            tag: 'covepa-alerta-acumulacion-revision',
+            renotify: true,
+            data: {
+              url: '/observaciones?estado=En%20Revisi%C3%B3n'
+            }
+          })
         }
       } else {
         // En carga inicial, establecer la línea base silenciosamente sin molestar al usuario con popups
@@ -607,17 +644,24 @@ export function NotificationProvider({ children }) {
       fetchSolicitudes(true)
     }, 30000)
 
-    // Reconsultar si el usuario regresa a la pestaña activa
+    // Reconsultar si el usuario regresa a la pestaña, desbloquea el celular o reconecta señal
     const handleVisibility = () => {
       if (!document.hidden) {
         fetchSolicitudes(true)
       }
     }
+    const handleFocus = () => fetchSolicitudes(true)
+    const handleOnline = () => fetchSolicitudes(true)
+
     document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('online', handleOnline)
 
     return () => {
       clearInterval(interval)
       document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('online', handleOnline)
     }
   }, [fetchSolicitudes])
 
@@ -740,27 +784,15 @@ export function NotificationProvider({ children }) {
               setToasts(prev => prev.filter(t => t.id !== toastReporte.id))
             }, 7000)
 
-            // Notificación nativa de escritorio (Windows / Celular)
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-              try {
-                if (localStorage.getItem('covepa_desktop_notif_enabled') !== 'false') {
-                  const notif = new Notification('📬 Reporte Diario COVEPA Enviado', {
-                    body: `El consolidado de observaciones fue despachado exitosamente por correo a las ${horaStr}.`,
-                    icon: '/icon-192.png',
-                    tag: 'covepa-reporte-despachado',
-                    renotify: true
-                  })
-                  notif.onclick = () => {
-                    window.focus()
-                    window.location.href = '/reportes'
-                    notif.close()
-                  }
-                  setTimeout(() => {
-                    try { notif.close() } catch (_) {}
-                  }, 6000)
-                }
-              } catch (_) {}
-            }
+            // Notificación nativa de sistema (Windows / Celular Android)
+            despacharNotificacionSistema('📬 Reporte Diario COVEPA Enviado', {
+              body: `El consolidado de observaciones fue despachado exitosamente por correo a las ${horaStr}.`,
+              tag: 'covepa-reporte-despachado',
+              renotify: true,
+              data: {
+                url: '/reportes'
+              }
+            })
           }
         }
       )
@@ -911,16 +943,14 @@ export function NotificationProvider({ children }) {
 
     playAccumulationChime()
 
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification(`[PRUEBA] ⚠️ Observaciones en Revisión Acumuladas (${ordenadas.length})`, {
-          body: `Hay ${ordenadas.length} observaciones en revisión (+10 min) en espera.`,
-          icon: '/icon-192.png',
-          tag: 'covepa-alerta-acumulacion-revision-prueba',
-          renotify: true
-        })
-      } catch {}
-    }
+    despacharNotificacionSistema(`[PRUEBA] ⚠️ Observaciones en Revisión Acumuladas (${ordenadas.length})`, {
+      body: `Hay ${ordenadas.length} observaciones en revisión (+10 min) en espera.`,
+      tag: 'covepa-alerta-acumulacion-revision-prueba',
+      renotify: true,
+      data: {
+        url: '/observaciones'
+      }
+    })
   }, [enRevision, dispararToast])
 
   // Disparar notificación tras el pase masivo de observaciones a En Revisión
@@ -954,17 +984,15 @@ export function NotificationProvider({ children }) {
       setToasts(prev => prev.filter(t => t.id !== toastId))
     }, 15000)
 
-    // 3. Notificación nativa de escritorio de Windows si está concedida
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification(`🚀 ${codes.length} Observaciones pasaron a En Revisión`, {
-          body: `Códigos copiados: ${codes.slice(0, 8).join(', ')}${codes.length > 8 ? '...' : ''}`,
-          icon: '/icon-192.png',
-          tag: 'covepa-pase-en-revision',
-          renotify: true
-        })
-      } catch {}
-    }
+    // 3. Notificación nativa de sistema (Android / Windows)
+    despacharNotificacionSistema(`🚀 ${codes.length} Observaciones pasaron a En Revisión`, {
+      body: `Códigos copiados: ${codes.slice(0, 8).join(', ')}${codes.length > 8 ? '...' : ''}`,
+      tag: 'covepa-pase-en-revision',
+      renotify: true,
+      data: {
+        url: '/observaciones?estado=En%20Revisi%C3%B3n'
+      }
+    })
 
     // 4. Refrescar solicitudes en tiempo real
     fetchSolicitudes()

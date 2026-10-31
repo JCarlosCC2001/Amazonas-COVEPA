@@ -397,6 +397,8 @@ export async function despacharNotificacionSistema(titulo, options = {}) {
 export function NotificationProvider({ children }) {
   const [solicitudes, setSolicitudes] = useState([]) // Técnicos: Solicitando Revisión
   const [enRevision, setEnRevision] = useState([])     // Auditores: En Revisión
+  const [reportesNotif, setReportesNotif] = useState([]) // Reportes automáticos despachados
+  const lastReporteEnvioRef = useRef({})
   const [accumulationAlert, setAccumulationAlert] = useState(null) // Alerta de acumulación consolidada
   const [readIds, setReadIds] = useState(() => {
     try {
@@ -631,6 +633,136 @@ export function NotificationProvider({ children }) {
 
       setSolicitudes(solRows)
       setEnRevision(revRows)
+
+      // 3. Consultar últimos reportes automáticos despachados (Diario y Semanal)
+      const repItems = []
+      try {
+        // A. Consultar configuracion_reportes_correo para saber último envío oficial
+        const { data: cfgData } = await supabase
+          .from('configuracion_reportes_correo')
+          .select('id, activo, hora_envio, asunto, destinatarios, destinatarios_cc, ultimo_envio_at')
+
+        // B. Consultar historial_reportes_correo para auditoría detallada
+        const { data: histData } = await supabase
+          .from('historial_reportes_correo')
+          .select('*')
+          .eq('estado', 'exitoso')
+          .order('created_at', { ascending: false })
+          .limit(6)
+
+        const tiposCapturados = new Set()
+
+        // Procesar historial si existe
+        if (Array.isArray(histData) && histData.length > 0) {
+          for (const h of histData) {
+            const fechaEnvio = h.created_at
+            if (!fechaEnvio) continue
+            const diffHoras = (Date.now() - new Date(fechaEnvio).getTime()) / (1000 * 60 * 60)
+            if (diffHoras > 48) continue
+
+            const tipoRep = h.tipo_reporte || ((h.asunto || '').toLowerCase().includes('semanal') ? 'semanal' : 'diario')
+            tiposCapturados.add(tipoRep)
+
+            let horaStr = 'recientemente'
+            try {
+              horaStr = new Date(fechaEnvio).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+            } catch (_) {}
+
+            const destList = Array.isArray(h.destinatarios) ? h.destinatarios : []
+            const destCCList = Array.isArray(h.destinatarios_cc) ? h.destinatarios_cc : []
+
+            repItems.push({
+              id_obs: `REPORTE-HIST-${h.id}`,
+              isReporteNotif: true,
+              isReporteEnviado: true,
+              tipo_reporte: tipoRep,
+              tipo_envio: h.tipo || 'oficial',
+              titulo: tipoRep === 'semanal' ? '📬 Reporte Semanal Despachado' : '📬 Reporte Diario Despachado',
+              detalle: `El reporte consolidado de observaciones fue despachado exitosamente por correo a las ${horaStr}.`,
+              asunto: h.asunto || (tipoRep === 'semanal' ? '[COVEPA] Reporte Semanal de Observaciones' : '[COVEPA] Reporte Diario de Observaciones'),
+              destinatariosCount: destList.length,
+              destinatariosCCCount: destCCList.length,
+              destinatarios: destList,
+              destinatarios_cc: destCCList,
+              total_obs: h.total_obs,
+              validadas: h.validadas,
+              rechazadas: h.rechazadas,
+              en_espera: h.en_espera,
+              fecha_subsanacion: fechaEnvio,
+              id_sitio: 'COVEPA',
+              localidad: 'Despacho por Correo'
+            })
+          }
+        }
+
+        // Si configuracion_reportes_correo tiene ultimo_envio_at y no fue capturado por historial
+        if (Array.isArray(cfgData)) {
+          for (const cfg of cfgData) {
+            const fechaEnvio = cfg.ultimo_envio_at
+            if (!fechaEnvio) continue
+            const diffHoras = (Date.now() - new Date(fechaEnvio).getTime()) / (1000 * 60 * 60)
+            if (diffHoras > 48) continue
+
+            const tipoRep = cfg.id === 'config_semanal' ? 'semanal' : 'diario'
+            if (tiposCapturados.has(tipoRep)) continue
+
+            let horaStr = 'recientemente'
+            try {
+              horaStr = new Date(fechaEnvio).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+            } catch (_) {}
+
+            const destList = Array.isArray(cfg.destinatarios) ? cfg.destinatarios : []
+            const destCCList = Array.isArray(cfg.destinatarios_cc) ? cfg.destinatarios_cc : []
+
+            repItems.push({
+              id_obs: `REPORTE-${cfg.id}-${new Date(fechaEnvio).getTime()}`,
+              isReporteNotif: true,
+              isReporteEnviado: true,
+              tipo_reporte: tipoRep,
+              tipo_envio: 'oficial',
+              titulo: tipoRep === 'semanal' ? '📬 Reporte Semanal Despachado' : '📬 Reporte Diario Despachado',
+              detalle: `El reporte consolidado de observaciones fue despachado exitosamente por correo a las ${horaStr}.`,
+              asunto: cfg.asunto || (tipoRep === 'semanal' ? '[COVEPA] Reporte Semanal de Observaciones' : '[COVEPA] Reporte Diario de Observaciones'),
+              destinatariosCount: destList.length,
+              destinatariosCCCount: destCCList.length,
+              destinatarios: destList,
+              destinatarios_cc: destCCList,
+              fecha_subsanacion: fechaEnvio,
+              id_sitio: 'COVEPA',
+              localidad: 'Despacho por Correo'
+            })
+          }
+        }
+      } catch (repErr) {
+        console.warn('[NOTIF-FETCH-REPORTES] Error consultando estado de reportes:', repErr)
+      }
+
+      // Detección de nuevo despacho de reporte en tiempo real
+      if (!isFirstLoadRef.current && isRealtimeAlert && repItems.length > 0) {
+        for (const rep of repItems) {
+          const prevTime = lastReporteEnvioRef.current[rep.tipo_reporte]
+          if (rep.fecha_subsanacion && rep.fecha_subsanacion !== prevTime) {
+            dispararToast(rep, 'Despacho por Correo')
+            despacharNotificacionSistema(rep.titulo, {
+              body: `${rep.detalle}\nAsunto: ${rep.asunto}`,
+              tag: `covepa-reporte-${rep.tipo_reporte}`,
+              renotify: true,
+              data: {
+                url: '/reportes'
+              }
+            })
+            break
+          }
+        }
+      }
+
+      const newTimestamps = {}
+      for (const rep of repItems) {
+        newTimestamps[rep.tipo_reporte] = rep.fecha_subsanacion
+      }
+      lastReporteEnvioRef.current = newTimestamps
+
+      setReportesNotif(repItems)
     } catch (err) {
       console.warn('[NOTIF-FETCH] Error de red:', err)
     }
@@ -755,44 +887,17 @@ export function NotificationProvider({ children }) {
         (payload) => {
           const newRow = payload.new
           const oldRow = payload.old
-          // Comprobar si se acaba de registrar un despacho exitoso
           if (newRow?.ultimo_envio_at && newRow.ultimo_envio_at !== oldRow?.ultimo_envio_at) {
-            playNotificationChime()
-
-            let horaStr = 'recientemente'
-            try {
-              horaStr = new Date(newRow.ultimo_envio_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
-            } catch (_) {}
-
-            const toastReporte = {
-              id: `toast-reporte-${Date.now()}`,
-              obs: {
-                id_obs: 'REPORTE-ENVIADO',
-                isReporteEnviado: true,
-                titulo: 'Reporte Diario Despachado',
-                detalle: `El reporte consolidado de observaciones fue enviado exitosamente a las ${horaStr}.`,
-                id_sitio: 'COVEPA',
-                localidad: 'Despacho por Correo',
-                revisor: 'Robot de Notificación',
-                fecha_subsanacion: newRow.ultimo_envio_at
-              },
-              createdAt: Date.now()
-            }
-
-            setToasts(prev => [toastReporte, ...prev].slice(0, 3))
-            setTimeout(() => {
-              setToasts(prev => prev.filter(t => t.id !== toastReporte.id))
-            }, 7000)
-
-            // Notificación nativa de sistema (Windows / Celular Android)
-            despacharNotificacionSistema('📬 Reporte Diario COVEPA Enviado', {
-              body: `El consolidado de observaciones fue despachado exitosamente por correo a las ${horaStr}.`,
-              tag: 'covepa-reporte-despachado',
-              renotify: true,
-              data: {
-                url: '/reportes'
-              }
-            })
+            fetchSolicitudes(true)
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'historial_reportes_correo' },
+        (payload) => {
+          if (payload.new?.estado === 'exitoso') {
+            fetchSolicitudes(true)
           }
         }
       )
@@ -836,6 +941,12 @@ export function NotificationProvider({ children }) {
       for (const r of enRevision) {
         updated.add(r.id_obs)
       }
+      for (const rep of reportesNotif) {
+        updated.add(rep.id_obs)
+      }
+      if (accumulationAlert) {
+        updated.add(accumulationAlert.id_obs)
+      }
       return updated
     })
   }
@@ -845,6 +956,9 @@ export function NotificationProvider({ children }) {
     setToasts(prev => prev.filter(t => t.id !== toastId))
   }
 
+  // Filtrado de reportes visibles en la bandeja (no descartados/limpiados)
+  const visibleReportes = reportesNotif.filter(r => !dismissedIds.has(r.id_obs))
+
   // Filtrado de solicitudes visibles en la bandeja (no descartadas/limpiadas)
   const visibleSolicitudes = solicitudes.filter(s => !dismissedIds.has(s.id_obs))
 
@@ -853,13 +967,18 @@ export function NotificationProvider({ children }) {
     ? [accumulationAlert]
     : []
 
-  // Bandeja unificada: la alerta de acumulación aparece al inicio como aviso prioritario, seguida de las solicitudes de técnicos
-  const unifiedNotifications = [...activeAccumulation, ...visibleSolicitudes]
+  // Bandeja unificada: reportes de correo primero, alerta de acumulación, y solicitudes de técnicos
+  const unifiedNotifications = [...visibleReportes, ...activeAccumulation, ...visibleSolicitudes]
 
-  // Conteo consolidado de no leídas para la campana (+1 si la alerta de acumulación está sin leer)
+  // Conteo consolidado de no leídas para la campana (+1 por cada reporte sin leer, +1 si alerta de acumulación sin leer)
   const isAccUnread = activeAccumulation.length > 0 && !readIds.has(accumulationAlert.id_obs)
-  const unreadCount = visibleSolicitudes.filter(s => !readIds.has(s.id_obs)).length + (isAccUnread ? 1 : 0)
-  const dismissedCount = solicitudes.filter(s => dismissedIds.has(s.id_obs)).length + (accumulationAlert && dismissedIds.has(accumulationAlert.id_obs) ? 1 : 0)
+  const unreadReportesCount = visibleReportes.filter(r => !readIds.has(r.id_obs)).length
+  const unreadCount = visibleSolicitudes.filter(s => !readIds.has(s.id_obs)).length +
+    (isAccUnread ? 1 : 0) +
+    unreadReportesCount
+  const dismissedCount = solicitudes.filter(s => dismissedIds.has(s.id_obs)).length +
+    (accumulationAlert && dismissedIds.has(accumulationAlert.id_obs) ? 1 : 0) +
+    reportesNotif.filter(r => dismissedIds.has(r.id_obs)).length
 
   // Limpiar todas las notificaciones de la bandeja
   const clearAllNotifications = useCallback(() => {
@@ -867,10 +986,11 @@ export function NotificationProvider({ children }) {
       const updated = new Set(prev)
       for (const s of solicitudes) updated.add(s.id_obs)
       if (accumulationAlert) updated.add(accumulationAlert.id_obs)
+      for (const r of reportesNotif) updated.add(r.id_obs)
       return updated
     })
     setToasts([])
-  }, [solicitudes, accumulationAlert])
+  }, [solicitudes, accumulationAlert, reportesNotif])
 
   // Descartar/limpiar una notificación individual
   const dismissNotification = useCallback((idObs) => {
@@ -998,12 +1118,56 @@ export function NotificationProvider({ children }) {
     fetchSolicitudes()
   }, [fetchSolicitudes])
 
+  // Disparar manualmente una notificación de prueba de reporte despachado
+  const dispararPruebaReporte = useCallback(() => {
+    let horaActual = 'recientemente'
+    try {
+      horaActual = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+    } catch (_) {}
+
+    const pruebaReporte = {
+      id_obs: `REPORTE-PRUEBA-${Date.now()}`,
+      isReporteNotif: true,
+      isReporteEnviado: true,
+      tipo_reporte: 'diario',
+      tipo_envio: 'prueba',
+      titulo: '📬 Reporte Diario COVEPA Enviado',
+      detalle: `El reporte consolidado de observaciones fue despachado exitosamente por correo a las ${horaActual}.`,
+      asunto: 'Reporte Diario de Levantamiento de Observaciones Amazonas - Zona 2 y Zona 7',
+      destinatariosCount: 4,
+      destinatariosCCCount: 7,
+      destinatarios: ['ccondor@covepa.pe'],
+      fecha_subsanacion: new Date().toISOString(),
+      id_sitio: 'COVEPA',
+      localidad: 'Despacho por Correo'
+    }
+
+    setDismissedIds(prev => {
+      const copy = new Set(prev)
+      copy.delete(pruebaReporte.id_obs)
+      return copy
+    })
+    setReportesNotif(prev => [pruebaReporte, ...prev.filter(r => r.id_obs !== pruebaReporte.id_obs)])
+
+    dispararToast(pruebaReporte, 'Despacho por Correo')
+
+    despacharNotificacionSistema('📬 Reporte Diario COVEPA Enviado', {
+      body: `El consolidado de observaciones fue despachado exitosamente por correo a las ${horaActual}.`,
+      tag: 'covepa-reporte-despachado',
+      renotify: true,
+      data: {
+        url: '/reportes'
+      }
+    })
+  }, [dispararToast])
+
   // Exponer globalmente en window para pruebas en cualquier momento
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.probarNotificacionRevision = dispararPruebaRevision
+      window.probarNotificacionReporte = dispararPruebaReporte
     }
-  }, [dispararPruebaRevision])
+  }, [dispararPruebaRevision, dispararPruebaReporte])
 
   return (
     <NotificationContext.Provider
@@ -1016,6 +1180,8 @@ export function NotificationProvider({ children }) {
         dismissNotification,
         restoreDismissedNotifications,
         dispararPruebaRevision,
+        dispararPruebaReporte,
+        reportesNotificaciones: reportesNotif,
         copyObservacionesList,
         copyPlainCodesList,
         notificarPaseEnRevision,

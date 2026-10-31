@@ -199,6 +199,29 @@ export default function NotificationToastContainer() {
                       </button>
                     </div>
                   </>
+                ) : obs.isReporteEnviado ? (
+                  <>
+                    <div className="notif-toast-code-row">
+                      <span className="notif-toast-acc-title" style={{ color: '#047857' }}>
+                        {obs.titulo || 'Reporte de Observaciones Despachado'}
+                      </span>
+                      <span className="notif-toast-count-tag" style={{ background: '#dcfce7', color: '#15803d' }}>
+                        Correo Oficial
+                      </span>
+                    </div>
+
+                    {obs.detalle && (
+                      <p className="notif-toast-detail-text notif-toast-acc-desc" style={{ marginTop: '0.25rem', color: '#064e3b' }}>
+                        {obs.detalle}
+                      </p>
+                    )}
+
+                    {obs.asunto && (
+                      <div style={{ marginTop: '0.35rem', color: '#475569' }} className="t-meta">
+                        <strong>Asunto:</strong> {obs.asunto}
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <>
                     <div className="notif-toast-code-row">

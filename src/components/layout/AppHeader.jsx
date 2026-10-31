@@ -4,7 +4,7 @@ import {
   Bell, Eye, EyeOff, CheckCircle2,
   X, ExternalLink, Clock, MapPin,
   User, Trash2, RotateCcw, AlertTriangle,
-  Copy, Check
+  Copy, Check, Mail
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { usePresentationMode } from '../../context/PresentationContext'
@@ -165,7 +165,7 @@ export default function AppHeader() {
               <div className="notif-popover-header">
                 <div className="notif-popover-title">
                   <Bell size={15} color="#ea580c" />
-                  <span>Solicitudes de Revisión ({solicitudes.length})</span>
+                  <span>Notificaciones ({solicitudes.length})</span>
                 </div>
                 <div className="notif-header-actions">
 
@@ -228,6 +228,77 @@ export default function AppHeader() {
                   </div>
                 ) : (
                   solicitudes.map((obs) => {
+                    if (obs.isReporteNotif) {
+                      const isUnread = !readIds.has(obs.id_obs)
+                      return (
+                        <div
+                          key={obs.id_obs}
+                          className={`notif-item notif-item-reporte ${isUnread ? 'is-unread' : ''}`}
+                          onClick={() => {
+                            markAsRead(obs.id_obs)
+                            setNotifOpen(false)
+                            navigate('/reportes')
+                          }}
+                          title="Clic para ir al módulo de reportes y auditoría"
+                        >
+                          <div className="notif-item-icon icon-reporte">
+                            <Mail size={16} />
+                          </div>
+
+                          <div className="notif-item-content">
+                            <div className="notif-solicitud-top">
+                              <span className="notif-obs-code">
+                                {obs.tipo_reporte === 'semanal' ? 'REPORTE SEMANAL' : 'REPORTE DIARIO'}
+                              </span>
+                              <span className="notif-status-badge badge-reporte-pill">
+                                Enviado por Correo
+                              </span>
+                            </div>
+
+                            <p className="notif-reporte-desc">
+                              {obs.detalle}
+                            </p>
+
+                            {obs.asunto && (
+                              <div className="notif-reporte-asunto-line">
+                                <span className="t-meta"><strong>Asunto:</strong> {obs.asunto}</span>
+                              </div>
+                            )}
+
+                            {(obs.destinatariosCount > 0 || obs.destinatariosCCCount > 0) && (
+                              <div className="notif-reporte-meta-row">
+                                <span className="notif-reporte-dest-chip">
+                                  {obs.destinatariosCount} principales {obs.destinatariosCCCount > 0 ? `· ${obs.destinatariosCCCount} en copia` : ''}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="notif-card-actions-row">
+                              <span className="notif-reporte-link-btn">
+                                Ver reporte en módulo oficial ➔
+                              </span>
+                            </div>
+
+                            <span className="notif-time-ago">
+                              {formatTiempoRelativo(obs.fecha_subsanacion)}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="notif-item-dismiss-btn"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              dismissNotification(obs.id_obs)
+                            }}
+                            title="Descartar aviso de reporte"
+                            aria-label="Descartar notificación"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      )
+                    }
                     if (obs.isAccumulationAlert) {
                       const isUnread = !readIds.has(obs.id_obs)
                       const isCopied = copiedAccId === obs.id_obs

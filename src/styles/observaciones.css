@@ -10620,3 +10620,51 @@
   border: 1px solid #bfdbfe;
   color: #1d4ed8;
 }
+
+
+/* Botón colapsable para Agregar Demora y Tiempos de Ejecución */
+.btn-add-demora {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: #b45309;
+  background: #fffdf5;
+  border: 1px dashed #f59e0b;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition);
+  user-select: none;
+}
+
+.btn-add-demora:hover {
+  background: #fef3c7;
+  border-style: solid;
+  border-color: #d97706;
+  color: #92400e;
+}
+
+.btn-collapse-demora {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition);
+  user-select: none;
+}
+
+.btn-collapse-demora:hover {
+  background: rgba(245, 158, 11, 0.22);
+  color: #78350f;
+}

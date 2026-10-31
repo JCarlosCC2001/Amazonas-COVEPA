@@ -4,7 +4,7 @@ import {
   MapPin, CheckCircle2, Clock, AlertCircle, List,
   CalendarDays, X, Search, RefreshCw, Eye, ShieldCheck,
   Check, AlertTriangle, Users, Edit3, User, FileSpreadsheet, Download, Send,
-  TrendingUp, History
+  TrendingUp, History, ChevronUp
 } from 'lucide-react'
 // M3: ExcelJS se importa dinámicamente en handleExportXLSX para no inflar el bundle inicial
 import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
@@ -2233,6 +2233,7 @@ function ModalDetallesProgramacion({
   const [tiemposDemora, setTiemposDemora] = useState({})
   const [savingTimeId, setSavingTimeId] = useState(null)
   const [savedTimeId, setSavedTimeId] = useState(null)
+  const [expandedDemoraIds, setExpandedDemoraIds] = useState({})
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [updatingId, setUpdatingId] = useState(null)
@@ -3227,25 +3228,62 @@ function ModalDetallesProgramacion({
                       />
                     </div>
 
-                    {/* Caja de Justificación de Demora y Tiempos de Ejecución con autoguardado */}
-                    <div className="obs-content-box box-demora" style={{ borderLeft: '4px solid #f59e0b', background: '#fffdf5', border: '1px solid #fde68a', borderLeftWidth: '4px', borderRadius: '8px', padding: '0.75rem' }}>
-                      <div className="box-covepa-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                        <span className="box-label" style={{ color: '#b45309', fontWeight: 'var(--fw-bold)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                          <AlertTriangle size={13} color="#d97706" /> Tiempos de Ejecución y Control de Demoras:
-                        </span>
-                        <div className="covepa-save-cluster">
-                          {(savingDelayId === obs.id_obs || savingTimeId === obs.id_obs) && (
-                            <span className="save-tag saving">
-                              <RefreshCw size={11} className="spin" /> Guardando...
+                    {/* Caja de Justificación de Demora y Tiempos de Ejecución Colapsable */}
+                    {(() => {
+                      const hasDelayData = Boolean(
+                        (delays[obs.id_obs] && String(delays[obs.id_obs]).trim()) ||
+                        (tiemposReal[obs.id_obs] && String(tiemposReal[obs.id_obs]).trim()) ||
+                        (tiemposDemora[obs.id_obs] && String(tiemposDemora[obs.id_obs]).trim())
+                      )
+                      const isDemoraExpanded = hasDelayData || Boolean(expandedDemoraIds[obs.id_obs])
+
+                      if (!isDemoraExpanded) {
+                        return (
+                          <div style={{ marginTop: '0.65rem' }}>
+                            <button
+                              type="button"
+                              className="btn-add-demora"
+                              onClick={() => setExpandedDemoraIds(prev => ({ ...prev, [obs.id_obs]: true }))}
+                            >
+                              <AlertTriangle size={13} color="#d97706" />
+                              <span>+ Agregar Demora / Tiempos</span>
+                            </button>
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div className="obs-content-box box-demora" style={{ borderLeft: '4px solid #f59e0b', background: '#fffdf5', border: '1px solid #fde68a', borderLeftWidth: '4px', borderRadius: '8px', padding: '0.75rem' }}>
+                          <div className="box-covepa-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                            <span className="box-label" style={{ color: '#b45309', fontWeight: 'var(--fw-bold)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                              <AlertTriangle size={13} color="#d97706" /> Tiempos de Ejecución y Control de Demoras:
                             </span>
-                          )}
-                          {(savedDelayId === obs.id_obs || savedTimeId === obs.id_obs) && (
-                            <span className="save-tag saved">
-                              <Check size={12} /> Guardado
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div className="covepa-save-cluster">
+                                {(savingDelayId === obs.id_obs || savingTimeId === obs.id_obs) && (
+                                  <span className="save-tag saving">
+                                    <RefreshCw size={11} className="spin" /> Guardando...
+                                  </span>
+                                )}
+                                {(savedDelayId === obs.id_obs || savedTimeId === obs.id_obs) && (
+                                  <span className="save-tag saved">
+                                    <Check size={12} /> Guardado
+                                  </span>
+                                )}
+                              </div>
+                              {!hasDelayData && (
+                                <button
+                                  type="button"
+                                  className="btn-collapse-demora"
+                                  onClick={() => setExpandedDemoraIds(prev => ({ ...prev, [obs.id_obs]: false }))}
+                                  title="Ocultar sección de demoras"
+                                >
+                                  <ChevronUp size={13} />
+                                  <span>Ocultar</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
 
                       {/* Selectores con máscara de tiempo (HH:MM) */}
                       <div className="time-cluster-grid">
@@ -3313,6 +3351,8 @@ function ModalDetallesProgramacion({
                         )}
                       </div>
                     </div>
+                      )
+                    })()}
                   </div>
                 </div>
               )

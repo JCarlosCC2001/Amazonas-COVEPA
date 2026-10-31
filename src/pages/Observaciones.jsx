@@ -49,6 +49,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const [delayTimeVal, setDelayTimeVal] = useState(obs?.tiempo_ejecucion_demora || '')
   const [savingTime, setSavingTime] = useState(false)
   const [savedTime, setSavedTime] = useState(false)
+  const [showDemoraBox, setShowDemoraBox] = useState(false)
   const [showHistorial, setShowHistorial] = useState(false)
   const [historialRefreshKey, setHistorialRefreshKey] = useState(0)
   const isDirtyCommentRef = useRef(false)
@@ -78,6 +79,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       isDirtyCommentRef.current = false
       isDirtyDelayRef.current = false
       isDirtyTimeRef.current = false
+      setShowDemoraBox(Boolean((obs.justificacion_demora && obs.justificacion_demora.trim()) || (obs.tiempo_ejecucion_real && obs.tiempo_ejecucion_real.trim()) || (obs.tiempo_ejecucion_demora && obs.tiempo_ejecucion_demora.trim())))
     }
   }, [obs?.id_obs])
 
@@ -150,6 +152,8 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   }, [obsLocal, onSaved])
 
   const diffInfo = useMemo(() => diffTimeHHMM(realTimeVal, delayTimeVal), [realTimeVal, delayTimeVal])
+  const hasDelayData = Boolean((delayVal && delayVal.trim()) || (realTimeVal && realTimeVal.trim()) || (delayTimeVal && delayTimeVal.trim()))
+  const isDemoraExpanded = hasDelayData || showDemoraBox
 
   const handleCommentChange = (e) => {
     setCommentVal(e.target.value)
@@ -454,25 +458,50 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
               />
             </div>
 
-            {/* Caja de Justificación de Demora / Control de Incidentes con autoguardado */}
-            <div className="obs-content-box box-demora" style={{ margin: '0.85rem 0 0 0', borderLeft: '4px solid #f59e0b', background: '#fffdf5', border: '1px solid #fde68a', borderLeftWidth: '4px', borderRadius: '8px', padding: '0.75rem' }}>
-              <div className="box-covepa-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                <span className="box-label" style={{ color: '#b45309', fontWeight: 'var(--fw-bold)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                  <AlertTriangle size={13} color="#d97706" /> Tiempos de Ejecución y Control de Demoras:
-                </span>
-                <div className="covepa-save-cluster">
-                  {(savingDelay || savingTime) && (
-                    <span className="save-tag saving">
-                      <RefreshCw size={11} className="spin" /> Guardando...
-                    </span>
-                  )}
-                  {(savedDelay || savedTime) && (
-                    <span className="save-tag saved">
-                      <Check size={12} /> Guardado
-                    </span>
-                  )}
-                </div>
+            {/* Caja de Justificación de Demora y Tiempos de Ejecución Colapsable */}
+            {!isDemoraExpanded ? (
+              <div style={{ marginTop: '0.85rem' }}>
+                <button
+                  type="button"
+                  className="btn-add-demora"
+                  onClick={() => setShowDemoraBox(true)}
+                >
+                  <AlertTriangle size={13} color="#d97706" />
+                  <span>+ Agregar Demora / Tiempos</span>
+                </button>
               </div>
+            ) : (
+              <div className="obs-content-box box-demora" style={{ margin: '0.85rem 0 0 0', borderLeft: '4px solid #f59e0b', background: '#fffdf5', border: '1px solid #fde68a', borderLeftWidth: '4px', borderRadius: '8px', padding: '0.75rem' }}>
+                <div className="box-covepa-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <span className="box-label" style={{ color: '#b45309', fontWeight: 'var(--fw-bold)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <AlertTriangle size={13} color="#d97706" /> Tiempos de Ejecución y Control de Demoras:
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div className="covepa-save-cluster">
+                      {(savingDelay || savingTime) && (
+                        <span className="save-tag saving">
+                          <RefreshCw size={11} className="spin" /> Guardando...
+                        </span>
+                      )}
+                      {(savedDelay || savedTime) && (
+                        <span className="save-tag saved">
+                          <Check size={12} /> Guardado
+                        </span>
+                      )}
+                    </div>
+                    {!hasDelayData && (
+                      <button
+                        type="button"
+                        className="btn-collapse-demora"
+                        onClick={() => setShowDemoraBox(false)}
+                        title="Ocultar sección de demoras"
+                      >
+                        <ChevronUp size={13} />
+                        <span>Ocultar</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
 
               {/* Selectores con máscara de tiempo (HH:MM) */}
               <div className="time-cluster-grid">
@@ -542,6 +571,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                 )}
               </div>
             </div>
+            )}
           </div>
 
           {/* 2. INFORMACIÓN COMPLETA DE LA BASE DE DATOS */}

@@ -5055,6 +5055,49 @@
   padding: 0.45rem 0.7rem;
 }
 
+/* Integración ErpTable en Pestaña Sitios */
+.dash-sitios-view .erp-table-wrapper {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: none;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.dash-sitios-view .erp-table-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dash-sitios-view .table-pagination {
+  flex-shrink: 0;
+  padding: 0.45rem 0.75rem;
+}
+
+@media (max-width: 991px) {
+  .dash-sitios-view {
+    height: auto !important;
+    min-height: 520px;
+    flex: none !important;
+  }
+
+  .dash-sitios-view .erp-table-wrapper {
+    flex: none !important;
+    height: auto !important;
+  }
+
+  .dash-sitios-view .erp-table-scroll {
+    flex: none !important;
+    max-height: 65vh;
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+  }
+}
+
 @media (max-width: 768px) {
   .dash-sites-toolbar-row {
     flex-direction: column;

@@ -11,6 +11,7 @@ import { usePresentationMode } from '../context/PresentationContext'
 import MetricCard from '../components/shared/MetricCard'
 import SegmentedProgressBar from '../components/shared/SegmentedProgressBar'
 import CuadrillasMatrixTable from '../components/shared/CuadrillasMatrixTable'
+import ErpTable from '../components/shared/ErpTable'
 import { getDashboardProjectOverview } from '../services/dashboardService'
 
 // ────────────────────────────────────────────────────────────
@@ -236,6 +237,214 @@ export default function Dashboard() {
       return matchGrupo && matchZona && matchSearch
     })
   }, [sitios, filterGrupo, filterZona, searchSitio])
+
+  // Ordenamiento y Paginación de la Tabla ErpTable de Sitios
+  const [sitiosSortField, setSitiosSortField] = useState('total')
+  const [sitiosSortDirection, setSitiosSortDirection] = useState('desc')
+  const [sitiosPage, setSitiosPage] = useState(1)
+  const sitiosPageSize = 25
+
+  // Reset de página al cambiar filtros
+  useEffect(() => {
+    setSitiosPage(1)
+  }, [searchSitio, filterGrupo, filterZona])
+
+  const handleSitiosSort = useCallback((field) => {
+    setSitiosSortField(prevField => {
+      if (prevField === field) {
+        setSitiosSortDirection(prevDir => (prevDir === 'asc' ? 'desc' : 'asc'))
+        return prevField
+      }
+      setSitiosSortDirection('desc')
+      return field
+    })
+    setSitiosPage(1)
+  }, [])
+
+  // Ordenamiento de sitios
+  const sortedSitios = useMemo(() => {
+    if (!sitiosSortField) return filteredSitios
+    return [...filteredSitios].sort((a, b) => {
+      let aVal = a[sitiosSortField] ?? ''
+      let bVal = b[sitiosSortField] ?? ''
+      if (typeof aVal === 'string') {
+        return sitiosSortDirection === 'asc'
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal)
+      }
+      return sitiosSortDirection === 'asc'
+        ? (Number(aVal) > Number(bVal) ? 1 : -1)
+        : (Number(aVal) < Number(bVal) ? 1 : -1)
+    })
+  }, [filteredSitios, sitiosSortField, sitiosSortDirection])
+
+  // Paginación de sitios
+  const paginatedSitios = useMemo(() => {
+    const start = (sitiosPage - 1) * sitiosPageSize
+    return sortedSitios.slice(start, start + sitiosPageSize)
+  }, [sortedSitios, sitiosPage, sitiosPageSize])
+
+  // Definición de columnas para el componente reutilizable ErpTable
+  const sitiosColumns = useMemo(() => [
+    {
+      key: 'index',
+      label: '#',
+      width: '44px',
+      align: 'center',
+      sortable: false,
+      render: (_, idx) => (
+        <span className="dash-td-index">
+          {(sitiosPage - 1) * sitiosPageSize + idx + 1}
+        </span>
+      )
+    },
+    {
+      key: 'id_sitio',
+      label: 'CÓDIGO DE SITIO',
+      width: '145px',
+      sortable: true,
+      render: s => (
+        <div className="dash-site-badge" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          <MapPin size={12} color="#003060" />
+          <span>{s.id_sitio}</span>
+        </div>
+      )
+    },
+    {
+      key: 'localidad',
+      label: 'LOCALIDAD / NODO',
+      sortable: true,
+      render: s => (
+        <div className="t-name" style={{ color: '#1e293b' }}>
+          {s.localidad || s.nombre_nodo || '—'}
+          {s.distrito && (
+            <span className="t-meta" style={{ color: 'var(--text-muted)', marginLeft: '6px' }}>
+              ({s.distrito})
+            </span>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'zona',
+      label: 'ZONA',
+      width: '100px',
+      sortable: true,
+      render: s => (
+        <span className="dash-subtab-badge" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {s.zona || (s.id_sitio?.includes('AM-00') ? 'ZONA 2' : 'ZONA 7')}
+        </span>
+      )
+    },
+    {
+      key: 'grupo',
+      label: 'CUADRILLA',
+      width: '150px',
+      sortable: true,
+      render: s => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span className="t-name" style={{ color: '#003060' }}>{s.grupo}</span>
+          {!presentationMode && s.tecnico && (
+            <span className="t-meta" style={{ color: '#0284c7', display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <User size={10} color="#0284c7" />
+              <span>{s.tecnico}</span>
+            </span>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'total',
+      label: 'TOTAL',
+      width: '75px',
+      align: 'center',
+      sortable: true,
+      render: s => (
+        <span style={{ fontWeight: 'var(--fw-bold)', color: '#003060', fontVariantNumeric: 'tabular-nums' }}>
+          {s.total}
+        </span>
+      )
+    },
+    {
+      key: 'subsanadas',
+      label: 'SUBS.',
+      width: '75px',
+      align: 'center',
+      sortable: true,
+      render: s => (
+        <span style={{ fontWeight: 'var(--fw-bold)', color: s.subsanadas > 0 ? '#10b981' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+          {s.subsanadas}
+        </span>
+      )
+    },
+    {
+      key: 'enRevision',
+      label: 'REV.',
+      width: '75px',
+      align: 'center',
+      sortable: true,
+      render: s => (
+        <span style={{ fontWeight: 'var(--fw-bold)', color: s.enRevision > 0 ? '#0284c7' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+          {s.enRevision}
+        </span>
+      )
+    },
+    {
+      key: 'pendientes',
+      label: 'PEND.',
+      width: '75px',
+      align: 'center',
+      sortable: true,
+      render: s => (
+        <span style={{ fontWeight: 'var(--fw-bold)', color: s.pendientes > 0 ? '#d97706' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+          {s.pendientes}
+        </span>
+      )
+    },
+    {
+      key: 'porcentaje',
+      label: 'AVANCE',
+      width: '130px',
+      sortable: true,
+      render: s => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+          <div style={{ flex: 1, height: '6px', borderRadius: '3px', background: '#e2e8f0', overflow: 'hidden' }}>
+            <div
+              style={{
+                width: `${Math.min(100, s.porcentaje)}%`,
+                height: '100%',
+                background: '#10b981',
+                borderRadius: '3px'
+              }}
+            />
+          </div>
+          <span className="t-meta" style={{ fontWeight: 'var(--fw-bold)', minWidth: '32px', textAlign: 'right', color: s.porcentaje > 0 ? '#10b981' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+            {s.porcentaje}%
+          </span>
+        </div>
+      )
+    },
+    {
+      key: 'actions',
+      label: 'VER',
+      width: '60px',
+      align: 'center',
+      sortable: false,
+      render: s => (
+        <button
+          type="button"
+          className="dash-row-btn"
+          onClick={e => {
+            e.stopPropagation()
+            navigate(`/observaciones?search=${encodeURIComponent(s.id_sitio)}`)
+          }}
+          title={`Ver observaciones del sitio ${s.id_sitio}`}
+        >
+          <ExternalLink size={13} />
+        </button>
+      )
+    }
+  ], [sitiosPage, sitiosPageSize, presentationMode, navigate])
 
   return (
     <div className="dash-page-container">
@@ -585,122 +794,29 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Tabla Ejecutiva con scroll interno (la página externa no se mueve) */}
-          <div className="dash-sites-table-scroll">
-            <table className="dash-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '38px', textAlign: 'center' }}>#</th>
-                  <th style={{ width: '150px' }}>CÓDIGO DE SITIO</th>
-                  <th>LOCALIDAD / NODO</th>
-                  <th style={{ width: '100px' }}>ZONA</th>
-                  <th style={{ width: '140px' }}>CUADRILLA</th>
-                  <th style={{ width: '75px', textAlign: 'center' }}>TOTAL</th>
-                  <th style={{ width: '75px', textAlign: 'center' }}>SUBS.</th>
-                  <th style={{ width: '75px', textAlign: 'center' }}>REV.</th>
-                  <th style={{ width: '75px', textAlign: 'center' }}>PEND.</th>
-                  <th style={{ width: '120px' }}>AVANCE</th>
-                  <th style={{ width: '60px', textAlign: 'center' }}>VER</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSitios.map((s, idx) => (
-                  <tr key={s.id_sitio} className="dash-table-row">
-                    <td className="dash-td-index">{idx + 1}</td>
-
-                    <td className="dash-td-site">
-                      <div className="dash-site-badge" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        <MapPin size={12} color="#003060" />
-                        <span>{s.id_sitio}</span>
-                      </div>
-                    </td>
-
-                    <td>
-                      <div className="t-name" style={{ color: '#1e293b' }}>
-                        {s.localidad || s.nombre_nodo || '—'}
-                        {s.distrito && (
-                          <span className="t-meta" style={{ color: 'var(--text-muted)', marginLeft: '6px' }}>
-                            ({s.distrito})
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    <td>
-                      <span className="dash-subtab-badge" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {s.zona || (s.id_sitio?.includes('AM-00') ? 'ZONA 2' : 'ZONA 7')}
-                      </span>
-                    </td>
-
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <span className="t-name" style={{ color: '#003060' }}>{s.grupo}</span>
-                        {!presentationMode && s.tecnico && (
-                          <span className="t-meta" style={{ color: '#0284c7', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <User size={10} color="#0284c7" />
-                            <span>{s.tecnico}</span>
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    <td style={{ textAlign: 'center', fontWeight: 'var(--fw-bold)', color: '#003060', fontVariantNumeric: 'tabular-nums' }}>
-                      {s.total}
-                    </td>
-
-                    <td style={{ textAlign: 'center', fontWeight: 'var(--fw-bold)', color: s.subsanadas > 0 ? '#10b981' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                      {s.subsanadas}
-                    </td>
-
-                    <td style={{ textAlign: 'center', fontWeight: 'var(--fw-bold)', color: s.enRevision > 0 ? '#0284c7' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                      {s.enRevision}
-                    </td>
-
-                    <td style={{ textAlign: 'center', fontWeight: 'var(--fw-bold)', color: s.pendientes > 0 ? '#d97706' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                      {s.pendientes}
-                    </td>
-
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <div style={{ flex: 1, height: '6px', borderRadius: '3px', background: '#e2e8f0', overflow: 'hidden' }}>
-                          <div
-                            style={{
-                              width: `${Math.min(100, s.porcentaje)}%`,
-                              height: '100%',
-                              background: '#10b981',
-                              borderRadius: '3px'
-                            }}
-                          />
-                        </div>
-                        <span className="t-meta" style={{ fontWeight: 'var(--fw-bold)', minWidth: '32px', textAlign: 'right', color: s.porcentaje > 0 ? '#10b981' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                          {s.porcentaje}%
-                        </span>
-                      </div>
-                    </td>
-
-                    <td style={{ textAlign: 'center' }}>
-                      <button
-                        type="button"
-                        className="dash-row-btn"
-                        onClick={() => navigate('/observaciones')}
-                        title={`Ver observaciones del sitio ${s.id_sitio}`}
-                      >
-                        <ExternalLink size={13} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-
-                {filteredSitios.length === 0 && (
-                  <tr>
-                    <td colSpan={11} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
-                      No se encontraron sitios con los filtros aplicados.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {/* Tabla ErpTable reutilizable con cabecera ordenable, sticky y paginación */}
+          <ErpTable
+            columns={sitiosColumns}
+            data={paginatedSitios}
+            keyField="id_sitio"
+            loading={loading}
+            loadingMessage="Cargando sitios..."
+            emptyIcon={<MapPin size={40} style={{ opacity: 0.35 }} />}
+            emptyTitle="Sin sitios encontrados"
+            emptyDescription="No se encontraron sitios con los filtros aplicados."
+            sortField={sitiosSortField}
+            sortDirection={sitiosSortDirection}
+            onSort={handleSitiosSort}
+            onRowClick={s => navigate(`/observaciones?search=${encodeURIComponent(s.id_sitio)}`)}
+            rowClassName="dash-table-row"
+            page={sitiosPage}
+            pageSize={sitiosPageSize}
+            totalCount={filteredSitios.length}
+            onPageChange={setSitiosPage}
+            hasActiveFilters={!!searchSitio || filterGrupo !== 'TODOS' || filterZona !== 'TODAS'}
+            entityName="sitios"
+            minWidth="940px"
+          />
         </div>
       )}
     </div>

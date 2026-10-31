@@ -1740,46 +1740,47 @@ export default function Observaciones() {
               </div>
             )}
           </div>
+
+          {/* Botón Refrescar (en Fila 1 junto al buscador y filtros) */}
+          <button
+            className="refresh-btn"
+            onClick={() => { loadData(true); loadKpis(); loadAgrupada() }}
+            disabled={loading || loadingAgrupada}
+            title="Refrescar datos"
+          >
+            <RefreshCw size={15} className={loading || loadingAgrupada ? 'spinning' : ''}/>
+          </button>
         </div>
 
-        {/* Fila 2: Acciones a la izquierda y Switch de Vistas a la derecha */}
+        {/* Fila 2: Solo Botón Revisión a la izquierda y Switch a la derecha */}
         <div className="obs-toolbar-row-actions">
-          <div className="obs-toolbar-actions-left">
-            {/* Botón Pasar a En Revisión */}
-            <button
-              type="button"
-              className={`obs-batch-revision-btn ${(kpis.solicitando || 0) === 0 ? 'is-empty' : ''}`}
-              onClick={handlePasarTodasAEnRevision}
-              disabled={batchLoading}
-              title={
-                (kpis.solicitando || 0) > 0
-                  ? `Pasar las ${kpis.solicitando} observaciones en espera a 'En Revisión'`
-                  : 'Pasar observaciones solicitando revisión a En Revisión'
-              }
-            >
-              {batchLoading ? (
-                <RefreshCw size={14} className="spinning" />
-              ) : (
-                <CheckCheck size={15} />
-              )}
-              <span>
-                {batchLoading ? 'Procesando...' : 'Pasar a En Revisión'}
-              </span>
-              <span className="obs-batch-count-badge">
-                {kpis.solicitando || 0}
-              </span>
-            </button>
-
-            {/* Botón Refrescar */}
-            <button
-              className="refresh-btn"
-              onClick={() => { loadData(true); loadKpis(); loadAgrupada() }}
-              disabled={loading || loadingAgrupada}
-              title="Refrescar datos"
-            >
-              <RefreshCw size={15} className={loading || loadingAgrupada ? 'spinning' : ''}/>
-            </button>
-          </div>
+          {/* Botón Pasar a En Revisión */}
+          <button
+            type="button"
+            className={`obs-batch-revision-btn ${(kpis.solicitando || 0) === 0 ? 'is-empty' : ''}`}
+            onClick={handlePasarTodasAEnRevision}
+            disabled={batchLoading}
+            title={
+              (kpis.solicitando || 0) > 0
+                ? `Pasar las ${kpis.solicitando} observaciones en espera a 'En Revisión'`
+                : 'Pasar observaciones solicitando revisión a En Revisión'
+            }
+          >
+            {batchLoading ? (
+              <RefreshCw size={14} className="spinning" />
+            ) : (
+              <CheckCheck size={15} />
+            )}
+            <span className="obs-batch-text-desktop">
+              {batchLoading ? 'Procesando...' : 'Pasar a En Revisión'}
+            </span>
+            <span className="obs-batch-text-mobile">
+              {batchLoading ? 'Procesando...' : 'Revisar'}
+            </span>
+            <span className="obs-batch-count-badge">
+              {kpis.solicitando || 0}
+            </span>
+          </button>
 
           {/* Toggle vista: Por sitio (predeterminada) / Tabla */}
           <div className="vista-toggle">
@@ -1788,14 +1789,14 @@ export default function Observaciones() {
               onClick={() => setVista('agrupada')}
               title="Vista agrupada por sitio"
             >
-              <LayoutList size={15}/> Por sitio
+              <LayoutList size={14}/> <span>Por sitio</span>
             </button>
             <button
               className={`vista-toggle-btn ${vista === 'tabla' ? 'active' : ''}`}
               onClick={() => setVista('tabla')}
               title="Vista tabla detallada"
             >
-              <Table2 size={15}/> Tabla
+              <Table2 size={14}/> <span>Tabla</span>
             </button>
           </div>
         </div>

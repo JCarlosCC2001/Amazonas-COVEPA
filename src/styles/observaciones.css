@@ -4864,6 +4864,17 @@
     padding: 0.85rem 1rem !important;
     gap: 0.6rem !important;
   }
+
+  .dash-operativo-middle-grid .dash-weekly-table-wrap {
+    flex: none !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    width: 100% !important;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 .dash-zone-mini-chips {

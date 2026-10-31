@@ -12,6 +12,7 @@ import {
   exportarExcelReporteDiario,
   exportarExcelReporteSemanal,
   fetchHistorialEnvios,
+  limpiarHistorialEnviosHoy,
   DEFAULT_CONFIG_DIARIO,
   DEFAULT_CONFIG_SEMANAL
 } from '../services/reportesCorreoService'
@@ -280,6 +281,32 @@ export default function Reportes() {
     await guardarConfiguracionActual(false)
     setSubtabActiva('config')
     setTipoVista('HUB')
+  }
+
+  // Limpiar historial de envíos de hoy sin emitir correos
+  const handleLimpiarHistorialHoy = async () => {
+    if (!window.confirm('¿Deseas eliminar el historial de envíos de la jornada de hoy? Esto limpiará la auditoría local y reiniciará el estado de envío sin despachar ningún correo.')) {
+      return
+    }
+    setLoadingHistorial(true)
+    try {
+      await limpiarHistorialEnviosHoy()
+      setConfigDiario(prev => ({ ...prev, ultimo_envio_at: null }))
+      setConfigSemanal(prev => ({ ...prev, ultimo_envio_at: null }))
+      await cargarHistorial()
+      setToast({
+        tipo: 'success',
+        mensaje: 'Historial de hoy eliminado exitosamente. No se ha emitido ningún correo.'
+      })
+    } catch (err) {
+      console.error('Error al limpiar historial:', err)
+      setToast({
+        tipo: 'error',
+        mensaje: 'Ocurrió un error al limpiar el historial.'
+      })
+    } finally {
+      setLoadingHistorial(false)
+    }
   }
 
   // Cargar historial unificado
@@ -1010,6 +1037,36 @@ export default function Reportes() {
                     <span>{despachando ? 'Enviando...' : 'Enviar Reporte de Prueba'}</span>
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpcionesOpen(false)
+                      handleLimpiarHistorialHoy()
+                    }}
+                    disabled={loadingHistorial}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                      width: '100%',
+                      padding: '0.6rem 0.85rem',
+                      background: 'none',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      color: '#b91c1c',
+                      transition: 'background 0.15s'
+                    }}
+                    className="t-body"
+                    onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    title="Eliminar registros de envíos de la jornada de hoy sin disparar correos"
+                  >
+                    <span>🗑️</span>
+                    <span>Limpiar Historial de Hoy</span>
+                  </button>
+
                   <a
                     href="https://console.cron-job.org/jobs"
                     target="_blank"
@@ -1616,25 +1673,72 @@ export default function Reportes() {
                 )}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1 1 240px', maxWidth: '380px' }}>
-                <input
-                  type="text"
-                  className="reporte-input"
-                  placeholder="🔍 Buscar por correo, asunto, id de run..."
-                  value={busquedaHistorial}
-                  onChange={e => setBusquedaHistorial(e.target.value)}
-                  style={{ padding: '0.4rem 0.75rem' }}
-                />
-                {busquedaHistorial && (
-                  <button
-                    type="button"
-                    onClick={() => setBusquedaHistorial('')}
-                    style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.2rem' }}
-                    className="t-caption"
-                  >
-                    ✕
-                  </button>
-                )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '220px', maxWidth: '320px' }}>
+                  <input
+                    type="text"
+                    className="reporte-input"
+                    placeholder="🔍 Buscar por correo, asunto, id de run..."
+                    value={busquedaHistorial}
+                    onChange={e => setBusquedaHistorial(e.target.value)}
+                    style={{ padding: '0.4rem 0.75rem' }}
+                  />
+                  {busquedaHistorial && (
+                    <button
+                      type="button"
+                      onClick={() => setBusquedaHistorial('')}
+                      style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.2rem' }}
+                      className="t-caption"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleLimpiarHistorialHoy}
+                  disabled={loadingHistorial}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.42rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #fee2e2',
+                    background: '#fff1f2',
+                    color: '#b91c1c',
+                    cursor: loadingHistorial ? 'not-allowed' : 'pointer',
+                    fontWeight: 'var(--fw-medium)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  className="t-caption"
+                  title="Eliminar historial de envíos de la jornada de hoy (No envía correos)"
+                >
+                  <span>🗑️</span>
+                  <span>Limpiar Hoy</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={cargarHistorial}
+                  disabled={loadingHistorial}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0.42rem 0.65rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#003060',
+                    cursor: loadingHistorial ? 'not-allowed' : 'pointer'
+                  }}
+                  className="t-caption"
+                  title="Actualizar historial"
+                >
+                  <span>🔄</span>
+                </button>
               </div>
             </div>
 

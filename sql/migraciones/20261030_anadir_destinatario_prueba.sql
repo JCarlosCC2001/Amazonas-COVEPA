@@ -10,3 +10,4 @@ ADD COLUMN IF NOT EXISTS destinatario_prueba TEXT DEFAULT '';
 
 -- Notificar a PostgREST para recargar el esquema de tablas (elimina error de schema cache)
 NOTIFY pgrst, 'reload schema';
+

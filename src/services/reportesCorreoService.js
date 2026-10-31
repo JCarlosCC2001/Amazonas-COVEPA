@@ -1374,10 +1374,53 @@ export function registrarEnvioLocal(registro) {
 }
 
 /**
- * Consulta y unifica el historial completo de envíos de reportes.
- * Permite filtrar por tipo de reporte ('diario' | 'semanal') para que cada
- * tipo de informe conserve su propio historial independiente.
+ * Limpia el historial de envíos de la jornada de hoy en el almacenamiento local y resetea
+ * el indicador de último despacho en Supabase para dejar la jornada limpia sin enviar correos.
  */
+export async function limpiarHistorialEnviosHoy() {
+  const hoyPeru = getPeruDateStr() || toLocalDateString(new Date())
+
+  // 1. Limpiar o filtrar localStorage
+  try {
+    const rawLocal = localStorage.getItem(LOCAL_STORAGE_KEY_HISTORIAL)
+    if (rawLocal) {
+      const items = JSON.parse(rawLocal)
+      if (Array.isArray(items)) {
+        const filtrados = items.filter(item => {
+          const itemFecha = (item.created_at || '').slice(0, 10)
+          return itemFecha !== hoyPeru
+        })
+        localStorage.setItem(LOCAL_STORAGE_KEY_HISTORIAL, JSON.stringify(filtrados))
+      }
+    }
+    localStorage.removeItem('covepa_historial_envios_correo')
+  } catch (_) {}
+
+  // 2. Limpiar ultimo_envio_at en Supabase (modificación de celda existente)
+  try {
+    await supabase
+      .from('configuracion_reportes_correo')
+      .update({ ultimo_envio_at: null })
+      .in('id', ['config_diario', 'config_semanal'])
+  } catch (err) {
+    console.warn('[REPORTES-CORREO] Error al resetear ultimo_envio_at en Supabase:', err)
+  }
+
+  // 3. Limpiar en configuraciones cacheadas en localStorage
+  try {
+    [LOCAL_STORAGE_KEY_DIARIO, LOCAL_STORAGE_KEY_SEMANAL].forEach(k => {
+      const raw = localStorage.getItem(k)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        parsed.ultimo_envio_at = null
+        localStorage.setItem(k, JSON.stringify(parsed))
+      }
+    })
+  } catch (_) {}
+
+  return { ok: true, fecha: hoyPeru }
+}
+
 export async function fetchHistorialEnvios(tipoReporte = null) {
   const unified = []
   const seenRunIds = new Set()
@@ -1445,6 +1488,10 @@ export async function fetchHistorialEnvios(tipoReporte = null) {
       runs.forEach(run => {
         const runIdStr = String(run.id)
         if (seenRunIds.has(runIdStr)) return // Ya procesado desde Supabase
+
+        // Omitir ejecuciones automáticas de cron (schedule) de GitHub Actions que solo consultan la hora
+        // Los envíos reales por cron quedan auditados permanentemente en Supabase (historial_reportes_correo)
+        if (run.event === 'schedule') return
 
         let estadoNormalizado = 'exitoso'
         if (run.status === 'in_progress' || run.status === 'queued') {

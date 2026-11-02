@@ -2,6 +2,58 @@ import { useState, useEffect, useRef } from 'react'
 import { Clock, X } from 'lucide-react'
 
 /**
+ * Extrae y convierte cualquier representación de tiempo a minutos totales.
+ * Soporta:
+ * - HH:MM o H:MM (ej: '01:30', '1:30', '00:45', ':45')
+ * - Lenguaje natural del otro sistema (ej: '1h 30m', '1h', '45 min', '2 días')
+ * - Números simples (ej: '90' -> 90 mins)
+ */
+export function parseTimeToMinutes(val) {
+  if (!val || typeof val !== 'string') return null
+  const s = val.trim().toLowerCase()
+  if (!s) return null
+
+  // Formato estándar con dos puntos (HH:MM o H:MM)
+  if (s.includes(':')) {
+    const parts = s.split(':')
+    const h = parts[0] === '' ? 0 : parseInt(parts[0], 10)
+    const m = parts[1] === '' ? 0 : parseInt(parts[1], 10)
+    if (!isNaN(h) && !isNaN(m)) return (h * 60) + m
+  }
+
+  // Lenguaje natural o mixto (ej: '1h 30m', '45 min', '2 dias', etc.)
+  let totalMinutes = 0
+  let matched = false
+
+  const daysMatch = s.match(/(\d+)\s*d(?:[ií]a|ias|ías)?/i)
+  if (daysMatch) {
+    totalMinutes += parseInt(daysMatch[1], 10) * 24 * 60
+    matched = true
+  }
+
+  const hoursMatch = s.match(/(\d+)\s*h(?:ora|oras|r|rs)?/i)
+  if (hoursMatch) {
+    totalMinutes += parseInt(hoursMatch[1], 10) * 60
+    matched = true
+  }
+
+  const minsMatch = s.match(/(\d+)\s*(?:m|min|minuto|minutos)(?!\w)/i)
+  if (minsMatch) {
+    totalMinutes += parseInt(minsMatch[1], 10)
+    matched = true
+  }
+
+  if (matched) return totalMinutes
+
+  // Si solo son dígitos (ej: "45")
+  if (/^\d+$/.test(s)) {
+    return parseInt(s, 10)
+  }
+
+  return null
+}
+
+/**
  * Normaliza y formatea un valor a HH:MM al perder el foco (onBlur)
  * Soporta entradas como:
  * - '1' -> '01:00'
@@ -9,11 +61,28 @@ import { Clock, X } from 'lucide-react'
  * - ':45' -> '00:45'
  * - '12:5' -> '12:05'
  * - '02:40' -> '02:40'
+ * - '1h 30m' -> '01:30'
  */
 export function normalizeTimeHHMM(val) {
   if (!val || typeof val !== 'string') return ''
   const trimmed = val.trim()
   if (!trimmed) return ''
+
+  // Si ya es HH:MM exacto
+  if (/^\d{2}:\d{2}$/.test(trimmed)) {
+    return trimmed
+  }
+
+  const parsedMins = parseTimeToMinutes(trimmed)
+  if (parsedMins !== null) {
+    const hours = Math.floor(parsedMins / 60)
+    const mins = parsedMins % 60
+    const clampedH = Math.min(Math.max(hours, 0), 99)
+    const clampedM = Math.min(Math.max(mins, 0), 59)
+    const hh = String(clampedH).padStart(2, '0')
+    const mm = String(clampedM).padStart(2, '0')
+    return `${hh}:${mm}`
+  }
 
   const parts = trimmed.split(':')
   let hours = 0
@@ -57,16 +126,16 @@ function applyTimeMask(inputVal) {
 }
 
 /**
- * Calcula la diferencia en minutos y en formato HH:MM entre dos tiempos
+ * Calcula la diferencia en minutos y en formato HH:MM entre dos tiempos.
+ * Acepta tanto formato HH:MM como texto libre de la otra aplicación ('1h 30m', '45 min', etc.)
  */
-export function diffTimeHHMM(realHHMM, demoraHHMM) {
-  if (!realHHMM || !demoraHHMM) return null
-  const [rh, rm] = realHHMM.split(':').map(Number)
-  const [dh, dm] = demoraHHMM.split(':').map(Number)
-  if (isNaN(rh) || isNaN(rm) || isNaN(dh) || isNaN(dm)) return null
+export function diffTimeHHMM(realTime, demoraTime) {
+  if (!realTime || !demoraTime) return null
 
-  const minReal = rh * 60 + rm
-  const minDemora = dh * 60 + dm
+  const minReal = parseTimeToMinutes(realTime)
+  const minDemora = parseTimeToMinutes(demoraTime)
+  if (minReal === null || minDemora === null) return null
+
   const diffMins = minDemora - minReal
 
   const absMins = Math.abs(diffMins)

@@ -214,10 +214,16 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
       updatePayload.revisor = revisor || null
     }
 
-    const { data, error } = await supabase
+    let qEstado = supabase
       .from('observaciones')
       .update(updatePayload)
       .eq('id_obs', idObs)
+
+    if (extraContext?.idSitio) {
+      qEstado = qEstado.eq('id_sitio', extraContext.idSitio)
+    }
+
+    const { data, error } = await qEstado
 
     if (error) {
       console.error('Error al actualizar observación:', error)
@@ -333,22 +339,32 @@ export async function sincronizarAuditoriaObservacion(idObs, {
   console.log(`[AUDITORIA-SYNC] Sincronizando observación ${idObs} con app de fotos:`, payload)
 
   // Actualización en la tabla public.observaciones
-  let { data, error } = await supabase
+  let queryAudit = supabase
     .from('observaciones')
     .update(payload)
     .eq('id_obs', idObs)
-    .select()
+
+  if (idSitio) {
+    queryAudit = queryAudit.eq('id_sitio', idSitio)
+  }
+
+  let { data, error } = await queryAudit.select()
 
   // Compatibilidad defensiva: si la columna revisor en la base de datos se llamase validado_por
   if (error && error.code === 'PGRST204' && payload.revisor !== undefined) {
     const revVal = payload.revisor
     delete payload.revisor
     payload.validado_por = revVal
-    const retry = await supabase
+    let retryQuery = supabase
       .from('observaciones')
       .update(payload)
       .eq('id_obs', idObs)
-      .select()
+
+    if (idSitio) {
+      retryQuery = retryQuery.eq('id_sitio', idSitio)
+    }
+
+    const retry = await retryQuery.select()
     data = retry.data
     error = retry.error
   }
@@ -389,7 +405,7 @@ export async function sincronizarAuditoriaObservacion(idObs, {
  * @param {string|null} comentarioTexto
  * @returns {Promise<{ data: Object|null, error: Object|null }>}
  */
-export async function sincronizarComentarioObservacion(idObs, comentarioTexto) {
+export async function sincronizarComentarioObservacion(idObs, comentarioTexto, idSitio = null) {
   if (!idObs) return { data: null, error: null }
 
   const comentarioLimpio = (comentarioTexto !== undefined && comentarioTexto !== null && String(comentarioTexto).trim() !== '')
@@ -400,11 +416,16 @@ export async function sincronizarComentarioObservacion(idObs, comentarioTexto) {
     comentario_covepa: comentarioLimpio
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('observaciones')
     .update(payload)
     .eq('id_obs', idObs)
-    .select()
+
+  if (idSitio && typeof idSitio === 'string' && (idSitio.startsWith('AM-') || idSitio.includes('-'))) {
+    query = query.eq('id_sitio', idSitio)
+  }
+
+  const { data, error } = await query.select()
 
   if (error) {
     console.error(`[AUDITORIA-SYNC] ❌ Error sincronizando comentario en observación ${idObs}:`, error)
@@ -415,38 +436,111 @@ export async function sincronizarComentarioObservacion(idObs, comentarioTexto) {
 }
 
 /**
+ * Función oficial de conexión y envío hacia Control COVEPA / App Fotos.
+ * Actualiza demoras, tiempos de ejecución y/o dictámenes en public.observaciones
+ * aplicando siempre el filtro conjunto id_obs + id_sitio según la guía oficial.
+ *
+ * @param {Object} params
+ * @param {string} params.idObs - Código Pronatel de la observación (ej. "H1-OC-100-242", "A-340")
+ * @param {string} [params.idSitio] - Código del nodo o sitio (ej. "AM-0034-A01")
+ * @param {string|null} [params.demora] - Motivo o justificación de demora
+ * @param {string|null} [params.tiempoReal] - Tiempo neto de trabajo físico en sitio
+ * @param {string|null} [params.tiempoDemora] - Tiempo total transcurrido con demoras
+ * @param {string} [params.estadoCovepa] - Estado oficial (ej: 'Validado', 'En Revisión')
+ * @param {string} [params.revisor] - Nombre del auditor / revisor
+ * @param {string} [params.fechaSubsanacion] - Fecha y hora en formato ISO
+ * @param {string} [params.comentarioCovepa] - Comentario técnico o acuerdo
+ * @returns {Promise<{ ok: boolean, data: Object|null, error: Object|null, pendingMigration?: boolean }>}
+ */
+export async function enviarTiemposYDemoras({
+  idObs,
+  idSitio,
+  demora,
+  tiempoReal,
+  tiempoDemora,
+  estadoCovepa,
+  revisor,
+  fechaSubsanacion,
+  comentarioCovepa
+} = {}) {
+  if (!idObs) {
+    return { ok: false, data: null, error: new Error('idObs es obligatorio') }
+  }
+
+  const payload = {}
+  if (demora !== undefined) {
+    payload.justificacion_demora = (demora && String(demora).trim() !== '') ? String(demora).trim() : null
+  }
+  if (tiempoReal !== undefined) {
+    payload.tiempo_ejecucion_real = (tiempoReal && String(tiempoReal).trim() !== '') ? String(tiempoReal).trim() : null
+  }
+  if (tiempoDemora !== undefined) {
+    payload.tiempo_ejecucion_demora = (tiempoDemora && String(tiempoDemora).trim() !== '') ? String(tiempoDemora).trim() : null
+  }
+  if (estadoCovepa !== undefined) {
+    payload.estado_covepa = estadoCovepa
+  }
+  if (revisor !== undefined) {
+    payload.revisor = revisor
+  }
+  if (fechaSubsanacion !== undefined) {
+    payload.fecha_subsanacion = fechaSubsanacion
+  }
+  if (comentarioCovepa !== undefined) {
+    payload.comentario_covepa = comentarioCovepa
+  }
+
+  if (Object.keys(payload).length === 0) {
+    return { ok: true, data: null, error: null }
+  }
+
+  try {
+    let query = supabase.from('observaciones').update(payload).eq('id_obs', idObs)
+    if (idSitio) {
+      query = query.eq('id_sitio', idSitio)
+    }
+
+    const { data, error } = await query.select()
+
+    if (error) {
+      if (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('does not exist')) {
+        console.warn(`[CONTROL-COVEPA] ⚠️ Advertencia de columnas en Supabase para ${idObs} (${idSitio || ''}):`, error.message)
+        return { ok: true, data: null, error: null, pendingMigration: true }
+      }
+      console.error(`[CONTROL-COVEPA] ❌ Error enviando datos hacia Control COVEPA (${idObs}):`, error)
+      return { ok: false, data: null, error }
+    }
+
+    console.log(`[CONTROL-COVEPA] ✅ Datos sincronizados con éxito hacia Control COVEPA (${idObs}${idSitio ? ` · ${idSitio}` : ''})`)
+    return { ok: true, data: data?.[0] || null, error: null }
+  } catch (err) {
+    console.error(`[CONTROL-COVEPA] ❌ Excepción al sincronizar datos hacia Control COVEPA:`, err)
+    return { ok: false, data: null, error: err }
+  }
+}
+
+/**
  * Actualiza la justificación de demora o control de incidentes de una observación técnica.
  * Si es null o vacío, indica que la observación se resolvió dentro del tiempo normal sin incidentes.
  *
  * @param {string} idObs
  * @param {string|null} justificacionTexto
+ * @param {string|null} [idSitio]
  * @returns {Promise<{ data: Object|null, error: Object|null }>}
  */
-export async function sincronizarJustificacionDemora(idObs, justificacionTexto) {
-  if (!idObs) return { data: null, error: null }
+export async function sincronizarJustificacionDemora(idObs, justificacionTexto, idSitio = null) {
+  const res = await enviarTiemposYDemoras({
+    idObs,
+    idSitio,
+    demora: justificacionTexto
+  })
 
-  const justificacionLimpia = (justificacionTexto !== undefined && justificacionTexto !== null && String(justificacionTexto).trim() !== '')
-    ? String(justificacionTexto).trim()
-    : null
-
-  const payload = {
-    justificacion_demora: justificacionLimpia
+  if (!res.ok && res.error && !res.pendingMigration) {
+    throw new Error(`Error sincronizando justificación de demora: ${res.error.message}`)
   }
 
-  const { data, error } = await supabase
-    .from('observaciones')
-    .update(payload)
-    .eq('id_obs', idObs)
-    .select()
-
-  if (error) {
-    console.error(`[AUDITORIA-SYNC] ❌ Error sincronizando justificación de demora en observación ${idObs}:`, error)
-    throw new Error(`Error sincronizando justificación de demora: ${error.message}`)
-  }
-
-  return { data: data?.[0] || null, error: null }
+  return { data: res.data, error: res.error, pendingMigration: res.pendingMigration }
 }
-
 
 /**
  * Actualiza los tiempos de ejecución de una observación técnica (tiempo real y tiempo con demoras).
@@ -456,47 +550,20 @@ export async function sincronizarJustificacionDemora(idObs, justificacionTexto) 
  * @param {Object} tiempos
  * @param {string|null} [tiempos.tiempoReal]
  * @param {string|null} [tiempos.tiempoDemora]
+ * @param {string|null} [idSitio]
  * @returns {Promise<{ data: Object|null, error: Object|null, pendingMigration?: boolean }>}
  */
-export async function sincronizarTiemposEjecucion(idObs, { tiempoReal, tiempoDemora } = {}) {
-  if (!idObs) return { data: null, error: null }
+export async function sincronizarTiemposEjecucion(idObs, { tiempoReal, tiempoDemora } = {}, idSitio = null) {
+  const res = await enviarTiemposYDemoras({
+    idObs,
+    idSitio,
+    tiempoReal,
+    tiempoDemora
+  })
 
-  const payload = {}
-  if (tiempoReal !== undefined) {
-    payload.tiempo_ejecucion_real = (tiempoReal && String(tiempoReal).trim() !== '')
-      ? String(tiempoReal).trim()
-      : null
-  }
-  if (tiempoDemora !== undefined) {
-    payload.tiempo_ejecucion_demora = (tiempoDemora && String(tiempoDemora).trim() !== '')
-      ? String(tiempoDemora).trim()
-      : null
+  if (!res.ok && res.error && !res.pendingMigration) {
+    throw new Error(`Error sincronizando tiempos de ejecución: ${res.error.message}`)
   }
 
-  if (Object.keys(payload).length === 0) return { data: null, error: null }
-
-  try {
-    const { data, error } = await supabase
-      .from('observaciones')
-      .update(payload)
-      .eq('id_obs', idObs)
-      .select()
-
-    if (error) {
-      if (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('does not exist')) {
-        console.warn(`[AUDITORIA-SYNC] ⚠️ Columnas de tiempos no encontradas en Supabase para ${idObs}. Ejecuta el script sql/migraciones/20261031_anadir_tiempos_ejecucion_observaciones.sql.`)
-        return { data: null, error: null, pendingMigration: true }
-      }
-      console.error(`[AUDITORIA-SYNC] ❌ Error sincronizando tiempos en observación ${idObs}:`, error)
-      throw new Error(`Error sincronizando tiempos de ejecución: ${error.message}`)
-    }
-
-    return { data: data?.[0] || null, error: null }
-  } catch (err) {
-    if (err.message?.includes('schema cache') || err.message?.includes('does not exist')) {
-      console.warn(`[AUDITORIA-SYNC] ⚠️ Columnas pendientes de migración en Supabase:`, err.message)
-      return { data: null, error: null, pendingMigration: true }
-    }
-    throw err
-  }
+  return { data: res.data, error: res.error, pendingMigration: res.pendingMigration }
 }

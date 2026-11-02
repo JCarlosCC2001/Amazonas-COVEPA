@@ -3,6 +3,8 @@ import {
   sincronizarAuditoriaObservacion,
   sincronizarComentarioObservacion,
   sincronizarJustificacionDemora,
+  sincronizarTiemposEjecucion,
+  enviarTiemposYDemoras,
   normalizarEstadoOficial,
   resolverNombreAuditor,
   sincronizarEstadoConControlFotos,
@@ -17,6 +19,8 @@ export {
   sincronizarAuditoriaObservacion,
   sincronizarComentarioObservacion,
   sincronizarJustificacionDemora,
+  sincronizarTiemposEjecucion,
+  enviarTiemposYDemoras,
   normalizarEstadoOficial,
   resolverNombreAuditor,
   sincronizarEstadoConControlFotos,
@@ -231,8 +235,9 @@ export async function fetchFiltrosObservaciones() {
 // 4. Actualiza y sincroniza los campos de auditoría COVEPA
 // (Conectado con el puente de auditoría para la app de fotos de campo)
 // ────────────────────────────────────────────────────────────
-export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subsanacion, comentario_covepa, revisor, validado_por }) {
+export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subsanacion, comentario_covepa, revisor, validado_por, id_sitio, idSitio } = {}, maybeSitio = null) {
   const rev = revisor !== undefined ? revisor : validado_por
+  const siteId = idSitio || id_sitio || maybeSitio
 
   // Si se actualiza el estado de la observación, delegar al puente oficial de auditoría
   if (estado_covepa !== undefined) {
@@ -240,14 +245,15 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
       nuevoEstado: estado_covepa,
       revisor: rev,
       comentarioTexto: comentario_covepa,
-      fechaSubsanacion: fecha_subsanacion
+      fechaSubsanacion: fecha_subsanacion,
+      idSitio: siteId
     })
     return res.data
   }
 
   // Si sólo se actualiza el comentario sin alterar estado
   if (comentario_covepa !== undefined && estado_covepa === undefined && fecha_subsanacion === undefined) {
-    const res = await sincronizarComentarioObservacion(idObs, comentario_covepa, rev)
+    const res = await sincronizarComentarioObservacion(idObs, comentario_covepa, siteId)
     return res.data
   }
 
@@ -256,10 +262,16 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
   if (comentario_covepa !== undefined) payload.comentario_covepa = comentario_covepa
   if (rev !== undefined) payload.revisor = rev || null
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('observaciones')
     .update(payload)
     .eq('id_obs', idObs)
+
+  if (siteId) {
+    query = query.eq('id_sitio', siteId)
+  }
+
+  const { data, error } = await query
     .select()
     .single()
 
@@ -268,12 +280,16 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
     if (error.code === 'PGRST204' && payload.revisor !== undefined) {
       delete payload.revisor
       if (rev !== undefined) payload.validado_por = rev || null
-      const retryVal = await supabase.from('observaciones').update(payload).eq('id_obs', idObs).select().single()
+      let retryQuery = supabase.from('observaciones').update(payload).eq('id_obs', idObs)
+      if (siteId) retryQuery = retryQuery.eq('id_sitio', siteId)
+      const retryVal = await retryQuery.select().single()
       if (!retryVal.error) return retryVal.data
 
       // Si tampoco existe validado_por, guardar sin ese campo
       delete payload.validado_por
-      const retry = await supabase.from('observaciones').update(payload).eq('id_obs', idObs).select().single()
+      let retryClean = supabase.from('observaciones').update(payload).eq('id_obs', idObs)
+      if (siteId) retryClean = retryClean.eq('id_sitio', siteId)
+      const retry = await retryClean.select().single()
       if (retry.error) throw new Error(retry.error.message)
       return retry.data
     }

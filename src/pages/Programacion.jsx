@@ -2372,7 +2372,8 @@ function ModalDetallesProgramacion({
     try {
       // Regla: En revisores solo va personal de Gilat
       const val = (newRevisor && esRevisorGilat(newRevisor, gilatOptions)) ? newRevisor : null
-      await updateObservacionCovepa(obs.id_obs, { revisor: val })
+      const siteId = obs.id_sitio || currentSitioId
+      await updateObservacionCovepa(obs.id_obs, { revisor: val, id_sitio: siteId })
       setObservaciones(prev => prev.map(o => {
         if (o.id_obs === obs.id_obs) {
           return { ...o, revisor: val }
@@ -2389,7 +2390,8 @@ function ModalDetallesProgramacion({
   const handleUpdateFecha = async (obs, newFecha) => {
     try {
       const valFecha = newFecha ? getPeruISOString(newFecha) : null
-      await updateObservacionCovepa(obs.id_obs, { fecha_subsanacion: valFecha })
+      const siteId = obs.id_sitio || currentSitioId
+      await updateObservacionCovepa(obs.id_obs, { fecha_subsanacion: valFecha, id_sitio: siteId })
       setObservaciones(prev => prev.map(o => {
         if (o.id_obs === obs.id_obs) {
           return { ...o, fecha_subsanacion: valFecha }
@@ -2414,7 +2416,7 @@ function ModalDetallesProgramacion({
     setSavingCommentId(obsId)
     try {
       const val = commentsRef.current[obsId] ?? ''
-      await sincronizarComentarioObservacion(obsId, val)
+      await sincronizarComentarioObservacion(obsId, val, currentSitioId)
       dirtyCommentsRef.current.delete(obsId)
       setSavedCommentId(obsId)
       setTimeout(() => {
@@ -2441,7 +2443,7 @@ function ModalDetallesProgramacion({
     try {
       const val = delaysRef.current[obsId] ?? ''
       const justificacionLimpia = val.trim() !== '' ? val.trim() : null
-      await sincronizarJustificacionDemora(obsId, justificacionLimpia)
+      await sincronizarJustificacionDemora(obsId, justificacionLimpia, currentSitioId)
       dirtyDelaysRef.current.delete(obsId)
       setSavedDelayId(obsId)
       setTimeout(() => {
@@ -2474,7 +2476,7 @@ function ModalDetallesProgramacion({
     try {
       const tReal = tiemposRealRef.current[obsId] ? tiemposRealRef.current[obsId].trim() : null
       const tDemora = tiemposDemoraRef.current[obsId] ? tiemposDemoraRef.current[obsId].trim() : null
-      await sincronizarTiemposEjecucion(obsId, { tiempoReal: tReal, tiempoDemora: tDemora })
+      await sincronizarTiemposEjecucion(obsId, { tiempoReal: tReal, tiempoDemora: tDemora }, currentSitioId)
       dirtyTiemposRef.current.delete(obsId)
       setSavedTimeId(obsId)
       setTimeout(() => {
@@ -2499,7 +2501,7 @@ function ModalDetallesProgramacion({
     if (dirtyIds.length > 0) {
       promises.push(
         ...dirtyIds.map(id =>
-          sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '')
+          sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', currentSitioId)
         )
       )
       dirtyCommentsRef.current.clear()
@@ -2509,7 +2511,7 @@ function ModalDetallesProgramacion({
       promises.push(
         ...dirtyDelayIds.map(id => {
           const val = delaysRef.current[id] ?? ''
-          return sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null)
+          return sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null, currentSitioId)
         })
       )
       dirtyDelaysRef.current.clear()
@@ -2520,7 +2522,7 @@ function ModalDetallesProgramacion({
         ...dirtyTimeIds.map(id => {
           const tReal = tiemposRealRef.current[id] ? tiemposRealRef.current[id].trim() : null
           const tDemora = tiemposDemoraRef.current[id] ? tiemposDemoraRef.current[id].trim() : null
-          return sincronizarTiemposEjecucion(id, { tiempoReal: tReal, tiempoDemora: tDemora })
+          return sincronizarTiemposEjecucion(id, { tiempoReal: tReal, tiempoDemora: tDemora }, currentSitioId)
         })
       )
       dirtyTiemposRef.current.clear()
@@ -2535,7 +2537,7 @@ function ModalDetallesProgramacion({
       }
     }
     onClose()
-  }, [onClose, onObservationUpdated])
+  }, [onClose, onObservationUpdated, currentSitioId])
 
   // Listener para cerrar con tecla ESC guardando automáticamente
   useEffect(() => {
@@ -2553,10 +2555,10 @@ function ModalDetallesProgramacion({
     const handleBeforeUnload = () => {
       const dirtyIds = Array.from(dirtyCommentsRef.current)
       const dirtyDelayIds = Array.from(dirtyDelaysRef.current)
+      const dirtyTimeIds = Array.from(dirtyTiemposRef.current)
       if (dirtyIds.length > 0) {
-        const auditorActual = resolverNombreAuditor(user, personalMember)
         dirtyIds.forEach(id => {
-          sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', auditorActual)
+          sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', currentSitioId)
             .catch(err => console.error('Error autoguardando al cerrar página:', err))
         })
         dirtyCommentsRef.current.clear()
@@ -2564,10 +2566,19 @@ function ModalDetallesProgramacion({
       if (dirtyDelayIds.length > 0) {
         dirtyDelayIds.forEach(id => {
           const val = delaysRef.current[id] ?? ''
-          sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null)
+          sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null, currentSitioId)
             .catch(err => console.error('Error autoguardando demora al cerrar:', err))
         })
         dirtyDelaysRef.current.clear()
+      }
+      if (dirtyTimeIds.length > 0) {
+        dirtyTimeIds.forEach(id => {
+          const tReal = tiemposRealRef.current[id] ? tiemposRealRef.current[id].trim() : null
+          const tDemora = tiemposDemoraRef.current[id] ? tiemposDemoraRef.current[id].trim() : null
+          sincronizarTiemposEjecucion(id, { tiempoReal: tReal, tiempoDemora: tDemora }, currentSitioId)
+            .catch(err => console.error('Error autoguardando tiempos al cerrar:', err))
+        })
+        dirtyTiemposRef.current.clear()
       }
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -2575,10 +2586,10 @@ function ModalDetallesProgramacion({
       window.removeEventListener('beforeunload', handleBeforeUnload)
       const dirtyIds = Array.from(dirtyCommentsRef.current)
       const dirtyDelayIds = Array.from(dirtyDelaysRef.current)
+      const dirtyTimeIds = Array.from(dirtyTiemposRef.current)
       if (dirtyIds.length > 0) {
-        const auditorActual = resolverNombreAuditor(user, personalMember)
         dirtyIds.forEach(id => {
-          sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', auditorActual)
+          sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', currentSitioId)
             .catch(err => console.error('Error autoguardando al desmontar modal:', err))
         })
         dirtyCommentsRef.current.clear()
@@ -2586,26 +2597,35 @@ function ModalDetallesProgramacion({
       if (dirtyDelayIds.length > 0) {
         dirtyDelayIds.forEach(id => {
           const val = delaysRef.current[id] ?? ''
-          sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null)
+          sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null, currentSitioId)
             .catch(err => console.error('Error autoguardando demora al desmontar:', err))
         })
         dirtyDelaysRef.current.clear()
       }
+      if (dirtyTimeIds.length > 0) {
+        dirtyTimeIds.forEach(id => {
+          const tReal = tiemposRealRef.current[id] ? tiemposRealRef.current[id].trim() : null
+          const tDemora = tiemposDemoraRef.current[id] ? tiemposDemoraRef.current[id].trim() : null
+          sincronizarTiemposEjecucion(id, { tiempoReal: tReal, tiempoDemora: tDemora }, currentSitioId)
+            .catch(err => console.error('Error autoguardando tiempos al desmontar:', err))
+        })
+        dirtyTiemposRef.current.clear()
+      }
     }
-  }, [user, personalMember])
+  }, [user, personalMember, currentSitioId])
 
   // Cambiar de sitio guardando automáticamente comentarios y demoras pendientes
   const handleSwitchSitio = async (newSitioId) => {
     if (newSitioId === currentSitioId) return
     const dirtyIds = Array.from(dirtyCommentsRef.current)
     const dirtyDelayIds = Array.from(dirtyDelaysRef.current)
+    const dirtyTimeIds = Array.from(dirtyTiemposRef.current)
     const promises = []
 
     if (dirtyIds.length > 0) {
-      const auditorActual = resolverNombreAuditor(user, personalMember)
       promises.push(
         ...dirtyIds.map(id =>
-          sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', auditorActual)
+          sincronizarComentarioObservacion(id, commentsRef.current[id] ?? '', currentSitioId)
         )
       )
       dirtyCommentsRef.current.clear()
@@ -2615,10 +2635,21 @@ function ModalDetallesProgramacion({
       promises.push(
         ...dirtyDelayIds.map(id => {
           const val = delaysRef.current[id] ?? ''
-          return sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null)
+          return sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null, currentSitioId)
         })
       )
       dirtyDelaysRef.current.clear()
+    }
+
+    if (dirtyTimeIds.length > 0) {
+      promises.push(
+        ...dirtyTimeIds.map(id => {
+          const tReal = tiemposRealRef.current[id] ? tiemposRealRef.current[id].trim() : null
+          const tDemora = tiemposDemoraRef.current[id] ? tiemposDemoraRef.current[id].trim() : null
+          return sincronizarTiemposEjecucion(id, { tiempoReal: tReal, tiempoDemora: tDemora }, currentSitioId)
+        })
+      )
+      dirtyTiemposRef.current.clear()
     }
 
     if (promises.length > 0) {
@@ -2722,6 +2753,8 @@ function ModalDetallesProgramacion({
         const fechaRev = isRevision ? '' : getPeruDateStr(o.fecha_subsanacion)
         const comentario = comments[o.id_obs] || o.comentario_covepa || ''
         const demora = delays[o.id_obs] !== undefined ? delays[o.id_obs] : (o.justificacion_demora || '')
+        const tReal = tiemposReal[o.id_obs] !== undefined ? tiemposReal[o.id_obs] : (o.tiempo_ejecucion_real || '')
+        const tDemora = tiemposDemora[o.id_obs] !== undefined ? tiemposDemora[o.id_obs] : (o.tiempo_ejecucion_demora || '')
         const sId = o.id_sitio || currentSitioId
         const loc = siteInfo.localidad || sitiosMap[sId]?.localidad || ''
         const zona = siteInfo.zona || sitiosMap[sId]?.zona || ''
@@ -2739,7 +2772,9 @@ function ModalDetallesProgramacion({
           revisor,
           fechaRev,
           comentario,
-          demora
+          demora,
+          tReal,
+          tDemora
         ]
       })
 

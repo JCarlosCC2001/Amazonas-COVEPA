@@ -95,7 +95,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     try {
       const val = commentValRef.current || ''
       // Nota: Nunca autocompleta ni modifica el campo revisor
-      await sincronizarComentarioObservacion(obsLocal.id_obs, val)
+      await sincronizarComentarioObservacion(obsLocal.id_obs, val, obsLocal.id_sitio)
       isDirtyCommentRef.current = false
       setSavedComment(true)
       setTimeout(() => setSavedComment(false), 2500)
@@ -116,7 +116,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     try {
       const val = delayValRef.current || ''
       const justificacionLimpia = val.trim() !== '' ? val.trim() : null
-      await sincronizarJustificacionDemora(obsLocal.id_obs, justificacionLimpia)
+      await sincronizarJustificacionDemora(obsLocal.id_obs, justificacionLimpia, obsLocal.id_sitio)
       isDirtyDelayRef.current = false
       setSavedDelay(true)
       setTimeout(() => setSavedDelay(false), 2500)
@@ -137,7 +137,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     try {
       const tReal = realTimeRef.current ? realTimeRef.current.trim() : null
       const tDemora = delayTimeRef.current ? delayTimeRef.current.trim() : null
-      await sincronizarTiemposEjecucion(obsLocal.id_obs, { tiempoReal: tReal, tiempoDemora: tDemora })
+      await sincronizarTiemposEjecucion(obsLocal.id_obs, { tiempoReal: tReal, tiempoDemora: tDemora }, obsLocal.id_sitio)
       isDirtyTimeRef.current = false
       setSavedTime(true)
       setTimeout(() => setSavedTime(false), 2500)
@@ -250,7 +250,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     try {
       // Regla: En revisores solo va personal de Gilat
       const val = (newRevisor && esRevisorGilat(newRevisor, gilatOptions)) ? newRevisor : null
-      await updateObservacionCovepa(obsLocal.id_obs, { revisor: val })
+      await updateObservacionCovepa(obsLocal.id_obs, { revisor: val, id_sitio: obsLocal.id_sitio })
       const updatedRow = { ...obsLocal, revisor: val }
       setObsLocal(updatedRow)
       if (onSaved) onSaved(updatedRow)
@@ -266,7 +266,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     setUpdating(true)
     try {
       const valFecha = newFecha ? getPeruISOString(newFecha) : null
-      await updateObservacionCovepa(obsLocal.id_obs, { fecha_subsanacion: valFecha })
+      await updateObservacionCovepa(obsLocal.id_obs, { fecha_subsanacion: valFecha, id_sitio: obsLocal.id_sitio })
       const updatedRow = { ...obsLocal, fecha_subsanacion: valFecha }
       setObsLocal(updatedRow)
       if (onSaved) onSaved(updatedRow)

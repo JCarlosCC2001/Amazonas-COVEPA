@@ -53,16 +53,7 @@ export const KNOWN_LEGACY_NAMES = {
 
 // ────────────────────────────────────────────────────────────
 export async function getProgramaciones(fechaInicio, fechaFin) {
-  // 1. Cargar catálogo de personal activo desde la BD EXTERNA
-  const allStaff = await getPersonalActivo()
-
-  const staffMap = {}
-  ;(allStaff || []).forEach(p => {
-    staffMap[p.id] = p
-    if (p.id_personal) staffMap[p.id_personal] = p
-  })
-
-  // 2. Consultar programaciones sin depender de la tabla personal local
+  // 1. Preparar consulta de programaciones
   let query = supabase
     .from('programaciones')
     .select(`
@@ -87,7 +78,17 @@ export async function getProgramaciones(fechaInicio, fechaFin) {
   if (fechaInicio) query = query.gte('fecha', fechaInicio)
   if (fechaFin) query = query.lte('fecha', fechaFin)
 
-  const { data, error } = await query
+  // 2. Consultar en paralelo catálogo de personal activo y programaciones
+  const [allStaff, { data, error }] = await Promise.all([
+    getPersonalActivo(),
+    query
+  ])
+
+  const staffMap = {}
+  ;(allStaff || []).forEach(p => {
+    staffMap[p.id] = p
+    if (p.id_personal) staffMap[p.id_personal] = p
+  })
 
   if (error) {
     handleSupabaseAuthError(error)

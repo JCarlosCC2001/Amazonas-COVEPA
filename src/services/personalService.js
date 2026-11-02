@@ -1,6 +1,16 @@
 import { supabase, supabaseExt, handleSupabaseAuthError } from '../lib/supabase.js'
 import { formatNombrePersona } from '../utils/helpers.js'
 
+// Caché en memoria para evitar cascadas y llamadas repetitivas lentas a la base externa
+let _cachedPersonal = null
+let _cachedPersonalAt = 0
+const PERSONAL_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutos de caché
+
+export function invalidatePersonalCache() {
+  _cachedPersonal = null
+  _cachedPersonalAt = 0
+}
+
 // Fallback del personal inicial del proyecto por si falla la red
 export const PERSONAL_FALLBACK = [
   { id: '1', id_personal: '1', cargo: 'TÉCNICO', nombre: 'Jhonatan', apellido: 'Flores', nombre_completo: 'Jhonatan Flores', contacto_1: '929985566', operador_1: 'BITEL', empresa: 'COVEPA', estado: 'Activo', activo: true },
@@ -172,13 +182,31 @@ export function saveLocalCuadrillasMap(map) {
 // 1. Obtener todo el personal desde la BASE DE DATOS EXTERNA
 // y enriquecer con los perfiles/roles de esta base de datos
 // ────────────────────────────────────────────────────────────
-export async function fetchPersonal() {
+export async function fetchPersonal(forceRefresh = false) {
+  const now = Date.now()
+  if (!forceRefresh && _cachedPersonal && (now - _cachedPersonalAt < PERSONAL_CACHE_TTL_MS)) {
+    return _cachedPersonal
+  }
+
   try {
-    // 1. Consultar base de datos externa (tabla personal)
-    const { data: extPersonal, error: extErr } = await supabaseExt
-      .from('personal')
-      .select('*')
-      .order('nombre', { ascending: true })
+    // 1. Consultar en paralelo: base externa, perfiles locales y cuadrillas locales
+    const [extRes, profRes, cuadrillasRes] = await Promise.all([
+      supabaseExt
+        .from('personal')
+        .select('*')
+        .order('nombre', { ascending: true }),
+      supabase
+        .from('perfiles_usuario')
+        .select('id, email, rol, id_personal, activo, updated_at')
+        .catch(err => ({ data: null, error: err })),
+      supabase
+        .from('personal_cuadrillas')
+        .select('id_personal, nombre_completo, cuadrilla, cargo, activo')
+        .eq('activo', true)
+        .catch(err => ({ data: null, error: err }))
+    ])
+
+    const { data: extPersonal, error: extErr } = extRes
 
     if (extErr) {
       console.warn('Error consultando base externa:', extErr.message)
@@ -189,47 +217,32 @@ export async function fetchPersonal() {
       return PERSONAL_FALLBACK.map(p => mapExternalPerson(p))
     }
 
-    // 2. Consultar cuentas de usuario (roles) en esta base de datos
+    // 2. Mapear cuentas de usuario (roles) en esta base de datos
     let profileMap = {}
     let profileByEmailMap = {}
-
-    try {
-      const { data: profData } = await supabase.from('perfiles_usuario').select('id, email, rol, id_personal, activo, updated_at') // M8
-      if (profData) {
-        profData.forEach(pr => {
-          if (pr.id_personal) profileMap[pr.id_personal] = pr
-          if (pr.email) profileByEmailMap[pr.email.toLowerCase().trim()] = pr
-        })
-      }
-    } catch (localErr) {
-      console.warn('Aviso leyendo perfiles_usuario locales:', localErr)
+    if (profRes?.data) {
+      profRes.data.forEach(pr => {
+        if (pr.id_personal) profileMap[pr.id_personal] = pr
+        if (pr.email) profileByEmailMap[pr.email.toLowerCase().trim()] = pr
+      })
     }
 
-    // 3. Consultar la tabla oficial 'personal_cuadrillas' en la base de datos local
+    // 3. Mapear la tabla oficial 'personal_cuadrillas' en la base de datos local
     const memberCuadrillaMap = {}
     let hasDbCuadrillas = false
-
     let localDbCuadrillas = []
-    try {
-      const { data: dbCuadrillas, error: cErr } = await supabase
-        .from('personal_cuadrillas')
-        .select('id_personal, nombre_completo, cuadrilla, cargo, activo') // M8
-        .eq('activo', true)
 
-      if (!cErr && dbCuadrillas && dbCuadrillas.length > 0) {
-        hasDbCuadrillas = true
-        localDbCuadrillas = dbCuadrillas
-        dbCuadrillas.forEach(row => {
-          if (row.id_personal) {
-            memberCuadrillaMap[row.id_personal] = { cuadrilla: row.cuadrilla, cargo: row.cargo }
-          }
-          if (row.nombre_completo) {
-            memberCuadrillaMap[row.nombre_completo.toUpperCase().trim()] = { cuadrilla: row.cuadrilla, cargo: row.cargo }
-          }
-        })
-      }
-    } catch (cErr) {
-      console.warn('Aviso leyendo tabla personal_cuadrillas local:', cErr)
+    if (!cuadrillasRes?.error && cuadrillasRes?.data && cuadrillasRes.data.length > 0) {
+      hasDbCuadrillas = true
+      localDbCuadrillas = cuadrillasRes.data
+      cuadrillasRes.data.forEach(row => {
+        if (row.id_personal) {
+          memberCuadrillaMap[row.id_personal] = { cuadrilla: row.cuadrilla, cargo: row.cargo }
+        }
+        if (row.nombre_completo) {
+          memberCuadrillaMap[row.nombre_completo.toUpperCase().trim()] = { cuadrilla: row.cuadrilla, cargo: row.cargo }
+        }
+      })
     }
 
     // Si aún no se ha ejecutado el script en la BD local, usar la configuración base
@@ -276,6 +289,8 @@ export async function fetchPersonal() {
       })
     }
 
+    _cachedPersonal = list
+    _cachedPersonalAt = Date.now()
     return list
   } catch (err) {
     console.error('Error general en fetchPersonal:', err)
@@ -330,6 +345,7 @@ export async function createPersonal(payload) {
     }
   }
 
+  invalidatePersonalCache()
   return mapExternalPerson(newPerson)
 }
 
@@ -405,6 +421,7 @@ export async function updatePersonal(id, payload) {
     }
   }
 
+  invalidatePersonalCache()
   return mapExternalPerson(updatedPerson)
 }
 
@@ -426,6 +443,7 @@ export async function deletePersonal(id) {
     console.warn('Limpieza local no crítica:', err)
   }
 
+  invalidatePersonalCache()
   return true
 }
 
@@ -531,6 +549,7 @@ export async function toggleAccesoPersonal(id, activo, email, rol = 'supervisor'
     }
   }
 
+  invalidatePersonalCache()
   return mapExternalPerson(updatedExt)
 }
 
@@ -602,6 +621,7 @@ export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idC
     throw err
   }
 
+  invalidatePersonalCache()
   return true
 }
 
@@ -622,6 +642,7 @@ export async function updatePersonalCuadrilla(idPersonal, nuevaCuadrilla, nombre
         updated_at: new Date().toISOString()
       }, { onConflict: 'id_personal' })
       .select()
+    invalidatePersonalCache()
     return { data, error }
   } catch (err) {
     return { error: err.message }

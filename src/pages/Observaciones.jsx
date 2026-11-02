@@ -1189,18 +1189,21 @@ export default function Observaciones() {
     filtroDemora
   }), [search, protocolo, estadoCovepa, idSitio, siteIdsForCuadrilla, filtroDemora])
 
-  // Carga inicial de filtros disponibles, catálogo de localidades y personal
+  // Carga inicial coordinada: KPIs globales, catálogo de localidades, personal y opciones de filtros
   useEffect(() => {
-    fetchFiltrosObservaciones().then(setFiltros)
-    getCachedSitiosAsignados().then(list => {
-      const map = {}
-      for (const s of (list || [])) {
-        map[s.id_site] = s
-      }
-      setSitiosMap(map)
-    })
-    getPersonalActivo().then(list => setTecnicos(list || [])).catch(() => {})
-  }, [])
+    Promise.all([
+      loadKpis(),
+      fetchFiltrosObservaciones().then(setFiltros).catch(() => {}),
+      getCachedSitiosAsignados().then(list => {
+        const map = {}
+        for (const s of (list || [])) {
+          map[s.id_site] = s
+        }
+        setSitiosMap(map)
+      }).catch(() => {}),
+      getPersonalActivo().then(list => setTecnicos(list || [])).catch(() => {})
+    ])
+  }, [loadKpis])
 
   // Carga de datos
   const loadData = useCallback(async (resetPage = false) => {
@@ -1265,8 +1268,6 @@ export default function Observaciones() {
   }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla, filtroDemora])
   useEffect(() => { if (vista === 'tabla' && page > 1) loadData() }, [page])
   useEffect(() => { if (vista === 'tabla') loadData(false) }, [sortField, sortDirection])
-  // Los medidores son métricas globales del proyecto y NO se alteran al aplicar filtros
-  useEffect(() => { loadKpis() }, [loadKpis])
   useEffect(() => { loadAgrupada() }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla, filtroDemora])
 
   const handleSearchChange = (val) => {

@@ -100,8 +100,10 @@ export default function Programacion() {
   }, [])
 
   useEffect(() => {
-    loadDayAvance(currentDate)
-    loadUltimosReportes(currentDate)
+    Promise.all([
+      loadDayAvance(currentDate),
+      loadUltimosReportes(currentDate)
+    ])
   }, [currentDate, loadDayAvance, loadUltimosReportes])
 
   // Refrescar automáticamente los minutos relativos cada 60 segundos
@@ -267,20 +269,15 @@ export default function Programacion() {
       setProgramaciones(progs)
 
       // Extraer todos los sitios de las programaciones para consultar su progreso
-      const allSites = []
-      progs.forEach(p => {
-        ;(p.sitios || []).forEach(s => {
-          if (s.id_sitio) allSites.push(s.id_sitio)
-        })
-      })
+      const allSites = [...new Set(progs.flatMap(p => (p.sitios || []).map(s => s.id_sitio).filter(Boolean)))]
 
-      if (allSites.length > 0) {
-        const stats = await getSitiosObservacionesResumen(allSites)
-        setSitiosStats(stats)
-      } else {
-        setSitiosStats({})
-      }
-      loadDayAvance(currentDate)
+      // Consultar resumen de observaciones y avance del día en paralelo
+      await Promise.all([
+        allSites.length > 0
+          ? getSitiosObservacionesResumen(allSites).then(setSitiosStats)
+          : Promise.resolve(setSitiosStats({})),
+        loadDayAvance(currentDate)
+      ])
     } catch (err) {
       console.error('Error cargando programaciones:', err)
     } finally {

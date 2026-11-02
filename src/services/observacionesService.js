@@ -211,10 +211,25 @@ export async function fetchObservacionesKPIs() {
   }
 }
 
+// Caché en memoria para opciones de filtros
+let _cachedFiltros = null
+let _cachedFiltrosAt = 0
+const FILTROS_CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutos de caché
+
+export function invalidateFiltrosCache() {
+  _cachedFiltros = null
+  _cachedFiltrosAt = 0
+}
+
 // ────────────────────────────────────────────────────────────
 // 3. Obtiene los valores únicos para los filtros de la toolbar
 // ────────────────────────────────────────────────────────────
-export async function fetchFiltrosObservaciones() {
+export async function fetchFiltrosObservaciones(forceRefresh = false) {
+  const now = Date.now()
+  if (!forceRefresh && _cachedFiltros && (now - _cachedFiltrosAt < FILTROS_CACHE_TTL_MS)) {
+    return _cachedFiltros
+  }
+
   try {
     const data = await fetchAllRowsInBatches(
       'observaciones',
@@ -222,14 +237,17 @@ export async function fetchFiltrosObservaciones() {
     )
 
     const unique = (field) => [...new Set(data.map(d => d[field]).filter(Boolean))].sort()
-    return {
+    const result = {
       protocolos: unique('protocolo'),
       estadosCovepa: unique('estado_covepa'),
       sitios: unique('id_sitio'),
     }
+    _cachedFiltros = result
+    _cachedFiltrosAt = now
+    return result
   } catch (err) {
     console.error('Error al cargar filtros:', err)
-    return { protocolos: [], estadosCovepa: [], sitios: [] }
+    return _cachedFiltros || { protocolos: [], estadosCovepa: [], sitios: [] }
   }
 }
 
@@ -439,20 +457,19 @@ export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
     }
   })
 
-  // Ejecutar asegurarProgramacionSitio para cada sitio de forma secuencial
-  const progResults = []
-  for (const item of sitiosFechasMap.values()) {
-    try {
-      const resProg = await asegurarProgramacionSitio({
+  // Ejecutar asegurarProgramacionSitio para cada sitio en paralelo
+  const progResults = await Promise.all(
+    [...sitiosFechasMap.values()].map(item =>
+      asegurarProgramacionSitio({
         idSitio: item.idSitio,
         idObs: item.idObs,
         fecha: item.fecha
+      }).catch(autoProgErr => {
+        console.warn(`[AUTO-PROG-BULK-WARN] Error asegurando programación para ${item.idSitio}:`, autoProgErr)
+        return null
       })
-      progResults.push(resProg)
-    } catch (autoProgErr) {
-      console.warn(`[AUTO-PROG-BULK-WARN] Error asegurando programación para ${item.idSitio}:`, autoProgErr)
-    }
-  }
+    )
+  )
 
   const idObsList = rows.map(r => r.id_obs)
   const auditorNombre = usuarioInfo.nombre || usuarioInfo.email || 'Coordinador COVEPA'
@@ -525,16 +542,17 @@ export async function sincronizarProgramacionesEnRevisionHoy() {
   }
 
   const uniqueSites = Array.from(new Set(rows.map(r => (r.id_sitio || '').trim().toUpperCase()).filter(Boolean)))
-  const results = []
 
-  for (const siteId of uniqueSites) {
-    try {
-      const res = await asegurarProgramacionSitio({ idSitio: siteId, fecha: hoyPeru })
-      results.push(res)
-    } catch (err) {
-      console.warn(`[SYNC-HOY-WARN] Error asegurando programación para ${siteId}:`, err)
-    }
-  }
+  // Ejecutar asegurarProgramacionSitio para cada sitio en paralelo
+  const results = await Promise.all(
+    uniqueSites.map(siteId =>
+      asegurarProgramacionSitio({ idSitio: siteId, fecha: hoyPeru })
+        .catch(err => {
+          console.warn(`[SYNC-HOY-WARN] Error asegurando programación para ${siteId}:`, err)
+          return null
+        })
+    )
+  )
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('covepa-programacion-actualizada', {

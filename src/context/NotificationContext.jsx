@@ -29,6 +29,12 @@ function getAudioContext() {
             sharedAudioCtx = null
           }
         }
+        if (typeof sharedAudioCtx.addEventListener === 'function') {
+          sharedAudioCtx.addEventListener('error', () => {
+            try { sharedAudioCtx?.close?.() } catch {}
+            sharedAudioCtx = null
+          })
+        }
       }
     } catch {
       sharedAudioCtx = null

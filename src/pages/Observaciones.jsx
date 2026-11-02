@@ -84,9 +84,10 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   }, [obs?.id_obs])
 
   const currentEstado = obsLocal?.estado_covepa || (obsLocal?.fecha_subsanacion ? 'Validado' : 'Pendiente')
-  const currentRevisor = obsLocal?.revisor || obsLocal?.validado_por || ''
-  const currentFecha = obsLocal?.fecha_subsanacion || ''
-  const showRevisorYFecha = currentEstado !== 'Pendiente' && currentEstado !== 'Solicitando Revisión' && currentEstado !== 'En Revision' && currentEstado !== 'En Revisión'
+  const isEnRevCurrent = currentEstado === 'Pendiente' || currentEstado === 'Solicitando Revisión' || currentEstado === 'Solicitando Revision' || currentEstado === 'En Revision' || currentEstado === 'En Revisión'
+  const currentRevisor = isEnRevCurrent ? '' : (obsLocal?.revisor || obsLocal?.validado_por || '')
+  const currentFecha = isEnRevCurrent ? '' : (obsLocal?.fecha_subsanacion || '')
+  const showRevisorYFecha = !isEnRevCurrent
 
   // Guardado de comentario en tiempo real (COVEPA)
   const saveCommentNow = useCallback(async () => {
@@ -205,7 +206,9 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       const responsableSesion = resolverNombreAuditor(user, personalMember)
 
       // 2. Revisor asignado: Solo conservar si es de GILAT, NUNCA autocompletar con la sesión
-      const revisorGilatActual = esRevisorGilat(obsLocal.revisor, gilatOptions) ? obsLocal.revisor : null
+      // En 'En Revisión' o 'Solicitando Revisión' NUNCA debe haber revisor asignado
+      const esEnRev = nuevoEstado === 'En Revisión' || nuevoEstado === 'En Revision' || nuevoEstado === 'Solicitando Revisión' || nuevoEstado === 'Solicitando Revision'
+      const revisorGilatActual = esEnRev ? null : (esRevisorGilat(obsLocal.revisor, gilatOptions) ? obsLocal.revisor : null)
 
       const comentarioActual = commentValRef.current ?? obsLocal.comentario_covepa ?? null
       const fechaIso = getPeruISOString()
@@ -248,6 +251,11 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const handleUpdateRevisor = async (newRevisor) => {
     setUpdating(true)
     try {
+      const st = obsLocal?.estado_covepa || ''
+      if (st === 'En Revisión' || st === 'En Revision' || st === 'Solicitando Revisión' || st === 'Solicitando Revision') {
+        alert('Una observación con estado En Revisión no puede tener revisor asignado.')
+        return
+      }
       // Regla: En revisores solo va personal de Gilat
       const val = (newRevisor && esRevisorGilat(newRevisor, gilatOptions)) ? newRevisor : null
       await updateObservacionCovepa(obsLocal.id_obs, { revisor: val, id_sitio: obsLocal.id_sitio })
@@ -907,16 +915,21 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                           </span>
                         </td>
                         <td className="col-obs-revisor">
-                          {esRevisorGilat(revisorNombre, gilatOptions) ? (
-                            <span className="obs-revisor-pill" title={revisorNombre}>
-                              <Users size={12} color="#2563eb" style={{ flexShrink: 0 }} />
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {revisorNombre}
+                          {(() => {
+                            const stNorm = o.estado_covepa || ''
+                            const isEnRev = stNorm === 'En Revisión' || stNorm === 'En Revision' || stNorm === 'Solicitando Revisión' || stNorm === 'Solicitando Revision' || stNorm === 'Pendiente'
+                            const revNom = isEnRev ? '' : revisorNombre
+                            return (!isEnRev && esRevisorGilat(revNom, gilatOptions)) ? (
+                              <span className="obs-revisor-pill" title={revNom}>
+                                <Users size={12} color="#2563eb" style={{ flexShrink: 0 }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {revNom}
+                                </span>
                               </span>
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
-                          )}
+                            ) : (
+                              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
+                            )
+                          })()}
                         </td>
                         <td className="col-obs-demora cell-obs-demora" style={{ textAlign: 'center' }}>
                           {o.justificacion_demora && o.justificacion_demora.trim() ? (
@@ -1260,6 +1273,11 @@ export default function Observaciones() {
         if (c === 'cuadrilla') v = sitiosMap[r.id_sitio]?.cuadrilla || ''
         if (c === 'localidad') v = sitiosMap[r.id_sitio]?.localidad || ''
         if (c === 'zona') v = sitiosMap[r.id_sitio]?.zona || ''
+        if (c === 'revisor') {
+          const st = r.estado_covepa || ''
+          const isEnRev = st === 'En Revisión' || st === 'En Revision' || st === 'Solicitando Revisión' || st === 'Solicitando Revision' || st === 'Pendiente'
+          v = (isEnRev || !esRevisorGilat(v, gilatOptions)) ? '' : v
+        }
         const s = String(v).replace(/"/g, '""').replace(/\n/g, ' ')
         return `"${s}"`
       }).join(','))
@@ -1486,8 +1504,10 @@ export default function Observaciones() {
       align: 'left',
       sortable: true,
       render: (o) => {
-        const revisorNombre = o.revisor || o.validado_por || ''
-        return esRevisorGilat(revisorNombre, gilatOptions) ? (
+        const stNorm = o.estado_covepa || ''
+        const isEnRev = stNorm === 'En Revisión' || stNorm === 'En Revision' || stNorm === 'Solicitando Revisión' || stNorm === 'Solicitando Revision' || stNorm === 'Pendiente'
+        const revisorNombre = isEnRev ? '' : (o.revisor || o.validado_por || '')
+        return (!isEnRev && esRevisorGilat(revisorNombre, gilatOptions)) ? (
           <span className="obs-revisor-pill" title={revisorNombre}>
             <Users size={12} color="#2563eb" style={{ flexShrink: 0 }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

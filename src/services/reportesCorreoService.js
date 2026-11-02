@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase'
 import { getAvancePorFecha } from './dashboardService'
 import { getCachedSitiosAsignados, getZonaBySiteId } from './sitiosService'
 import { toLocalDateString, getPeruDateStr, getAyerPeruStr } from '../utils/helpers'
+import { esRevisorGilat } from './auditoriaSyncService'
 
 const LOCAL_STORAGE_KEY_DIARIO = 'covepa_config_reporte_correo'
 const LOCAL_STORAGE_KEY_SEMANAL = 'covepa_config_reporte_semanal'
@@ -433,12 +434,9 @@ export async function exportarExcelReporteDiario(datos) {
     let estadoDisplay = r.estado || 'Validado'
     if (estadoDisplay === 'Descartado') estadoDisplay = 'No Aplica'
     const revRaw = (r.revisor || '').trim()
-    const isSinRevisor = !revRaw ||
-      revRaw.toLowerCase() === 'sin revisor' ||
-      revRaw.toLowerCase() === 'en proceso' ||
-      revRaw.toLowerCase() === 'pendiente' ||
-      revRaw === '-'
-    const revisorFinal = isSinRevisor ? '-' : revRaw
+    const isEnRev = estadoDisplay === 'En Revisión' || estadoDisplay === 'En Revision' || estadoDisplay === 'Solicitando Revisión' || estadoDisplay === 'Solicitando Revision' || estadoDisplay === 'Pendiente'
+    const isGilat = !isEnRev && esRevisorGilat(revRaw)
+    const revisorFinal = isGilat ? revRaw : '-'
 
     return [
       r.id_obs || '',
@@ -549,12 +547,9 @@ export async function exportarExcelReporteSemanal(datos) {
     let estadoDisplay = r.estado || 'Validado'
     if (estadoDisplay === 'Descartado') estadoDisplay = 'No Aplica'
     const revRaw = (r.revisor || '').trim()
-    const isSinRevisor = !revRaw ||
-      revRaw.toLowerCase() === 'sin revisor' ||
-      revRaw.toLowerCase() === 'en proceso' ||
-      revRaw.toLowerCase() === 'pendiente' ||
-      revRaw === '-'
-    const revisorFinal = isSinRevisor ? '-' : revRaw
+    const isEnRev = estadoDisplay === 'En Revisión' || estadoDisplay === 'En Revision' || estadoDisplay === 'Solicitando Revisión' || estadoDisplay === 'Solicitando Revision' || estadoDisplay === 'Pendiente'
+    const isGilat = !isEnRev && esRevisorGilat(revRaw)
+    const revisorFinal = isGilat ? revRaw : '-'
 
     return [
       r.id_obs || '',

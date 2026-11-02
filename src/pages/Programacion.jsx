@@ -2317,7 +2317,9 @@ function ModalDetallesProgramacion({
       const responsableSesion = resolverNombreAuditor(user, personalMember)
 
       // 2. Revisor asignado: Solo conservar si es estrictamente de GILAT, NUNCA autocompletar con la sesión
-      const revisorGilatActual = esRevisorGilat(obs.revisor, gilatOptions) ? obs.revisor : null
+      // En 'En Revisión' o 'Solicitando Revisión' NUNCA debe haber revisor asignado
+      const esEnRev = nuevoEstado === 'En Revisión' || nuevoEstado === 'En Revision' || nuevoEstado === 'Solicitando Revisión' || nuevoEstado === 'Solicitando Revision'
+      const revisorGilatActual = esEnRev ? null : (esRevisorGilat(obs.revisor, gilatOptions) ? obs.revisor : null)
 
       const comentarioActual = comments[obs.id_obs] ?? obs.comentario_covepa ?? null
       const fechaIso = getPeruISOString()
@@ -2370,6 +2372,11 @@ function ModalDetallesProgramacion({
   // Modificar revisor
   const handleUpdateRevisor = async (obs, newRevisor) => {
     try {
+      const st = obs.estado_covepa || ''
+      if (st === 'En Revisión' || st === 'En Revision' || st === 'Solicitando Revisión' || st === 'Solicitando Revision') {
+        alert('Una observación con estado En Revisión no puede tener revisor asignado.')
+        return
+      }
       // Regla: En revisores solo va personal de Gilat
       const val = (newRevisor && esRevisorGilat(newRevisor, gilatOptions)) ? newRevisor : null
       const siteId = obs.id_sitio || currentSitioId
@@ -2748,9 +2755,10 @@ function ModalDetallesProgramacion({
       // Filas de datos
       const tableRows = listToExport.map((o, idx) => {
         const rawSt = o.estado_covepa || (o.fecha_subsanacion ? 'Validado' : 'Pendiente')
-        const isRevision = rawSt === 'En Revision' || rawSt === 'En Revisión'
-        const revisor = isRevision ? '' : (o.revisor || 'Sin revisor')
-        const fechaRev = isRevision ? '' : getPeruDateStr(o.fecha_subsanacion)
+        const isRevision = rawSt === 'En Revision' || rawSt === 'En Revisión' || rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión' || rawSt === 'Pendiente'
+        const isGilat = !isRevision && esRevisorGilat(o.revisor, gilatOptions)
+        const revisor = isGilat ? o.revisor : '-'
+        const fechaRev = isRevision ? '-' : getPeruDateStr(o.fecha_subsanacion)
         const comentario = comments[o.id_obs] || o.comentario_covepa || ''
         const demora = delays[o.id_obs] !== undefined ? delays[o.id_obs] : (o.justificacion_demora || '')
         const tReal = tiemposReal[o.id_obs] !== undefined ? tiemposReal[o.id_obs] : (o.tiempo_ejecucion_real || '')

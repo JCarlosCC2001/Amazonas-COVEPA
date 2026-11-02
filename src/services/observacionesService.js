@@ -260,7 +260,9 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
   const payload = {}
   if (fecha_subsanacion !== undefined) payload.fecha_subsanacion = fecha_subsanacion || null
   if (comentario_covepa !== undefined) payload.comentario_covepa = comentario_covepa
-  if (rev !== undefined) payload.revisor = rev || null
+  if (rev !== undefined) {
+    payload.revisor = (rev && esRevisorGilat(rev)) ? String(rev).trim() : null
+  }
 
   let query = supabase
     .from('observaciones')
@@ -453,11 +455,12 @@ export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
   const idObsList = rows.map(r => r.id_obs)
   const auditorNombre = usuarioInfo.nombre || usuarioInfo.email || 'Coordinador COVEPA'
 
-  // 3. Actualizar estado a 'En Revisión'
+  // 3. Actualizar estado a 'En Revisión' (asegurando revisor en null)
   const { error: updateErr } = await supabase
     .from('observaciones')
     .update({
-      estado_covepa: 'En Revisión'
+      estado_covepa: 'En Revisión',
+      revisor: null
     })
     .in('id_obs', idObsList)
 

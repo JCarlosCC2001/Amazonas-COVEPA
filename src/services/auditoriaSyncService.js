@@ -209,9 +209,12 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
       updatePayload.fecha_subsanacion = fechaIso
     }
 
-    // Regla de Negocio: Conservar siempre el Revisor que ya estaba asignado (a menos que se especifique)
-    if (revisor !== undefined) {
-      updatePayload.revisor = revisor || null
+    // Regla de Negocio: En estado 'En Revisión' o 'Solicitando Revisión' NUNCA debe haber revisor asignado.
+    // Para otros estados (Validado, Rechazado, Descartado), solo personal de GILAT puede ser Revisor.
+    if (estadoNorm === 'En Revisión' || estadoNorm === 'Solicitando Revisión') {
+      updatePayload.revisor = null
+    } else if (revisor !== undefined) {
+      updatePayload.revisor = (revisor && esRevisorGilat(revisor, extraContext.gilatOptions)) ? String(revisor).trim() : null
     }
 
     let qEstado = supabase
@@ -263,11 +266,19 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
  * @param {Array} [gilatOptions=[]]
  * @returns {boolean}
  */
+export const AUDITORES_GILAT_OFICIALES = Object.freeze([
+  'AMILCAR HANDER',
+  'HELIO CAMAC',
+  'KARIN CEPEDA',
+  'THALIA URQUIZO',
+  'GILAT NETWORKS'
+])
+
 export function esRevisorGilat(nombre, gilatOptions = []) {
   if (!nombre) return false
   const n = String(nombre).trim().toUpperCase()
   if (n.includes('GILAT')) return true
-  if (n === 'AMILCAR HANDER' || n === 'THALIA URQUIZO') return true
+  if (AUDITORES_GILAT_OFICIALES.includes(n)) return true
   return (gilatOptions || []).some(g => (g.nombre_completo || '').toUpperCase().trim() === n)
 }
 
@@ -331,9 +342,12 @@ export async function sincronizarAuditoriaObservacion(idObs, {
     comentario_covepa: comentarioLimpio
   }
 
-  // Regla: En revisores solo va personal de Gilat, NUNCA autocompletar con el usuario de sesión
-  if (revisor !== undefined) {
-    payload.revisor = (revisor && esRevisorGilat(revisor)) ? String(revisor).trim() : (revisor || null)
+  // Regla de Negocio: Si el estado pasa a 'En Revisión' o 'Solicitando Revisión', revisor DEBE ser null.
+  // Para los demás estados, solo personal de Gilat puede ser revisor, NUNCA autocompletar con el usuario de sesión ni técnicos de campo.
+  if (estadoNormalizado === 'En Revisión' || estadoNormalizado === 'Solicitando Revisión') {
+    payload.revisor = null
+  } else if (revisor !== undefined) {
+    payload.revisor = (revisor && esRevisorGilat(revisor)) ? String(revisor).trim() : null
   }
 
   console.log(`[AUDITORIA-SYNC] Sincronizando observación ${idObs} con app de fotos:`, payload)
@@ -479,9 +493,16 @@ export async function enviarTiemposYDemoras({
   }
   if (estadoCovepa !== undefined) {
     payload.estado_covepa = estadoCovepa
+    if (estadoCovepa === 'En Revisión' || estadoCovepa === 'Solicitando Revisión') {
+      payload.revisor = null
+    }
   }
-  if (revisor !== undefined) {
-    payload.revisor = revisor
+  if (revisor !== undefined && payload.revisor === undefined) {
+    if (payload.estado_covepa === 'En Revisión' || payload.estado_covepa === 'Solicitando Revisión') {
+      payload.revisor = null
+    } else {
+      payload.revisor = (revisor && esRevisorGilat(revisor)) ? String(revisor).trim() : null
+    }
   }
   if (fechaSubsanacion !== undefined) {
     payload.fecha_subsanacion = fechaSubsanacion

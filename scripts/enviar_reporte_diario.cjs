@@ -85,6 +85,21 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;')
 }
 
+const AUDITORES_GILAT_OFICIALES = [
+  'AMILCAR HANDER',
+  'HELIO CAMAC',
+  'KARIN CEPEDA',
+  'THALIA URQUIZO',
+  'GILAT NETWORKS'
+]
+
+function esRevisorGilat(nombre) {
+  if (!nombre) return false
+  const n = String(nombre).trim().toUpperCase()
+  if (n.includes('GILAT')) return true
+  return AUDITORES_GILAT_OFICIALES.includes(n)
+}
+
 async function main() {
   const { fechaIso, horaMinuto, fechaFormateada } = getPeruDateInfo()
   const isManualRun = process.env.IS_MANUAL_RUN === 'true' ||
@@ -563,12 +578,9 @@ async function main() {
       let estadoDisplay = r.estado || 'Validado'
       if (estadoDisplay === 'Descartado') estadoDisplay = 'No Aplica'
       const revRaw = (r.revisor || '').trim()
-      const isSinRevisor = !revRaw ||
-        revRaw.toLowerCase() === 'sin revisor' ||
-        revRaw.toLowerCase() === 'en proceso' ||
-        revRaw.toLowerCase() === 'pendiente' ||
-        revRaw === '-'
-      const revisorFinal = isSinRevisor ? '-' : revRaw
+      const isEnRev = estadoDisplay === 'En Revisión' || estadoDisplay === 'En Revision' || estadoDisplay === 'Solicitando Revisión' || estadoDisplay === 'Solicitando Revision' || estadoDisplay === 'Pendiente'
+      const isGilat = !isEnRev && esRevisorGilat(revRaw)
+      const revisorFinal = isGilat ? revRaw : '-'
 
       return [
         r.id_obs || '',

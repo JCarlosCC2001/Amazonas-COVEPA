@@ -151,7 +151,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       'CUADRILLA 2': {
         id: 'CUADRILLA 2',
         cuadrilla: 'CUADRILLA 2',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 2']?.tecnicoNombre || 'Cristian Isla',
+        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 2']?.tecnicoNombre || 'Marco Chamba',
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
         total: 0
       },

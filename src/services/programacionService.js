@@ -37,6 +37,7 @@ export const KNOWN_LEGACY_NAMES = {
   'eb9daa58-60db-4c93-b955-9c520a2281a4': 'William Avila',
   'a7533248-7885-4cb7-ab7c-8f97093c2b52': 'Gabriel Farro',
   '739fa2c9-5d60-43af-add6-6fb897c8ba7b': 'Cristian Isla',
+  '4f9d2cc7-3a88-42f9-b9ac-e97eec0277fe': 'Marco Chamba',
   '1': 'Jhonatan Flores',
   '2': 'Ander Peralta',
   '3': 'Daniel Javier',

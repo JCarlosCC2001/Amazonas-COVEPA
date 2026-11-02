@@ -14,6 +14,7 @@ export const PERSONAL_FALLBACK = [
   { id: '9', id_personal: '9', cargo: 'TÉCNICO', nombre: 'Gabriel', apellido: 'Farro', nombre_completo: 'Gabriel Farro', contacto_1: '931704961', operador_1: 'BITEL', empresa: 'COVEPA', estado: 'Activo', activo: true },
   { id: '10', id_personal: '10', cargo: 'CONDUCTOR', nombre: 'Nilson', apellido: 'Vera', nombre_completo: 'Nilson Vera', contacto_1: '969936764', empresa: 'COVEPA', estado: 'Activo', activo: true },
   { id: '11', id_personal: '11', cargo: 'TÉCNICO', nombre: 'Cristian', apellido: 'Isla', nombre_completo: 'Cristian Isla', contacto_1: '923932783', contacto_2: '930996665', operador_1: 'CLARO', operador_2: 'BITEL', empresa: 'COVEPA', estado: 'Activo', activo: true },
+  { id: '4f9d2cc7-3a88-42f9-b9ac-e97eec0277fe', id_personal: '4f9d2cc7-3a88-42f9-b9ac-e97eec0277fe', cargo: 'TÉCNICO', nombre: 'Marco', apellido: 'Chamba', nombre_completo: 'Marco Chamba', empresa: 'COVEPA', estado: 'Activo', activo: true },
   { id: '8359c281-33ce-423e-9823-0e9e09663889', id_personal: '8359c281-33ce-423e-9823-0e9e09663889', cargo: 'SUPERVISOR', nombre: 'Carlos', apellido: 'Condor', nombre_completo: 'Carlos Condor', dni: '73144613', contacto_1: '958086874', email: 'jcarloscc1101@gmail.com', empresa: 'COVEPA', estado: 'Activo', activo: true }
 ]
 
@@ -103,8 +104,8 @@ export const DEFAULT_CUADRILLAS_CONFIG = {
     conductorTelefono: ''
   },
   'CUADRILLA 2': {
-    idTecnico: 'eebf3b9e-4923-47ce-9eee-8e9af86c9fea', // Cristian Isla
-    tecnicoNombre: 'Cristian Isla',
+    idTecnico: '4f9d2cc7-3a88-42f9-b9ac-e97eec0277fe', // Marco Chamba
+    tecnicoNombre: 'Marco Chamba',
     idConductor: '63ba01bf-2b85-488a-864b-965b6a96c9db', // Jhordin Perez
     conductorNombre: 'Jhordin Perez',
     conductorTelefono: '921004913'

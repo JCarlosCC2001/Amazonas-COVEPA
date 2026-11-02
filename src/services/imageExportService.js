@@ -58,7 +58,7 @@ export async function generateAvanceDiaPNG({
   if (!mData || !mData.matrixRows || mData.matrixRows.length === 0) {
     const cuadrillasMap = {
       'CUADRILLA 1': { cuadrilla: 'CUADRILLA 1', tecnico: 'Jhonatan Flores', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
-      'CUADRILLA 2': { cuadrilla: 'CUADRILLA 2', tecnico: 'Cristian Isla', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
+      'CUADRILLA 2': { cuadrilla: 'CUADRILLA 2', tecnico: 'Marco Chamba', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
       'CUADRILLA 3': { cuadrilla: 'CUADRILLA 3', tecnico: 'Daniel Javier', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
       'CUADRILLA 4': { cuadrilla: 'CUADRILLA 4', tecnico: 'Alfonso Curi', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
       'CUADRILLA 5': { cuadrilla: 'CUADRILLA 5', tecnico: 'William Avila', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },

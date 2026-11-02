@@ -1196,21 +1196,15 @@ export default function Observaciones() {
     filtroDemora
   }), [search, protocolo, estadoCovepa, idSitio, siteIdsForCuadrilla, filtroDemora])
 
-  // Carga inicial coordinada: KPIs globales, catálogo de localidades, personal y opciones de filtros
-  useEffect(() => {
-    Promise.all([
-      loadKpis(),
-      fetchFiltrosObservaciones().then(setFiltros).catch(() => {}),
-      getCachedSitiosAsignados().then(list => {
-        const map = {}
-        for (const s of (list || [])) {
-          map[s.id_site] = s
-        }
-        setSitiosMap(map)
-      }).catch(() => {}),
-      getPersonalActivo().then(list => setTecnicos(list || [])).catch(() => {})
-    ])
-  }, [loadKpis])
+  const loadKpis = useCallback(async () => {
+    setLoadingKpis(true)
+    try {
+      const k = await fetchObservacionesKPIs()
+      setKpis(k)
+    } finally {
+      setLoadingKpis(false)
+    }
+  }, [])
 
   // Carga de datos
   const loadData = useCallback(async (resetPage = false) => {
@@ -1243,17 +1237,7 @@ export default function Observaciones() {
     } finally {
       setLoading(false)
     }
-  }, [filtrosActivos, page])
-
-  const loadKpis = useCallback(async () => {
-    setLoadingKpis(true)
-    try {
-      const k = await fetchObservacionesKPIs()
-      setKpis(k)
-    } finally {
-      setLoadingKpis(false)
-    }
-  }, [])
+  }, [filtrosActivos, page, pageSize, sortField, sortDirection, searchParams])
 
   const loadAgrupada = useCallback(async () => {
     if (vista !== 'agrupada') return
@@ -1267,6 +1251,22 @@ export default function Observaciones() {
       setLoadingAgrupada(false)
     }
   }, [vista, filtrosActivos])
+
+  // Carga inicial coordinada: KPIs globales, catálogo de localidades, personal y opciones de filtros
+  useEffect(() => {
+    Promise.all([
+      loadKpis(),
+      fetchFiltrosObservaciones().then(setFiltros).catch(() => {}),
+      getCachedSitiosAsignados().then(list => {
+        const map = {}
+        for (const s of (list || [])) {
+          map[s.id_site] = s
+        }
+        setSitiosMap(map)
+      }).catch(() => {}),
+      getPersonalActivo().then(list => setTecnicos(list || [])).catch(() => {})
+    ])
+  }, [loadKpis])
 
   useEffect(() => {
     if (vista === 'tabla') {

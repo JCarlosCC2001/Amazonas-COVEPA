@@ -172,3 +172,4 @@ GRANT EXECUTE ON FUNCTION public.admin_set_user_account TO authenticated;
 
 -- 4. Notificar a PostgREST para recargar el esquema de funciones inmediatamente
 NOTIFY pgrst, 'reload schema';
+

@@ -126,10 +126,10 @@ export default function Tecnicos() {
     setFilterCuenta('TODOS')
   }, [])
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (force = false) => {
     setLoading(true)
     try {
-      const data = await fetchPersonal()
+      const data = await fetchPersonal(force)
       setPersonal(data)
     } catch (err) {
       console.error('Error cargando personal:', err)
@@ -710,8 +710,8 @@ export default function Tecnicos() {
               <button
                 type="button"
                 className="prog-btn-nav"
-                onClick={loadData}
-                title="Refrescar directorio"
+                onClick={() => loadData(true)}
+                title="Refrescar directorio desde base externa"
               >
                 <RefreshCw size={13} className={loading ? 'spin' : ''} />
               </button>
@@ -940,7 +940,7 @@ export default function Tecnicos() {
         <div className="personal-content-scroll">
           <VistaCuadrillasPredefinidas
             personal={personal}
-            onCuadrillasUpdated={loadData}
+            onCuadrillasUpdated={() => loadData(true)}
             canEditPersonal={canEditPersonal}
           />
         </div>
@@ -967,7 +967,7 @@ export default function Tecnicos() {
           onClose={() => setModalOpen(false)}
           onSaved={() => {
             setModalOpen(false)
-            loadData()
+            loadData(true)
           }}
         />
       )}

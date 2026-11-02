@@ -87,7 +87,7 @@ const NAV_ITEMS = [
 ]
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
-  const { user, profile, personalMember, isAdmin, signOut } = useAuth()
+  const { user, profile, personalMember, isAdmin, canAccessRoute, signOut } = useAuth()
   const { presentationMode } = usePresentationMode()
   const navigate = useNavigate()
   const [configModalOpen, setConfigModalOpen] = useState(false)
@@ -99,6 +99,17 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
 
   const handleNavClick = () => {
     if (setMobileOpen) setMobileOpen(false)
+  }
+
+  const visibleNavItems = NAV_ITEMS.filter(item => canAccessRoute ? canAccessRoute(item.path) : true)
+
+  const getRoleLabel = () => {
+    if (isAdmin) return 'Administrador'
+    const r = (profile?.rol || '').toLowerCase().trim()
+    if (r === 'asistente_calidad') return 'Asistente de Calidad'
+    if (r === 'supervisor') return 'Supervisor'
+    if (r === 'coordinador') return 'Coordinador'
+    return 'Técnico'
   }
 
   return (
@@ -155,7 +166,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
 
       {/* Navegación */}
       <nav className="sidebar-nav">
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const isPersonalLocked = item.path === '/tecnicos' && presentationMode
 
           return (
@@ -204,7 +215,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
                 {presentationMode ? 'COVEPA Admin' : (personalMember?.nombre_completo || user?.email)}
               </span>
               <span className="user-role">
-                {isAdmin ? 'Administrador' : (profile?.rol ? profile.rol.toUpperCase() : 'Técnico')}
+                {getRoleLabel()}
               </span>
             </div>
           )}

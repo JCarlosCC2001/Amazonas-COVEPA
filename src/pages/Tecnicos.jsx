@@ -50,7 +50,7 @@ function getOperatorClass(op) {
 }
 
 export default function Tecnicos() {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, canEditPersonal } = useAuth()
   const { presentationMode, togglePresentationMode } = usePresentationMode()
   const [personal, setPersonal] = useState([])
   const [loading, setLoading] = useState(true)
@@ -738,16 +738,18 @@ export default function Tecnicos() {
                 </button>
               </div>
 
-              {/* Botón Nuevo Integrante */}
-              <button
-                type="button"
-                className="personal-create-btn"
-                onClick={handleOpenCreate}
-                title="Registrar un nuevo integrante en el directorio"
-              >
-                <UserPlus size={14} />
-                <span>Nuevo Integrante</span>
-              </button>
+              {/* Botón Nuevo Integrante (Solo Admin y Supervisor) */}
+              {canEditPersonal && (
+                <button
+                  type="button"
+                  className="personal-create-btn"
+                  onClick={handleOpenCreate}
+                  title="Registrar un nuevo integrante en el directorio"
+                >
+                  <UserPlus size={14} />
+                  <span>Nuevo Integrante</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -939,6 +941,7 @@ export default function Tecnicos() {
           <VistaCuadrillasPredefinidas
             personal={personal}
             onCuadrillasUpdated={loadData}
+            canEditPersonal={canEditPersonal}
           />
         </div>
       )}
@@ -947,6 +950,7 @@ export default function Tecnicos() {
         <DrawerPersonal
           person={selectedDrawerPerson}
           isAdmin={isAdmin}
+          canEditPersonal={canEditPersonal}
           onToggleAccess={handleToggleAccess}
           onAssignAccount={handleAssignAccount}
           onOpenPasswordModal={() => setPasswordModalOpen(true)}
@@ -1008,7 +1012,7 @@ function isConductorCargo(cargo) {
   return c.includes('CONDUCTOR') || c.includes('CHOFER')
 }
 
-function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
+function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated, canEditPersonal = true }) {
   const defaultList = useMemo(() => [
     'CUADRILLA 1', 'CUADRILLA 2', 'CUADRILLA 3',
     'CUADRILLA 4', 'CUADRILLA 5', 'CUADRILLA 6'
@@ -1165,6 +1169,7 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
                 <select
                   className="cuadrilla-field-select"
                   value={form.idTecnico || ''}
+                  disabled={!canEditPersonal}
                   onChange={e => handleSelect(cName, 'idTecnico', e.target.value)}
                 >
                   <option value="">-- Sin técnico asignado --</option>
@@ -1194,6 +1199,7 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
                 <select
                   className="cuadrilla-field-select"
                   value={form.idConductor || ''}
+                  disabled={!canEditPersonal}
                   onChange={e => handleSelect(cName, 'idConductor', e.target.value)}
                 >
                   <option value="">-- Sin conductor asignado --</option>
@@ -1214,68 +1220,72 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
                 )}
               </div>
 
-              {/* Botón Guardar Cuadrilla */}
-              <button
-                type="button"
-                className={`cuadrilla-save-btn ${isSaved ? 'saved' : ''}`}
-                onClick={() => handleSave(cName)}
-                disabled={isSaving}
-              >
-                {isSaving ? (
-                  <>Guardando cambios...</>
-                ) : isSaved ? (
-                  <>
-                    <CheckCircle2 size={15} />
-                    <span>¡Cuadrilla Actualizada!</span>
-                  </>
-                ) : (
-                  <>
-                    <Check size={14} />
-                    <span>Guardar {cName}</span>
-                  </>
-                )}
-              </button>
+              {/* Botón Guardar Cuadrilla (Solo Admin y Supervisor) */}
+              {canEditPersonal && (
+                <button
+                  type="button"
+                  className={`cuadrilla-save-btn ${isSaved ? 'saved' : ''}`}
+                  onClick={() => handleSave(cName)}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <>Guardando cambios...</>
+                  ) : isSaved ? (
+                    <>
+                      <CheckCircle2 size={15} />
+                      <span>¡Cuadrilla Actualizada!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} />
+                      <span>Guardar {cName}</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           )
         })}
       </div>
 
-      {/* Botón para añadir otra cuadrilla si se requiere */}
-      <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        {!showAddForm ? (
-          <button
-            type="button"
-            className="btn-secondary"
-            style={{ fontSize: 'var(--text-sm)', padding: '0.45rem 0.85rem' }}
-            onClick={() => setShowAddForm(true)}
-          >
-            + Agregar Otra Cuadrilla
-          </button>
-        ) : (
-          <form onSubmit={handleCreateCuadrilla} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <input
-              type="text"
-              placeholder="Ej: CUADRILLA 7"
-              value={newCuadrillaName}
-              onChange={e => setNewCuadrillaName(e.target.value)}
-              className="prog-form-control"
-              style={{ padding: '0.35rem 0.65rem', fontSize: 'var(--text-sm)', width: '180px' }}
-              autoFocus
-            />
-            <button type="submit" className="btn-primary" style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.75rem' }}>
-              Crear
-            </button>
+      {/* Botón para añadir otra cuadrilla si se requiere (Solo Admin y Supervisor) */}
+      {canEditPersonal && (
+        <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {!showAddForm ? (
             <button
               type="button"
               className="btn-secondary"
-              style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.65rem' }}
-              onClick={() => setShowAddForm(false)}
+              style={{ fontSize: 'var(--text-sm)', padding: '0.45rem 0.85rem' }}
+              onClick={() => setShowAddForm(true)}
             >
-              Cancelar
+              + Agregar Otra Cuadrilla
             </button>
-          </form>
-        )}
-      </div>
+          ) : (
+            <form onSubmit={handleCreateCuadrilla} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <input
+                type="text"
+                placeholder="Ej: CUADRILLA 7"
+                value={newCuadrillaName}
+                onChange={e => setNewCuadrillaName(e.target.value)}
+                className="prog-form-control"
+                style={{ padding: '0.35rem 0.65rem', fontSize: 'var(--text-sm)', width: '180px' }}
+                autoFocus
+              />
+              <button type="submit" className="btn-primary" style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.75rem' }}>
+                Crear
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 0.65rem' }}
+                onClick={() => setShowAddForm(false)}
+              >
+                Cancelar
+              </button>
+            </form>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1283,7 +1293,7 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated }) {
 // ────────────────────────────────────────────────────────────
 // SUBCOMPONENTE: Ventana Lateral (Drawer) de Revisión y Gestión
 // ────────────────────────────────────────────────────────────
-function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOpenPasswordModal, onClose, onEdit, onDelete }) {
+function DrawerPersonal({ person, isAdmin, canEditPersonal = true, onToggleAccess, onAssignAccount, onOpenPasswordModal, onClose, onEdit, onDelete }) {
   // M1: Hooks antes del guard — persona nula se maneja en el JSX con un guard al final
   // NO hay early return aquí para cumplir con las reglas de hooks de React
   const cargoClass = getCargoClass(person?.cargo)
@@ -1472,6 +1482,7 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                     <option value="admin">Administrador General (Acceso Total)</option>
                     <option value="supervisor">Supervisor (Operación y Validación)</option>
                     <option value="coordinador">Coordinador (Programación y Reportes)</option>
+                    <option value="asistente_calidad">Asistente de Calidad (Calidad y Campo)</option>
                     <option value="tecnico">Técnico (Consulta y Campo)</option>
                   </select>
                 </div>
@@ -1544,40 +1555,42 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
                   </div>
                 )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => setShowAssignForm(true)}
-                    style={{ fontSize: 'var(--text-sm)', padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                  >
-                    <KeyRound size={14} color="#003060" />
-                    <span>{hasAccount ? 'Modificar Cuenta y Rol en COVEPA' : 'Asignar Cuenta y Rol a este Personal'}</span>
-                  </button>
-
-                  {hasAccount && (
+                {isAdmin && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <button
                       type="button"
-                      className={`btn-access-toggle ${person.cuenta_usuario.activo ? 'disable' : 'enable'}`}
-                      onClick={handleToggle}
-                      disabled={togglingAccess}
+                      className="btn-secondary"
+                      onClick={() => setShowAssignForm(true)}
+                      style={{ fontSize: 'var(--text-sm)', padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                     >
-                      {togglingAccess ? (
-                        <RefreshCw size={14} className="spin" />
-                      ) : person.cuenta_usuario.activo ? (
-                        <>
-                          <Lock size={14} />
-                          <span>Deshabilitar Cuenta de Acceso</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShieldCheck size={14} />
-                          <span>Habilitar Cuenta de Acceso</span>
-                        </>
-                      )}
+                      <KeyRound size={14} color="#003060" />
+                      <span>{hasAccount ? 'Modificar Cuenta y Rol en COVEPA' : 'Asignar Cuenta y Rol a este Personal'}</span>
                     </button>
-                  )}
-                </div>
+
+                    {hasAccount && (
+                      <button
+                        type="button"
+                        className={`btn-access-toggle ${person.cuenta_usuario.activo ? 'disable' : 'enable'}`}
+                        onClick={handleToggle}
+                        disabled={togglingAccess}
+                      >
+                        {togglingAccess ? (
+                          <RefreshCw size={14} className="spin" />
+                        ) : person.cuenta_usuario.activo ? (
+                          <>
+                            <Lock size={14} />
+                            <span>Deshabilitar Cuenta de Acceso</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck size={14} />
+                            <span>Habilitar Cuenta de Acceso</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1782,40 +1795,42 @@ function DrawerPersonal({ person, isAdmin, onToggleAccess, onAssignAccount, onOp
             </div>
           )}
 
-          {/* Acciones de gestión en el Drawer */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1.2fr 1fr',
-            gap: '0.75rem',
-            marginTop: 'auto',
-            paddingTop: '1rem',
-            borderTop: '1px solid var(--border-color)'
-          }}>
-            <button
-              type="button"
-              className="btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.65rem', fontSize: 'var(--text-sm)' }}
-              onClick={() => {
-                onClose()
-                onEdit(person)
-              }}
-            >
-              <Edit2 size={14} color="#003060" />
-              Editar Integrante
-            </button>
+          {/* Acciones de gestión en el Drawer (Solo Admin y Supervisor) */}
+          {canEditPersonal && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1.2fr 1fr',
+              gap: '0.75rem',
+              marginTop: 'auto',
+              paddingTop: '1rem',
+              borderTop: '1px solid var(--border-color)'
+            }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.65rem', fontSize: 'var(--text-sm)' }}
+                onClick={() => {
+                  onClose()
+                  onEdit(person)
+                }}
+              >
+                <Edit2 size={14} color="#003060" />
+                Editar Integrante
+              </button>
 
-            <button
-              type="button"
-              className="btn-danger-soft"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.65rem', fontSize: 'var(--text-sm)' }}
-              onClick={() => {
-                onDelete(person.id, person.nombre_completo)
-              }}
-            >
-              <Trash2 size={14} />
-              Eliminar
-            </button>
-          </div>
+              <button
+                type="button"
+                className="btn-danger-soft"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.65rem', fontSize: 'var(--text-sm)' }}
+                onClick={() => {
+                  onDelete(person.id, person.nombre_completo)
+                }}
+              >
+                <Trash2 size={14} />
+                Eliminar
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -2186,6 +2201,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
                         <option value="admin">Administrador (admin)</option>
                         <option value="supervisor">Supervisor (supervisor)</option>
                         <option value="coordinador">Coordinador (coordinador)</option>
+                        <option value="asistente_calidad">Asistente de Calidad (asistente_calidad)</option>
                         <option value="tecnico">Técnico (tecnico)</option>
                       </select>
                     </div>

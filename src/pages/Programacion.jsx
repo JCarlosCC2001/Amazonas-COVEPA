@@ -2221,7 +2221,7 @@ function ModalDetallesProgramacion({
   onDeleteProg,
   onObservationUpdated
 }) {
-  const { user, personalMember } = useAuth()
+  const { user, personalMember, canEditDemoras } = useAuth()
   const [currentSitioId, setCurrentSitioId] = useState(sitioId || '')
   const [observaciones, setObservaciones] = useState([])
   const [comments, setComments] = useState({})
@@ -3321,6 +3321,7 @@ function ModalDetallesProgramacion({
                       const isDemoraExpanded = hasDelayData || Boolean(expandedDemoraIds[obs.id_obs])
 
                       if (!isDemoraExpanded) {
+                        if (!canEditDemoras) return null
                         return (
                           <div style={{ marginTop: '0.65rem' }}>
                             <button
@@ -3354,7 +3355,7 @@ function ModalDetallesProgramacion({
                                   </span>
                                 )}
                               </div>
-                              {!hasDelayData && (
+                              {!hasDelayData && canEditDemoras && (
                                 <button
                                   type="button"
                                   className="btn-collapse-demora"
@@ -3374,18 +3375,26 @@ function ModalDetallesProgramacion({
                           label="⏱️ Tiempo Real de Ejecución:"
                           value={tiemposReal[obs.id_obs] ?? ''}
                           placeholder="00:00"
+                          disabled={!canEditDemoras}
                           title="Tiempo neto/real trabajado en la subsanación (HH:MM)"
-                          onChange={(val) => handleTimeRealChange(obs.id_obs, val)}
-                          onBlur={() => handleBlurTime(obs.id_obs)}
+                          onChange={(val) => {
+                            if (!canEditDemoras) return
+                            handleTimeRealChange(obs.id_obs, val)
+                          }}
+                          onBlur={canEditDemoras ? () => handleBlurTime(obs.id_obs) : undefined}
                         />
                         <TimeMaskInput
                           label="⏳ Tiempo de Ejecución con Demoras:"
                           value={tiemposDemora[obs.id_obs] ?? ''}
                           placeholder="00:00"
                           variant="warning"
+                          disabled={!canEditDemoras}
                           title="Tiempo total considerando demoras o incidentes (HH:MM)"
-                          onChange={(val) => handleTimeDemoraChange(obs.id_obs, val)}
-                          onBlur={() => handleBlurTime(obs.id_obs)}
+                          onChange={(val) => {
+                            if (!canEditDemoras) return
+                            handleTimeDemoraChange(obs.id_obs, val)
+                          }}
+                          onBlur={canEditDemoras ? () => handleBlurTime(obs.id_obs) : undefined}
                         />
                       </div>
 
@@ -3416,11 +3425,12 @@ function ModalDetallesProgramacion({
                       <textarea
                         rows={2}
                         value={delays[obs.id_obs] ?? ''}
-                        onChange={(e) => handleDelayChange(obs.id_obs, e.target.value)}
-                        onBlur={() => handleBlurDelay(obs.id_obs)}
-                        placeholder="Si esta observación tomó más tiempo del debido o tuvo incidentes, redacta aquí el sustento técnico (dejar vacío si no hubo problemas de demora)..."
+                        readOnly={!canEditDemoras}
+                        onChange={canEditDemoras ? (e) => handleDelayChange(obs.id_obs, e.target.value) : undefined}
+                        onBlur={canEditDemoras ? () => handleBlurDelay(obs.id_obs) : undefined}
+                        placeholder={!canEditDemoras ? 'Sin justificación de demora registrada.' : 'Si esta observación tomó más tiempo del debido o tuvo incidentes, redacta aquí el sustento técnico (dejar vacío si no hubo problemas de demora)...'}
                         className="covepa-comment-textarea"
-                        style={{ borderColor: '#fde68a' }}
+                        style={{ borderColor: '#fde68a', background: !canEditDemoras ? '#fafafa' : undefined, cursor: !canEditDemoras ? 'default' : undefined }}
                       />
                       <div style={{ fontSize: 'var(--text-meta)', marginTop: '0.35rem', color: '#78716c' }}>
                         {delays[obs.id_obs] && delays[obs.id_obs].trim() ? (

@@ -235,10 +235,33 @@ export function AuthProvider({ children }) {
     return { data, error }
   }
 
-  const isAdmin = Boolean(
-    profile?.rol === 'admin' || 
-    (user?.email && user.email.toLowerCase().trim() === 'jcarloscc1101@gmail.com')
-  )
+  const rawRol = (profile?.rol || '').toLowerCase().trim()
+  const isMasterAdmin = Boolean(user?.email && user.email.toLowerCase().trim() === 'jcarloscc1101@gmail.com')
+  const isAdmin = Boolean(rawRol === 'admin' || isMasterAdmin)
+  const isSupervisor = Boolean(rawRol === 'supervisor')
+  const isCoordinador = Boolean(rawRol === 'coordinador')
+  const isAsistenteCalidad = Boolean(rawRol === 'asistente_calidad')
+  const isTecnico = Boolean(rawRol === 'tecnico' || (!isAdmin && !isSupervisor && !isCoordinador && !isAsistenteCalidad))
+  const rol = isAdmin ? 'admin' : (rawRol || 'tecnico')
+
+  // Permisos de negocio granulares
+  // 1. Demoras y tiempos: editable para admin, supervisor y coordinador. Solo lectura para asistente_calidad y tecnico.
+  const canEditDemoras = Boolean(isAdmin || isSupervisor || isCoordinador)
+
+  // 2. Gestión de Personal (crear/editar/eliminar personal o reasignar cuadrillas): exclusivo de admin y supervisor
+  const canEditPersonal = Boolean(isAdmin || isSupervisor)
+
+  // 3. Reglas de acceso a rutas: asistente_calidad NO accede a '/reportes' ni a '/eficiencia'
+  const canAccessRoute = (path) => {
+    if (!path) return true
+    const cleanSegment = path.toLowerCase().replace(/^\//, '').split('?')[0].split('/')[0]
+    if (isAsistenteCalidad) {
+      if (cleanSegment === 'reportes' || cleanSegment === 'eficiencia') {
+        return false
+      }
+    }
+    return true
+  }
 
   return (
     <AuthContext.Provider value={{ 
@@ -246,7 +269,15 @@ export function AuthProvider({ children }) {
       session, 
       profile, 
       personalMember, 
-      isAdmin, 
+      isAdmin,
+      isSupervisor,
+      isCoordinador,
+      isAsistenteCalidad,
+      isTecnico,
+      canEditDemoras,
+      canEditPersonal,
+      canAccessRoute,
+      rol,
       loading, 
       signIn, 
       signOut, 
@@ -269,6 +300,14 @@ export function useAuth() {
       profile: null,
       personalMember: null,
       isAdmin: false,
+      isSupervisor: false,
+      isCoordinador: false,
+      isAsistenteCalidad: false,
+      isTecnico: true,
+      canEditDemoras: false,
+      canEditPersonal: false,
+      canAccessRoute: () => true,
+      rol: 'tecnico',
       loading: true,
       signIn: async () => ({ error: new Error('Auth no disponible') }),
       signOut: async () => {},

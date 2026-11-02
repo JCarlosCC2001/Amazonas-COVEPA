@@ -36,7 +36,7 @@ import { estadoCovepaBadge, hasMeaningfulText, getPeruDateStr, getPeruISOString 
 // VENTANA EMERGENTE — Detalle Completo de Observación (Flujo Programación)
 // ────────────────────────────────────────────────────────────
 function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClose, onSaved }) {
-  const { user, personalMember } = useAuth()
+  const { user, personalMember, canEditDemoras } = useAuth()
   const [obsLocal, setObsLocal] = useState(obs)
   const [updating, setUpdating] = useState(false)
   const [commentVal, setCommentVal] = useState(obs?.comentario_covepa || '')
@@ -486,16 +486,18 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
 
             {/* Caja de Justificación de Demora y Tiempos de Ejecución Colapsable */}
             {!isDemoraExpanded ? (
-              <div style={{ marginTop: '0.85rem' }}>
-                <button
-                  type="button"
-                  className="btn-add-demora"
-                  onClick={() => setShowDemoraBox(true)}
-                >
-                  <AlertTriangle size={13} color="#d97706" />
-                  <span>+ Agregar Demora / Tiempos</span>
-                </button>
-              </div>
+              canEditDemoras ? (
+                <div style={{ marginTop: '0.85rem' }}>
+                  <button
+                    type="button"
+                    className="btn-add-demora"
+                    onClick={() => setShowDemoraBox(true)}
+                  >
+                    <AlertTriangle size={13} color="#d97706" />
+                    <span>+ Agregar Demora / Tiempos</span>
+                  </button>
+                </div>
+              ) : null
             ) : (
               <div className="obs-content-box box-demora" style={{ margin: '0.85rem 0 0 0', borderLeft: '4px solid #f59e0b', background: '#fffdf5', border: '1px solid #fde68a', borderLeftWidth: '4px', borderRadius: '8px', padding: '0.75rem' }}>
                 <div className="box-covepa-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
@@ -515,7 +517,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                         </span>
                       )}
                     </div>
-                    {!hasDelayData && (
+                    {!hasDelayData && canEditDemoras && (
                       <button
                         type="button"
                         className="btn-collapse-demora"
@@ -535,24 +537,28 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   label="⏱️ Tiempo Real de Ejecución:"
                   value={realTimeVal}
                   placeholder="00:00"
+                  disabled={!canEditDemoras}
                   title="Tiempo neto/real trabajado en la subsanación (HH:MM)"
                   onChange={(val) => {
+                    if (!canEditDemoras) return
                     setRealTimeVal(val)
                     isDirtyTimeRef.current = true
                   }}
-                  onBlur={saveTimeNow}
+                  onBlur={canEditDemoras ? saveTimeNow : undefined}
                 />
                 <TimeMaskInput
                   label="⏳ Tiempo de Ejecución con Demoras:"
                   value={delayTimeVal}
                   placeholder="00:00"
                   variant="warning"
+                  disabled={!canEditDemoras}
                   title="Tiempo total considerando demoras o incidentes (HH:MM)"
                   onChange={(val) => {
+                    if (!canEditDemoras) return
                     setDelayTimeVal(val)
                     isDirtyTimeRef.current = true
                   }}
-                  onBlur={saveTimeNow}
+                  onBlur={canEditDemoras ? saveTimeNow : undefined}
                 />
               </div>
 
@@ -578,12 +584,13 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
 
               <textarea
                 value={delayVal}
-                onChange={handleDelayChange}
-                onBlur={handleBlurDelay}
-                placeholder="Si esta observación tomó más tiempo del debido o tuvo incidentes, redacta aquí el sustento técnico (dejar vacío si no hubo problemas de demora)..."
+                readOnly={!canEditDemoras}
+                onChange={canEditDemoras ? handleDelayChange : undefined}
+                onBlur={canEditDemoras ? handleBlurDelay : undefined}
+                placeholder={!canEditDemoras ? 'Sin justificación de demora registrada.' : 'Si esta observación tomó más tiempo del debido o tuvo incidentes, redacta aquí el sustento técnico (dejar vacío si no hubo problemas de demora)...'}
                 className="covepa-comment-textarea"
                 rows={2}
-                style={{ borderColor: '#fde68a' }}
+                style={{ borderColor: '#fde68a', background: !canEditDemoras ? '#fafafa' : undefined, cursor: !canEditDemoras ? 'default' : undefined }}
               />
               {obsLocal?.fecha_registro_demora && (
                 <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--text-xs)', color: '#b45309' }}>

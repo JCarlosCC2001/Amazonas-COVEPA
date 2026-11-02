@@ -8908,6 +8908,11 @@
   color: #4f46e5;
   border: 1px solid rgba(79, 70, 229, 0.3);
 }
+.role-tag-covepa.asistente_calidad {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
 .role-tag-covepa.tecnico {
   background: rgba(16, 185, 129, 0.12);
   color: #059669;

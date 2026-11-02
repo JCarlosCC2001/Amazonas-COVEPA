@@ -152,13 +152,25 @@ export default function HistorialEstadosTimeline({ idObs, refreshKey = 0 }) {
                     <span>Responsable de cambio: <strong title={item.usuario_email ? `Cuenta: ${item.usuario_email}` : ''}>{item.usuario_nombre || 'Usuario de sesión'}</strong></span>
                   </div>
 
-                  {/* Fila 4: Comentario o Nota de Dictamen (si existe) */}
-                  {item.comentario && (
-                    <div className="historial-timeline-comment">
-                      <MessageSquare size={12} color="#0369a1" className="comment-icon" />
-                      <div className="comment-text">"{item.comentario}"</div>
-                    </div>
-                  )}
+                  {/* Fila 4: Comentario o Nota de Dictamen / Registro de Demora */}
+                  {item.comentario && (() => {
+                    const isDemora = item.comentario.includes('Demora') || item.comentario.includes('T. Real')
+                    return (
+                      <div className={`historial-timeline-comment ${isDemora ? 'is-demora' : ''}`}>
+                        <MessageSquare size={12} color={isDemora ? '#d97706' : '#0369a1'} className="comment-icon" />
+                        <div className="comment-text">
+                          {isDemora && (
+                            <div style={{ marginBottom: '4px' }}>
+                              <span className="obs-demora-pill" style={{ display: 'inline-flex', fontSize: 'var(--text-xs)', padding: '1px 8px', fontWeight: 'var(--fw-semibold)' }}>
+                                ⚠️ Registro de Demora / Tiempos
+                              </span>
+                            </div>
+                          )}
+                          <div>"{item.comentario}"</div>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             )

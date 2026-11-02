@@ -475,7 +475,13 @@ export async function enviarTiemposYDemoras({
   estadoCovepa,
   revisor,
   fechaSubsanacion,
-  comentarioCovepa
+  comentarioCovepa,
+  usuarioNombre = null,
+  usuarioEmail = null,
+  usuarioId = null,
+  origen = 'web_erp',
+  estadoActual = null,
+  registrarEnHistorial = true
 } = {}) {
   if (!idObs) {
     return { ok: false, data: null, error: new Error('idObs es obligatorio') }
@@ -521,7 +527,17 @@ export async function enviarTiemposYDemoras({
       query = query.eq('id_sitio', idSitio)
     }
 
-    const { data, error } = await query.select()
+    let { data, error } = await query.select()
+
+    // Fallback defensivo si la columna fecha_registro_demora aún no existe en Supabase
+    if (error && (error.code === 'PGRST204' || error.message?.includes('fecha_registro_demora')) && payload.fecha_registro_demora) {
+      delete payload.fecha_registro_demora
+      let retryQuery = supabase.from('observaciones').update(payload).eq('id_obs', idObs)
+      if (idSitio) retryQuery = retryQuery.eq('id_sitio', idSitio)
+      const retryRes = await retryQuery.select()
+      data = retryRes.data
+      error = retryRes.error
+    }
 
     if (error) {
       if (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('does not exist')) {
@@ -533,6 +549,35 @@ export async function enviarTiemposYDemoras({
     }
 
     console.log(`[CONTROL-COVEPA] ✅ Datos sincronizados con éxito hacia Control COVEPA (${idObs}${idSitio ? ` · ${idSitio}` : ''})`)
+
+    // Registrar trazabilidad cronológica automática en historial_estados_observaciones
+    if (registrarEnHistorial && (demora !== undefined || tiempoReal !== undefined || tiempoDemora !== undefined)) {
+      const partes = []
+      if (demora && String(demora).trim() !== '') {
+        partes.push(`⚠️ Demora: "${String(demora).trim()}"`)
+      }
+      if (tiempoReal && String(tiempoReal).trim() !== '') {
+        partes.push(`⏱️ T. Real: ${String(tiempoReal).trim()}`)
+      }
+      if (tiempoDemora && String(tiempoDemora).trim() !== '') {
+        partes.push(`⏳ T. Con Demora: ${String(tiempoDemora).trim()}`)
+      }
+
+      if (partes.length > 0) {
+        registrarHistorialEstado({
+          idObs,
+          idSitio,
+          estadoAnterior: estadoActual || null,
+          estadoNuevo: estadoCovepa || estadoActual || 'Pendiente',
+          usuarioNombre: usuarioNombre || 'Control COVEPA / App Fotos',
+          usuarioEmail: usuarioEmail || null,
+          usuarioId: usuarioId || null,
+          comentario: partes.join(' · '),
+          origen: origen || 'web_erp'
+        }).catch(err => console.warn('[HISTORIAL-WARN] Error registrando demora en historial:', err))
+      }
+    }
+
     return { ok: true, data: data?.[0] || null, error: null }
   } catch (err) {
     console.error(`[CONTROL-COVEPA] ❌ Excepción al sincronizar datos hacia Control COVEPA:`, err)
@@ -547,13 +592,19 @@ export async function enviarTiemposYDemoras({
  * @param {string} idObs
  * @param {string|null} justificacionTexto
  * @param {string|null} [idSitio]
+ * @param {Object} [extraContext]
  * @returns {Promise<{ data: Object|null, error: Object|null }>}
  */
-export async function sincronizarJustificacionDemora(idObs, justificacionTexto, idSitio = null) {
+export async function sincronizarJustificacionDemora(idObs, justificacionTexto, idSitio = null, extraContext = {}) {
   const res = await enviarTiemposYDemoras({
     idObs,
     idSitio,
-    demora: justificacionTexto
+    demora: justificacionTexto,
+    usuarioNombre: extraContext.usuarioNombre,
+    usuarioEmail: extraContext.usuarioEmail,
+    usuarioId: extraContext.usuarioId,
+    origen: extraContext.origen || 'web_erp',
+    estadoActual: extraContext.estadoActual
   })
 
   if (!res.ok && res.error && !res.pendingMigration) {
@@ -572,14 +623,20 @@ export async function sincronizarJustificacionDemora(idObs, justificacionTexto, 
  * @param {string|null} [tiempos.tiempoReal]
  * @param {string|null} [tiempos.tiempoDemora]
  * @param {string|null} [idSitio]
+ * @param {Object} [extraContext]
  * @returns {Promise<{ data: Object|null, error: Object|null, pendingMigration?: boolean }>}
  */
-export async function sincronizarTiemposEjecucion(idObs, { tiempoReal, tiempoDemora } = {}, idSitio = null) {
+export async function sincronizarTiemposEjecucion(idObs, { tiempoReal, tiempoDemora } = {}, idSitio = null, extraContext = {}) {
   const res = await enviarTiemposYDemoras({
     idObs,
     idSitio,
     tiempoReal,
-    tiempoDemora
+    tiempoDemora,
+    usuarioNombre: extraContext.usuarioNombre,
+    usuarioEmail: extraContext.usuarioEmail,
+    usuarioId: extraContext.usuarioId,
+    origen: extraContext.origen || 'web_erp',
+    estadoActual: extraContext.estadoActual
   })
 
   if (!res.ok && res.error && !res.pendingMigration) {

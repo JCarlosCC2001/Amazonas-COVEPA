@@ -117,10 +117,18 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     try {
       const val = delayValRef.current || ''
       const justificacionLimpia = val.trim() !== '' ? val.trim() : null
-      await sincronizarJustificacionDemora(obsLocal.id_obs, justificacionLimpia, obsLocal.id_sitio)
+      const responsableSesion = resolverNombreAuditor(user, personalMember)
+      await sincronizarJustificacionDemora(obsLocal.id_obs, justificacionLimpia, obsLocal.id_sitio, {
+        usuarioNombre: responsableSesion,
+        usuarioEmail: user?.email,
+        usuarioId: user?.id,
+        origen: 'observaciones',
+        estadoActual: obsLocal.estado_covepa || 'Pendiente'
+      })
       isDirtyDelayRef.current = false
       setSavedDelay(true)
       setTimeout(() => setSavedDelay(false), 2500)
+      setHistorialRefreshKey(k => k + 1)
       if (onSaved) {
         onSaved({ ...obsLocal, justificacion_demora: justificacionLimpia })
       }
@@ -129,7 +137,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     } finally {
       setSavingDelay(false)
     }
-  }, [obsLocal, onSaved])
+  }, [obsLocal, onSaved, user, personalMember])
 
   // Guardado de tiempos de ejecución en tiempo real (COVEPA)
   const saveTimeNow = useCallback(async () => {
@@ -138,10 +146,18 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     try {
       const tReal = realTimeRef.current ? realTimeRef.current.trim() : null
       const tDemora = delayTimeRef.current ? delayTimeRef.current.trim() : null
-      await sincronizarTiemposEjecucion(obsLocal.id_obs, { tiempoReal: tReal, tiempoDemora: tDemora }, obsLocal.id_sitio)
+      const responsableSesion = resolverNombreAuditor(user, personalMember)
+      await sincronizarTiemposEjecucion(obsLocal.id_obs, { tiempoReal: tReal, tiempoDemora: tDemora }, obsLocal.id_sitio, {
+        usuarioNombre: responsableSesion,
+        usuarioEmail: user?.email,
+        usuarioId: user?.id,
+        origen: 'observaciones',
+        estadoActual: obsLocal.estado_covepa || 'Pendiente'
+      })
       isDirtyTimeRef.current = false
       setSavedTime(true)
       setTimeout(() => setSavedTime(false), 2500)
+      setHistorialRefreshKey(k => k + 1)
       if (onSaved) {
         onSaved({ ...obsLocal, tiempo_ejecucion_real: tReal, tiempo_ejecucion_demora: tDemora })
       }
@@ -150,7 +166,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     } finally {
       setSavingTime(false)
     }
-  }, [obsLocal, onSaved])
+  }, [obsLocal, onSaved, user, personalMember])
 
   const diffInfo = useMemo(() => diffTimeHHMM(realTimeVal, delayTimeVal), [realTimeVal, delayTimeVal])
   const hasDelayData = Boolean((delayVal && delayVal.trim()) || (realTimeVal && realTimeVal.trim()) || (delayTimeVal && delayTimeVal.trim()))

@@ -2450,7 +2450,15 @@ function ModalDetallesProgramacion({
     try {
       const val = delaysRef.current[obsId] ?? ''
       const justificacionLimpia = val.trim() !== '' ? val.trim() : null
-      await sincronizarJustificacionDemora(obsId, justificacionLimpia, currentSitioId)
+      const obsTarget = observaciones.find(o => o.id_obs === obsId)
+      const responsableSesion = resolverNombreAuditor(user, personalMember)
+      await sincronizarJustificacionDemora(obsId, justificacionLimpia, currentSitioId, {
+        usuarioNombre: responsableSesion,
+        usuarioEmail: user?.email,
+        usuarioId: user?.id,
+        origen: 'programacion',
+        estadoActual: obsTarget?.estado_covepa || 'Pendiente'
+      })
       dirtyDelaysRef.current.delete(obsId)
       setSavedDelayId(obsId)
       setTimeout(() => {
@@ -2483,7 +2491,15 @@ function ModalDetallesProgramacion({
     try {
       const tReal = tiemposRealRef.current[obsId] ? tiemposRealRef.current[obsId].trim() : null
       const tDemora = tiemposDemoraRef.current[obsId] ? tiemposDemoraRef.current[obsId].trim() : null
-      await sincronizarTiemposEjecucion(obsId, { tiempoReal: tReal, tiempoDemora: tDemora }, currentSitioId)
+      const obsTarget = observaciones.find(o => o.id_obs === obsId)
+      const responsableSesion = resolverNombreAuditor(user, personalMember)
+      await sincronizarTiemposEjecucion(obsId, { tiempoReal: tReal, tiempoDemora: tDemora }, currentSitioId, {
+        usuarioNombre: responsableSesion,
+        usuarioEmail: user?.email,
+        usuarioId: user?.id,
+        origen: 'programacion',
+        estadoActual: obsTarget?.estado_covepa || 'Pendiente'
+      })
       dirtyTiemposRef.current.delete(obsId)
       setSavedTimeId(obsId)
       setTimeout(() => {
@@ -2515,21 +2531,33 @@ function ModalDetallesProgramacion({
     }
 
     if (dirtyDelayIds.length > 0) {
+      const responsableSesion = resolverNombreAuditor(user, personalMember)
       promises.push(
         ...dirtyDelayIds.map(id => {
           const val = delaysRef.current[id] ?? ''
-          return sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null, currentSitioId)
+          return sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null, currentSitioId, {
+            usuarioNombre: responsableSesion,
+            usuarioEmail: user?.email,
+            usuarioId: user?.id,
+            origen: 'programacion'
+          })
         })
       )
       dirtyDelaysRef.current.clear()
     }
 
     if (dirtyTimeIds.length > 0) {
+      const responsableSesion = resolverNombreAuditor(user, personalMember)
       promises.push(
         ...dirtyTimeIds.map(id => {
           const tReal = tiemposRealRef.current[id] ? tiemposRealRef.current[id].trim() : null
           const tDemora = tiemposDemoraRef.current[id] ? tiemposDemoraRef.current[id].trim() : null
-          return sincronizarTiemposEjecucion(id, { tiempoReal: tReal, tiempoDemora: tDemora }, currentSitioId)
+          return sincronizarTiemposEjecucion(id, { tiempoReal: tReal, tiempoDemora: tDemora }, currentSitioId, {
+            usuarioNombre: responsableSesion,
+            usuarioEmail: user?.email,
+            usuarioId: user?.id,
+            origen: 'programacion'
+          })
         })
       )
       dirtyTiemposRef.current.clear()
@@ -2639,21 +2667,33 @@ function ModalDetallesProgramacion({
     }
 
     if (dirtyDelayIds.length > 0) {
+      const responsableSesion = resolverNombreAuditor(user, personalMember)
       promises.push(
         ...dirtyDelayIds.map(id => {
           const val = delaysRef.current[id] ?? ''
-          return sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null, currentSitioId)
+          return sincronizarJustificacionDemora(id, val.trim() !== '' ? val.trim() : null, currentSitioId, {
+            usuarioNombre: responsableSesion,
+            usuarioEmail: user?.email,
+            usuarioId: user?.id,
+            origen: 'programacion'
+          })
         })
       )
       dirtyDelaysRef.current.clear()
     }
 
     if (dirtyTimeIds.length > 0) {
+      const responsableSesion = resolverNombreAuditor(user, personalMember)
       promises.push(
         ...dirtyTimeIds.map(id => {
           const tReal = tiemposRealRef.current[id] ? tiemposRealRef.current[id].trim() : null
           const tDemora = tiemposDemoraRef.current[id] ? tiemposDemoraRef.current[id].trim() : null
-          return sincronizarTiemposEjecucion(id, { tiempoReal: tReal, tiempoDemora: tDemora }, currentSitioId)
+          return sincronizarTiemposEjecucion(id, { tiempoReal: tReal, tiempoDemora: tDemora }, currentSitioId, {
+            usuarioNombre: responsableSesion,
+            usuarioEmail: user?.email,
+            usuarioId: user?.id,
+            origen: 'programacion'
+          })
         })
       )
       dirtyTiemposRef.current.clear()

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback } f
 import { supabase } from '../lib/supabase'
 import { getCachedSitiosAsignados } from '../services/sitiosService'
 import { asegurarProgramacionSitio } from '../services/programacionService'
+import { registrarHistorialEstado } from '../services/auditoriaSyncService'
 
 const NotificationContext = createContext(null)
 
@@ -851,6 +852,38 @@ export function NotificationProvider({ children }) {
           } else if (oldRow && (oldRow.estado_covepa === 'Solicitando Revisión' || oldRow.estado_covepa === 'Solicitando Revision')) {
             // Ya no está en solicitando revisión (se validó, rechazó, etc.)
             fetchSolicitudes(false)
+          }
+
+          // Regla: Detectar registro o modificación de demoras y tiempos desde la App de Fotos / Control COVEPA
+          if (newRow && oldRow && (
+            (newRow.justificacion_demora && newRow.justificacion_demora !== oldRow.justificacion_demora) ||
+            (newRow.tiempo_ejecucion_real && newRow.tiempo_ejecucion_real !== oldRow.tiempo_ejecucion_real) ||
+            (newRow.tiempo_ejecucion_demora && newRow.tiempo_ejecucion_demora !== oldRow.tiempo_ejecucion_demora)
+          )) {
+            const partes = []
+            if (newRow.justificacion_demora && newRow.justificacion_demora !== oldRow.justificacion_demora) {
+              partes.push(`⚠️ Demora: "${newRow.justificacion_demora}"`)
+            }
+            if (newRow.tiempo_ejecucion_real && newRow.tiempo_ejecucion_real !== oldRow.tiempo_ejecucion_real) {
+              partes.push(`⏱️ T. Real: ${newRow.tiempo_ejecucion_real}`)
+            }
+            if (newRow.tiempo_ejecucion_demora && newRow.tiempo_ejecucion_demora !== oldRow.tiempo_ejecucion_demora) {
+              partes.push(`⏳ T. Con Demora: ${newRow.tiempo_ejecucion_demora}`)
+            }
+
+            if (partes.length > 0) {
+              registrarHistorialEstado({
+                idObs: newRow.id_obs,
+                idSitio: newRow.id_sitio,
+                estadoAnterior: oldRow.estado_covepa || null,
+                estadoNuevo: newRow.estado_covepa || 'Pendiente',
+                usuarioNombre: newRow.revisor || 'Técnico de Campo (App Fotos)',
+                usuarioEmail: null,
+                usuarioId: null,
+                comentario: partes.join(' · '),
+                origen: 'app_fotos'
+              }).catch(err => console.warn('[NOTIF-HISTORIAL] Error registrando demora de app_fotos:', err))
+            }
           }
         }
       )

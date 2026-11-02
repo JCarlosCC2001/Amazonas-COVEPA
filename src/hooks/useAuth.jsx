@@ -24,12 +24,25 @@ export function AuthProvider({ children }) {
       const userEmail = (authUser.email || '').toLowerCase().trim()
       const isMasterAdmin = userEmail === 'jcarloscc1101@gmail.com'
 
-      // 1. Consultar tabla perfiles_usuario en base local
+      // 1. Consultar tabla perfiles_usuario en base local (por ID de Auth o por Email)
       let { data: prof, error: profErr } = await supabase
         .from('perfiles_usuario')
         .select('*')
-        .eq('id', authUser.id)
+        .or(`id.eq.${authUser.id},email.eq.${userEmail}`)
         .maybeSingle()
+
+      // Si existe registrado por email pero con un ID provisional, sincronizar con el ID real de auth
+      if (prof && prof.id !== authUser.id) {
+        try {
+          await supabase
+            .from('perfiles_usuario')
+            .update({ id: authUser.id, updated_at: new Date().toISOString() })
+            .eq('email', userEmail)
+          prof.id = authUser.id
+        } catch {
+          // No crítico si RLS bloquea update directo
+        }
+      }
 
       if (profErr) {
         // Si hay restricción RLS (403), asignar perfil en memoria sin intentar upsert redundante

@@ -13,11 +13,6 @@ self.addEventListener('activate', (event) => {
   )
 })
 
-// Listener de fetch para cumplir con el estándar de instalación PWA de Chromium/Android/Brave
-self.addEventListener('fetch', () => {
-  // Passthrough nativo 100% transparente y estable
-})
-
 // Manejo de clic en notificaciones en celulares (Android), Windows y PWA
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()

@@ -13,3 +13,4 @@
 -- WHERE LOWER(email) = LOWER('correo_del_asistente@covepa.com');
 
 NOTIFY pgrst, 'reload schema';
+

@@ -198,12 +198,12 @@ export async function fetchPersonal(forceRefresh = false) {
       supabase
         .from('perfiles_usuario')
         .select('id, email, rol, id_personal, activo, updated_at')
-        .catch(err => ({ data: null, error: err })),
+        .then(res => res, err => ({ data: null, error: err })),
       supabase
         .from('personal_cuadrillas')
         .select('id_personal, nombre_completo, cuadrilla, cargo, activo')
         .eq('activo', true)
-        .catch(err => ({ data: null, error: err }))
+        .then(res => res, err => ({ data: null, error: err }))
     ])
 
     const { data: extPersonal, error: extErr } = extRes

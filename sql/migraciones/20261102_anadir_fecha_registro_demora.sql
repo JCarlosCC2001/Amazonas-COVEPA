@@ -11,3 +11,4 @@ ADD COLUMN IF NOT EXISTS fecha_registro_demora TEXT DEFAULT NULL;
 
 -- 2. Recargar el caché del esquema de Supabase PostgREST
 NOTIFY pgrst, 'reload schema';
+

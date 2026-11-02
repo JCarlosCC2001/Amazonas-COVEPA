@@ -136,7 +136,7 @@ export async function fetchObservaciones({
 } = {}) {
   let query = supabase
     .from('observaciones')
-    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora', { count: 'exact' })
+    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,fecha_registro_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora', { count: 'exact' })
 
   query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio, idSitios, filtroDemora })
 
@@ -155,7 +155,9 @@ export async function fetchObservaciones({
     fecha_subsanacion: 'fecha_subsanacion',
     revisor: 'revisor',
     demora: 'justificacion_demora',
-    justificacion_demora: 'justificacion_demora'
+    justificacion_demora: 'justificacion_demora',
+    fecha_demora: 'fecha_registro_demora',
+    fecha_registro_demora: 'fecha_registro_demora'
   }
 
   const dbCol = validDbCols[sortBy] || 'id_obs'

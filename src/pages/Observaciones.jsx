@@ -129,8 +129,10 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       setSavedDelay(true)
       setTimeout(() => setSavedDelay(false), 2500)
       setHistorialRefreshKey(k => k + 1)
+      const ahoraIso = justificacionLimpia ? new Date().toISOString() : null
+      setObsLocal(prev => ({ ...prev, justificacion_demora: justificacionLimpia, fecha_registro_demora: ahoraIso }))
       if (onSaved) {
-        onSaved({ ...obsLocal, justificacion_demora: justificacionLimpia })
+        onSaved({ ...obsLocal, justificacion_demora: justificacionLimpia, fecha_registro_demora: ahoraIso })
       }
     } catch (err) {
       console.error('Error al guardar justificación de demora:', err)
@@ -583,6 +585,12 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                 rows={2}
                 style={{ borderColor: '#fde68a' }}
               />
+              {obsLocal?.fecha_registro_demora && (
+                <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--text-xs)', color: '#b45309' }}>
+                  <Calendar size={11} color="#b45309" />
+                  <span>Demora registrada: {getPeruDateStr(obsLocal.fecha_registro_demora)}</span>
+                </div>
+              )}
               <div style={{ fontSize: 'var(--text-meta)', marginTop: '0.35rem', color: '#78716c' }}>
                 {delayVal && delayVal.trim() ? (
                   <span style={{ color: '#b45309', fontWeight: 'var(--fw-medium)' }}>
@@ -951,7 +959,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                           {o.justificacion_demora && o.justificacion_demora.trim() ? (
                             <span
                               className="obs-demora-pill"
-                              title={`Justificación:\n${o.justificacion_demora}`}
+                              title={`Justificación:\n${o.justificacion_demora}${o.fecha_registro_demora ? `\n\nFecha de registro: ${getPeruDateStr(o.fecha_registro_demora)}` : ''}`}
                             >
                               <AlertTriangle size={12} color="#d97706" style={{ flexShrink: 0 }} />
                               Tuvo Demora
@@ -1546,7 +1554,7 @@ export default function Observaciones() {
         o.justificacion_demora && o.justificacion_demora.trim() ? (
           <span
             className="obs-demora-pill"
-            title={`Justificación:\n${o.justificacion_demora}`}
+            title={`Justificación:\n${o.justificacion_demora}${o.fecha_registro_demora ? `\n\nFecha de registro: ${getPeruDateStr(o.fecha_registro_demora)}` : ''}`}
           >
             <AlertTriangle size={12} color="#d97706" style={{ flexShrink: 0 }} />
             Tuvo Demora

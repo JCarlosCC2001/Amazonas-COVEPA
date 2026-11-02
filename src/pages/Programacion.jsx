@@ -2464,7 +2464,8 @@ function ModalDetallesProgramacion({
       setTimeout(() => {
         setSavedDelayId(prev => (prev === obsId ? null : prev))
       }, 2000)
-      setObservaciones(prev => prev.map(o => o.id_obs === obsId ? { ...o, justificacion_demora: justificacionLimpia } : o))
+      const ahoraIso = justificacionLimpia ? new Date().toISOString() : null
+      setObservaciones(prev => prev.map(o => o.id_obs === obsId ? { ...o, justificacion_demora: justificacionLimpia, fecha_registro_demora: ahoraIso } : o))
       onObservationUpdated()
     } catch (err) {
       console.error('Error al guardar justificación de demora:', err)
@@ -2821,6 +2822,7 @@ function ModalDetallesProgramacion({
           fechaRev,
           comentario,
           demora,
+          o.fecha_registro_demora ? getPeruDateStr(o.fecha_registro_demora) : '',
           tReal,
           tDemora
         ]
@@ -2851,6 +2853,7 @@ function ModalDetallesProgramacion({
           { name: 'FECHA DE REVISIÓN', filterButton: true },
           { name: 'COMENTARIO COVEPA', filterButton: true },
           { name: 'JUSTIFICACIÓN DE DEMORA', filterButton: true },
+          { name: 'FECHA REGISTRO DEMORA', filterButton: true },
           { name: 'TIEMPO EJECUCIÓN REAL (HH:MM)', filterButton: true },
           { name: 'TIEMPO CON DEMORAS (HH:MM)', filterButton: true }
         ],
@@ -3424,8 +3427,9 @@ function ModalDetallesProgramacion({
                       />
                       <div style={{ fontSize: 'var(--text-meta)', marginTop: '0.35rem', color: '#78716c' }}>
                         {delays[obs.id_obs] && delays[obs.id_obs].trim() ? (
-                          <span style={{ color: '#b45309', fontWeight: 'var(--fw-medium)' }}>
-                            ⚠️ Incidente registrado: observación con retraso justificado
+                          <span style={{ color: '#b45309', fontWeight: 'var(--fw-medium)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Calendar size={11} color="#b45309" />
+                            {obs.fecha_registro_demora ? `Demora registrada: ${getPeruDateStr(obs.fecha_registro_demora)}` : 'Incidente registrado: observación con retraso justificado'}
                           </span>
                         ) : (
                           <span style={{ color: '#059669', fontWeight: 'var(--fw-medium)' }}>

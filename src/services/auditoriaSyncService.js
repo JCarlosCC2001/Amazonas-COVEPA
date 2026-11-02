@@ -472,6 +472,7 @@ export async function enviarTiemposYDemoras({
   demora,
   tiempoReal,
   tiempoDemora,
+  fechaRegistroDemora,
   estadoCovepa,
   revisor,
   fechaSubsanacion,
@@ -490,6 +491,7 @@ export async function enviarTiemposYDemoras({
   const payload = {}
   if (demora !== undefined) {
     payload.justificacion_demora = (demora && String(demora).trim() !== '') ? String(demora).trim() : null
+    payload.fecha_registro_demora = payload.justificacion_demora ? (fechaRegistroDemora || new Date().toISOString()) : null
   }
   if (tiempoReal !== undefined) {
     payload.tiempo_ejecucion_real = (tiempoReal && String(tiempoReal).trim() !== '') ? String(tiempoReal).trim() : null

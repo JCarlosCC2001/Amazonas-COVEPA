@@ -139,6 +139,7 @@ async function generateStyledExcel({ observations, siteMap, sheetName, fileName 
     { name: 'REVISOR / SUBSANADOR', width: 24, align: 'left' },
     { name: 'COMENTARIO COVEPA', width: 38, align: 'left', wrap: true },
     { name: 'JUSTIFICACIÓN DE DEMORA', width: 38, align: 'left', wrap: true },
+    { name: 'FECHA REGISTRO DEMORA', width: 22, align: 'center' },
     { name: 'TIEMPO EJECUCIÓN REAL (HH:MM)', width: 22, align: 'center' },
     { name: 'TIEMPO CON DEMORAS (HH:MM)', width: 22, align: 'center' }
   ]
@@ -230,6 +231,7 @@ async function generateStyledExcel({ observations, siteMap, sheetName, fileName 
       o.revisor || '',
       o.comentario_covepa || '',
       o.justificacion_demora || '',
+      o.fecha_registro_demora ? getPeruDateStr(o.fecha_registro_demora) : '',
       o.tiempo_ejecucion_real || '',
       o.tiempo_ejecucion_demora || ''
     ]

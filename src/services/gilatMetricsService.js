@@ -330,3 +330,4 @@ export async function fetchGilatMetrics() {
     colaDetalle: colaDetalle.slice(0, 20)
   }
 }
+

@@ -66,15 +66,34 @@ export function resolverNombreAuditor(user, personalMember = null, fallback = 'A
   if (personalMember?.nombre_completo && String(personalMember.nombre_completo).trim()) {
     return String(personalMember.nombre_completo).trim()
   }
+  if (personalMember?.nombre && String(personalMember.nombre).trim()) {
+    const ap = personalMember.apellido ? ` ${personalMember.apellido}` : ''
+    return `${personalMember.nombre}${ap}`.trim()
+  }
   if (user?.user_metadata?.nombre_completo && String(user.user_metadata.nombre_completo).trim()) {
     return String(user.user_metadata.nombre_completo).trim()
   }
   if (user?.user_metadata?.nombre && String(user.user_metadata.nombre).trim()) {
-    return String(user.user_metadata.nombre).trim()
+    const ap = user.user_metadata.apellido ? ` ${user.user_metadata.apellido}` : ''
+    return `${user.user_metadata.nombre}${ap}`.trim()
   }
   if (user?.user_metadata?.full_name && String(user.user_metadata.full_name).trim()) {
     return String(user.user_metadata.full_name).trim()
   }
+
+  // Diccionario de nombres oficiales para cuentas de usuario COVEPA conocidas
+  const emailNorm = (user?.email || '').toLowerCase().trim()
+  const KNOWN_USERS_MAP = {
+    'jcarloscc1101@gmail.com': 'Jhoan Carlos Condor Callupe',
+    'fduran@covepa.pe': 'Flor Duran',
+    'ksedano@covepa.pe': 'Kevin Sedano',
+    'ccondor@covepa.pe': 'Carlos Condor',
+    'hventocilla@covepa.pe': 'Hans Ventocilla'
+  }
+  if (KNOWN_USERS_MAP[emailNorm]) {
+    return KNOWN_USERS_MAP[emailNorm]
+  }
+
   if (user?.email) {
     const rawPrefix = user.email.split('@')[0].replace(/[._-]/g, ' ')
     const capitalized = rawPrefix
@@ -111,7 +130,8 @@ export async function registrarHistorialEstado({
   usuarioEmail = null,
   usuarioId = null,
   comentario = null,
-  origen = 'web_erp'
+  origen = 'web_erp',
+  fechaExacta = null
 }) {
   if (!idObs || !estadoNuevo) return null
   try {
@@ -127,7 +147,7 @@ export async function registrarHistorialEstado({
         usuario_id: usuarioId || null,
         comentario: comentario || null,
         origen: origen,
-        created_at: new Date().toISOString()
+        created_at: fechaExacta || new Date().toISOString()
       })
       .select()
       .single()

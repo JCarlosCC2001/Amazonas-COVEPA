@@ -1072,7 +1072,7 @@ export default function Observaciones() {
   const [sortField, setSortField] = useState('codigo') // 'codigo' | 'cuadrilla' | 'sitio' | 'localidad' | 'zona' | 'estado' | 'fecha' | 'revisor' | 'demora'
   const [sortDirection, setSortDirection] = useState('asc') // 'asc' | 'desc'
 
-  const { user } = useAuth()
+  const { user, personalMember } = useAuth()
   const { notificarPaseEnRevision } = useNotifications()
   const [batchLoading, setBatchLoading] = useState(false)
 
@@ -1082,8 +1082,9 @@ export default function Observaciones() {
 
     setBatchLoading(true)
     try {
+      const nombreResponsable = resolverNombreAuditor(user, personalMember, 'Coordinador COVEPA')
       const res = await pasarTodasSolicitudesAEnRevision({
-        nombre: user?.nombre || user?.email || 'Coordinador COVEPA',
+        nombre: nombreResponsable,
         email: user?.email,
         id: user?.id
       })

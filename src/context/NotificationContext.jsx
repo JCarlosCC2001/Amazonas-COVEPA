@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback } f
 import { supabase } from '../lib/supabase'
 import { getCachedSitiosAsignados } from '../services/sitiosService'
 import { asegurarProgramacionSitio } from '../services/programacionService'
-import { registrarHistorialEstado } from '../services/auditoriaSyncService'
+import { registrarHistorialEstado, esRevisorGilat } from '../services/auditoriaSyncService'
 
 const NotificationContext = createContext(null)
 
@@ -849,6 +849,36 @@ export function NotificationProvider({ children }) {
               return prev
             })
             fetchSolicitudes(false)
+
+            // ── TRAZABILIDAD AUTOMÁTICA DEL TÉCNICO AL SOLICITAR REVISIÓN ──
+            // 1. Registra en el historial de cambios el nombre del técnico de campo
+            // 2. Limpia el campo 'revisor' en observaciones para que SOLO pertenezca a Gilat
+            if (newRow.estado_covepa !== oldRow?.estado_covepa) {
+              const tecnicoNombre = newRow.revisor || 'Técnico de Campo (App Fotos)'
+              registrarHistorialEstado({
+                idObs: newRow.id_obs,
+                idSitio: newRow.id_sitio,
+                estadoAnterior: oldRow?.estado_covepa || 'Pendiente',
+                estadoNuevo: 'Solicitando Revisión',
+                usuarioNombre: tecnicoNombre,
+                usuarioEmail: null,
+                usuarioId: null,
+                comentario: 'Solicitud de revisión técnica enviada desde campo',
+                origen: 'app_fotos',
+                fechaExacta: newRow.fecha_subsanacion || null
+              }).catch(err => console.warn('[NOTIF-HISTORIAL] Error registrando solicitud en historial:', err))
+
+              // Regla estricta: en 'revisor' solo va personal de Gilat. Si vino con el técnico, limpiarlo en observaciones
+              if (newRow.revisor && !esRevisorGilat(newRow.revisor)) {
+                supabase
+                  .from('observaciones')
+                  .update({ revisor: null })
+                  .eq('id_obs', newRow.id_obs)
+                  .eq('id_sitio', newRow.id_sitio)
+                  .then(() => console.log(`[NOTIF-SYNC] Campo revisor de ${newRow.id_obs} limpiado a null (reservado exclusivamente a Gilat)`))
+                  .catch(err => console.warn('[NOTIF-SYNC] Error limpiando revisor no-Gilat:', err))
+              }
+            }
           } else if (oldRow && (oldRow.estado_covepa === 'Solicitando Revisión' || oldRow.estado_covepa === 'Solicitando Revision')) {
             // Ya no está en solicitando revisión (se validó, rechazó, etc.)
             fetchSolicitudes(false)

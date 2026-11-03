@@ -474,7 +474,9 @@ export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
   )
 
   const idObsList = rows.map(r => r.id_obs)
-  const auditorNombre = usuarioInfo.nombre || usuarioInfo.email || 'Coordinador COVEPA'
+  const auditorNombre = usuarioInfo.nombre && !usuarioInfo.nombre.includes('@')
+    ? usuarioInfo.nombre
+    : resolverNombreAuditor(usuarioInfo, null, 'Coordinador COVEPA')
 
   // 3. Actualizar estado a 'En Revisión' (asegurando revisor en null)
   const { error: updateErr } = await supabase
@@ -500,6 +502,24 @@ export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
 
   // 4. Registrar trazabilidad en historial_estados_observaciones (no bloqueante)
   rows.forEach(r => {
+    // Si la solicitud provino con el nombre del técnico de campo, registrar previamente su evento de solicitud en el historial
+    if (r.revisor && !esRevisorGilat(r.revisor)) {
+      registrarHistorialEstado({
+        idObs: r.id_obs,
+        idSitio: r.id_sitio,
+        estadoAnterior: 'Pendiente',
+        estadoNuevo: 'Solicitando Revisión',
+        usuarioNombre: r.revisor,
+        usuarioEmail: null,
+        usuarioId: null,
+        comentario: 'Solicitud de revisión técnica enviada desde campo',
+        origen: 'app_fotos',
+        fechaExacta: r.fecha_subsanacion || null
+      }).catch(err => console.warn('[HISTORIAL-WARN] Error registrando solicitud previa de técnico:', err))
+    }
+
+    // Registrar el pase a En Revisión por parte del usuario de oficina (con su nombre completo oficial)
+    const solicitanteInfo = (r.revisor && !esRevisorGilat(r.revisor)) ? ` (Solicitado por: ${r.revisor})` : ''
     registrarHistorialEstado({
       idObs: r.id_obs,
       idSitio: r.id_sitio,
@@ -508,7 +528,7 @@ export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
       usuarioNombre: auditorNombre,
       usuarioEmail: usuarioInfo.email || null,
       usuarioId: usuarioInfo.id || null,
-      comentario: 'Pase masivo a En Revisión (con verificación/generación de programación)',
+      comentario: `Pase masivo a En Revisión (con verificación/generación de programación)${solicitanteInfo}`,
       origen: 'web_erp'
     }).catch(err => console.warn('[HISTORIAL-WARN] Error registrando historial masivo:', err))
   })

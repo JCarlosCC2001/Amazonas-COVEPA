@@ -730,3 +730,4 @@ export default function GilatMetricsView({
     </div>
   )
 }
+

@@ -64,6 +64,20 @@ export default function HistorialEstadosTimeline({ idObs, refreshKey = 0 }) {
     return origen
   }
 
+  const formatNombreAutor = (nombre) => {
+    if (!nombre) return 'Usuario de sesión'
+    const norm = String(nombre).trim()
+    if (norm === 'jcarloscc1101@gmail.com') return 'Jhoan Carlos Condor Callupe'
+    if (norm === 'fduran@covepa.pe') return 'Flor Duran'
+    if (norm === 'ksedano@covepa.pe') return 'Kevin Sedano'
+    if (norm === 'ccondor@covepa.pe') return 'Carlos Condor'
+    if (norm.includes('@')) {
+      const raw = norm.split('@')[0].replace(/[._-]/g, ' ')
+      return raw.split(' ').filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+    }
+    return norm
+  }
+
   return (
     <div className="historial-timeline-container">
       <div className="historial-timeline-topbar">
@@ -149,7 +163,7 @@ export default function HistorialEstadosTimeline({ idObs, refreshKey = 0 }) {
                   {/* Fila 3: Responsable de cambio (usuario de la sesión activa) */}
                   <div className="historial-timeline-author">
                     <User size={11} color="#0284c7" />
-                    <span>Responsable de cambio: <strong title={item.usuario_email ? `Cuenta: ${item.usuario_email}` : ''}>{item.usuario_nombre || 'Usuario de sesión'}</strong></span>
+                    <span>Responsable de cambio: <strong title={item.usuario_email ? `Cuenta: ${item.usuario_email}` : ''}>{formatNombreAutor(item.usuario_nombre)}</strong></span>
                   </div>
 
                   {/* Fila 4: Comentario o Nota de Dictamen / Registro de Demora */}

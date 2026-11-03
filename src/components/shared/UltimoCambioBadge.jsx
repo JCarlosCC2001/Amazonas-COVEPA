@@ -43,6 +43,23 @@ function formatFechaCompleta(isoStr) {
 }
 
 /**
+ * Normaliza nombres de usuario para evitar mostrar correos crudos
+ */
+function formatNombreAutor(nombre) {
+  if (!nombre) return 'Usuario del Sistema'
+  const norm = String(nombre).trim()
+  if (norm === 'jcarloscc1101@gmail.com') return 'Jhoan Carlos Condor Callupe'
+  if (norm === 'fduran@covepa.pe') return 'Flor Duran'
+  if (norm === 'ksedano@covepa.pe') return 'Kevin Sedano'
+  if (norm === 'ccondor@covepa.pe') return 'Carlos Condor'
+  if (norm.includes('@')) {
+    const raw = norm.split('@')[0].replace(/[._-]/g, ' ')
+    return raw.split(' ').filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+  }
+  return norm
+}
+
+/**
  * Componente Insignia de Último Cambio (Auditoría Directa en Modal/Tarjeta)
  * Exhibe el nombre del usuario de la cuenta que realizó el cambio más reciente
  * y permite desplegar la trazabilidad cronológica con un solo clic.
@@ -91,7 +108,7 @@ export default function UltimoCambioBadge({
                 className="obs-ultimo-cambio-author"
                 title={latest.usuario_email ? `Cuenta: ${latest.usuario_email}\nRegistrado: ${formatFechaCompleta(latest.created_at)}` : ''}
               >
-                {latest.usuario_nombre || 'Usuario del Sistema'}
+                {formatNombreAutor(latest.usuario_nombre)}
               </strong>
               {latest.estado_nuevo && (
                 <span className={`obs-ultimo-cambio-action estado-badge ${estadoCovepaBadge(latest.estado_nuevo)}`}>

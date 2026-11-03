@@ -20,3 +20,4 @@ SET rol = 'asistente_calidad', activo = true, updated_at = NOW()
 WHERE LOWER(email) = 'fduran@covepa.pe';
 
 NOTIFY pgrst, 'reload schema';
+

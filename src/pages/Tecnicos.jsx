@@ -449,12 +449,13 @@ export default function Tecnicos() {
     }
   }
 
-  const handleAssignAccount = async (personId, { email, rol, activo }) => {
+  const handleAssignAccount = async (personId, { email, rol, password, activo }) => {
     try {
       const updatedProf = await assignUserAccount({
         id_personal: personId,
         email,
         rol,
+        password,
         activo
       })
       setPersonal(prev => prev.map(p => {
@@ -1306,6 +1307,8 @@ function DrawerPersonal({ person, isAdmin, canEditPersonal = true, onToggleAcces
   const [showAssignForm, setShowAssignForm] = useState(false)
   const [accountEmail, setAccountEmail] = useState(person.cuenta_usuario?.email || person.email || '')
   const [accountRol, setAccountRol] = useState(person.cuenta_usuario?.rol || (person.cargo?.toUpperCase().includes('SUPERVISOR') ? 'supervisor' : 'tecnico'))
+  const [accountPassword, setAccountPassword] = useState('')
+  const [showAccountPassword, setShowAccountPassword] = useState(false)
   const [accountActivo, setAccountActivo] = useState(person.cuenta_usuario ? person.cuenta_usuario.activo : true)
   const [savingAccount, setSavingAccount] = useState(false)
   const [savedSuccess, setSavedSuccess] = useState(false)
@@ -1324,6 +1327,8 @@ function DrawerPersonal({ person, isAdmin, canEditPersonal = true, onToggleAcces
     setAccountEmail(person.cuenta_usuario?.email || person.email || '')
     setAccountRol(person.cuenta_usuario?.rol || (person.cargo?.toUpperCase().includes('SUPERVISOR') ? 'supervisor' : 'tecnico'))
     setAccountActivo(person.cuenta_usuario ? person.cuenta_usuario.activo : true)
+    setAccountPassword('')
+    setShowAccountPassword(false)
     setShowAssignForm(false)
     setSavedSuccess(false)
   }, [person])
@@ -1354,16 +1359,27 @@ function DrawerPersonal({ person, isAdmin, canEditPersonal = true, onToggleAcces
       alert('Ingresa un correo electrónico para asignar la cuenta.')
       return
     }
+    const hasExisting = Boolean(person.cuenta_usuario)
+    if (!hasExisting && (!accountPassword.trim() || accountPassword.trim().length < 6)) {
+      alert('Para habilitar una cuenta nueva debes ingresar una contraseña de al menos 6 caracteres.')
+      return
+    }
+    if (accountPassword.trim() && accountPassword.trim().length < 6) {
+      alert('La contraseña debe tener al menos 6 caracteres.')
+      return
+    }
     setSavingAccount(true)
     try {
       if (onAssignAccount) {
         await onAssignAccount(person.id, {
           email: accountEmail.trim(),
           rol: accountRol,
+          password: accountPassword.trim() || null,
           activo: accountActivo
         })
       }
       setSavedSuccess(true)
+      setAccountPassword('')
       setTimeout(() => setSavedSuccess(false), 3000)
       setShowAssignForm(false)
     } catch (err) {
@@ -1497,11 +1513,41 @@ function DrawerPersonal({ person, isAdmin, canEditPersonal = true, onToggleAcces
                   />
                 </div>
 
-                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.65rem 0.75rem', fontSize: 'var(--text-2xs)', color: '#166534', lineHeight: 1.45 }}>
-                  <div style={{ fontWeight: 'var(--fw-bold)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
-                    <KeyRound size={13} color="#16a34a" /> Credenciales de Acceso en Supabase
+                {/* Campo de Contraseña de Acceso */}
+                <div className="prog-form-group" style={{ marginBottom: '0.4rem' }}>
+                  <label style={{ fontSize: 'var(--text-xs)', color: '#003060', fontWeight: 'var(--fw-semibold)' }}>
+                    {hasAccount ? 'Nueva Contraseña (opcional)' : 'Contraseña de Acceso *'}
+                  </label>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type={showAccountPassword ? 'text' : 'password'}
+                      className="prog-form-control"
+                      placeholder={hasAccount ? 'Dejar en blanco para conservar actual' : 'Mínimo 6 caracteres'}
+                      value={accountPassword}
+                      onChange={e => setAccountPassword(e.target.value)}
+                      required={!hasAccount}
+                      style={{ fontSize: 'var(--text-sm)', padding: '0.4rem 2.2rem 0.4rem 0.6rem', width: '100%' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAccountPassword(prev => !prev)}
+                      tabIndex={-1}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        padding: '2px',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                      title={showAccountPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                    >
+                      {showAccountPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
                   </div>
-                  <div>Al guardar se configurará el rol y acceso en el sistema. La contraseña se registra en <strong>Supabase &gt; Authentication &gt; Users &gt; Add user</strong> con este mismo correo (marcando <em>Auto Confirm User</em>).</div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.3rem' }}>
@@ -1879,6 +1925,8 @@ function ModalPersonal({ member, onClose, onSaved }) {
   const [asignarCuenta, setAsignarCuenta] = useState(!!member?.cuenta_usuario || !!member?.email)
   const [rolCuenta, setRolCuenta] = useState(member?.cuenta_usuario?.rol || (member?.cargo?.toUpperCase().includes('SUPERVISOR') ? 'supervisor' : 'tecnico'))
   const [cuentaActiva, setCuentaActiva] = useState(member?.cuenta_usuario ? member.cuenta_usuario.activo : true)
+  const [passwordCuenta, setPasswordCuenta] = useState('')
+  const [showPassCuenta, setShowPassCuenta] = useState(false)
 
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -1921,6 +1969,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
         // Cuenta de acceso en BD local del proyecto
         rol_cuenta: asignarCuenta ? rolCuenta : null,
         cuenta_activa: asignarCuenta ? cuentaActiva : false,
+        password_cuenta: asignarCuenta && passwordCuenta ? passwordCuenta.trim() : null,
         asignar_cuenta: asignarCuenta
       }
 
@@ -2228,11 +2277,38 @@ function ModalPersonal({ member, onClose, onSaved }) {
                       </label>
                     </div>
 
-                    <div style={{ gridColumn: '1 / -1', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.65rem 0.75rem', fontSize: 'var(--text-2xs)', color: '#166534', lineHeight: 1.45, marginTop: '0.2rem' }}>
-                      <div style={{ fontWeight: 'var(--fw-bold)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
-                        <KeyRound size={13} color="#16a34a" /> Credenciales de Acceso en Supabase
+                    <div className="prog-form-group" style={{ gridColumn: '1 / -1', marginTop: '0.2rem' }}>
+                      <label style={{ fontSize: 'var(--text-xs)', color: '#166534', fontWeight: 'var(--fw-semibold)' }}>
+                        {isEditing && member?.cuenta_usuario ? 'Nueva Contraseña (dejar en blanco para conservar actual)' : 'Contraseña de Acceso (mínimo 6 caracteres) *'}
+                      </label>
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <input
+                          type={showPassCuenta ? 'text' : 'password'}
+                          className="prog-form-control"
+                          placeholder={isEditing && member?.cuenta_usuario ? 'Conservar contraseña actual' : 'Contraseña para iniciar sesión'}
+                          value={passwordCuenta}
+                          onChange={e => setPasswordCuenta(e.target.value)}
+                          style={{ borderColor: '#86efac', paddingRight: '2.2rem' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassCuenta(prev => !prev)}
+                          tabIndex={-1}
+                          style={{
+                            position: 'absolute',
+                            right: '8px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: '#166534',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                          title={showPassCuenta ? 'Ocultar contraseña' : 'Ver contraseña'}
+                        >
+                          {showPassCuenta ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
                       </div>
-                      <div>La contraseña para iniciar sesión se crea en <strong>Supabase &gt; Authentication &gt; Users &gt; Add user</strong> con este mismo correo (marcando <em>Auto Confirm User</em>).</div>
                     </div>
                   </div>
                 </>

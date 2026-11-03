@@ -453,57 +453,93 @@ export async function deletePersonal(id) {
 // 5. Asignar / Vincular una cuenta de acceso con su ROL
 // en ESTA base de datos de este proyecto (perfiles_usuario)
 // ────────────────────────────────────────────────────────────
-export async function assignUserAccount({ id_personal, email, rol = 'tecnico', activo = true }) {
+export async function assignUserAccount({ id_personal, email, rol = 'tecnico', password = null, activo = true }) {
   if (!email) {
     throw new Error('Se requiere un correo electrónico para asignar cuenta de acceso.')
   }
 
   const cleanEmail = email.toLowerCase().trim()
+  const cleanPassword = password ? password.trim() : ''
   let resultProfile = null
+  let rpcSuccess = false
 
-  // 1. Buscar si ya existe un perfil con este correo o id_personal en perfiles_usuario
-  const { data: existingProf } = await supabase
-    .from('perfiles_usuario')
-    .select('id, email, rol, id_personal, activo')
-    .or(`email.eq.${cleanEmail},id_personal.eq.${id_personal}`)
-    .maybeSingle()
+  // 1. Intentar configurar credenciales mediante RPC administrativo en Supabase
+  try {
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc('admin_set_user_account', {
+      p_email: cleanEmail,
+      p_password: cleanPassword || null,
+      p_rol: rol || 'tecnico',
+      p_id_personal: id_personal || null,
+      p_activo: activo !== undefined ? activo : true
+    })
 
-  if (existingProf) {
-    const { data: updated, error: updErr } = await supabase
-      .from('perfiles_usuario')
-      .update({
+    if (!rpcErr && rpcRes && rpcRes.success) {
+      rpcSuccess = true
+      resultProfile = {
+        id: rpcRes.user_id,
         email: cleanEmail,
-        rol: rol || existingProf.rol,
+        rol: rpcRes.rol || rol,
         id_personal,
-        activo: activo !== undefined ? activo : existingProf.activo,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', existingProf.id)
-      .select()
-      .single()
+        activo: rpcRes.activo !== undefined ? rpcRes.activo : activo,
+        rpcExecuted: true
+      }
+    } else if (rpcRes && !rpcRes.success) {
+      throw new Error(rpcRes.error || 'Error al configurar cuenta en Supabase.')
+    } else if (rpcErr) {
+      console.warn('[ADMIN-AUTH] RPC admin_set_user_account no disponible:', rpcErr.message)
+    }
+  } catch (err) {
+    if (cleanPassword) {
+      throw err
+    }
+    console.warn('[ADMIN-AUTH] Fallback a gestión local de perfiles:', err.message)
+  }
 
-    if (updErr) throw new Error(`Error actualizando cuenta en BD local: ${updErr.message}`)
-    resultProfile = updated
-  } else {
-    // Insertar nuevo registro de perfil
-    const { data: inserted, error: insErr } = await supabase
+  // 2. Fallback estándar a tabla perfiles_usuario si no se usó RPC
+  if (!rpcSuccess) {
+    const { data: existingProf } = await supabase
       .from('perfiles_usuario')
-      .insert([{
-        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : undefined,
-        email: cleanEmail,
-        rol: rol || 'tecnico',
-        id_personal,
-        activo: activo !== undefined ? activo : true,
-        updated_at: new Date().toISOString()
-      }])
-      .select()
-      .single()
+      .select('id, email, rol, id_personal, activo')
+      .or(`email.eq.${cleanEmail},id_personal.eq.${id_personal}`)
+      .maybeSingle()
 
-    if (insErr) {
-      console.warn('Aviso insertando en perfiles_usuario:', insErr.message)
-      resultProfile = { email: cleanEmail, rol, id_personal, activo }
+    if (existingProf) {
+      const { data: updated, error: updErr } = await supabase
+        .from('perfiles_usuario')
+        .update({
+          email: cleanEmail,
+          rol: rol || existingProf.rol,
+          id_personal,
+          activo: activo !== undefined ? activo : existingProf.activo,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingProf.id)
+        .select()
+        .single()
+
+      if (updErr) throw new Error(`Error actualizando cuenta en BD local: ${updErr.message}`)
+      resultProfile = { ...updated, rpcExecuted: false }
     } else {
-      resultProfile = inserted
+      // Insertar nuevo registro de perfil
+      const { data: inserted, error: insErr } = await supabase
+        .from('perfiles_usuario')
+        .insert([{
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : undefined,
+          email: cleanEmail,
+          rol: rol || 'tecnico',
+          id_personal,
+          activo: activo !== undefined ? activo : true,
+          updated_at: new Date().toISOString()
+        }])
+        .select()
+        .single()
+
+      if (insErr) {
+        console.warn('Aviso insertando en perfiles_usuario:', insErr.message)
+        resultProfile = { email: cleanEmail, rol, id_personal, activo, rpcExecuted: false }
+      } else {
+        resultProfile = { ...inserted, rpcExecuted: false }
+      }
     }
   }
 

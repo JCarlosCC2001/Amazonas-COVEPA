@@ -251,7 +251,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
           estadoAnterior: obsLocal.estado_covepa || (obsLocal.fecha_subsanacion ? 'Validado' : 'Pendiente'),
           usuarioNombre: responsableSesion,
           usuarioEmail: user?.email,
-          usuarioId: user?.id,
+          usuarioId: personalMember?.id_personal || user?.id,
           origen: 'observaciones'
         }
       )
@@ -1086,7 +1086,7 @@ export default function Observaciones() {
       const res = await pasarTodasSolicitudesAEnRevision({
         nombre: nombreResponsable,
         email: user?.email,
-        id: user?.id
+        id: personalMember?.id_personal || user?.id
       })
 
       if (res.count > 0) {

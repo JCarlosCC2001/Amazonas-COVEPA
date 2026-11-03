@@ -1499,6 +1499,7 @@ function DrawerPersonal({ person, isAdmin, canEditPersonal = true, onToggleAcces
                     <option value="supervisor">Supervisor (Operación y Validación)</option>
                     <option value="coordinador">Coordinador (Programación y Reportes)</option>
                     <option value="asistente_calidad">Asistente de Calidad (Calidad y Campo)</option>
+                    <option value="invitado">Invitado (Solo Lectura, sin descargas)</option>
                     <option value="tecnico">Técnico (Consulta y Campo)</option>
                   </select>
                 </div>
@@ -2258,6 +2259,7 @@ function ModalPersonal({ member, onClose, onSaved }) {
                         <option value="supervisor">Supervisor (supervisor)</option>
                         <option value="coordinador">Coordinador (coordinador)</option>
                         <option value="asistente_calidad">Asistente de Calidad (asistente_calidad)</option>
+                        <option value="invitado">Invitado (invitado)</option>
                         <option value="tecnico">Técnico (tecnico)</option>
                       </select>
                     </div>

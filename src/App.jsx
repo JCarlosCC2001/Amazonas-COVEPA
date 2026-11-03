@@ -73,7 +73,7 @@ export default function App() {
                   <Route path="programacion"  element={<Suspense fallback={<PageLoader />}><Programacion /></Suspense>} />
                   <Route path="tecnicos"      element={<Suspense fallback={<PageLoader />}><Tecnicos /></Suspense>} />
                   <Route path="eficiencia"    element={<ProtectedRoute requiredRoute="/eficiencia"><Suspense fallback={<PageLoader />}><Eficiencia /></Suspense></ProtectedRoute>} />
-                  <Route path="kmz"           element={<Suspense fallback={<PageLoader />}><KMZ /></Suspense>} />
+                  <Route path="kmz"           element={<ProtectedRoute requiredRoute="/kmz"><Suspense fallback={<PageLoader />}><KMZ /></Suspense></ProtectedRoute>} />
                   <Route path="reportes"      element={<ProtectedRoute requiredRoute="/reportes"><Suspense fallback={<PageLoader />}><Reportes /></Suspense></ProtectedRoute>} />
                 </Route>
 

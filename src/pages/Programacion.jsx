@@ -51,6 +51,7 @@ const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sáb
 
 export default function Programacion() {
   const { presentationMode } = usePresentationMode()
+  const { canEditProgramacion, isReadOnly } = useAuth()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('today') // 'today' | 'week'
   const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL' | 'SOLICITANDO' | 'EN_REVISION' | 'VALIDADO' | 'RECHAZADO'
@@ -852,16 +853,18 @@ export default function Programacion() {
             <span>Avance del Día</span>
           </button>
 
-          <button
-            className="prog-btn-create"
-            onClick={() => {
-              setModalNewDate(toLocalDateString(currentDate))
-              setModalNewOpen(true)
-            }}
-          >
-            <Plus size={15} />
-            Nueva Programación
-          </button>
+          {canEditProgramacion && (
+            <button
+              className="prog-btn-create"
+              onClick={() => {
+                setModalNewDate(toLocalDateString(currentDate))
+                setModalNewOpen(true)
+              }}
+            >
+              <Plus size={15} />
+              Nueva Programación
+            </button>
+          )}
         </div>
       </div>
 
@@ -1491,17 +1494,19 @@ export default function Programacion() {
                     })}
 
                     {/* Botón para programar directamente en este día */}
-                    <div
-                      className="prog-empty-slot"
-                      onClick={() => {
-                        setModalNewDate(day.dateStr)
-                        setModalNewOpen(true)
-                      }}
-                      title="Programar una nueva cuadrilla en este día"
-                    >
-                      <Plus size={13} />
-                      <span>Programar</span>
-                    </div>
+                    {canEditProgramacion && (
+                      <div
+                        className="prog-empty-slot"
+                        onClick={() => {
+                          setModalNewDate(day.dateStr)
+                          setModalNewOpen(true)
+                        }}
+                        title="Programar una nueva cuadrilla en este día"
+                      >
+                        <Plus size={13} />
+                        <span>Programar</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )
@@ -2222,7 +2227,7 @@ function ModalDetallesProgramacion({
   onDeleteProg,
   onObservationUpdated
 }) {
-  const { user, personalMember, canEditDemoras, isAdmin } = useAuth()
+  const { user, personalMember, canEditDemoras, isAdmin, isReadOnly, canEditProgramacion } = useAuth()
   const [currentSitioId, setCurrentSitioId] = useState(sitioId || '')
   const [observaciones, setObservaciones] = useState([])
   const [comments, setComments] = useState({})
@@ -2962,7 +2967,7 @@ function ModalDetallesProgramacion({
 
           {/* Acciones de la programación: Siempre iconos compactos (Editar, Eliminar y Cerrar) */}
           <div className="prog-details-modal-actions">
-            {onEditProg && (
+            {onEditProg && canEditProgramacion && (
               <button
                 type="button"
                 className="prog-details-icon-action-btn edit"
@@ -2977,7 +2982,7 @@ function ModalDetallesProgramacion({
               </button>
             )}
 
-            {onDeleteProg && (
+            {onDeleteProg && canEditProgramacion && (
               <button
                 type="button"
                 className="prog-details-icon-action-btn delete"
@@ -3183,9 +3188,10 @@ function ModalDetallesProgramacion({
                       <div className="prog-obs-status-select-wrap">
                         <select
                           value={currentEstado}
-                          disabled={isUpdating}
+                          disabled={isUpdating || isReadOnly}
                           onChange={(e) => handleSetEstado(obs, e.target.value)}
                           className={`prog-obs-status-select status-${(currentEstado || '').toLowerCase().replace(/\s+/g, '-')}`}
+                          style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.9 } : undefined}
                         >
                           <option value="Pendiente">● Pendiente</option>
                           <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
@@ -3226,10 +3232,11 @@ function ModalDetallesProgramacion({
                         </label>
                         <select
                           value={esRevisorGilat(obs.revisor || obs.validado_por, gilatOptions) ? (obs.revisor || obs.validado_por) : ''}
-                          disabled={isUpdating}
+                          disabled={isUpdating || isReadOnly}
                           onChange={(e) => handleUpdateRevisor(obs, e.target.value)}
                           className="audit-select"
                           title="Persona de GILAT que revisó esta observación"
+                          style={isReadOnly ? { cursor: 'not-allowed' } : undefined}
                         >
                           <option value="">-- Seleccionar Revisor (GILAT) --</option>
                           {gilatOptions.map(p => (
@@ -3253,10 +3260,11 @@ function ModalDetallesProgramacion({
                         <input
                           type="date"
                           value={getPeruDateStr(obs.fecha_subsanacion)}
-                          disabled={isUpdating}
+                          disabled={isUpdating || isReadOnly}
                           onChange={(e) => handleUpdateFecha(obs, e.target.value)}
                           className="audit-date-input"
                           title="Modificar fecha de subsanación/revisión"
+                          style={isReadOnly ? { cursor: 'not-allowed' } : undefined}
                         />
                       </div>
                     </div>
@@ -3308,10 +3316,12 @@ function ModalDetallesProgramacion({
                       <textarea
                         rows={2}
                         value={comments[obs.id_obs] ?? ''}
-                        onChange={(e) => handleCommentChange(obs.id_obs, e.target.value)}
-                        onBlur={() => handleBlurComment(obs.id_obs)}
-                        placeholder="Escribe un comentario o nota de subsanación (se guarda automáticamente)..."
+                        readOnly={isReadOnly}
+                        onChange={isReadOnly ? undefined : (e) => handleCommentChange(obs.id_obs, e.target.value)}
+                        onBlur={isReadOnly ? undefined : () => handleBlurComment(obs.id_obs)}
+                        placeholder={isReadOnly ? 'Sin comentarios COVEPA registrados (Solo lectura).' : 'Escribe un comentario o nota de subsanación (se guarda automáticamente)...'}
                         className="covepa-comment-textarea"
+                        style={isReadOnly ? { background: '#f8fafc', cursor: 'default' } : undefined}
                       />
                     </div>
 

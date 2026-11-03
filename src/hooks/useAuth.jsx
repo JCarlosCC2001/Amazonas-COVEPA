@@ -254,22 +254,39 @@ export function AuthProvider({ children }) {
   const isSupervisor = Boolean(rawRol === 'supervisor')
   const isCoordinador = Boolean(rawRol === 'coordinador')
   const isAsistenteCalidad = Boolean(rawRol === 'asistente_calidad')
-  const isTecnico = Boolean(rawRol === 'tecnico' || (!isAdmin && !isSupervisor && !isCoordinador && !isAsistenteCalidad))
+  const isInvitado = Boolean(rawRol === 'invitado')
+  const isTecnico = Boolean(rawRol === 'tecnico' || (!isAdmin && !isSupervisor && !isCoordinador && !isAsistenteCalidad && !isInvitado))
   const rol = isAdmin ? 'admin' : (rawRol || 'tecnico')
 
+  // Modo Solo Lectura estricto (para rol invitado)
+  const isReadOnly = Boolean(isInvitado)
+
   // Permisos de negocio granulares
-  // 1. Demoras y tiempos: editable para admin, supervisor y coordinador. Solo lectura para asistente_calidad y tecnico.
-  const canEditDemoras = Boolean(isAdmin || isSupervisor || isCoordinador)
+  // 1. Demoras y tiempos: editable para admin, supervisor y coordinador. Solo lectura para asistente_calidad, tecnico e invitado.
+  const canEditDemoras = Boolean(!isReadOnly && (isAdmin || isSupervisor || isCoordinador))
 
   // 2. Gestión de Personal (crear/editar/eliminar personal o reasignar cuadrillas): exclusivo de admin y supervisor
-  const canEditPersonal = Boolean(isAdmin || isSupervisor)
+  const canEditPersonal = Boolean(!isReadOnly && (isAdmin || isSupervisor))
 
-  // 3. Reglas de acceso a rutas: asistente_calidad NO accede a '/reportes' ni a '/eficiencia'
+  // 3. Edición de observaciones (estado, revisor, fecha, comentarios): bloqueado para invitado
+  const canEditObservaciones = Boolean(!isReadOnly)
+
+  // 4. Edición de programación (crear, editar o eliminar programación): exclusivo de admin, supervisor y coordinador
+  const canEditProgramacion = Boolean(!isReadOnly && (isAdmin || isSupervisor || isCoordinador))
+
+  // 5. Reglas de acceso a rutas:
+  // - asistente_calidad NO accede a '/reportes' ni a '/eficiencia'
+  // - invitado NO accede a '/reportes', '/eficiencia' ni a '/kmz' (Centro de Descargas)
   const canAccessRoute = (path) => {
     if (!path) return true
     const cleanSegment = path.toLowerCase().replace(/^\//, '').split('?')[0].split('/')[0]
     if (isAsistenteCalidad) {
       if (cleanSegment === 'reportes' || cleanSegment === 'eficiencia') {
+        return false
+      }
+    }
+    if (isInvitado) {
+      if (cleanSegment === 'reportes' || cleanSegment === 'eficiencia' || cleanSegment === 'kmz') {
         return false
       }
     }
@@ -286,9 +303,13 @@ export function AuthProvider({ children }) {
       isSupervisor,
       isCoordinador,
       isAsistenteCalidad,
+      isInvitado,
       isTecnico,
+      isReadOnly,
       canEditDemoras,
       canEditPersonal,
+      canEditObservaciones,
+      canEditProgramacion,
       canAccessRoute,
       rol,
       loading, 
@@ -316,9 +337,13 @@ export function useAuth() {
       isSupervisor: false,
       isCoordinador: false,
       isAsistenteCalidad: false,
+      isInvitado: false,
       isTecnico: true,
+      isReadOnly: false,
       canEditDemoras: false,
       canEditPersonal: false,
+      canEditObservaciones: false,
+      canEditProgramacion: false,
       canAccessRoute: () => true,
       rol: 'tecnico',
       loading: true,

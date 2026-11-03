@@ -106,6 +106,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
   const getRoleLabel = () => {
     if (isAdmin) return 'Administrador'
     const r = (profile?.rol || '').toLowerCase().trim()
+    if (r === 'invitado') return 'Invitado'
     if (r === 'asistente_calidad') return 'Asistente de Calidad'
     if (r === 'supervisor') return 'Supervisor'
     if (r === 'coordinador') return 'Coordinador'

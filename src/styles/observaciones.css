@@ -8918,6 +8918,11 @@
   color: #059669;
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
+.role-tag-covepa.invitado {
+  background: rgba(100, 116, 139, 0.14);
+  color: #475569;
+  border: 1px solid rgba(100, 116, 139, 0.35);
+}
 
 /* Tarjeta interactiva de asignación de cuenta */
 .account-form-box {

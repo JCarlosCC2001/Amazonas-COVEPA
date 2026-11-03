@@ -37,7 +37,7 @@ import { estadoCovepaBadge, hasMeaningfulText, getPeruDateStr, getPeruISOString 
 // VENTANA EMERGENTE — Detalle Completo de Observación (Flujo Programación)
 // ────────────────────────────────────────────────────────────
 function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClose, onSaved }) {
-  const { user, personalMember, canEditDemoras, isAdmin } = useAuth()
+  const { user, personalMember, canEditDemoras, isAdmin, isReadOnly } = useAuth()
   const [obsLocal, setObsLocal] = useState(obs)
   const [updating, setUpdating] = useState(false)
   const [commentVal, setCommentVal] = useState(obs?.comentario_covepa || '')
@@ -386,9 +386,10 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
               <div className="prog-obs-status-select-wrap">
                 <select
                   value={currentEstado}
-                  disabled={updating}
+                  disabled={updating || isReadOnly}
                   onChange={(e) => handleSetEstado(e.target.value)}
                   className={`prog-obs-status-select status-${(currentEstado || '').toLowerCase().replace(/\s+/g, '-')}`}
+                  style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.9 } : undefined}
                 >
                   <option value="Pendiente">● Pendiente</option>
                   <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
@@ -421,10 +422,11 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   </label>
                   <select
                     value={esRevisorGilat(currentRevisor, gilatOptions) ? currentRevisor : ''}
-                    disabled={updating}
+                    disabled={updating || isReadOnly}
                     onChange={(e) => handleUpdateRevisor(e.target.value)}
                     className="audit-select"
                     title="Persona de GILAT que revisó esta observación"
+                    style={isReadOnly ? { cursor: 'not-allowed' } : undefined}
                   >
                     <option value="">-- Seleccionar Revisor (GILAT) --</option>
                     {gilatOptions.map(p => (
@@ -448,10 +450,11 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   <input
                     type="date"
                     value={currentFecha ? String(currentFecha).split('T')[0].split(' ')[0] : ''}
-                    disabled={updating}
+                    disabled={updating || isReadOnly}
                     onChange={(e) => handleUpdateFecha(e.target.value)}
                     className="audit-date-input"
                     title="Modificar fecha de subsanación/revisión"
+                    style={isReadOnly ? { cursor: 'not-allowed' } : undefined}
                   />
                 </div>
               </div>
@@ -476,11 +479,13 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
               </div>
               <textarea
                 value={commentVal}
-                onChange={handleCommentChange}
-                onBlur={handleBlurComment}
-                placeholder="Escribe comentarios de subsanación, evidencias o notas técnicas COVEPA..."
+                readOnly={isReadOnly}
+                onChange={isReadOnly ? undefined : handleCommentChange}
+                onBlur={isReadOnly ? undefined : handleBlurComment}
+                placeholder={isReadOnly ? 'Sin comentarios COVEPA registrados (Solo lectura).' : 'Escribe comentarios de subsanación, evidencias o notas técnicas COVEPA...'}
                 className="covepa-comment-textarea"
                 rows={3}
+                style={isReadOnly ? { background: '#f8fafc', cursor: 'default' } : undefined}
               />
             </div>
 
@@ -1074,7 +1079,7 @@ export default function Observaciones() {
   const [sortField, setSortField] = useState('codigo') // 'codigo' | 'cuadrilla' | 'sitio' | 'localidad' | 'zona' | 'estado' | 'fecha' | 'revisor' | 'demora'
   const [sortDirection, setSortDirection] = useState('asc') // 'asc' | 'desc'
 
-  const { user, personalMember } = useAuth()
+  const { user, personalMember, isReadOnly } = useAuth()
   const { notificarPaseEnRevision } = useNotifications()
   const [batchLoading, setBatchLoading] = useState(false)
 
@@ -1834,33 +1839,39 @@ export default function Observaciones() {
 
         {/* Fila 2: Solo Botón Revisión a la izquierda y Switch a la derecha */}
         <div className="obs-toolbar-row-actions">
-          {/* Botón Pasar a En Revisión */}
-          <button
-            type="button"
-            className={`obs-batch-revision-btn ${(kpis.solicitando || 0) === 0 ? 'is-empty' : ''}`}
-            onClick={handlePasarTodasAEnRevision}
-            disabled={batchLoading}
-            title={
-              (kpis.solicitando || 0) > 0
-                ? `Pasar las ${kpis.solicitando} observaciones en espera a 'En Revisión'`
-                : 'Pasar observaciones solicitando revisión a En Revisión'
-            }
-          >
-            {batchLoading ? (
-              <RefreshCw size={14} className="spinning" />
-            ) : (
-              <CheckCheck size={15} />
-            )}
-            <span className="obs-batch-text-desktop">
-              {batchLoading ? 'Procesando...' : 'Pasar a En Revisión'}
-            </span>
-            <span className="obs-batch-text-mobile">
-              {batchLoading ? 'Procesando...' : 'Revisar'}
-            </span>
-            <span className="obs-batch-count-badge">
-              {kpis.solicitando || 0}
-            </span>
-          </button>
+          {/* Botón Pasar a En Revisión (Oculto para modo solo lectura / Invitado) */}
+          {!isReadOnly ? (
+            <button
+              type="button"
+              className={`obs-batch-revision-btn ${(kpis.solicitando || 0) === 0 ? 'is-empty' : ''}`}
+              onClick={handlePasarTodasAEnRevision}
+              disabled={batchLoading}
+              title={
+                (kpis.solicitando || 0) > 0
+                  ? `Pasar las ${kpis.solicitando} observaciones en espera a 'En Revisión'`
+                  : 'Pasar observaciones solicitando revisión a En Revisión'
+              }
+            >
+              {batchLoading ? (
+                <RefreshCw size={14} className="spinning" />
+              ) : (
+                <CheckCheck size={15} />
+              )}
+              <span className="obs-batch-text-desktop">
+                {batchLoading ? 'Procesando...' : 'Pasar a En Revisión'}
+              </span>
+              <span className="obs-batch-text-mobile">
+                {batchLoading ? 'Procesando...' : 'Revisar'}
+              </span>
+              <span className="obs-batch-count-badge">
+                {kpis.solicitando || 0}
+              </span>
+            </button>
+          ) : (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-medium)', padding: '0.4rem 0.6rem' }}>
+              <span>👁️ Modo Solo Lectura</span>
+            </div>
+          )}
 
           {/* Toggle vista: Por sitio (predeterminada) / Tabla */}
           <div className="vista-toggle">

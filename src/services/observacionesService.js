@@ -9,6 +9,7 @@ import {
   resolverNombreAuditor,
   sincronizarEstadoConControlFotos,
   fetchHistorialObservacion,
+  fetchUltimoCambioObservacion,
   registrarHistorialEstado,
   esRevisorGilat
 } from './auditoriaSyncService'
@@ -25,6 +26,7 @@ export {
   resolverNombreAuditor,
   sincronizarEstadoConControlFotos,
   fetchHistorialObservacion,
+  fetchUltimoCambioObservacion,
   registrarHistorialEstado,
   esRevisorGilat
 }

@@ -295,3 +295,4 @@ GRANT EXECUTE ON FUNCTION public.admin_set_user_account TO authenticated;
 
 -- 6. Recargar caché del esquema en Supabase
 NOTIFY pgrst, 'reload schema';
+

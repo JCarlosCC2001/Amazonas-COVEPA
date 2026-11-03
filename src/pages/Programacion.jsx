@@ -10,6 +10,7 @@ import {
 import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
 import ModalTimelineTecnico from '../components/programacion/ModalTimelineTecnico'
 import HistorialEstadosTimeline from '../components/shared/HistorialEstadosTimeline'
+import UltimoCambioBadge from '../components/shared/UltimoCambioBadge'
 import TimeMaskInput, { diffTimeHHMM } from '../components/shared/TimeMaskInput'
 import { getAvancePorFecha } from '../services/dashboardService'
 import { fetchUltimosReportesDelDia } from '../services/actividadService'
@@ -2420,9 +2421,18 @@ function ModalDetallesProgramacion({
     setSavingCommentId(obsId)
     try {
       const val = commentsRef.current[obsId] ?? ''
-      await sincronizarComentarioObservacion(obsId, val, currentSitioId)
+      const obsTarget = observaciones.find(o => o.id_obs === obsId)
+      const responsableSesion = resolverNombreAuditor(user, personalMember)
+      await sincronizarComentarioObservacion(obsId, val, currentSitioId, {
+        usuarioNombre: responsableSesion,
+        usuarioEmail: user?.email,
+        usuarioId: user?.id,
+        origen: 'programacion',
+        estadoActual: obsTarget?.estado_covepa || 'Pendiente'
+      })
       dirtyCommentsRef.current.delete(obsId)
       setSavedCommentId(obsId)
+      setHistorialRefreshKeys(prev => ({ ...prev, [obsId]: (prev[obsId] || 0) + 1 }))
       setTimeout(() => {
         setSavedCommentId(prev => (prev === obsId ? null : prev))
       }, 2000)
@@ -2463,6 +2473,7 @@ function ModalDetallesProgramacion({
       }, 2000)
       const ahoraIso = justificacionLimpia ? new Date().toISOString() : null
       setObservaciones(prev => prev.map(o => o.id_obs === obsId ? { ...o, justificacion_demora: justificacionLimpia, fecha_registro_demora: ahoraIso } : o))
+      setHistorialRefreshKeys(prev => ({ ...prev, [obsId]: (prev[obsId] || 0) + 1 }))
       onObservationUpdated()
     } catch (err) {
       console.error('Error al guardar justificación de demora:', err)
@@ -2504,6 +2515,7 @@ function ModalDetallesProgramacion({
         setSavedTimeId(prev => (prev === obsId ? null : prev))
       }, 2000)
       setObservaciones(prev => prev.map(o => o.id_obs === obsId ? { ...o, tiempo_ejecucion_real: tReal, tiempo_ejecucion_demora: tDemora } : o))
+      setHistorialRefreshKeys(prev => ({ ...prev, [obsId]: (prev[obsId] || 0) + 1 }))
       onObservationUpdated()
     } catch (err) {
       console.error('Error al guardar tiempos de ejecución:', err)
@@ -3182,16 +3194,6 @@ function ModalDetallesProgramacion({
                           <option value="Descartado">🚫 Descartado</option>
                           <option value="Rechazado">✕ Rechazado</option>
                         </select>
-
-                        <button
-                          type="button"
-                          onClick={() => setExpandedHistorialId(prev => prev === obs.id_obs ? null : obs.id_obs)}
-                          className={`obs-history-toggle-btn ${expandedHistorialId === obs.id_obs ? 'is-active' : ''}`}
-                          title="Ver u ocultar trazabilidad de cambios de estado"
-                        >
-                          <History size={12} />
-                          <span>Historial</span>
-                        </button>
                       </div>
                     </div>
 
@@ -3204,13 +3206,13 @@ function ModalDetallesProgramacion({
                     )}
                   </div>
 
-                  {/* Trazabilidad Cronológica de Estados */}
-                  {expandedHistorialId === obs.id_obs && (
-                    <HistorialEstadosTimeline
+                  {/* Insignia Directa de Último Cambio y Trazabilidad (Opción 3) */}
+                  <div style={{ margin: '0.45rem 0' }}>
+                    <UltimoCambioBadge
                       idObs={obs.id_obs}
                       refreshKey={historialRefreshKeys[obs.id_obs] || 0}
                     />
-                  )}
+                  </div>
 
                   {/* Fila de Auditoría: Revisor y Fecha de Validación */}
                   {showRevisorYFecha && (

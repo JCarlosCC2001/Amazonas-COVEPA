@@ -9737,6 +9737,143 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
+   INSIGNIA DE ÚLTIMO CAMBIO Y AUDITORÍA DIRECTA EN TARJETA/MODAL
+   ══════════════════════════════════════════════════════════════ */
+.obs-audit-badge-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.obs-ultimo-cambio-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  background: #f8fbfe;
+  border: 1px solid #d8e5f1;
+  border-left: 3.5px solid #0284c7;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  font-size: var(--text-2xs);
+  color: #334155;
+  box-sizing: border-box;
+  width: 100%;
+  transition: all 0.15s ease;
+}
+
+.obs-ultimo-cambio-card.is-expanded {
+  background: #f0f7ff;
+  border-color: #bae6fd;
+  border-left-color: #003060;
+  box-shadow: 0 1px 3px rgba(0, 48, 96, 0.05);
+}
+
+.obs-ultimo-cambio-left {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.obs-ultimo-cambio-icon {
+  color: #0284c7;
+  flex-shrink: 0;
+}
+
+.obs-ultimo-cambio-label {
+  font-size: var(--text-2xs);
+  color: #64748b;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.obs-ultimo-cambio-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: var(--text-2xs);
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.obs-ultimo-cambio-author {
+  font-size: var(--text-xs);
+  color: #003060;
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.01em;
+}
+
+.obs-ultimo-cambio-action {
+  font-size: var(--text-2xs) !important;
+  padding: 0.1rem 0.45rem !important;
+  border-radius: 4px;
+}
+
+.obs-ultimo-cambio-none {
+  font-size: var(--text-2xs);
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.obs-ultimo-cambio-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.obs-ultimo-cambio-time-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: var(--text-2xs);
+  color: #64748b;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  cursor: help;
+}
+
+.obs-ultimo-cambio-time {
+  font-weight: var(--fw-semibold);
+}
+
+.obs-ultimo-cambio-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  color: #003060;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.obs-ultimo-cambio-btn:hover {
+  background: #f1f5f9;
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
+.obs-ultimo-cambio-btn.is-active {
+  background: #003060;
+  color: #ffffff;
+  border-color: #003060;
+}
+
+.obs-audit-badge-timeline {
+  animation: fadeIn 0.18s ease-in-out;
+}
+
+/* ══════════════════════════════════════════════════════════════
    LÍNEA DE ACTIVIDAD HORIZONTAL DEL TÉCNICO (TIMELINE HORIZONTAL)
    ══════════════════════════════════════════════════════════════ */
 

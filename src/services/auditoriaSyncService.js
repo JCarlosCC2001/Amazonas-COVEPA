@@ -170,6 +170,34 @@ export async function fetchHistorialObservacion(idObs) {
 }
 
 /**
+ * Consulta únicamente el registro más reciente del historial y el conteo total para una observación.
+ * Optimizado para renderizado ultra rápido en tarjetas y modales.
+ *
+ * @param {string} idObs - Código de la observación
+ * @returns {Promise<{ latest: Object|null, count: number }>}
+ */
+export async function fetchUltimoCambioObservacion(idObs) {
+  if (!idObs) return { latest: null, count: 0 }
+  try {
+    const { data, count, error } = await supabase
+      .from('historial_estados_observaciones')
+      .select('id, id_obs, id_sitio, estado_anterior, estado_nuevo, usuario_nombre, usuario_email, usuario_id, comentario, origen, created_at', { count: 'exact' })
+      .eq('id_obs', idObs)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (error) {
+      console.warn('[ULTIMO-CAMBIO-FETCH] Error:', error.message)
+      return { latest: null, count: 0 }
+    }
+    return { latest: data?.[0] || null, count: count || 0 }
+  } catch (err) {
+    console.warn('[ULTIMO-CAMBIO-FETCH] Error de red:', err)
+    return { latest: null, count: 0 }
+  }
+}
+
+/**
  * Función para actualizar el dictamen de una observación, sincronizar con Control Fotos
  * y registrar automáticamente el evento en el historial de trazabilidad.
  *
@@ -419,7 +447,7 @@ export async function sincronizarAuditoriaObservacion(idObs, {
  * @param {string|null} comentarioTexto
  * @returns {Promise<{ data: Object|null, error: Object|null }>}
  */
-export async function sincronizarComentarioObservacion(idObs, comentarioTexto, idSitio = null) {
+export async function sincronizarComentarioObservacion(idObs, comentarioTexto, idSitio = null, extraContext = {}) {
   if (!idObs) return { data: null, error: null }
 
   const comentarioLimpio = (comentarioTexto !== undefined && comentarioTexto !== null && String(comentarioTexto).trim() !== '')
@@ -444,6 +472,21 @@ export async function sincronizarComentarioObservacion(idObs, comentarioTexto, i
   if (error) {
     console.error(`[AUDITORIA-SYNC] ❌ Error sincronizando comentario en observación ${idObs}:`, error)
     throw new Error(`Error sincronizando comentario: ${error.message}`)
+  }
+
+  // Registrar en historial_estados_observaciones para que quede constancia del autor de la edición
+  if (extraContext.usuarioNombre || extraContext.usuarioEmail) {
+    registrarHistorialEstado({
+      idObs,
+      idSitio,
+      estadoAnterior: extraContext.estadoActual || 'Comentario',
+      estadoNuevo: extraContext.estadoActual || 'Comentario COVEPA',
+      usuarioNombre: extraContext.usuarioNombre || 'Usuario del Sistema',
+      usuarioEmail: extraContext.usuarioEmail,
+      usuarioId: extraContext.usuarioId,
+      comentario: comentarioLimpio ? `Edición de Comentario COVEPA: "${comentarioLimpio}"` : 'Comentario COVEPA eliminado',
+      origen: extraContext.origen || 'web_erp'
+    }).catch(err => console.warn('[HISTORIAL-WARN] Error registrando edición de comentario:', err))
   }
 
   return { data: data?.[0] || null, error: null }

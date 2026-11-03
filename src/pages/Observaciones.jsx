@@ -8,6 +8,7 @@ import {
   Users, Check, Info, History, CheckCheck, Send
 } from 'lucide-react'
 import HistorialEstadosTimeline from '../components/shared/HistorialEstadosTimeline'
+import UltimoCambioBadge from '../components/shared/UltimoCambioBadge'
 import TimeMaskInput, { diffTimeHHMM } from '../components/shared/TimeMaskInput'
 import {
   fetchObservaciones, fetchObservacionesKPIs, fetchFiltrosObservaciones,
@@ -96,7 +97,15 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     try {
       const val = commentValRef.current || ''
       // Nota: Nunca autocompleta ni modifica el campo revisor
-      await sincronizarComentarioObservacion(obsLocal.id_obs, val, obsLocal.id_sitio)
+      const responsableSesion = resolverNombreAuditor(user, personalMember)
+      await sincronizarComentarioObservacion(obsLocal.id_obs, val, obsLocal.id_sitio, {
+        usuarioNombre: responsableSesion,
+        usuarioEmail: user?.email,
+        usuarioId: user?.id,
+        origen: 'observaciones',
+        estadoActual: obsLocal.estado_covepa || 'Pendiente'
+      })
+      setHistorialRefreshKey(k => k + 1)
       isDirtyCommentRef.current = false
       setSavedComment(true)
       setTimeout(() => setSavedComment(false), 2500)
@@ -108,7 +117,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     } finally {
       setSavingComment(false)
     }
-  }, [obsLocal, onSaved])
+  }, [obsLocal, onSaved, user, personalMember])
 
   // Guardado de justificación de demora en tiempo real (COVEPA)
   const saveDelayNow = useCallback(async () => {
@@ -388,28 +397,17 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   <option value="Descartado">🚫 Descartado</option>
                   <option value="Rechazado">✕ Rechazado</option>
                 </select>
-
-                <button
-                  type="button"
-                  onClick={() => setShowHistorial(prev => !prev)}
-                  className={`obs-history-toggle-btn ${showHistorial ? 'is-active' : ''}`}
-                  title="Ver u ocultar trazabilidad de cambios de estado"
-                >
-                  <History size={12} />
-                  <span>Historial</span>
-                </button>
               </div>
             </div>
 
-            {/* Trazabilidad Cronológica de Estados */}
-            {showHistorial && (
-              <div style={{ marginBottom: '0.75rem' }}>
-                <HistorialEstadosTimeline
-                  idObs={obsLocal.id_obs}
-                  refreshKey={historialRefreshKey}
-                />
-              </div>
-            )}
+            {/* Insignia Directa de Último Cambio y Trazabilidad (Opción 3) */}
+            <div style={{ marginBottom: '0.75rem' }}>
+              <UltimoCambioBadge
+                idObs={obsLocal.id_obs}
+                refreshKey={historialRefreshKey}
+                initialOpen={showHistorial}
+              />
+            </div>
 
             {/* Barra de Auditoría: Revisor GILAT y Fecha */}
             {showRevisorYFecha && (

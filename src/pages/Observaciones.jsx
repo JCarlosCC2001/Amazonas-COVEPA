@@ -315,7 +315,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   if (!obsLocal) return null
 
   return (
-    <div className="prog-details-modal-overlay" onClick={handleCloseWithAutoSave}>
+    <div className="prog-details-modal-overlay">
       <div className="prog-details-modal" style={{ maxWidth: '920px', width: '95%' }} onClick={e => e.stopPropagation()}>
         {/* Cabecera de la Ventana Emergente */}
         <div className="prog-details-modal-header">

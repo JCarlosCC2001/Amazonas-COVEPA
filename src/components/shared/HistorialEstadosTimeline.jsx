@@ -3,20 +3,23 @@ import {
   Clock, ArrowRight, User, MessageSquare, Calendar,
   History, AlertCircle, Loader2, RefreshCw
 } from 'lucide-react'
+import { useAuth } from '../../hooks/useAuth'
 import { fetchHistorialObservacion } from '../../services/auditoriaSyncService'
 import { estadoCovepaBadge } from '../../utils/helpers'
 
 /**
  * Componente de Línea de Tiempo para el Historial de Cambios de Estado
  * Muestra la trazabilidad cronológica de dictámenes y motivos de una observación técnica.
+ * Restricción de seguridad: Exclusivo para el Administrador.
  */
 export default function HistorialEstadosTimeline({ idObs, refreshKey = 0 }) {
+  const { isAdmin } = useAuth()
   const [historial, setHistorial] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const loadHistorial = async () => {
-    if (!idObs) return
+    if (!isAdmin || !idObs) return
     setLoading(true)
     setError(null)
     try {
@@ -31,8 +34,12 @@ export default function HistorialEstadosTimeline({ idObs, refreshKey = 0 }) {
   }
 
   useEffect(() => {
-    loadHistorial()
-  }, [idObs, refreshKey])
+    if (isAdmin) {
+      loadHistorial()
+    }
+  }, [isAdmin, idObs, refreshKey])
+
+  if (!isAdmin) return null
 
   const formatFechaHora = (isoStr) => {
     if (!isoStr) return '—'

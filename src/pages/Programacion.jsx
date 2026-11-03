@@ -2222,7 +2222,7 @@ function ModalDetallesProgramacion({
   onDeleteProg,
   onObservationUpdated
 }) {
-  const { user, personalMember, canEditDemoras } = useAuth()
+  const { user, personalMember, canEditDemoras, isAdmin } = useAuth()
   const [currentSitioId, setCurrentSitioId] = useState(sitioId || '')
   const [observaciones, setObservaciones] = useState([])
   const [comments, setComments] = useState({})
@@ -3206,13 +3206,15 @@ function ModalDetallesProgramacion({
                     )}
                   </div>
 
-                  {/* Insignia Directa de Último Cambio y Trazabilidad (Opción 3) */}
-                  <div style={{ margin: '0.45rem 0' }}>
-                    <UltimoCambioBadge
-                      idObs={obs.id_obs}
-                      refreshKey={historialRefreshKeys[obs.id_obs] || 0}
-                    />
-                  </div>
+                  {/* Insignia Directa de Último Cambio y Trazabilidad (Exclusivo Administrador) */}
+                  {isAdmin && (
+                    <div style={{ margin: '0.45rem 0' }}>
+                      <UltimoCambioBadge
+                        idObs={obs.id_obs}
+                        refreshKey={historialRefreshKeys[obs.id_obs] || 0}
+                      />
+                    </div>
+                  )}
 
                   {/* Fila de Auditoría: Revisor y Fecha de Validación */}
                   {showRevisorYFecha && (

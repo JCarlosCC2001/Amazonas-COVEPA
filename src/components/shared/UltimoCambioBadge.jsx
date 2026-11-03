@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { UserCheck, Clock, History, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { useAuth } from '../../hooks/useAuth'
 import { fetchUltimoCambioObservacion } from '../../services/auditoriaSyncService'
 import HistorialEstadosTimeline from './HistorialEstadosTimeline'
 import { estadoCovepaBadge } from '../../utils/helpers'
@@ -71,12 +72,13 @@ export default function UltimoCambioBadge({
   showTimeline = true,
   className = ''
 }) {
+  const { isAdmin } = useAuth()
   const [data, setData] = useState({ latest: null, count: 0 })
   const [loading, setLoading] = useState(true)
   const [timelineOpen, setTimelineOpen] = useState(initialOpen)
 
   const loadLatest = useCallback(async () => {
-    if (!idObs) return
+    if (!isAdmin || !idObs) return
     setLoading(true)
     try {
       const res = await fetchUltimoCambioObservacion(idObs)
@@ -84,11 +86,16 @@ export default function UltimoCambioBadge({
     } finally {
       setLoading(false)
     }
-  }, [idObs])
+  }, [isAdmin, idObs])
 
   useEffect(() => {
-    loadLatest()
-  }, [idObs, refreshKey, loadLatest])
+    if (isAdmin) {
+      loadLatest()
+    }
+  }, [isAdmin, idObs, refreshKey, loadLatest])
+
+  // Restricción estricta de visibilidad: Exclusivo para el Administrador
+  if (!isAdmin) return null
 
   const { latest, count } = data
 

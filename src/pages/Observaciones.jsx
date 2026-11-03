@@ -37,7 +37,7 @@ import { estadoCovepaBadge, hasMeaningfulText, getPeruDateStr, getPeruISOString 
 // VENTANA EMERGENTE — Detalle Completo de Observación (Flujo Programación)
 // ────────────────────────────────────────────────────────────
 function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClose, onSaved }) {
-  const { user, personalMember, canEditDemoras } = useAuth()
+  const { user, personalMember, canEditDemoras, isAdmin } = useAuth()
   const [obsLocal, setObsLocal] = useState(obs)
   const [updating, setUpdating] = useState(false)
   const [commentVal, setCommentVal] = useState(obs?.comentario_covepa || '')
@@ -400,14 +400,16 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
               </div>
             </div>
 
-            {/* Insignia Directa de Último Cambio y Trazabilidad (Opción 3) */}
-            <div style={{ marginBottom: '0.75rem' }}>
-              <UltimoCambioBadge
-                idObs={obsLocal.id_obs}
-                refreshKey={historialRefreshKey}
-                initialOpen={showHistorial}
-              />
-            </div>
+            {/* Insignia Directa de Último Cambio y Trazabilidad (Exclusivo Administrador) */}
+            {isAdmin && (
+              <div style={{ marginBottom: '0.75rem' }}>
+                <UltimoCambioBadge
+                  idObs={obsLocal.id_obs}
+                  refreshKey={historialRefreshKey}
+                  initialOpen={showHistorial}
+                />
+              </div>
+            )}
 
             {/* Barra de Auditoría: Revisor GILAT y Fecha */}
             {showRevisorYFecha && (

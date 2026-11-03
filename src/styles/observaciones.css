@@ -11028,3 +11028,213 @@
   background: rgba(245, 158, 11, 0.22);
   color: #78350f;
 }
+
+
+/* ==========================================================================
+   ESTILOS EJECUTIVOS — PESTAÑA AUDITORÍA Y DESEMPEÑO GILAT (DASHBOARD)
+   ========================================================================== */
+
+.dash-gilat-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.dash-gilat-middle-grid {
+  display: flex;
+  gap: 0.65rem;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.dash-pill-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+}
+
+.dash-pill-filter:hover {
+  background: #f1f5f9;
+  color: #003060;
+  border-color: #cbd5e1;
+}
+
+.dash-pill-filter.is-active {
+  background: #003060;
+  color: #ffffff;
+  border-color: #003060;
+  font-weight: var(--fw-bold);
+  box-shadow: 0 1px 3px rgba(0, 48, 96, 0.2);
+}
+
+.dash-pill-filter.is-active .dash-subtab-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* Gráfica de Barras Diarias */
+.dash-gilat-chart-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.dash-gilat-bars-track {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+  padding: 0.5rem 0.25rem 0.25rem;
+  overflow-x: auto;
+  min-height: 190px;
+}
+
+.dash-gilat-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 44px;
+  height: 100%;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.15s ease;
+}
+
+.dash-gilat-bar-col:hover {
+  transform: translateY(-2px);
+}
+
+.dash-gilat-bar-count {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-bold);
+  color: #003060;
+  font-variant-numeric: tabular-nums;
+  height: 16px;
+  line-height: 16px;
+}
+
+.dash-gilat-bar-slot {
+  width: 100%;
+  height: 130px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 0.2rem;
+  border: 1px solid #e2e8f0;
+}
+
+.dash-gilat-bar-col.is-today .dash-gilat-bar-slot {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.dash-gilat-bar-stack {
+  width: 100%;
+  max-width: 32px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: height 0.4s ease;
+}
+
+.dash-gilat-bar-segment.val {
+  background: #10b981;
+  transition: height 0.3s ease;
+}
+
+.dash-gilat-bar-segment.rech {
+  background: #ef4444;
+  transition: height 0.3s ease;
+}
+
+.dash-gilat-bar-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.dash-gilat-bar-day {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-bold);
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.dash-gilat-bar-date {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-gilat-today-dot {
+  position: absolute;
+  top: -2px;
+  right: -5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+.dash-gilat-chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+}
+
+/* Lista de Tarjetas de Auditores */
+.dash-gilat-auditors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.dash-gilat-auditor-card {
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.dash-gilat-auditor-card:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.dash-gilat-auditor-subkpis {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 991px) {
+  .dash-gilat-middle-grid {
+    flex-direction: column;
+  }
+}

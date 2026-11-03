@@ -12,7 +12,9 @@ import MetricCard from '../components/shared/MetricCard'
 import SegmentedProgressBar from '../components/shared/SegmentedProgressBar'
 import CuadrillasMatrixTable from '../components/shared/CuadrillasMatrixTable'
 import ErpTable from '../components/shared/ErpTable'
+import GilatMetricsView from '../components/dashboard/GilatMetricsView'
 import { getDashboardProjectOverview } from '../services/dashboardService'
+import { fetchGilatMetrics } from '../services/gilatMetricsService'
 
 // ────────────────────────────────────────────────────────────
 // Subcomponente: Tacómetro Semicircular de Avance Global SVG
@@ -66,7 +68,10 @@ export default function Dashboard() {
   const [errorMsg, setErrorMsg] = useState('')
 
   // Control de sub-pestaña ejecutiva activa (100vh sin scroll de página)
-  const [tab, setTab] = useState('operativo') // 'operativo' | 'sitios'
+  const [tab, setTab] = useState('operativo') // 'operativo' | 'sitios' | 'gilat'
+
+  // Estado con métricas específicas de auditoría y desempeño Gilat
+  const [gilatData, setGilatData] = useState(null)
 
   // Estado con las métricas consolidadas del proyecto
   const [data, setData] = useState({
@@ -98,8 +103,15 @@ export default function Dashboard() {
     setLoading(true)
     setErrorMsg('')
     try {
-      const res = await getDashboardProjectOverview()
+      const [res, gilatRes] = await Promise.all([
+        getDashboardProjectOverview(),
+        fetchGilatMetrics().catch(err => {
+          console.warn('Advertencia al cargar métricas Gilat:', err)
+          return null
+        })
+      ])
       setData(res)
+      if (gilatRes) setGilatData(gilatRes)
     } catch (err) {
       console.error('Error cargando métricas consolidadas:', err)
       setErrorMsg(err.message || 'Error al conectar con la base de datos de Supabase.')
@@ -477,6 +489,18 @@ export default function Dashboard() {
             <span>Monitoreo de Sitios</span>
             <span className="dash-subtab-badge">{sitios.length}</span>
           </button>
+
+          <button
+            type="button"
+            className={`dash-subtab-btn ${tab === 'gilat' ? 'is-active' : ''}`}
+            onClick={() => setTab('gilat')}
+          >
+            <ShieldCheck size={14} />
+            <span>Desempeño Gilat</span>
+            <span className="dash-subtab-badge-accent">
+              {gilatData ? `${gilatData.kpis.tasaAprobacion}% Apr.` : 'Gilat'}
+            </span>
+          </button>
         </div>
 
         <div className="dash-subtabs-actions">
@@ -818,6 +842,17 @@ export default function Dashboard() {
             minWidth="940px"
           />
         </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════
+          PESTAÑA 3: AUDITORÍA Y DESEMPEÑO GILAT
+          ════════════════════════════════════════════════════════════ */}
+      {tab === 'gilat' && (
+        <GilatMetricsView
+          metrics={gilatData}
+          loading={loading}
+          onRefresh={loadOverview}
+        />
       )}
     </div>
   )

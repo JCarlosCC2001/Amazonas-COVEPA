@@ -9,7 +9,8 @@
 -- ============================================================
 
 UPDATE public.observaciones
-SET comentario_covepa = 'Se debe hacer 4 mediciones por cada uno de los 7 puntos y adjuntar encarpetado por interno. Ejemplo en el link:
+SET comentario_covepa = 'Se deben realizar 4 mediciones (parámetro mínimo de 12 mils) por cada uno de los 7 puntos, tomar fotografía del medidor de espesor y de la torre.
+Adjuntar encarpetado por interno.
 https://drive.google.com/drive/folders/1RJQOpq0k1pvRIwCvIFUXsWuVJ0hMxrrl?usp=sharing'
 WHERE id_obs IN (
     'H1-OC-25-336',
@@ -136,3 +137,4 @@ WHERE id_obs IN (
     'H1-OC-100-2761',
     'H1-OC-100-2762'
 );
+

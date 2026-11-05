@@ -138,7 +138,7 @@ export async function fetchObservaciones({
 } = {}) {
   let query = supabase
     .from('observaciones')
-    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,fecha_registro_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora', { count: 'exact' })
+    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,fecha_registro_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora', { count: 'exact' })
 
   query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio, idSitios, filtroDemora })
 
@@ -170,7 +170,7 @@ export async function fetchObservaciones({
     // Fallback sin columnas nuevas si aún no se ejecutó la migración SQL
     let fallbackQuery = supabase
       .from('observaciones')
-      .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora', { count: 'exact' })
+      .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora', { count: 'exact' })
     fallbackQuery = applyQueryFilters(fallbackQuery, { search, protocolo, estadoCovepa, idSitio, idSitios, filtroDemora })
     const res = await fallbackQuery.order(dbCol, { ascending: isAsc, nullsFirst: false }).range(from, to)
     data = res.data
@@ -296,7 +296,7 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
   }
 
   const { data, error } = await query
-    .select()
+    .select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, comentario_covepa')
     .single()
 
   if (error) {
@@ -306,14 +306,14 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
       if (rev !== undefined) payload.validado_por = rev || null
       let retryQuery = supabase.from('observaciones').update(payload).eq('id_obs', idObs)
       if (siteId) retryQuery = retryQuery.eq('id_sitio', siteId)
-      const retryVal = await retryQuery.select().single()
+      const retryVal = await retryQuery.select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, comentario_covepa').single()
       if (!retryVal.error) return retryVal.data
 
       // Si tampoco existe validado_por, guardar sin ese campo
       delete payload.validado_por
       let retryClean = supabase.from('observaciones').update(payload).eq('id_obs', idObs)
       if (siteId) retryClean = retryClean.eq('id_sitio', siteId)
-      const retry = await retryClean.select().single()
+      const retry = await retryClean.select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, comentario_covepa').single()
       if (retry.error) throw new Error(retry.error.message)
       return retry.data
     }
@@ -381,7 +381,7 @@ export async function fetchResumenPorSitio(filters = {}) {
 export async function fetchObservacionesPorSitio(idSitio, filters = {}) {
   let query = supabase
     .from('observaciones')
-    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora')
+    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora')
     .eq('id_sitio', idSitio)
 
   query = applyQueryFilters(query, filters)
@@ -391,7 +391,7 @@ export async function fetchObservacionesPorSitio(idSitio, filters = {}) {
   if (error && (error.code === 'PGRST204' || error.message?.includes('tiempo_ejecucion'))) {
     let fallbackQuery = supabase
       .from('observaciones')
-      .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora')
+      .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora')
       .eq('id_sitio', idSitio)
     fallbackQuery = applyQueryFilters(fallbackQuery, filters)
     fallbackQuery = fallbackQuery.order('id_obs')

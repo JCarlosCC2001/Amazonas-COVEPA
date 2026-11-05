@@ -149,7 +149,7 @@ export async function registrarHistorialEstado({
         origen: origen,
         created_at: fechaExacta || new Date().toISOString()
       })
-      .select()
+      .select('id')
       .single()
 
     if (error) {
@@ -410,7 +410,7 @@ export async function sincronizarAuditoriaObservacion(idObs, {
     queryAudit = queryAudit.eq('id_sitio', idSitio)
   }
 
-  let { data, error } = await queryAudit.select()
+  let { data, error } = await queryAudit.select('id_obs, id_sitio')
 
   // Compatibilidad defensiva: si la columna revisor en la base de datos se llamase validado_por
   if (error && error.code === 'PGRST204' && payload.revisor !== undefined) {
@@ -426,7 +426,7 @@ export async function sincronizarAuditoriaObservacion(idObs, {
       retryQuery = retryQuery.eq('id_sitio', idSitio)
     }
 
-    const retry = await retryQuery.select()
+    const retry = await retryQuery.select('id_obs, id_sitio')
     data = retry.data
     error = retry.error
   }
@@ -487,7 +487,7 @@ export async function sincronizarComentarioObservacion(idObs, comentarioTexto, i
     query = query.eq('id_sitio', idSitio)
   }
 
-  const { data, error } = await query.select()
+  const { data, error } = await query.select('id_obs, id_sitio')
 
   if (error) {
     console.error(`[AUDITORIA-SYNC] ❌ Error sincronizando comentario en observación ${idObs}:`, error)
@@ -592,14 +592,14 @@ export async function enviarTiemposYDemoras({
       query = query.eq('id_sitio', idSitio)
     }
 
-    let { data, error } = await query.select()
+    let { data, error } = await query.select('id_obs, id_sitio')
 
     // Fallback defensivo si la columna fecha_registro_demora aún no existe en Supabase
     if (error && (error.code === 'PGRST204' || error.message?.includes('fecha_registro_demora')) && payload.fecha_registro_demora) {
       delete payload.fecha_registro_demora
       let retryQuery = supabase.from('observaciones').update(payload).eq('id_obs', idObs)
       if (idSitio) retryQuery = retryQuery.eq('id_sitio', idSitio)
-      const retryRes = await retryQuery.select()
+      const retryRes = await retryQuery.select('id_obs, id_sitio')
       data = retryRes.data
       error = retryRes.error
     }

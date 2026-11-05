@@ -92,10 +92,29 @@ export async function getSitiosCatalogMap() {
 }
 
 /**
- * Obtiene el resumen global del proyecto (conteos exactos en paralelo)
+ * Obtiene el resumen global del proyecto (conteos exactos en paralelo o vía RPC)
  */
 export async function getGlobalMetrics() {
   try {
+    // 1. Intentar llamar a la función RPC ultrarrápida (1 sola llamada atómica en Supabase, ~150 bytes)
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('get_dashboard_kpis')
+      if (!rpcErr && rpcData && typeof rpcData.total === 'number') {
+        return {
+          total: rpcData.total,
+          validadas: rpcData.validadas,
+          solicitando: rpcData.solicitando,
+          enRevision: rpcData.enRevision,
+          descartadas: rpcData.descartadas,
+          rechazadas: rpcData.rechazadas,
+          resueltas: rpcData.resueltas,
+          pendientes: rpcData.pendientes,
+          porcentajeGlobal: String(rpcData.porcentajeGlobal)
+        }
+      }
+    } catch (_) {}
+
+    // 2. Fallback en paralelo con HEAD request si aún no se ejecuta la función RPC en la BD
     const [totalRes, valRes, solRes, revRes, descRes, rechRes] = await Promise.all([
       supabase.from('observaciones').select('*', { count: 'exact', head: true }),
       supabase

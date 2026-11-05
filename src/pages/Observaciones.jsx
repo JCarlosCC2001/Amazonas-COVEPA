@@ -81,6 +81,21 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       isDirtyDelayRef.current = false
       isDirtyTimeRef.current = false
       setShowDemoraBox(Boolean((obs.justificacion_demora && obs.justificacion_demora.trim()) || (obs.tiempo_ejecucion_real && obs.tiempo_ejecucion_real.trim()) || (obs.tiempo_ejecucion_demora && obs.tiempo_ejecucion_demora.trim())))
+
+      // Carga bajo demanda de textos pesados (evita descargarlos en la lista general para ahorrar egress)
+      if (obs.comentario_final === undefined || obs.comentario_pronatel === undefined || obs.comentario_inicial === undefined) {
+        supabase
+          .from('observaciones')
+          .select('comentario_inicial, comentario_complementario, comentario_final, comentario_pronatel, acuerdo_subsanacion')
+          .eq('id_obs', obs.id_obs)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data) {
+              setObsLocal(prev => ({ ...prev, ...data }))
+            }
+          })
+          .catch(err => console.warn('Advertencia cargando textos bajo demanda:', err))
+      }
     }
   }, [obs?.id_obs])
 

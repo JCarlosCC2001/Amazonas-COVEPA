@@ -108,12 +108,28 @@ export default function Programacion() {
     ])
   }, [currentDate, loadDayAvance, loadUltimosReportes])
 
-  // Refrescar automáticamente los minutos relativos cada 60 segundos
+  // Refrescar automáticamente los minutos relativos cada 5 minutos (condicionado a pestaña visible)
+  const lastReportesFetchRef = useRef(Date.now())
   useEffect(() => {
     const timer = setInterval(() => {
-      loadUltimosReportes(currentDate)
-    }, 60000)
-    return () => clearInterval(timer)
+      if (typeof document !== 'undefined' && !document.hidden) {
+        loadUltimosReportes(currentDate)
+        lastReportesFetchRef.current = Date.now()
+      }
+    }, 300000)
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && (Date.now() - lastReportesFetchRef.current > 180000)) {
+        loadUltimosReportes(currentDate)
+        lastReportesFetchRef.current = Date.now()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [currentDate, loadUltimosReportes])
 
   // Catálogo enriquecido con localidades y nombres de nodos para visualización al lado de los códigos

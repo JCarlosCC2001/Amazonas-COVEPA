@@ -407,10 +407,10 @@ export default function AppHeader() {
                             <span>{obs.id_sitio}{loc ? ` · ${loc}` : ''}</span>
                           </div>
 
-                          {obs.revisor && (
+                          {(obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor) && (
                             <div className="notif-requester-line">
-                              <User size={11} />
-                              <span>{obs.revisor}</span>
+                              <User size={11} color="#0284c7" />
+                              <span>Solicita: <strong>{obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor}</strong></span>
                             </div>
                           )}
 

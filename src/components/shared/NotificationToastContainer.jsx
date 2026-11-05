@@ -319,10 +319,10 @@ export default function NotificationToastContainer() {
                       </p>
                     )}
 
-                    {obs.revisor && (
+                    {(obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor) && (
                       <div className="notif-toast-author-row">
-                        <User size={11} color="#64748b" />
-                        <span>Técnico: <strong>{obs.revisor}</strong></span>
+                        <User size={11} color="#0284c7" />
+                        <span className="t-meta">Solicitado por: <strong>{obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor}</strong></span>
                       </div>
                     )}
                   </>

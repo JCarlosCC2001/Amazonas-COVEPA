@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { getCachedSitiosAsignados } from '../services/sitiosService'
+import { getCachedSitiosAsignados, ASIGNACIONES_BASE } from '../services/sitiosService'
+import { DEFAULT_CUADRILLAS_CONFIG } from '../services/personalService'
 import { asegurarProgramacionSitio } from '../services/programacionService'
 import { registrarHistorialEstado, esRevisorGilat } from '../services/auditoriaSyncService'
 
@@ -10,6 +11,26 @@ const NotificationContext = createContext(null)
 const STORAGE_KEY_READS = 'covepa_read_solicitudes'
 const STORAGE_KEY_DISMISSED = 'covepa_dismissed_solicitudes'
 const KNOWN_IDS_KEY = 'covepa_known_solicitud_ids'
+
+// Mapa de respaldo: ID Sitio -> Nombre del técnico oficial asignado a su cuadrilla
+const SITE_TECNICO_MAP = {}
+try {
+  (ASIGNACIONES_BASE || []).forEach(s => {
+    const c = s.cuadrilla || s.grupo
+    const cfg = DEFAULT_CUADRILLAS_CONFIG ? DEFAULT_CUADRILLAS_CONFIG[c] : null
+    if (s.id_site && cfg?.tecnicoNombre) {
+      SITE_TECNICO_MAP[s.id_site.trim().toUpperCase()] = cfg.tecnicoNombre
+    }
+  })
+} catch (e) {
+  console.warn('[NOTIF-CONTEXT] Error inicializando SITE_TECNICO_MAP:', e)
+}
+
+export function resolverTecnicoDeSitio(idSitio) {
+  if (!idSitio) return ''
+  const clean = idSitio.trim().toUpperCase()
+  return SITE_TECNICO_MAP[clean] || ''
+}
 
 /**
  * Sintetizador Web Audio API: reproduce un chime armónico sutil de 2 tonos
@@ -477,11 +498,12 @@ export function NotificationProvider({ children }) {
   // Despachar notificación nativa de Sistema (Android, iOS PWA, Windows, Mac)
   const dispararNotificacionEscritorio = useCallback(async (obs, localidad) => {
     const locText = localidad ? ` · ${localidad}` : ''
-    const revisorText = obs.revisor ? `👤 Revisor: ${obs.revisor}` : '👤 Técnico en campo'
+    const personaSolicitante = obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor || resolverTecnicoDeSitio(obs.id_sitio) || ''
+    const solicitanteText = personaSolicitante ? `👤 Solicitado por: ${personaSolicitante}` : '👤 Solicitud técnica en campo'
     const detalleResumen = obs.detalle ? `\n📝 ${obs.detalle.slice(0, 95)}${obs.detalle.length > 95 ? '...' : ''}` : ''
 
     await despacharNotificacionSistema(`🔔 Solicitud: ${obs.id_obs}`, {
-      body: `📍 ${obs.id_sitio}${locText}\n${revisorText}${detalleResumen}`,
+      body: `📍 ${obs.id_sitio}${locText}\n${solicitanteText}${detalleResumen}`,
       tag: `covepa-solicitud-${obs.id_obs}`,
       renotify: true,
       data: {
@@ -497,10 +519,14 @@ export function NotificationProvider({ children }) {
   // Despachar Toast flotante interactivo
   const dispararToast = useCallback((obs, localidad) => {
     const toastId = `toast-${obs.id_obs}-${Date.now()}`
+    const personaSolicitante = obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor || resolverTecnicoDeSitio(obs.id_sitio) || ''
     const nuevoToast = {
       id: toastId,
       obs: {
         ...obs,
+        solicitante: personaSolicitante,
+        usuario_nombre: personaSolicitante,
+        revisor: personaSolicitante || obs.revisor,
         localidad: localidad || sitiosMapRef.current[obs.id_sitio] || ''
       },
       createdAt: Date.now()
@@ -634,6 +660,43 @@ export function NotificationProvider({ children }) {
 
       const solRows = solData || []
       const revRows = revData || []
+
+      // ── ENRIQUECER SOLICITUDES CON EL NOMBRE DEL TÉCNICO / SOLICITANTE ──
+      if (solRows.length > 0) {
+        try {
+          const obsIds = solRows.map(r => r.id_obs)
+          const { data: histData } = await supabase
+            .from('historial_estados_observaciones')
+            .select('id_obs, usuario_nombre, created_at')
+            .in('id_obs', obsIds)
+            .in('estado_nuevo', ['Solicitando Revisión', 'Solicitando Revision'])
+            .order('created_at', { ascending: false })
+
+          const histMap = {}
+          if (Array.isArray(histData)) {
+            histData.forEach(h => {
+              if (h.id_obs && h.usuario_nombre && !histMap[h.id_obs]) {
+                histMap[h.id_obs] = h.usuario_nombre
+              }
+            })
+          }
+
+          solRows.forEach(row => {
+            const nombreSolicitante = histMap[row.id_obs] || (row.revisor && !esRevisorGilat(row.revisor) ? row.revisor : '') || resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
+            row.solicitante = nombreSolicitante
+            row.usuario_nombre = nombreSolicitante
+            row.revisor = nombreSolicitante
+          })
+        } catch (e) {
+          console.warn('[NOTIF-ENRICH] Error enriqueciendo solicitantes:', e)
+          solRows.forEach(row => {
+            const fallback = resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
+            row.solicitante = fallback
+            row.usuario_nombre = fallback
+            row.revisor = fallback
+          })
+        }
+      }
 
       // Si no es la primera carga y detectamos una nueva solicitud entrante individual
       if (!isFirstLoadRef.current && isRealtimeAlert) {
@@ -871,8 +934,15 @@ export function NotificationProvider({ children }) {
 
           if (newRow && (newRow.estado_covepa === 'Solicitando Revisión' || newRow.estado_covepa === 'Solicitando Revision')) {
             const loc = sitiosMapRef.current[newRow.id_sitio] || ''
-            dispararToast(newRow, loc)
-            dispararNotificacionEscritorio(newRow, loc)
+            const solicitanteNombre = newRow.revisor || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
+            const enrichedRow = {
+              ...newRow,
+              solicitante: solicitanteNombre,
+              usuario_nombre: solicitanteNombre,
+              revisor: solicitanteNombre
+            }
+            dispararToast(enrichedRow, loc)
+            dispararNotificacionEscritorio(enrichedRow, loc)
             // Marcar como no leída para que aumente el contador y reactivar si estaba descartada
             setReadIds(prev => {
               const updated = new Set(prev)
@@ -977,11 +1047,14 @@ export function NotificationProvider({ children }) {
           }
 
           if (row && (row.estado_nuevo === 'Solicitando Revisión' || row.estado_nuevo === 'Solicitando Revision')) {
+            const solicitanteNombre = row.usuario_nombre || resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
             const obsLike = {
               id_obs: row.id_obs,
               id_sitio: row.id_sitio,
               estado_covepa: row.estado_nuevo,
-              revisor: row.usuario_nombre,
+              revisor: solicitanteNombre,
+              solicitante: solicitanteNombre,
+              usuario_nombre: solicitanteNombre,
               fecha_subsanacion: row.created_at,
               detalle: row.comentario
             }

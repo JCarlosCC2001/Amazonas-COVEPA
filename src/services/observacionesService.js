@@ -188,11 +188,28 @@ export async function fetchObservaciones({
 // ────────────────────────────────────────────────────────────
 export async function fetchObservacionesKPIs() {
   try {
+    // 1. Intentar llamar a la función RPC ultrarrápida (1 sola petición, ~150 bytes)
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('get_dashboard_kpis')
+      if (!rpcErr && rpcData && typeof rpcData.total === 'number') {
+        return {
+          total: rpcData.total,
+          pendientes: rpcData.pendientes,
+          solicitando: rpcData.solicitando,
+          enRevision: rpcData.enRevision,
+          validadas: rpcData.validadas,
+          rechazadas: rpcData.rechazadas,
+          descartadas: rpcData.descartadas
+        }
+      }
+    } catch (_) {}
+
+    // 2. Fallback con consultas HEAD paralelas
     const [qTotal, qPend, qSol, qRev, qValidadas, qRech, qDesc] = await Promise.all([
       supabase.from('observaciones').select('*', { count: 'exact', head: true }),
       supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Pendiente,estado_covepa.is.null'),
-      supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión'),
-      supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión'),
+      supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['Solicitando Revisión', 'Solicitando Revision']),
+      supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['En Revisión', 'En Revision']),
       supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Solicitando Revision,estado_covepa.neq.Solicitando Revisión,estado_covepa.neq.Rechazado)'),
       supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Rechazado'),
       supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Descartado'),
@@ -414,7 +431,7 @@ export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
   const { data: rows, error: fetchErr } = await supabase
     .from('observaciones')
     .select('id_obs, id_sitio, revisor, detalle, subsistema, fecha_subsanacion, estado_covepa')
-    .or('estado_covepa.eq.Solicitando Revisión,estado_covepa.eq.Solicitando Revision')
+    .in('estado_covepa', ['Solicitando Revisión', 'Solicitando Revision'])
 
   if (fetchErr) {
     throw new Error(`Error al consultar observaciones solicitando revisión: ${fetchErr.message}`)

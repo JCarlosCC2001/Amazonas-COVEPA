@@ -438,6 +438,7 @@ export function NotificationProvider({ children }) {
   const debouncedFetchTimerRef = useRef(null)
 
   const sitiosMapRef = useRef({})
+  const [sitiosMapState, setSitiosMapState] = useState({})
   const isFirstLoadRef = useRef(true)
   const knownIdsRef = useRef(new Set())
   const lastAlertTecnicosRef = useRef({ time: 0, count: 0 })
@@ -451,6 +452,7 @@ export function NotificationProvider({ children }) {
         map[s.id_site] = s.localidad || s.nombre_nodo || ''
       }
       sitiosMapRef.current = map
+      setSitiosMapState(map)
     }).catch(() => {})
   }, [])
 
@@ -1196,12 +1198,51 @@ export function NotificationProvider({ children }) {
 
   // Disparar notificación tras el pase masivo de observaciones a En Revisión
   const notificarPaseEnRevision = useCallback(async ({ count, items, codes }) => {
-    if (!codes || codes.length === 0) return
+    // Si no hubo observaciones pasadas, notificar con aviso informativo
+    if (!codes || codes.length === 0) {
+      const toastId = `toast-batch-empty-${Date.now()}`
+      const emptyToast = {
+        id: toastId,
+        obs: {
+          id_obs: `PASE-VACIO-${Date.now()}`,
+          isTransicionVacia: true,
+          titulo: 'Sin solicitudes pendientes',
+          detalle: 'No hay observaciones en "Solicitando Revisión" en este momento.'
+        },
+        createdAt: Date.now()
+      }
+      setToasts(prev => [emptyToast, ...prev].slice(0, 3))
+      playNotificationChime()
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== toastId))
+      }, 5000)
+      return
+    }
 
-    // 1. Copiar automáticamente los códigos al portapapeles de inmediato
+    // 1. Agrupar observaciones por sitio y localidad para saber de qué sitios se está pasando
+    const currentSitiosMap = sitiosMapRef.current || {}
+    const sitiosInvolucradosMap = new Map()
+
+    ;(items || []).forEach(it => {
+      const siteId = (it.id_sitio || 'Sin Sitio').trim().toUpperCase()
+      if (!sitiosInvolucradosMap.has(siteId)) {
+        const loc = currentSitiosMap[siteId] || it.localidad || ''
+        sitiosInvolucradosMap.set(siteId, {
+          id_sitio: siteId,
+          localidad: loc,
+          label: `${siteId}${loc ? ` · ${loc}` : ''}`,
+          codes: []
+        })
+      }
+      sitiosInvolucradosMap.get(siteId).codes.push(it.id_obs)
+    })
+
+    const sitiosList = Array.from(sitiosInvolucradosMap.values())
+
+    // 2. Copiar automáticamente los códigos al portapapeles de inmediato
     await copyPlainCodesList(codes)
 
-    // 2. Despachar Toast flotante interactivo enriquecido
+    // 3. Despachar Toast flotante interactivo enriquecido con sitios y localidades
     const toastId = `toast-batch-revision-${Date.now()}`
     const nuevoToast = {
       id: toastId,
@@ -1209,10 +1250,11 @@ export function NotificationProvider({ children }) {
         id_obs: `PASE-REVISION-${Date.now()}`,
         isTransicionBatch: true,
         count: codes.length,
-        titulo: 'Pase a En Revisión completado',
-        detalle: `${codes.length} ${codes.length === 1 ? 'observación pasó' : 'observaciones pasaron'} a En Revisión. La lista fue copiada al portapapeles.`,
+        titulo: `¡${codes.length} ${codes.length === 1 ? 'Observación pasó' : 'Observaciones pasaron'} a En Revisión!`,
+        detalle: `${codes.length} ${codes.length === 1 ? 'observación pasó' : 'observaciones pasaron'} a En Revisión en ${sitiosList.length} ${sitiosList.length === 1 ? 'sitio' : 'sitios'}.`,
         items: items || [],
-        codes: codes
+        codes: codes,
+        sitios: sitiosList
       },
       createdAt: Date.now()
     }
@@ -1225,9 +1267,10 @@ export function NotificationProvider({ children }) {
       setToasts(prev => prev.filter(t => t.id !== toastId))
     }, 15000)
 
-    // 3. Notificación nativa de sistema (Android / Windows)
-    despacharNotificacionSistema(`🚀 ${codes.length} Observaciones a En Revisión`, {
-      body: `📋 Lista copiada al portapapeles\n🔢 ${codes.slice(0, 5).join(', ')}${codes.length > 5 ? ` (+ ${codes.length - 5} más)` : ''}`,
+    // 4. Notificación nativa de sistema (Android / Windows) con resumen de sitios
+    const resumenSitiosTexto = sitiosList.slice(0, 3).map(s => `📍 ${s.label} (${s.codes.length} obs)`).join('\n')
+    despacharNotificacionSistema(`🚀 ${codes.length} Obs a En Revisión · ${sitiosList.length} Sitios`, {
+      body: `📍 Sitios pasados:\n${resumenSitiosTexto}${sitiosList.length > 3 ? `\n(+ ${sitiosList.length - 3} sitios más)` : ''}\n📋 Códigos copiados al portapapeles`,
       tag: 'covepa-pase-en-revision',
       renotify: true,
       data: {
@@ -1239,7 +1282,7 @@ export function NotificationProvider({ children }) {
       ]
     })
 
-    // 4. Refrescar solicitudes en tiempo real
+    // 5. Refrescar solicitudes en tiempo real
     fetchSolicitudes()
   }, [fetchSolicitudes])
 
@@ -1322,7 +1365,7 @@ export function NotificationProvider({ children }) {
         markAllAsRead,
         dismissToast,
         fetchSolicitudes,
-        sitiosMap: sitiosMapRef.current
+        sitiosMap: sitiosMapState
       }}
     >
       {children}

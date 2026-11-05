@@ -1129,6 +1129,11 @@ export default function Observaciones() {
             codes: res.programaciones.map(p => p.idSitio || p.cuadrilla || 'Programación').filter(Boolean)
           })
         }
+      } else {
+        if (notificarPaseEnRevision) {
+          await notificarPaseEnRevision({ count: 0, items: [], codes: [] })
+        }
+        await loadKpis()
       }
     } catch (err) {
       console.error('[BATCH-REVISION] Error al pasar observaciones a En Revisión:', err)

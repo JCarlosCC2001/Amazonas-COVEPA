@@ -665,7 +665,7 @@ export function NotificationProvider({ children }) {
         // B. Consultar historial_reportes_correo para auditoría detallada (columnas mínimas)
         const { data: histData } = await supabase
           .from('historial_reportes_correo')
-          .select('id, tipo_reporte, tipo, asunto, destinatarios, destinatarios_cc, total_obs, validadas, rechazadas, en_espera, created_at')
+          .select('id, tipo, asunto, destinatarios, destinatarios_cc, total_obs, validadas, rechazadas, en_espera, created_at')
           .eq('estado', 'exitoso')
           .order('created_at', { ascending: false })
           .limit(4)
@@ -680,7 +680,7 @@ export function NotificationProvider({ children }) {
             const diffHoras = (Date.now() - new Date(fechaEnvio).getTime()) / (1000 * 60 * 60)
             if (diffHoras > 48) continue
 
-            const tipoRep = h.tipo_reporte || ((h.asunto || '').toLowerCase().includes('semanal') ? 'semanal' : 'diario')
+            const tipoRep = (h.tipo === 'semanal' || (h.asunto || '').toLowerCase().includes('semanal')) ? 'semanal' : 'diario'
             tiposCapturados.add(tipoRep)
 
             let horaStr = 'recientemente'

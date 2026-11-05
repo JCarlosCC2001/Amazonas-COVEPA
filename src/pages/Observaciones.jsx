@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import {
   Search, Filter, RefreshCw, SlidersHorizontal, X, Eye, ChevronLeft,
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,

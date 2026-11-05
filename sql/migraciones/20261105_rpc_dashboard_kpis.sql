@@ -82,3 +82,4 @@ GRANT EXECUTE ON FUNCTION public.get_dashboard_kpis() TO authenticated, anon;
 
 -- Notificar recarga de schema a PostgREST
 NOTIFY pgrst, 'reload schema';
+

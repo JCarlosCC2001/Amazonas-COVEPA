@@ -79,3 +79,4 @@ EXECUTE FUNCTION public.trg_trazabilidad_solicitud_revision();
 
 -- Notificar recarga de schema a PostgREST
 NOTIFY pgrst, 'reload schema';
+

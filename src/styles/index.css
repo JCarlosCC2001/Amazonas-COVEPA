@@ -30,3 +30,6 @@
 
 /* 9. Módulo Reportes y Envíos Automáticos */
 @import './reportes.css';
+
+/* 10. Portal de Inicio y Bienvenida (Home) */
+@import './home.css';

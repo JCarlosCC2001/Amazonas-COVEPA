@@ -72,6 +72,8 @@ export default function Dashboard() {
 
   // Estado con métricas específicas de auditoría y desempeño Gilat
   const [gilatData, setGilatData] = useState(null)
+  const [gilatLoading, setGilatLoading] = useState(false)
+  const lastLoadedTimeRef = useRef(Date.now())
 
   // Estado con las métricas consolidadas del proyecto
   const [data, setData] = useState({
@@ -103,15 +105,9 @@ export default function Dashboard() {
     setLoading(true)
     setErrorMsg('')
     try {
-      const [res, gilatRes] = await Promise.all([
-        getDashboardProjectOverview(),
-        fetchGilatMetrics().catch(err => {
-          console.warn('Advertencia al cargar métricas Gilat:', err)
-          return null
-        })
-      ])
+      const res = await getDashboardProjectOverview()
       setData(res)
-      if (gilatRes) setGilatData(gilatRes)
+      lastLoadedTimeRef.current = Date.now()
     } catch (err) {
       console.error('Error cargando métricas consolidadas:', err)
       setErrorMsg(err.message || 'Error al conectar con la base de datos de Supabase.')
@@ -119,6 +115,26 @@ export default function Dashboard() {
       setLoading(false)
     }
   }, [])
+
+  // Carga bajo demanda de métricas Gilat (solo cuando el usuario entra a la pestaña 'gilat')
+  const loadGilat = useCallback(async (force = false) => {
+    setGilatLoading(true)
+    try {
+      const gilatRes = await fetchGilatMetrics(force)
+      if (gilatRes) setGilatData(gilatRes)
+    } catch (err) {
+      console.warn('Advertencia al cargar métricas Gilat:', err)
+    } finally {
+      setGilatLoading(false)
+    }
+  }, [])
+
+  // Disparar carga de Gilat únicamente cuando se activa la pestaña correspondiente
+  useEffect(() => {
+    if (tab === 'gilat') {
+      loadGilat(false)
+    }
+  }, [tab, loadGilat])
 
   useEffect(() => {
     loadOverview()
@@ -129,7 +145,10 @@ export default function Dashboard() {
       clearTimeout(debounceTimer)
       debounceTimer = setTimeout(() => {
         loadOverview()
-      }, 500)
+        if (tab === 'gilat') {
+          loadGilat(true)
+        }
+      }, 3000)
     }
 
     const channel = supabase
@@ -141,10 +160,13 @@ export default function Dashboard() {
       )
       .subscribe()
 
-    // Recargar al volver a la pestaña
+    // Recargar al volver a la pestaña con cooldown de 3 minutos para no consumir egress
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && (Date.now() - lastLoadedTimeRef.current > 180000)) {
         loadOverview()
+        if (tab === 'gilat') {
+          loadGilat(false)
+        }
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -154,7 +176,7 @@ export default function Dashboard() {
       supabase.removeChannel(channel)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [loadOverview])
+  }, [tab, loadOverview, loadGilat])
 
   const { kpis, grupos, sitios, semanaActual } = data
 
@@ -850,8 +872,11 @@ export default function Dashboard() {
       {tab === 'gilat' && (
         <GilatMetricsView
           metrics={gilatData}
-          loading={loading}
-          onRefresh={loadOverview}
+          loading={gilatLoading || loading}
+          onRefresh={() => {
+            loadOverview()
+            loadGilat(true)
+          }}
         />
       )}
     </div>

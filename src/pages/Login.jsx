@@ -31,7 +31,7 @@ export default function Login() {
       }
       setLoading(false)
     } else {
-      navigate('/dashboard')
+      navigate('/')
     }
   }
 

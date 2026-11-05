@@ -13,9 +13,15 @@ import { supabase } from '../lib/supabase'
 import { esRevisorGilat } from './auditoriaSyncService'
 import { getSitiosCatalogMap, getLimaDateStr } from './dashboardService'
 
+// Cache en memoria para evitar consultas masivas repetidas
+let gilatMetricsCache = null
+let gilatMetricsCacheTime = 0
+const GILAT_CACHE_TTL = 3 * 60 * 1000 // 3 minutos
+
 /**
  * Obtiene el consolidado analítico de validaciones y respuesta de Gilat
  *
+ * @param {boolean} [force=false] Forzar recarga ignorando el cache en memoria
  * @returns {Promise<{
  *   kpis: {
  *     totalDictaminadas: number,
@@ -69,7 +75,11 @@ import { getSitiosCatalogMap, getLimaDateStr } from './dashboardService'
  *   }>
  * }>}
  */
-export async function fetchGilatMetrics() {
+export async function fetchGilatMetrics(force = false) {
+  if (!force && gilatMetricsCache && (Date.now() - gilatMetricsCacheTime < GILAT_CACHE_TTL)) {
+    return gilatMetricsCache
+  }
+
   const [sitiosMap] = await Promise.all([
     getSitiosCatalogMap()
   ])
@@ -95,12 +105,18 @@ export async function fetchGilatMetrics() {
   }
 
   // 2. Cargar historial de transiciones de estado para calcular turnaround de respuesta
+  // Optimización: Solo consultar los últimos 45 días para evitar descargar la tabla completa histórica
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - 45)
+  const cutoffIso = cutoffDate.toISOString()
+
   const allHist = []
   let fromHist = 0
   while (true) {
     const { data, error } = await supabase
       .from('historial_estados_observaciones')
       .select('id, id_obs, id_sitio, estado_anterior, estado_nuevo, usuario_nombre, created_at')
+      .gte('created_at', cutoffIso)
       .order('created_at', { ascending: true })
       .range(fromHist, fromHist + 999)
 
@@ -304,7 +320,7 @@ export async function fetchGilatMetrics() {
   const diasActivosTotales = sortedDates.length || 1
   const velocidadPromedio = Number((totalDictaminadas / diasActivosTotales).toFixed(1))
 
-  return {
+  const result = {
     kpis: {
       totalDictaminadas,
       totalValidadas,
@@ -329,5 +345,9 @@ export async function fetchGilatMetrics() {
     rankingAuditores,
     colaDetalle: colaDetalle.slice(0, 20)
   }
+
+  gilatMetricsCache = result
+  gilatMetricsCacheTime = Date.now()
+  return result
 }
 

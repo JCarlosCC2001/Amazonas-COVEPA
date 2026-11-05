@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 import { getCachedSitiosAsignados } from '../services/sitiosService'
 import { asegurarProgramacionSitio } from '../services/programacionService'
 import { registrarHistorialEstado, esRevisorGilat } from '../services/auditoriaSyncService'
@@ -431,6 +432,11 @@ export function NotificationProvider({ children }) {
     return 'unsupported'
   })
 
+  const { user, profile } = useAuth()
+  const lastFetchTimeRef = useRef(0)
+  const handledRealtimeEventsRef = useRef(new Map())
+  const debouncedFetchTimerRef = useRef(null)
+
   const sitiosMapRef = useRef({})
   const isFirstLoadRef = useRef(true)
   const knownIdsRef = useRef(new Set())
@@ -605,18 +611,19 @@ export function NotificationProvider({ children }) {
 
   // Consultar observaciones en Solicitando Revisión y En Revisión desde Supabase
   const fetchSolicitudes = useCallback(async (isRealtimeAlert = false) => {
+    if (!user) return
     try {
-      // 1. Solicitudes de Técnicos (Solicitando Revisión)
+      // 1. Solicitudes de Técnicos (Solicitando Revisión) - solo columnas esenciales
       const { data: solData, error: solErr } = await supabase
         .from('observaciones')
-        .select('id_obs, id_sitio, estado_covepa, revisor, fecha_subsanacion, subsistema, detalle, comentario_covepa')
+        .select('id_obs, id_sitio, estado_covepa, revisor, fecha_subsanacion, subsistema')
         .in('estado_covepa', ['Solicitando Revisión', 'Solicitando Revision'])
         .order('fecha_subsanacion', { ascending: true }) // De más antigua a más reciente
 
-      // 2. Observaciones en Auditoría (En Revisión)
+      // 2. Observaciones en Auditoría (En Revisión) - solo columnas esenciales
       const { data: revData, error: revErr } = await supabase
         .from('observaciones')
-        .select('id_obs, id_sitio, estado_covepa, revisor, fecha_subsanacion, subsistema, detalle, comentario_covepa')
+        .select('id_obs, id_sitio, estado_covepa, revisor, fecha_subsanacion, subsistema')
         .in('estado_covepa', ['En Revisión', 'En Revision'])
         .order('fecha_subsanacion', { ascending: true }) // De más antigua a más reciente
 
@@ -655,13 +662,13 @@ export function NotificationProvider({ children }) {
           .from('configuracion_reportes_correo')
           .select('id, activo, hora_envio, asunto, destinatarios, destinatarios_cc, ultimo_envio_at')
 
-        // B. Consultar historial_reportes_correo para auditoría detallada
+        // B. Consultar historial_reportes_correo para auditoría detallada (columnas mínimas)
         const { data: histData } = await supabase
           .from('historial_reportes_correo')
-          .select('*')
+          .select('id, tipo_reporte, tipo, asunto, destinatarios, destinatarios_cc, total_obs, validadas, rechazadas, en_espera, created_at')
           .eq('estado', 'exitoso')
           .order('created_at', { ascending: false })
-          .limit(6)
+          .limit(4)
 
         const tiposCapturados = new Set()
 
@@ -776,26 +783,44 @@ export function NotificationProvider({ children }) {
       lastReporteEnvioRef.current = newTimestamps
 
       setReportesNotif(repItems)
+      lastFetchTimeRef.current = Date.now()
     } catch (err) {
       console.warn('[NOTIF-FETCH] Error de red:', err)
     }
-  }, [dispararToast, dispararNotificacionEscritorio, evaluarAlertasAcumulacion])
+  }, [user, dispararToast, dispararNotificacionEscritorio, evaluarAlertasAcumulacion])
 
-  // Carga inicial y Polling resiliente cada 30 segundos
+  // Despacho con debounce de fetchSolicitudes ante ráfagas de eventos Realtime
+  const triggerDebouncedFetch = useCallback((silencioso = false) => {
+    if (debouncedFetchTimerRef.current) clearTimeout(debouncedFetchTimerRef.current)
+    debouncedFetchTimerRef.current = setTimeout(() => {
+      fetchSolicitudes(silencioso)
+    }, 1500)
+  }, [fetchSolicitudes])
+
+  // Carga inicial y Polling resiliente ultra-eficiente (cada 5 minutos de respaldo, condicionado a pestaña visible)
   useEffect(() => {
+    if (!user) return
+
     fetchSolicitudes(false)
 
+    // Polling de respaldo cada 5 minutos (300,000 ms) en vez de 30 segundos
     const interval = setInterval(() => {
-      fetchSolicitudes(true)
-    }, 30000)
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchSolicitudes(true)
+      }
+    }, 300000)
 
-    // Reconsultar si el usuario regresa a la pestaña, desbloquea el celular o reconecta señal
+    // Reconsultar solo si el usuario regresa a la pestaña tras estar oculta (con cooldown de 3 minutos)
     const handleVisibility = () => {
-      if (!document.hidden) {
+      if (!document.hidden && Date.now() - lastFetchTimeRef.current > 180000) {
         fetchSolicitudes(true)
       }
     }
-    const handleFocus = () => fetchSolicitudes(true)
+    const handleFocus = () => {
+      if (!document.hidden && Date.now() - lastFetchTimeRef.current > 180000) {
+        fetchSolicitudes(true)
+      }
+    }
     const handleOnline = () => fetchSolicitudes(true)
 
     document.addEventListener('visibilitychange', handleVisibility)
@@ -808,10 +833,14 @@ export function NotificationProvider({ children }) {
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('online', handleOnline)
     }
-  }, [fetchSolicitudes])
+  }, [user, fetchSolicitudes])
 
   // Supabase Realtime: Escuchar cambios inmediatos en observaciones e historial
   useEffect(() => {
+    if (!user) return
+
+    const esAdminOCoord = profile?.rol === 'administrador' || profile?.rol === 'coordinador'
+
     const channel = supabase
       .channel('covepa-notificaciones-solicitudes')
       .on(
@@ -820,9 +849,17 @@ export function NotificationProvider({ children }) {
         (payload) => {
           const newRow = payload.new
           const oldRow = payload.old
+          const now = Date.now()
 
-          // Regla: Auto-programar sitio si hubo cambio de estado y no está programado en la fecha
-          if (newRow && newRow.estado_covepa && newRow.estado_covepa !== oldRow?.estado_covepa) {
+          // Deduplicación en ráfaga para evitar bucles entre clientes
+          const dedupeKey = `obs_${newRow?.id_obs}_${newRow?.estado_covepa}_${newRow?.revisor || ''}`
+          const isDupe = handledRealtimeEventsRef.current.has(dedupeKey) && (now - handledRealtimeEventsRef.current.get(dedupeKey) < 30000)
+          if (!isDupe) {
+            handledRealtimeEventsRef.current.set(dedupeKey, now)
+          }
+
+          // Regla: Auto-programar sitio si hubo cambio de estado y no está programado en la fecha (solo admin/coord)
+          if (!isDupe && esAdminOCoord && newRow && newRow.estado_covepa && newRow.estado_covepa !== oldRow?.estado_covepa) {
             asegurarProgramacionSitio({
               idSitio: newRow.id_sitio,
               idObs: newRow.id_obs,
@@ -848,12 +885,11 @@ export function NotificationProvider({ children }) {
               }
               return prev
             })
-            fetchSolicitudes(false)
+            triggerDebouncedFetch(false)
 
             // ── TRAZABILIDAD AUTOMÁTICA DEL TÉCNICO AL SOLICITAR REVISIÓN ──
-            // 1. Registra en el historial de cambios el nombre del técnico de campo
-            // 2. Limpia el campo 'revisor' en observaciones para que SOLO pertenezca a Gilat
-            if (newRow.estado_covepa !== oldRow?.estado_covepa) {
+            // Solo administradores/coordinadores realizan la sincronización a BD y con deduplicación
+            if (!isDupe && esAdminOCoord && newRow.estado_covepa !== oldRow?.estado_covepa) {
               const tecnicoNombre = newRow.revisor || 'Técnico de Campo (App Fotos)'
               registrarHistorialEstado({
                 idObs: newRow.id_obs,
@@ -881,11 +917,11 @@ export function NotificationProvider({ children }) {
             }
           } else if (oldRow && (oldRow.estado_covepa === 'Solicitando Revisión' || oldRow.estado_covepa === 'Solicitando Revision')) {
             // Ya no está en solicitando revisión (se validó, rechazó, etc.)
-            fetchSolicitudes(false)
+            triggerDebouncedFetch(false)
           }
 
-          // Regla: Detectar registro o modificación de demoras y tiempos desde la App de Fotos / Control COVEPA
-          if (newRow && oldRow && (
+          // Regla: Detectar registro o modificación de demoras y tiempos desde la App de Fotos / Control COVEPA (solo admin/coord)
+          if (!isDupe && esAdminOCoord && newRow && oldRow && (
             (newRow.justificacion_demora && newRow.justificacion_demora !== oldRow.justificacion_demora) ||
             (newRow.tiempo_ejecucion_real && newRow.tiempo_ejecucion_real !== oldRow.tiempo_ejecucion_real) ||
             (newRow.tiempo_ejecucion_demora && newRow.tiempo_ejecucion_demora !== oldRow.tiempo_ejecucion_demora)
@@ -922,9 +958,15 @@ export function NotificationProvider({ children }) {
         { event: 'INSERT', schema: 'public', table: 'historial_estados_observaciones' },
         (payload) => {
           const row = payload.new
+          const now = Date.now()
+          const dedupeHistKey = `hist_${row?.id_obs}_${row?.id_sitio}_${row?.created_at}`
+          const isHistDupe = handledRealtimeEventsRef.current.has(dedupeHistKey) && (now - handledRealtimeEventsRef.current.get(dedupeHistKey) < 30000)
+          if (!isHistDupe) {
+            handledRealtimeEventsRef.current.set(dedupeHistKey, now)
+          }
 
-          // Regla: Auto-programar sitio ante cualquier cambio de estado registrado en historial
-          if (row && row.id_sitio) {
+          // Regla: Auto-programar sitio ante cualquier cambio de estado registrado en historial (solo admin/coord)
+          if (!isHistDupe && esAdminOCoord && row && row.id_sitio) {
             asegurarProgramacionSitio({
               idSitio: row.id_sitio,
               idObs: row.id_obs,
@@ -952,7 +994,7 @@ export function NotificationProvider({ children }) {
               }
               return prev
             })
-            fetchSolicitudes(false)
+            triggerDebouncedFetch(false)
           }
         }
       )
@@ -963,7 +1005,7 @@ export function NotificationProvider({ children }) {
           const newRow = payload.new
           const oldRow = payload.old
           if (newRow?.ultimo_envio_at && newRow.ultimo_envio_at !== oldRow?.ultimo_envio_at) {
-            fetchSolicitudes(true)
+            triggerDebouncedFetch(true)
           }
         }
       )
@@ -972,7 +1014,7 @@ export function NotificationProvider({ children }) {
         { event: 'INSERT', schema: 'public', table: 'historial_reportes_correo' },
         (payload) => {
           if (payload.new?.estado === 'exitoso') {
-            fetchSolicitudes(true)
+            triggerDebouncedFetch(true)
           }
         }
       )
@@ -985,7 +1027,7 @@ export function NotificationProvider({ children }) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [dispararToast, dispararNotificacionEscritorio, fetchSolicitudes])
+  }, [user, profile?.rol, dispararToast, dispararNotificacionEscritorio, triggerDebouncedFetch])
 
   // Solicitar permiso de notificaciones de escritorio de Windows
   const requestDesktopPermission = async () => {

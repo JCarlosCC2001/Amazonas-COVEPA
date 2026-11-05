@@ -9,6 +9,7 @@ import Layout from './components/layout/Layout'
 import Login from './pages/Login'
 
 // M2: Code splitting por ruta — cada página se carga solo cuando se navega a ella
+const Home          = lazy(() => import('./pages/Home'))
 const Dashboard     = lazy(() => import('./pages/Dashboard'))
 const Sitios        = lazy(() => import('./pages/Sitios'))
 const Observaciones = lazy(() => import('./pages/Observaciones'))
@@ -66,7 +67,7 @@ export default function App() {
                     </ProtectedRoute>
                   }
                 >
-                  <Route index element={<Navigate to="/dashboard" replace />} />
+                  <Route index element={<Suspense fallback={<PageLoader />}><Home /></Suspense>} />
                   <Route path="dashboard"     element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
                   <Route path="sitios"        element={<Suspense fallback={<PageLoader />}><Sitios /></Suspense>} />
                   <Route path="observaciones" element={<Suspense fallback={<PageLoader />}><Observaciones /></Suspense>} />
@@ -78,7 +79,7 @@ export default function App() {
                 </Route>
 
                 {/* Fallback */}
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </NotificationProvider>
           </BrowserRouter>

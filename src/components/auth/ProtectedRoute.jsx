@@ -19,7 +19,7 @@ export default function ProtectedRoute({ children, requiredRoute }) {
 
   const routeToCheck = requiredRoute || location.pathname
   if (canAccessRoute && !canAccessRoute(routeToCheck)) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to="/" replace />
   }
 
   return children

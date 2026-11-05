@@ -261,10 +261,10 @@ export async function getAvancePorFecha(fechaStr) {
       })
     })
 
-    // 2. Obtener observaciones con fecha de revisión en ese día
+    // 2. Obtener observaciones con fecha de revisión en ese día (columnas optimizadas sin 'detalle')
     const { data: rawObsFecha, error: obsErr } = await supabase
       .from('observaciones')
-      .select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, detalle, subsistema, protocolo')
+      .select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, subsistema, protocolo')
       .gte('fecha_subsanacion', startIso)
       .lte('fecha_subsanacion', endIso)
       .order('fecha_subsanacion', { ascending: false })
@@ -276,7 +276,7 @@ export async function getAvancePorFecha(fechaStr) {
     // Para otras fechas, las que pertenezcan a los sitios programados en esa fecha.
     let revisionQuery = supabase
       .from('observaciones')
-      .select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, detalle, subsistema, protocolo')
+      .select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, subsistema, protocolo')
       .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión,estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión')
 
     if (!isToday) {

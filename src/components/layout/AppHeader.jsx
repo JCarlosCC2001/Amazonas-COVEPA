@@ -11,6 +11,10 @@ import { usePresentationMode } from '../../context/PresentationContext'
 import { useNotifications, formatTiempoRelativo, copyObservacionesList } from '../../context/NotificationContext'
 
 const PAGE_META = {
+  '/': {
+    title: 'Portal de Inicio',
+    subtitle: 'Bienvenido al Sistema de Gestión Amazonas · COVEPA'
+  },
   '/dashboard': {
     title: 'Dashboard General',
     subtitle: 'Monitoreo global de subsanación técnica · ZONA 2 y ZONA 7'

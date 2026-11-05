@@ -81,6 +81,7 @@ export function estadoCovepaBadge(estado) {
   if (estado === 'Rechazado') return 'badge-red'
   if (estado === 'En Revision' || estado === 'En Revisión') return 'badge-blue'
   if (estado === 'Solicitando Revision' || estado === 'Solicitando Revisión') return 'badge-orange'
+  if (estado === 'Documentacion' || estado === 'Documentación') return 'badge-indigo'
   if (estado === 'Enviado') return 'badge-green'
   return 'badge-muted'
 }

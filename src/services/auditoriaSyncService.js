@@ -30,12 +30,13 @@ export const ESTADOS_OFICIALES_COVEPA = Object.freeze([
   'Rechazado',
   'En Revisión',
   'Solicitando Revisión',
+  'Documentación',
   'Descartado',
   'Pendiente'
 ])
 
 /**
- * Normaliza cualquier variante de texto a uno de los 6 estados canónicos oficiales con tildes.
+ * Normaliza cualquier variante de texto a uno de los estados canónicos oficiales con tildes.
  *
  * @param {string} estado
  * @returns {string} Estado oficial normalizado
@@ -48,6 +49,7 @@ export function normalizarEstadoOficial(estado) {
   if (trimmed === 'Rechazado') return 'Rechazado'
   if (trimmed === 'En Revision' || trimmed === 'En Revisión') return 'En Revisión'
   if (trimmed === 'Solicitando Revision' || trimmed === 'Solicitando Revisión') return 'Solicitando Revisión'
+  if (trimmed === 'Documentacion' || trimmed === 'Documentación') return 'Documentación'
   if (trimmed === 'Descartado') return 'Descartado'
   if (trimmed === 'Pendiente') return 'Pendiente'
 
@@ -257,9 +259,9 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
       updatePayload.fecha_subsanacion = fechaIso
     }
 
-    // Regla de Negocio: En estado 'En Revisión' o 'Solicitando Revisión' NUNCA debe haber revisor asignado.
+    // Regla de Negocio: En estado 'En Revisión', 'Solicitando Revisión' o 'Documentación' NUNCA debe haber revisor asignado.
     // Para otros estados (Validado, Rechazado, Descartado), solo personal de GILAT puede ser Revisor.
-    if (estadoNorm === 'En Revisión' || estadoNorm === 'Solicitando Revisión') {
+    if (estadoNorm === 'En Revisión' || estadoNorm === 'Solicitando Revisión' || estadoNorm === 'Documentación') {
       updatePayload.revisor = null
     } else if (revisor !== undefined) {
       updatePayload.revisor = (revisor && esRevisorGilat(revisor, extraContext.gilatOptions)) ? String(revisor).trim() : null

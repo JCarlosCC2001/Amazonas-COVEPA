@@ -511,6 +511,8 @@
 .badge-blue   { background: #e0f2fe; border: 1px solid #7dd3fc; color: #0369a1; }
 .badge-dark   { background: #f1f5f9; border: 1px solid #cbd5e1; color: #475569; }
 .badge-purple { background: #f3e8ff; border: 1px solid #d8b4fe; color: #7e22ce; }
+.badge-indigo { background: #e0e7ff; border: 1px solid #c7d2fe; color: #3730a3; }
+.badge-documentacion { background: #e0e7ff; border: 1px solid #c7d2fe; color: #3730a3; }
 .badge-muted  { background: #f8fafc; border: 1px solid #e2e8f0; color: #64748b; }
 
 
@@ -6793,6 +6795,17 @@
   background: #fef3c7;
   border: 1px solid #fcd34d;
   color: #92400e;
+}
+.badge-documentacion {
+  background: #e0e7ff;
+  border: 1px solid #c7d2fe;
+  color: #3730a3;
+}
+.status-documentación,
+.status-documentacion {
+  background: #e0e7ff;
+  border-color: #c7d2fe;
+  color: #3730a3;
 }
 
 /* Celda Revisor */

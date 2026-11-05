@@ -101,7 +101,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   }, [obs?.id_obs])
 
   const currentEstado = obsLocal?.estado_covepa || (obsLocal?.fecha_subsanacion ? 'Validado' : 'Pendiente')
-  const isEnRevCurrent = currentEstado === 'Pendiente' || currentEstado === 'Solicitando Revisión' || currentEstado === 'Solicitando Revision' || currentEstado === 'En Revision' || currentEstado === 'En Revisión'
+  const isEnRevCurrent = currentEstado === 'Pendiente' || currentEstado === 'Solicitando Revisión' || currentEstado === 'Solicitando Revision' || currentEstado === 'En Revision' || currentEstado === 'En Revisión' || currentEstado === 'Documentación' || currentEstado === 'Documentacion'
   const currentRevisor = isEnRevCurrent ? '' : (obsLocal?.revisor || obsLocal?.validado_por || '')
   const currentFecha = isEnRevCurrent ? '' : (obsLocal?.fecha_subsanacion || '')
   const showRevisorYFecha = !isEnRevCurrent
@@ -249,8 +249,8 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       const responsableSesion = resolverNombreAuditor(user, personalMember)
 
       // 2. Revisor asignado: Solo conservar si es de GILAT, NUNCA autocompletar con la sesión
-      // En 'En Revisión' o 'Solicitando Revisión' NUNCA debe haber revisor asignado
-      const esEnRev = nuevoEstado === 'En Revisión' || nuevoEstado === 'En Revision' || nuevoEstado === 'Solicitando Revisión' || nuevoEstado === 'Solicitando Revision'
+      // En 'En Revisión', 'Solicitando Revisión' o 'Documentación' NUNCA debe haber revisor asignado
+      const esEnRev = nuevoEstado === 'En Revisión' || nuevoEstado === 'En Revision' || nuevoEstado === 'Solicitando Revisión' || nuevoEstado === 'Solicitando Revision' || nuevoEstado === 'Documentación' || nuevoEstado === 'Documentacion'
       const revisorGilatActual = esEnRev ? null : (esRevisorGilat(obsLocal.revisor, gilatOptions) ? obsLocal.revisor : null)
 
       const comentarioActual = commentValRef.current ?? obsLocal.comentario_covepa ?? null
@@ -410,6 +410,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   <option value="Pendiente">● Pendiente</option>
                   <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
                   <option value="En Revisión">🔍 En Revisión</option>
+                  <option value="Documentación">📄 Documentación</option>
                   <option value="Validado">✓ Validado</option>
                   <option value="Descartado">🚫 Descartado</option>
                   <option value="Rechazado">✕ Rechazado</option>
@@ -1056,7 +1057,7 @@ function GrupadaView({ resumen, loading, filtros, sitiosMap = {}, onSelectObs, g
 export default function Observaciones() {
   const [observaciones, setObservaciones] = useState([])
   const [totalCount, setTotalCount] = useState(0)
-  const [kpis, setKpis] = useState({ total: 0, pendientes: 0, subidas: 0, validadas: 0, rechazadas: 0, descartadas: 0 })
+  const [kpis, setKpis] = useState({ total: 0, pendientes: 0, solicitando: 0, enRevision: 0, documentacion: 0, validadas: 0, rechazadas: 0, descartadas: 0 })
   const [filtros, setFiltros] = useState({ protocolos: [], estadosCovepa: [], sitios: [] })
   const [loading, setLoading] = useState(true)
   const [loadingKpis, setLoadingKpis] = useState(true)
@@ -1605,7 +1606,7 @@ export default function Observaciones() {
     <div className="obs-container">
       {/* ── ZONA FIJA SUPERIOR: MEDIDORES + TOOLBAR + ERROR (PÁGINA ESTÁTICA) ── */}
       <div className="obs-fixed-top">
-        <MetricGrid columns={7}>
+        <MetricGrid columns={8}>
         <MetricCard
           icon={<ClipboardList size={22} />}
           label="Total Observaciones"
@@ -1645,6 +1646,16 @@ export default function Observaciones() {
           onClick={() => setEstadoCovepa(prev => (prev === 'En Revision' || prev === 'En Revisión') ? '' : 'En Revisión')}
           active={estadoCovepa === 'En Revision' || estadoCovepa === 'En Revisión'}
           title="Filtrar por observaciones en proceso de auditoría"
+        />
+        <MetricCard
+          icon={<FileText size={22} />}
+          label="Documentación"
+          value={loadingKpis ? '—' : (kpis.documentacion || 0).toLocaleString()}
+          subtitle="En proceso de informe"
+          variant="indigo"
+          onClick={() => setEstadoCovepa(prev => (prev === 'Documentación' || prev === 'Documentacion') ? '' : 'Documentación')}
+          active={estadoCovepa === 'Documentación' || estadoCovepa === 'Documentacion'}
+          title="Filtrar por observaciones en proceso de documentación"
         />
         <MetricCard
           icon={<CheckCircle2 size={22} />}

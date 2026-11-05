@@ -233,7 +233,10 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
   if (Array.isArray(sitios)) {
     sitios.forEach(s => { sitiosMap[s.id_site] = s })
   }
-  const rawRows = avance?.rows || []
+  const rawRows = (avance?.rows || []).filter(r => {
+    const st = (r.estado || r.estado_covepa || '').trim()
+    return st !== 'Documentación' && st !== 'Documentacion'
+  })
   const rows = rawRows.map(r => {
     const sInfo = sitiosMap[r.id_sitio] || {}
     const zonaFinal = (r.zona && r.zona !== '-') ? r.zona : (sInfo.zona || getZonaBySiteId(r.id_sitio))
@@ -347,7 +350,10 @@ export async function fetchDatosReporteSemanal(fechaFiltro = null, periodoReport
 
   dias.forEach((dItem, idx) => {
     const av = avancesPorDia[idx] || { rows: [], stats: {} }
-    const rowsDia = av.rows || []
+    const rowsDia = (av.rows || []).filter(r => {
+      const st = (r.estado || r.estado_covepa || '').trim()
+      return st !== 'Documentación' && st !== 'Documentacion'
+    })
     let valDia = 0, rechDia = 0, descDia = 0, espDia = 0
 
     rowsDia.forEach(r => {

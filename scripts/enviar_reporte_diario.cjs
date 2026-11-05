@@ -494,7 +494,12 @@ async function main() {
     if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, o)
   })
 
-  const rows = Array.from(obsMap.values()).map(o => {
+  const rows = Array.from(obsMap.values())
+    .filter(o => {
+      const st = (o.estado_covepa || '').trim()
+      return st !== 'Documentación' && st !== 'Documentacion'
+    })
+    .map(o => {
     const rawSt = (o.estado_covepa || '').trim()
     let estadoNormalizado = 'Validado'
     if (rawSt === 'Descartado') estadoNormalizado = 'Descartado'

@@ -197,6 +197,7 @@ export async function fetchObservacionesKPIs() {
           pendientes: rpcData.pendientes,
           solicitando: rpcData.solicitando,
           enRevision: rpcData.enRevision,
+          documentacion: rpcData.documentacion ?? 0,
           validadas: rpcData.validadas,
           rechazadas: rpcData.rechazadas,
           descartadas: rpcData.descartadas
@@ -205,12 +206,13 @@ export async function fetchObservacionesKPIs() {
     } catch (_) {}
 
     // 2. Fallback con consultas HEAD paralelas
-    const [qTotal, qPend, qSol, qRev, qValidadas, qRech, qDesc] = await Promise.all([
+    const [qTotal, qPend, qSol, qRev, qDoc, qValidadas, qRech, qDesc] = await Promise.all([
       supabase.from('observaciones').select('*', { count: 'exact', head: true }),
       supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Pendiente,estado_covepa.is.null'),
       supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['Solicitando Revisión', 'Solicitando Revision']),
       supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['En Revisión', 'En Revision']),
-      supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Solicitando Revision,estado_covepa.neq.Solicitando Revisión,estado_covepa.neq.Rechazado)'),
+      supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['Documentación', 'Documentacion']),
+      supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Solicitando Revision,estado_covepa.neq.Solicitando Revisión,estado_covepa.neq.Rechazado,estado_covepa.neq.Documentación,estado_covepa.neq.Documentacion)'),
       supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Rechazado'),
       supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Descartado'),
     ])
@@ -220,13 +222,14 @@ export async function fetchObservacionesKPIs() {
       pendientes: qPend.count ?? 0,
       solicitando: qSol.count ?? 0,
       enRevision: qRev.count ?? 0,
+      documentacion: qDoc.count ?? 0,
       validadas: qValidadas.count ?? 0,
       rechazadas: qRech.count ?? 0,
       descartadas: qDesc.count ?? 0,
     }
   } catch (err) {
     console.error('Error al calcular KPIs globales:', err)
-    return { total: 0, pendientes: 0, solicitando: 0, enRevision: 0, validadas: 0, rechazadas: 0, descartadas: 0 }
+    return { total: 0, pendientes: 0, solicitando: 0, enRevision: 0, documentacion: 0, validadas: 0, rechazadas: 0, descartadas: 0 }
   }
 }
 
@@ -258,7 +261,7 @@ export async function fetchFiltrosObservaciones(forceRefresh = false) {
     const unique = (field) => [...new Set(data.map(d => d[field]).filter(Boolean))].sort()
     const result = {
       protocolos: unique('protocolo'),
-      estadosCovepa: unique('estado_covepa'),
+      estadosCovepa: [...new Set(['Pendiente', 'Solicitando Revisión', 'En Revisión', 'Documentación', 'Validado', 'Rechazado', 'Descartado', ...unique('estado_covepa')])],
       sitios: unique('id_sitio'),
     }
     _cachedFiltros = result

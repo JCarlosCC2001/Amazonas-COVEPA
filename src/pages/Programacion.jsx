@@ -2336,8 +2336,8 @@ function ModalDetallesProgramacion({
       const responsableSesion = resolverNombreAuditor(user, personalMember)
 
       // 2. Revisor asignado: Solo conservar si es estrictamente de GILAT, NUNCA autocompletar con la sesión
-      // En 'En Revisión' o 'Solicitando Revisión' NUNCA debe haber revisor asignado
-      const esEnRev = nuevoEstado === 'En Revisión' || nuevoEstado === 'En Revision' || nuevoEstado === 'Solicitando Revisión' || nuevoEstado === 'Solicitando Revision'
+      // En 'En Revisión', 'Solicitando Revisión' o 'Documentación' NUNCA debe haber revisor asignado
+      const esEnRev = nuevoEstado === 'En Revisión' || nuevoEstado === 'En Revision' || nuevoEstado === 'Solicitando Revisión' || nuevoEstado === 'Solicitando Revision' || nuevoEstado === 'Documentación' || nuevoEstado === 'Documentacion'
       const revisorGilatActual = esEnRev ? null : (esRevisorGilat(obs.revisor, gilatOptions) ? obs.revisor : null)
 
       const comentarioActual = comments[obs.id_obs] ?? obs.comentario_covepa ?? null
@@ -3182,7 +3182,7 @@ function ModalDetallesProgramacion({
               if (currentEstado === 'Solicitando Revision') currentEstado = 'Solicitando Revisión'
               if (currentEstado === 'Enviado') currentEstado = 'Validado'
               const isUpdating = updatingId === obs.id_obs
-              const showRevisorYFecha = currentEstado !== 'Pendiente' && currentEstado !== 'Solicitando Revisión' && currentEstado !== 'En Revisión' && currentEstado !== 'En Revision'
+              const showRevisorYFecha = currentEstado !== 'Pendiente' && currentEstado !== 'Solicitando Revisión' && currentEstado !== 'En Revisión' && currentEstado !== 'En Revision' && currentEstado !== 'Documentación' && currentEstado !== 'Documentacion'
 
               return (
                 <div key={obs.id_obs} className="prog-obs-card-item">
@@ -3212,6 +3212,7 @@ function ModalDetallesProgramacion({
                           <option value="Pendiente">● Pendiente</option>
                           <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
                           <option value="En Revisión">🔍 En Revisión</option>
+                          <option value="Documentación">📄 Documentación</option>
                           <option value="Validado">✓ Validado</option>
                           <option value="Descartado">🚫 Descartado</option>
                           <option value="Rechazado">✕ Rechazado</option>

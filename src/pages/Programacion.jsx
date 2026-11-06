@@ -4,7 +4,7 @@ import {
   MapPin, CheckCircle2, Clock, AlertCircle, List,
   CalendarDays, X, Search, RefreshCw, Eye, ShieldCheck,
   Check, AlertTriangle, Users, Edit3, User, FileSpreadsheet, Download, Send,
-  TrendingUp, History, ChevronUp
+  TrendingUp, History, ChevronUp, FileText
 } from 'lucide-react'
 // M3: ExcelJS se importa dinámicamente en handleExportXLSX para no inflar el bundle inicial
 import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
@@ -364,6 +364,7 @@ export default function Programacion() {
     let descartadas = 0
     let rechazadas = 0
     let pendientes = 0
+    let documentacion = 0
     const weekSitesSet = new Set()
 
     programaciones.forEach(p => {
@@ -380,6 +381,7 @@ export default function Programacion() {
             descartadas += (stat.descartadas || 0)
             rechazadas += (stat.rechazadas || 0)
             pendientes += (stat.pendientes || 0)
+            documentacion += (stat.documentacion || 0)
           }
         }
       })
@@ -394,6 +396,7 @@ export default function Programacion() {
       descartadas,
       rechazadas,
       pendientes,
+      documentacion,
       totalSitios: weekSitesSet.size
     }
   }, [programaciones, sitiosStats])
@@ -411,6 +414,7 @@ export default function Programacion() {
     let descartadas = 0
     let rechazadas = 0
     let pendientes = 0
+    let documentacion = 0
     let totalPersonal = 0
     const sitiosSet = new Set()
 
@@ -431,6 +435,7 @@ export default function Programacion() {
             descartadas += (stat.descartadas || 0)
             rechazadas += (stat.rechazadas || 0)
             pendientes += (stat.pendientes || 0)
+            documentacion += (stat.documentacion || 0)
             resueltas += (stat.validadas || stat.subsanadas || 0) + (stat.descartadas || 0) + (stat.rechazadas || 0)
           }
         }
@@ -450,6 +455,7 @@ export default function Programacion() {
       descartadas,
       rechazadas,
       pendientes,
+      documentacion,
       progs
     }
   }, [programaciones, sitiosStats, currentDate])
@@ -467,6 +473,7 @@ export default function Programacion() {
           if (statusFilter === 'EN_REVISION') return r.estado === 'En Revisión'
           if (statusFilter === 'VALIDADO') return r.estado === 'Validado' || r.estado === 'Enviado'
           if (statusFilter === 'RECHAZADO') return r.estado === 'Rechazado'
+          if (statusFilter === 'DOCUMENTACION') return r.estado === 'Documentación'
           return false
         })
         .map(r => r.id_sitio)
@@ -482,6 +489,7 @@ export default function Programacion() {
         if (statusFilter === 'EN_REVISION') return (stat.enRevision || 0) > 0
         if (statusFilter === 'VALIDADO') return (stat.validadas || 0) > 0
         if (statusFilter === 'RECHAZADO') return (stat.rechazadas || 0) > 0
+        if (statusFilter === 'DOCUMENTACION') return (stat.documentacion || 0) > 0
         return true
       })
     })
@@ -747,52 +755,71 @@ export default function Programacion() {
   return (
     <div className="prog-container">
       {/* ── MEDIDORES / KPIs Y FILTROS INTERACTIVOS SUPERIORES ── */}
-      <MetricGrid columns={4}>
-        <MetricCard
-          icon={<Clock size={20} />}
-          label="Solicitando Revisión"
-          value={viewMode === 'today' ? (dayAvance.stats?.solicitando ?? 0) : (weekStats.solicitando ?? 0)}
-          subtitle={viewMode === 'today' ? 'esperando validación' : 'en la semana'}
-          variant="orange"
-          onClick={() => setStatusFilter(prev => prev === 'SOLICITANDO' ? 'ALL' : 'SOLICITANDO')}
-          active={statusFilter === 'SOLICITANDO'}
-          badge={statusFilter === 'SOLICITANDO' ? 'Filtrando' : null}
-          loading={viewMode === 'today' && dayAvance.loading}
-        />
-        <MetricCard
-          icon={<Search size={20} />}
-          label="En Revisión"
-          value={viewMode === 'today' ? (dayAvance.stats?.enRevision ?? 0) : (weekStats.enRevision ?? 0)}
-          subtitle={viewMode === 'today' ? 'en auditoría técnica' : 'en la semana'}
-          variant="sky"
-          onClick={() => setStatusFilter(prev => prev === 'EN_REVISION' ? 'ALL' : 'EN_REVISION')}
-          active={statusFilter === 'EN_REVISION'}
-          badge={statusFilter === 'EN_REVISION' ? 'Filtrando' : null}
-          loading={viewMode === 'today' && dayAvance.loading}
-        />
-        <MetricCard
-          icon={<CheckCircle2 size={20} />}
-          label="Validados (Por Subir)"
-          value={viewMode === 'today' ? (dayAvance.stats?.validadas ?? 0) : (weekStats.validadas ?? 0)}
-          subtitle={viewMode === 'today' ? 'listos para cargar' : 'en la semana'}
-          variant="emerald"
-          onClick={() => setStatusFilter(prev => prev === 'VALIDADO' ? 'ALL' : 'VALIDADO')}
-          active={statusFilter === 'VALIDADO'}
-          badge={statusFilter === 'VALIDADO' ? 'Filtrando' : null}
-          loading={viewMode === 'today' && dayAvance.loading}
-        />
-        <MetricCard
-          icon={<AlertTriangle size={20} />}
-          label="Rechazadas"
-          value={viewMode === 'today' ? (dayAvance.stats?.rechazadas ?? 0) : (weekStats.rechazadas ?? 0)}
-          subtitle={viewMode === 'today' ? 'observaciones rechazadas' : 'en la semana'}
-          variant="rose"
-          onClick={() => setStatusFilter(prev => prev === 'RECHAZADO' ? 'ALL' : 'RECHAZADO')}
-          active={statusFilter === 'RECHAZADO'}
-          badge={statusFilter === 'RECHAZADO' ? 'Filtrando' : null}
-          loading={viewMode === 'today' && dayAvance.loading}
-        />
-      </MetricGrid>
+      {(() => {
+        const docCount = viewMode === 'today' ? (dayAvance.stats?.documentacion ?? 0) : (weekStats.documentacion ?? 0)
+        const showDoc = docCount > 0 || statusFilter === 'DOCUMENTACION'
+        return (
+          <MetricGrid columns={showDoc ? 5 : 4}>
+            <MetricCard
+              icon={<Clock size={20} />}
+              label="Solicitando Revisión"
+              value={viewMode === 'today' ? (dayAvance.stats?.solicitando ?? 0) : (weekStats.solicitando ?? 0)}
+              subtitle={viewMode === 'today' ? 'esperando validación' : 'en la semana'}
+              variant="orange"
+              onClick={() => setStatusFilter(prev => prev === 'SOLICITANDO' ? 'ALL' : 'SOLICITANDO')}
+              active={statusFilter === 'SOLICITANDO'}
+              badge={statusFilter === 'SOLICITANDO' ? 'Filtrando' : null}
+              loading={viewMode === 'today' && dayAvance.loading}
+            />
+            <MetricCard
+              icon={<Search size={20} />}
+              label="En Revisión"
+              value={viewMode === 'today' ? (dayAvance.stats?.enRevision ?? 0) : (weekStats.enRevision ?? 0)}
+              subtitle={viewMode === 'today' ? 'en auditoría técnica' : 'en la semana'}
+              variant="sky"
+              onClick={() => setStatusFilter(prev => prev === 'EN_REVISION' ? 'ALL' : 'EN_REVISION')}
+              active={statusFilter === 'EN_REVISION'}
+              badge={statusFilter === 'EN_REVISION' ? 'Filtrando' : null}
+              loading={viewMode === 'today' && dayAvance.loading}
+            />
+            <MetricCard
+              icon={<CheckCircle2 size={20} />}
+              label="Validados (Por Subir)"
+              value={viewMode === 'today' ? (dayAvance.stats?.validadas ?? 0) : (weekStats.validadas ?? 0)}
+              subtitle={viewMode === 'today' ? 'listos para cargar' : 'en la semana'}
+              variant="emerald"
+              onClick={() => setStatusFilter(prev => prev === 'VALIDADO' ? 'ALL' : 'VALIDADO')}
+              active={statusFilter === 'VALIDADO'}
+              badge={statusFilter === 'VALIDADO' ? 'Filtrando' : null}
+              loading={viewMode === 'today' && dayAvance.loading}
+            />
+            <MetricCard
+              icon={<AlertTriangle size={20} />}
+              label="Rechazadas"
+              value={viewMode === 'today' ? (dayAvance.stats?.rechazadas ?? 0) : (weekStats.rechazadas ?? 0)}
+              subtitle={viewMode === 'today' ? 'observaciones rechazadas' : 'en la semana'}
+              variant="rose"
+              onClick={() => setStatusFilter(prev => prev === 'RECHAZADO' ? 'ALL' : 'RECHAZADO')}
+              active={statusFilter === 'RECHAZADO'}
+              badge={statusFilter === 'RECHAZADO' ? 'Filtrando' : null}
+              loading={viewMode === 'today' && dayAvance.loading}
+            />
+            {showDoc && (
+              <MetricCard
+                icon={<FileText size={20} />}
+                label="Documentación"
+                value={docCount}
+                subtitle={viewMode === 'today' ? 'en recopilación técnica' : 'en la semana'}
+                variant="purple"
+                onClick={() => setStatusFilter(prev => prev === 'DOCUMENTACION' ? 'ALL' : 'DOCUMENTACION')}
+                active={statusFilter === 'DOCUMENTACION'}
+                badge={statusFilter === 'DOCUMENTACION' ? 'Filtrando' : null}
+                loading={viewMode === 'today' && dayAvance.loading}
+              />
+            )}
+          </MetricGrid>
+        )
+      })()}
 
       {/* ── BARRA SUPERIOR INTEGRADA (Navegación de Fecha + Distribución + Selector de Vista + Acción) ── */}
       <div className="prog-toolbar">

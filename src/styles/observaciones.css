@@ -7787,6 +7787,11 @@
   border-color: #ef4444;
   box-shadow: 0 0 0 1px #ef4444;
 }
+.prog-modal-stat-btn.stat-documentacion.active {
+  background: #fdf4ff;
+  border-color: #a855f7;
+  box-shadow: 0 0 0 1px #a855f7;
+}
 
 .stat-btn-label {
   font-size: var(--text-xs);
@@ -7810,6 +7815,7 @@
 .text-descartado { color: #64748b !important; }
 .text-enviado { color: #7c3aed !important; }
 .text-rechazado { color: #dc2626 !important; }
+.text-documentacion { color: #9333ea !important; }
 
 
 /* Barra de búsqueda interactiva y botón de exportación en modal */

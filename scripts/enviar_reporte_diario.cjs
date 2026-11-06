@@ -462,15 +462,17 @@ async function main() {
     console.warn('[CRON-REPORTE] ⚠️ Aviso consultando catálogo de sitios:', errSitios.message)
   }
 
-  // 7. Consultar observaciones de la jornada (Consistente con Programación y Avance del Día)
-  const startIso = `${targetFechaIso}T00:00:00`
-  const endIso = `${targetFechaIso}T23:59:59`
+  // 7. Consultar observaciones de la jornada (Consistente 100% con Programación y Avance del Día)
+  // Delimitar jornada exacta en zona horaria de Perú (UTC-5) convertida a ISO UTC
+  const startIsoUtc = new Date(`${targetFechaIso}T00:00:00-05:00`).toISOString()
+  const endIsoUtc = new Date(`${targetFechaIso}T23:59:59.999-05:00`).toISOString()
+  const isToday = targetFechaIso === fechaIso
 
   const { data: rawObsFecha, error: obsErr } = await supabase
     .from('observaciones')
     .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
-    .gte('fecha_subsanacion', startIso)
-    .lte('fecha_subsanacion', endIso)
+    .gte('fecha_subsanacion', startIsoUtc)
+    .lte('fecha_subsanacion', endIsoUtc)
     .order('fecha_subsanacion', { ascending: false })
 
   if (obsErr) {
@@ -478,46 +480,91 @@ async function main() {
     process.exit(1)
   }
 
-  const { data: rawObsRevision, error: revErr } = await supabase
-    .from('observaciones')
-    .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
-    .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión,estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión')
+  // 7.1 Obtener TODAS las observaciones que tuvieron cambios de estado/auditoría en ese día (historial_estados_observaciones)
+  const histMap = new Map()
+  try {
+    const { data: rawHist } = await supabase
+      .from('historial_estados_observaciones')
+      .select('id_obs, id_sitio, estado_anterior, estado_nuevo, created_at, usuario_nombre')
+      .gte('created_at', startIsoUtc)
+      .lte('created_at', endIsoUtc)
+      .order('created_at', { ascending: true })
 
-  if (revErr) {
-    console.warn('[CRON-REPORTE] ⚠️ Aviso consultando revisiones activas:', revErr.message)
+    ;(rawHist || []).forEach(h => {
+      histMap.set(h.id_obs, h)
+    })
+  } catch (histErr) {
+    console.warn('[CRON-REPORTE] ⚠️ Aviso consultando historial de cambios en fecha:', histErr.message)
+  }
+
+  // Traer observaciones complementarias que registraron actividad en historial pero cuya fecha_subsanacion no cayó en la ventana
+  const obsFechaSet = new Set((rawObsFecha || []).map(o => o.id_obs))
+  const missingObsIds = Array.from(histMap.keys()).filter(id => !obsFechaSet.has(id))
+
+  let additionalObs = []
+  if (missingObsIds.length > 0) {
+    try {
+      const { data: addData } = await supabase
+        .from('observaciones')
+        .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+        .in('id_obs', missingObsIds)
+      additionalObs = addData || []
+    } catch (addErr) {
+      console.warn('[CRON-REPORTE] ⚠️ Aviso consultando observaciones complementarias de historial:', addErr.message)
+    }
+  }
+
+  // 7.2 Observaciones activas en revisión técnica para la jornada de hoy
+  let rawObsRevision = []
+  if (isToday) {
+    const { data: revData, error: revErr } = await supabase
+      .from('observaciones')
+      .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+      .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión,estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión')
+
+    if (revErr) {
+      console.warn('[CRON-REPORTE] ⚠️ Aviso consultando revisiones activas:', revErr.message)
+    } else {
+      rawObsRevision = revData || []
+    }
   }
 
   // Consolidar observaciones de la fecha y de revisión activa sin duplicados
   const obsMap = new Map()
-  ;(rawObsFecha || []).forEach(o => obsMap.set(o.id_obs, o))
+  ;(rawObsFecha || []).forEach(o => obsMap.set(o.id_obs, { ...o }))
+  additionalObs.forEach(o => {
+    if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o })
+  })
   ;(rawObsRevision || []).forEach(o => {
-    if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, o)
+    if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o })
   })
 
   const rows = Array.from(obsMap.values())
-    .filter(o => {
-      const st = (o.estado_covepa || '').trim()
-      return st !== 'Documentación' && st !== 'Documentacion'
-    })
     .map(o => {
-    const rawSt = (o.estado_covepa || '').trim()
-    let estadoNormalizado = 'Validado'
-    if (rawSt === 'Descartado') estadoNormalizado = 'Descartado'
-    else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') estadoNormalizado = 'Solicitando Revisión'
-    else if (rawSt === 'En Revision' || rawSt === 'En Revisión') estadoNormalizado = 'En Revisión'
-    else if (rawSt === 'Rechazado') estadoNormalizado = 'Rechazado'
-    else if (rawSt === 'Pendiente') estadoNormalizado = 'Pendiente'
-    else if (rawSt === 'Validado' || rawSt === 'Enviado') estadoNormalizado = 'Validado'
-    else if (o.fecha_subsanacion) estadoNormalizado = 'Validado'
+      // Si la observación tuvo un cambio de estado en la fecha objetivo, su estado efectivo para la jornada fue el último alcanzado
+      const hTransition = histMap.get(o.id_obs)
+      const rawSt = (hTransition ? hTransition.estado_nuevo : (o.estado_covepa || '')).trim()
 
-    const zonaCalculada = (sitiosMap[o.id_sitio]?.zona || getZonaForSite(o.id_sitio))
-    return {
-      ...o,
-      localidad: (sitiosMap[o.id_sitio]?.localidad || sitiosMap[o.id_sitio]?.nombre_nodo || ''),
-      zona: zonaCalculada,
-      estado: estadoNormalizado
-    }
-  })
+      let estadoNormalizado = 'Validado'
+      if (rawSt === 'Documentación' || rawSt === 'Documentacion') estadoNormalizado = 'Documentación'
+      else if (rawSt === 'Descartado') estadoNormalizado = 'Descartado'
+      else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') estadoNormalizado = 'Solicitando Revisión'
+      else if (rawSt === 'En Revision' || rawSt === 'En Revisión') estadoNormalizado = 'En Revisión'
+      else if (rawSt === 'Rechazado') estadoNormalizado = 'Rechazado'
+      else if (rawSt === 'Pendiente') estadoNormalizado = 'Pendiente'
+      else if (rawSt === 'Validado' || rawSt === 'Enviado') estadoNormalizado = 'Validado'
+      else if (o.fecha_subsanacion) estadoNormalizado = 'Validado'
+
+      const zonaCalculada = (sitiosMap[o.id_sitio]?.zona || getZonaForSite(o.id_sitio))
+      return {
+        ...o,
+        localidad: (sitiosMap[o.id_sitio]?.localidad || sitiosMap[o.id_sitio]?.nombre_nodo || ''),
+        zona: zonaCalculada,
+        estado: estadoNormalizado
+      }
+    })
+    // Regla de Negocio: El estado "Documentación" se excluye de los reportes por correo
+    .filter(o => o.estado !== 'Documentación')
 
   const validadas = rows.filter(r => r.estado === 'Validado')
   const rechazadas = rows.filter(r => r.estado === 'Rechazado')

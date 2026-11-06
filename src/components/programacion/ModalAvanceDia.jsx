@@ -133,6 +133,12 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       label: 'Validados',
       badgeVariant: 'emerald',
       title: 'Observaciones validadas conformes'
+    },
+    {
+      key: 'documentacion',
+      label: 'Documentación',
+      badgeVariant: 'purple',
+      title: 'Observaciones en recopilación técnica de documentación'
     }
   ], [])
 
@@ -145,42 +151,42 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
         id: 'CUADRILLA 1',
         cuadrilla: 'CUADRILLA 1',
         tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 1']?.tecnicoNombre || 'Jhonatan Flores',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       },
       'CUADRILLA 2': {
         id: 'CUADRILLA 2',
         cuadrilla: 'CUADRILLA 2',
         tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 2']?.tecnicoNombre || 'Marco Chamba',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       },
       'CUADRILLA 3': {
         id: 'CUADRILLA 3',
         cuadrilla: 'CUADRILLA 3',
         tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 3']?.tecnicoNombre || 'Daniel Javier',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       },
       'CUADRILLA 4': {
         id: 'CUADRILLA 4',
         cuadrilla: 'CUADRILLA 4',
         tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 4']?.tecnicoNombre || 'Alfonso Curi',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       },
       'CUADRILLA 5': {
         id: 'CUADRILLA 5',
         cuadrilla: 'CUADRILLA 5',
         tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 5']?.tecnicoNombre || 'William Avila',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       },
       'CUADRILLA 6': {
         id: 'CUADRILLA 6',
         cuadrilla: 'CUADRILLA 6',
         tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 6']?.tecnicoNombre || 'Gabriel Farro',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 },
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       }
     }
@@ -202,23 +208,26 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
           targetObj.values.rechazados++
         } else if (rawSt === 'validado' || rawSt === 'validada' || rawSt === 'enviado' || rawSt === 'enviada') {
           targetObj.values.validados++
+        } else if (rawSt === 'documentación' || rawSt === 'documentacion') {
+          targetObj.values.documentacion++
         }
       }
     })
 
     const matrixRowsList = Object.values(cuadrillasMap).map(row => ({
       ...row,
-      total: row.values.solicitando + row.values.enRevision + row.values.rechazados + row.values.validados
+      total: row.values.solicitando + row.values.enRevision + row.values.rechazados + row.values.validados + row.values.documentacion
     }))
 
     const totalsObj = {
       solicitando: matrixRowsList.reduce((acc, r) => acc + r.values.solicitando, 0),
       enRevision: matrixRowsList.reduce((acc, r) => acc + r.values.enRevision, 0),
       rechazados: matrixRowsList.reduce((acc, r) => acc + r.values.rechazados, 0),
-      validados: matrixRowsList.reduce((acc, r) => acc + r.values.validados, 0)
+      validados: matrixRowsList.reduce((acc, r) => acc + r.values.validados, 0),
+      documentacion: matrixRowsList.reduce((acc, r) => acc + r.values.documentacion, 0)
     }
 
-    const grandTotalNum = totalsObj.solicitando + totalsObj.enRevision + totalsObj.rechazados + totalsObj.validados
+    const grandTotalNum = totalsObj.solicitando + totalsObj.enRevision + totalsObj.rechazados + totalsObj.validados + totalsObj.documentacion
 
     return {
       matrixRows: matrixRowsList,
@@ -630,6 +639,18 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
             >
               <span className="stat-btn-label text-rechazado">✕ Rechazadas</span>
               <span className="stat-btn-val text-rechazado">{stats.rechazadas || 0}</span>
+            </button>
+          )}
+
+          {(stats.documentacion || 0) > 0 && (
+            <button
+              type="button"
+              className={`prog-modal-stat-btn stat-documentacion ${filterEstado === 'Documentación' ? 'active' : ''}`}
+              onClick={() => setFilterEstado(prev => prev === 'Documentación' ? 'TODOS' : 'Documentación')}
+              title="Observaciones en recopilación técnica de documentación"
+            >
+              <span className="stat-btn-label text-documentacion">📑 Documentación</span>
+              <span className="stat-btn-val text-documentacion">{stats.documentacion || 0}</span>
             </button>
           )}
         </div>

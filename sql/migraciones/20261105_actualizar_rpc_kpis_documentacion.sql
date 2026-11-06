@@ -86,3 +86,4 @@ $$;
 GRANT EXECUTE ON FUNCTION public.get_dashboard_kpis() TO authenticated, anon;
 
 NOTIFY pgrst, 'reload schema';
+

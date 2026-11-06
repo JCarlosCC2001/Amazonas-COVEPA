@@ -190,8 +190,9 @@ function getTodayDateStr() {
  */
 export async function getAvancePorFecha(fechaStr) {
   try {
-    const startIso = `${fechaStr}T00:00:00`
-    const endIso = `${fechaStr}T23:59:59`
+    // Delimitar jornada exacta en zona horaria de Perú (UTC-5) convertida a ISO UTC
+    const startIsoUtc = new Date(`${fechaStr}T00:00:00-05:00`).toISOString()
+    const endIsoUtc = new Date(`${fechaStr}T23:59:59.999-05:00`).toISOString()
     const isToday = fechaStr === getTodayDateStr()
 
     // Cargar catálogo de personal desde la BD externa para resolución en memoria
@@ -280,22 +281,56 @@ export async function getAvancePorFecha(fechaStr) {
       })
     })
 
-    // 2. Obtener observaciones con fecha de revisión en ese día (columnas optimizadas sin 'detalle')
+    // 2. Obtener observaciones con fecha de revisión en ese día en hora Perú (UTC-5)
     const { data: rawObsFecha, error: obsErr } = await supabase
       .from('observaciones')
-      .select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, subsistema, protocolo')
-      .gte('fecha_subsanacion', startIso)
-      .lte('fecha_subsanacion', endIso)
+      .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+      .gte('fecha_subsanacion', startIsoUtc)
+      .lte('fecha_subsanacion', endIsoUtc)
       .order('fecha_subsanacion', { ascending: false })
 
     if (obsErr) throw obsErr
 
-    // 3. Obtener observaciones en estado 'En Revision' o 'Solicitando Revisión' (que no tienen fecha_subsanacion)
+    // 2.1 Obtener TODAS las observaciones que tuvieron cambios de estado/auditoría en ese día (historial_estados_observaciones)
+    const histMap = new Map()
+    try {
+      const { data: rawHist } = await supabase
+        .from('historial_estados_observaciones')
+        .select('id_obs, id_sitio, estado_anterior, estado_nuevo, created_at, usuario_nombre')
+        .gte('created_at', startIsoUtc)
+        .lte('created_at', endIsoUtc)
+        .order('created_at', { ascending: true })
+
+      ;(rawHist || []).forEach(h => {
+        histMap.set(h.id_obs, h)
+      })
+    } catch (histErr) {
+      console.warn('Aviso consultando historial de cambios en fecha:', histErr.message)
+    }
+
+    // Traer observaciones complementarias que registraron actividad en historial pero cuya fecha_subsanacion no cayó en la ventana
+    const obsFechaSet = new Set((rawObsFecha || []).map(o => o.id_obs))
+    const missingObsIds = Array.from(histMap.keys()).filter(id => !obsFechaSet.has(id))
+
+    let additionalObs = []
+    if (missingObsIds.length > 0) {
+      try {
+        const { data: addData } = await supabase
+          .from('observaciones')
+          .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+          .in('id_obs', missingObsIds)
+        additionalObs = addData || []
+      } catch (addErr) {
+        console.warn('Aviso consultando observaciones complementarias de historial:', addErr.message)
+      }
+    }
+
+    // 3. Obtener observaciones en estado 'En Revision' o 'Solicitando Revisión'
     // Para la fecha de hoy se traen todas las que están en revisión activa en el sistema.
     // Para otras fechas, las que pertenezcan a los sitios programados en esa fecha.
     let revisionQuery = supabase
       .from('observaciones')
-      .select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, subsistema, protocolo')
+      .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
       .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión,estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión')
 
     if (!isToday) {
@@ -310,10 +345,15 @@ export async function getAvancePorFecha(fechaStr) {
 
     // Consolidar observaciones evitando duplicados
     const obsMap = new Map()
-    ;(rawObsFecha || []).forEach(o => obsMap.set(o.id_obs, o))
+    ;(rawObsFecha || []).forEach(o => obsMap.set(o.id_obs, { ...o }))
+    additionalObs.forEach(o => {
+      if (!obsMap.has(o.id_obs)) {
+        obsMap.set(o.id_obs, { ...o })
+      }
+    })
     ;(rawObsRevision || []).forEach(o => {
       if (!obsMap.has(o.id_obs)) {
-        obsMap.set(o.id_obs, o)
+        obsMap.set(o.id_obs, { ...o })
       }
     })
     const obsList = Array.from(obsMap.values())
@@ -371,10 +411,14 @@ export async function getAvancePorFecha(fechaStr) {
       const nombreTecnico = techInfo ? techInfo.nombre : (o.revisor || 'Técnico de Cuadrilla')
       const cuadrillaTecnico = techInfo?.cuadrilla || null
 
+      // Si la observación tuvo un cambio de estado en la fecha objetivo, su estado efectivo para la jornada fue el último alcanzado
+      const hTransition = histMap.get(o.id_obs)
+      const rawSt = (hTransition ? hTransition.estado_nuevo : (o.estado_covepa || '')).trim()
+
       // Normalizar estado
-      const rawSt = (o.estado_covepa || '').trim()
       let estadoNormalizado = 'Validado'
-      if (rawSt === 'Descartado') estadoNormalizado = 'Descartado'
+      if (rawSt === 'Documentación' || rawSt === 'Documentacion') estadoNormalizado = 'Documentación'
+      else if (rawSt === 'Descartado') estadoNormalizado = 'Descartado'
       else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') estadoNormalizado = 'Solicitando Revisión'
       else if (rawSt === 'En Revision' || rawSt === 'En Revisión') estadoNormalizado = 'En Revisión'
       else if (rawSt === 'Rechazado') estadoNormalizado = 'Rechazado'
@@ -399,24 +443,32 @@ export async function getAvancePorFecha(fechaStr) {
         fecha_subsanacion: isPendingReview ? (o.fecha_subsanacion || 'Pendiente') : o.fecha_subsanacion,
         detalle: o.detalle,
         subsistema: o.subsistema,
-        protocolo: o.protocolo
+        protocolo: o.protocolo,
+        acuerdo_subsanacion: o.acuerdo_subsanacion,
+        justificacion_demora: o.justificacion_demora
       }
     })
 
     // Métricas del día
     const revisionRows = rows.filter(r => r.estado === 'En Revisión')
     const solicitandoRows = rows.filter(r => r.estado === 'Solicitando Revisión')
+    const documentacionRows = rows.filter(r => r.estado === 'Documentación')
+    const validadasRows = rows.filter(r => r.estado === 'Validado')
+    const rechazadasRows = rows.filter(r => r.estado === 'Rechazado')
+    const descartadasRows = rows.filter(r => r.estado === 'Descartado')
     const sitiosEnRevision = Array.from(new Set(revisionRows.map(r => r.id_sitio)))
 
     const statsDia = {
       total: rows.length,
-      validadas: rows.filter(r => r.estado === 'Validado').length,
+      validadas: validadasRows.length,
       solicitando: solicitandoRows.length,
       enRevision: revisionRows.length,
+      documentacion: documentacionRows.length,
+      descartadas: descartadasRows.length,
+      rechazadas: rechazadasRows.length,
+      enEspera: solicitandoRows.length + revisionRows.length,
       sitiosEnRevision: sitiosEnRevision,
       totalSitiosEnRevision: sitiosEnRevision.length,
-      descartadas: rows.filter(r => r.estado === 'Descartado').length,
-      rechazadas: rows.filter(r => r.estado === 'Rechazado').length,
       sitiosUnicos: new Set(rows.map(r => r.id_sitio)).size,
       tecnicosUnicos: new Set(rows.map(r => r.tecnico).filter(t => t && t !== 'Técnico de Cuadrilla')).size
     }

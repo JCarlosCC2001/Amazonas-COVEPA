@@ -541,9 +541,10 @@ async function main() {
 
   const rows = Array.from(obsMap.values())
     .map(o => {
-      // Si la observación tuvo un cambio de estado en la fecha objetivo, su estado efectivo para la jornada fue el último alcanzado
+      // Para la jornada de hoy (isToday), el estado prioritario es el estado vivo actual en la BD (o.estado_covepa).
+      // Para jornadas anteriores, si tuvo transición en esa fecha, se toma el estado que alcanzó en dicha fecha (hTransition.estado_nuevo).
       const hTransition = histMap.get(o.id_obs)
-      const rawSt = (hTransition ? hTransition.estado_nuevo : (o.estado_covepa || '')).trim()
+      const rawSt = (isToday ? (o.estado_covepa || hTransition?.estado_nuevo || '') : (hTransition ? hTransition.estado_nuevo : (o.estado_covepa || ''))).trim()
 
       let estadoNormalizado = 'Validado'
       if (rawSt === 'Documentación' || rawSt === 'Documentacion') estadoNormalizado = 'Documentación'

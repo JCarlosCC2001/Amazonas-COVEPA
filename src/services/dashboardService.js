@@ -411,9 +411,10 @@ export async function getAvancePorFecha(fechaStr) {
       const nombreTecnico = techInfo ? techInfo.nombre : (o.revisor || 'Técnico de Cuadrilla')
       const cuadrillaTecnico = techInfo?.cuadrilla || null
 
-      // Si la observación tuvo un cambio de estado en la fecha objetivo, su estado efectivo para la jornada fue el último alcanzado
+      // Para la jornada de hoy (isToday), el estado prioritario es el estado vivo actual en la BD (o.estado_covepa).
+      // Para jornadas anteriores, si tuvo transición en esa fecha, se toma el estado que alcanzó en dicha fecha (hTransition.estado_nuevo).
       const hTransition = histMap.get(o.id_obs)
-      const rawSt = (hTransition ? hTransition.estado_nuevo : (o.estado_covepa || '')).trim()
+      const rawSt = (isToday ? (o.estado_covepa || hTransition?.estado_nuevo || '') : (hTransition ? hTransition.estado_nuevo : (o.estado_covepa || ''))).trim()
 
       // Normalizar estado
       let estadoNormalizado = 'Validado'

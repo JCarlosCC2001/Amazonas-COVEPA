@@ -1280,7 +1280,7 @@ export function NotificationProvider({ children }) {
           id_obs: `PASE-VACIO-${Date.now()}`,
           isTransicionVacia: true,
           titulo: 'Sin solicitudes pendientes',
-          detalle: 'No hay observaciones en "Solicitando Revisión" en este momento.'
+          detalle: 'No hay observaciones en "Solicitando Revisión" en este momento. Todas las observaciones ya se encuentran en revisión o validadas.'
         },
         createdAt: Date.now()
       }
@@ -1312,10 +1312,7 @@ export function NotificationProvider({ children }) {
 
     const sitiosList = Array.from(sitiosInvolucradosMap.values())
 
-    // 2. Copiar automáticamente los códigos al portapapeles de inmediato
-    await copyPlainCodesList(codes)
-
-    // 3. Despachar Toast flotante interactivo enriquecido con sitios y localidades
+    // 2. Despachar Toast flotante interactivo enriquecido con sitios y localidades INMEDIATAMENTE
     const toastId = `toast-batch-revision-${Date.now()}`
     const nuevoToast = {
       id: toastId,
@@ -1332,28 +1329,40 @@ export function NotificationProvider({ children }) {
       createdAt: Date.now()
     }
 
+    // Renderizar Toast en pantalla INMEDIATAMENTE sin bloquearse por portapapeles ni audio
     setToasts(prev => [nuevoToast, ...prev].slice(0, 3))
-    playNotificationChime()
+    try {
+      playNotificationChime()
+    } catch (_) {}
 
     // 15 segundos para dar tiempo suficiente para interactuar o re-copiar
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== toastId))
     }, 15000)
 
-    // 4. Notificación nativa de sistema (Android / Windows) con resumen de sitios
-    const resumenSitiosTexto = sitiosList.slice(0, 3).map(s => `📍 ${s.label} (${s.codes.length} obs)`).join('\n')
-    despacharNotificacionSistema(`🚀 ${codes.length} Obs a En Revisión · ${sitiosList.length} Sitios`, {
-      body: `📍 Sitios pasados:\n${resumenSitiosTexto}${sitiosList.length > 3 ? `\n(+ ${sitiosList.length - 3} sitios más)` : ''}\n📋 Códigos copiados al portapapeles`,
-      tag: 'covepa-pase-en-revision',
-      renotify: true,
-      data: {
-        url: '/observaciones?estado=En%20Revisi%C3%B3n'
-      },
-      actions: [
-        { action: 'open_queue', title: '👁️ Ver Lista' },
-        { action: 'dismiss', title: '✖ Listo' }
-      ]
+    // 3. Copiar automáticamente los códigos al portapapeles en segundo plano
+    copyPlainCodesList(codes).catch(err => {
+      console.warn('Aviso no bloqueante al copiar códigos al portapapeles:', err)
     })
+
+    // 4. Notificación nativa de sistema (Android / Windows) con resumen de sitios
+    try {
+      const resumenSitiosTexto = sitiosList.slice(0, 3).map(s => `📍 ${s.label} (${s.codes.length} obs)`).join('\n')
+      despacharNotificacionSistema(`🚀 ${codes.length} Obs a En Revisión · ${sitiosList.length} Sitios`, {
+        body: `📍 Sitios pasados:\n${resumenSitiosTexto}${sitiosList.length > 3 ? `\n(+ ${sitiosList.length - 3} sitios más)` : ''}\n📋 Códigos copiados al portapapeles`,
+        tag: 'covepa-pase-en-revision',
+        renotify: true,
+        data: {
+          url: '/observaciones?estado=En%20Revisi%C3%B3n'
+        },
+        actions: [
+          { action: 'open_queue', title: '👁️ Ver Lista' },
+          { action: 'dismiss', title: '✖ Listo' }
+        ]
+      })
+    } catch (sysErr) {
+      console.warn('Aviso notificación sistema no bloqueante:', sysErr)
+    }
 
     // 5. Refrescar solicitudes en tiempo real
     fetchSolicitudes()

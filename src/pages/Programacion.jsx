@@ -4,7 +4,7 @@ import {
   MapPin, CheckCircle2, Clock, AlertCircle, List,
   CalendarDays, X, Search, RefreshCw, Eye, ShieldCheck,
   Check, AlertTriangle, Users, Edit3, User, FileSpreadsheet, Download, Send,
-  TrendingUp, History, ChevronUp, FileText
+  TrendingUp, History, ChevronUp, FileText, CheckCheck
 } from 'lucide-react'
 // M3: ExcelJS se importa dinámicamente en handleExportXLSX para no inflar el bundle inicial
 import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
@@ -24,7 +24,7 @@ import {
   getSitiosObservacionesResumen,
   getObservacionesSitioDetalle
 } from '../services/programacionService'
-import { updateObservacionCovepa, sincronizarEstadoConControlFotos, esRevisorGilat } from '../services/observacionesService'
+import { updateObservacionCovepa, sincronizarEstadoConControlFotos, esRevisorGilat, pasarTodasSolicitudesAEnRevision } from '../services/observacionesService'
 import {
   sincronizarAuditoriaObservacion,
   sincronizarComentarioObservacion,
@@ -34,6 +34,7 @@ import {
 } from '../services/auditoriaSyncService'
 import { ASIGNACIONES_BASE, getCachedSitiosAsignados } from '../services/sitiosService'
 import { useAuth } from '../hooks/useAuth'
+import { useNotifications } from '../context/NotificationContext'
 import { usePresentationMode } from '../context/PresentationContext'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 import { hasMeaningfulText, toLocalDateString, getPeruDateStr, getPeruISOString, getInitials, getCargoClass } from '../utils/helpers'
@@ -51,7 +52,9 @@ const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sáb
 
 export default function Programacion() {
   const { presentationMode } = usePresentationMode()
-  const { canEditProgramacion, isReadOnly } = useAuth()
+  const { user, personalMember, canEditProgramacion, isReadOnly } = useAuth()
+  const { notificarPaseEnRevision } = useNotifications()
+  const [batchRevisionLoading, setBatchRevisionLoading] = useState(false)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('today') // 'today' | 'week'
   const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL' | 'SOLICITANDO' | 'EN_REVISION' | 'VALIDADO' | 'RECHAZADO'
@@ -317,6 +320,36 @@ export default function Programacion() {
     return () => window.removeEventListener('covepa-programacion-actualizada', handleAutoProgUpdated)
   }, [fetchWeekData])
 
+  // Pasar todas las observaciones que solicitan revisión a En Revisión con 1 clic
+  const handlePasarTodasAEnRevision = async () => {
+    if (batchRevisionLoading) return
+    setBatchRevisionLoading(true)
+    try {
+      const nombreResponsable = resolverNombreAuditor(user, personalMember, 'Coordinador COVEPA')
+      const res = await pasarTodasSolicitudesAEnRevision({
+        nombre: nombreResponsable,
+        email: user?.email,
+        id: personalMember?.id_personal || user?.id
+      })
+
+      if (res.count > 0) {
+        if (notificarPaseEnRevision) {
+          await notificarPaseEnRevision(res)
+        }
+        await fetchWeekData()
+      } else {
+        if (notificarPaseEnRevision) {
+          await notificarPaseEnRevision({ count: 0, items: [], codes: [] })
+        }
+        await fetchWeekData()
+      }
+    } catch (err) {
+      console.error('[PROG-BATCH-REVISION] Error al pasar observaciones a En Revisión:', err)
+    } finally {
+      setBatchRevisionLoading(false)
+    }
+  }
+
   // Navegación de período (día en 'today', semana en 'week' / 'list')
   const prevPeriod = () => {
     const d = new Date(currentDate)
@@ -459,6 +492,8 @@ export default function Programacion() {
       progs
     }
   }, [programaciones, sitiosStats, currentDate])
+
+  const solicitandoCount = viewMode === 'today' ? (dayAvance.stats?.solicitando ?? 0) : (weekStats.solicitando ?? 0)
 
   // Helper para filtrar cualquier lista de programaciones por estado de observación
   const filterProgsByStatus = useCallback((progsList) => {
@@ -763,7 +798,7 @@ export default function Programacion() {
             <MetricCard
               icon={<Clock size={20} />}
               label="Solicitando Revisión"
-              value={viewMode === 'today' ? (dayAvance.stats?.solicitando ?? 0) : (weekStats.solicitando ?? 0)}
+              value={solicitandoCount}
               subtitle={viewMode === 'today' ? 'esperando validación' : 'en la semana'}
               variant="orange"
               onClick={() => setStatusFilter(prev => prev === 'SOLICITANDO' ? 'ALL' : 'SOLICITANDO')}
@@ -895,6 +930,29 @@ export default function Programacion() {
             <TrendingUp size={15} />
             <span>Avance del Día</span>
           </button>
+
+          {/* Botón Pasar a En Revisión con 1 Clic */}
+          {!isReadOnly && (
+            <button
+              type="button"
+              className={`prog-btn-revision ${solicitandoCount === 0 ? 'is-empty' : ''}`}
+              onClick={handlePasarTodasAEnRevision}
+              disabled={batchRevisionLoading}
+              title={
+                solicitandoCount > 0
+                  ? `Pasar las ${solicitandoCount} observaciones en espera a 'En Revisión'`
+                  : 'Pasar observaciones solicitando revisión a En Revisión'
+              }
+            >
+              {batchRevisionLoading ? (
+                <RefreshCw size={14} className="spinning" />
+              ) : (
+                <CheckCheck size={14} />
+              )}
+              <span>{batchRevisionLoading ? 'Procesando...' : 'Pasar a En Revisión'}</span>
+              <span className="prog-btn-revision-badge">{solicitandoCount}</span>
+            </button>
+          )}
 
           {canEditProgramacion && (
             <button

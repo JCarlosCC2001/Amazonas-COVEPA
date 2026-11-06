@@ -1122,14 +1122,6 @@ export default function Observaciones() {
           loadData(true),
           vista === 'agrupada' ? loadAgrupada() : Promise.resolve()
         ])
-      } else if (res.programaciones && res.programaciones.length > 0) {
-        if (notificarPaseEnRevision) {
-          await notificarPaseEnRevision({
-            count: res.programaciones.length,
-            items: [],
-            codes: res.programaciones.map(p => p.idSitio || p.cuadrilla || 'Programación').filter(Boolean)
-          })
-        }
       } else {
         if (notificarPaseEnRevision) {
           await notificarPaseEnRevision({ count: 0, items: [], codes: [] })

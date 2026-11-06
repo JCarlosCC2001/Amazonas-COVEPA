@@ -862,40 +862,17 @@ export function NotificationProvider({ children }) {
     }, 1500)
   }, [fetchSolicitudes])
 
-  // Carga inicial y Polling resiliente ultra-eficiente (cada 5 minutos de respaldo, condicionado a pestaña visible)
+  // Carga inicial y actualización a solicitud (sin intervalos automáticos en segundo plano)
   useEffect(() => {
     if (!user) return
 
     fetchSolicitudes(false)
 
-    // Polling de respaldo cada 5 minutos (300,000 ms) en vez de 30 segundos
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && !document.hidden) {
-        fetchSolicitudes(true)
-      }
-    }, 300000)
-
-    // Reconsultar solo si el usuario regresa a la pestaña tras estar oculta (con cooldown de 3 minutos)
-    const handleVisibility = () => {
-      if (!document.hidden && Date.now() - lastFetchTimeRef.current > 180000) {
-        fetchSolicitudes(true)
-      }
-    }
-    const handleFocus = () => {
-      if (!document.hidden && Date.now() - lastFetchTimeRef.current > 180000) {
-        fetchSolicitudes(true)
-      }
-    }
+    // Reconsultar únicamente si la conexión de red se restablece
     const handleOnline = () => fetchSolicitudes(true)
-
-    document.addEventListener('visibilitychange', handleVisibility)
-    window.addEventListener('focus', handleFocus)
     window.addEventListener('online', handleOnline)
 
     return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibility)
-      window.removeEventListener('focus', handleFocus)
       window.removeEventListener('online', handleOnline)
     }
   }, [user, fetchSolicitudes])

@@ -111,30 +111,6 @@ export default function Programacion() {
     ])
   }, [currentDate, loadDayAvance, loadUltimosReportes])
 
-  // Refrescar automáticamente los minutos relativos cada 5 minutos (condicionado a pestaña visible)
-  const lastReportesFetchRef = useRef(Date.now())
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (typeof document !== 'undefined' && !document.hidden) {
-        loadUltimosReportes(currentDate)
-        lastReportesFetchRef.current = Date.now()
-      }
-    }, 300000)
-
-    const handleVisibilityChange = () => {
-      if (!document.hidden && (Date.now() - lastReportesFetchRef.current > 180000)) {
-        loadUltimosReportes(currentDate)
-        lastReportesFetchRef.current = Date.now()
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      clearInterval(timer)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [currentDate, loadUltimosReportes])
-
   // Catálogo enriquecido con localidades y nombres de nodos para visualización al lado de los códigos
   const [sitiosCatalogo, setSitiosCatalogo] = useState(() => {
     return ASIGNACIONES_BASE.map(s => {
@@ -292,19 +268,20 @@ export default function Programacion() {
       // Extraer todos los sitios de las programaciones para consultar su progreso
       const allSites = [...new Set(progs.flatMap(p => (p.sitios || []).map(s => s.id_sitio).filter(Boolean)))]
 
-      // Consultar resumen de observaciones y avance del día en paralelo
+      // Consultar resumen de observaciones, avance del día y tiempos de espera en paralelo (a solicitud del usuario)
       await Promise.all([
         allSites.length > 0
           ? getSitiosObservacionesResumen(allSites).then(setSitiosStats)
           : Promise.resolve(setSitiosStats({})),
-        loadDayAvance(currentDate)
+        loadDayAvance(currentDate),
+        loadUltimosReportes(currentDate)
       ])
     } catch (err) {
       console.error('Error cargando programaciones:', err)
     } finally {
       setLoading(false)
     }
-  }, [startDateStr, endDateStr, currentDate, loadDayAvance])
+  }, [startDateStr, endDateStr, currentDate, loadDayAvance, loadUltimosReportes])
 
   useEffect(() => {
     fetchWeekData()

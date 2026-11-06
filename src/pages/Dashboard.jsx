@@ -160,21 +160,9 @@ export default function Dashboard() {
       )
       .subscribe()
 
-    // Recargar al volver a la pestaña con cooldown de 3 minutos para no consumir egress
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && (Date.now() - lastLoadedTimeRef.current > 180000)) {
-        loadOverview()
-        if (tab === 'gilat') {
-          loadGilat(false)
-        }
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
     return () => {
       clearTimeout(debounceTimer)
       supabase.removeChannel(channel)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [tab, loadOverview, loadGilat])
 

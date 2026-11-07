@@ -16,7 +16,8 @@ import {
   deletePersonal,
   updateCuadrillaAssignments,
   toggleAccesoPersonal,
-  assignUserAccount
+  assignUserAccount,
+  DEFAULT_CUADRILLAS_CONFIG
 } from '../services/personalService'
 import { getInitials, getCargoClass } from '../utils/helpers'
 import ErpTable from '../components/shared/ErpTable'

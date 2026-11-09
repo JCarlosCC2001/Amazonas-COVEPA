@@ -117,12 +117,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
 
   // Helper para resolver la cuadrilla oficial asignada a una observación
   const resolveCuadrillaForObs = useCallback((obs) => {
-    if (obs.cuadrilla) {
-      const cClean = String(obs.cuadrilla).toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
-      const match = cClean.match(/CUADRILLA\s*([1-6])/)
-      if (match) return `CUADRILLA ${match[1]}`
-    }
-
+    // 1. Prioridad por sitio oficial en el catálogo maestro
     const siteId = obs.id_sitio
     const asig = ASIGNACIONES_BASE.find(s => s.id_site === siteId) || sitiosMap[siteId]
     if (asig?.grupo) {
@@ -131,6 +126,14 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       if (match) return `CUADRILLA ${match[1]}`
     }
 
+    // 2. Prioridad por cuadrilla explícita en la observación
+    if (obs.cuadrilla) {
+      const cClean = String(obs.cuadrilla).toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
+      const match = cClean.match(/CUADRILLA\s*([1-6])/)
+      if (match) return `CUADRILLA ${match[1]}`
+    }
+
+    // 3. Prioridad por nombre del técnico
     if (obs.tecnico) {
       const tClean = String(obs.tecnico).toUpperCase().trim()
       for (const [cName, tecNom] of Object.entries(cuadrillaStaffMap)) {

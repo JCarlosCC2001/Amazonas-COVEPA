@@ -407,9 +407,22 @@ export async function getAvancePorFecha(fechaStr) {
       const localidad = siteInfo.localidad || siteInfo.nombre_nodo || ''
 
       // Técnico asignado
-      const techInfo = siteTechMap[siteId]
+      let techInfo = siteTechMap[siteId]
+      const baseAsig = ASIGNACIONES_BASE.find(s => s.id_site === siteId)
+      const officialCuadrilla = baseAsig?.grupo ? baseAsig.grupo.toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim() : null
+
+      // Si el sitio tiene cuadrilla oficial definida en catálogo y discrepa de la vinculada por error en programación o no tiene
+      if (officialCuadrilla && (!techInfo?.cuadrilla || officialCuadrilla !== techInfo.cuadrilla.toUpperCase().trim())) {
+        const defaultCfg = DEFAULT_CUADRILLAS_CONFIG[officialCuadrilla]
+        techInfo = {
+          nombre: defaultCfg?.tecnicoNombre || techInfo?.nombre || 'Técnico de Cuadrilla',
+          cuadrilla: officialCuadrilla,
+          equipoCompleto: defaultCfg?.tecnicoNombre || techInfo?.equipoCompleto || 'Técnico de Cuadrilla'
+        }
+      }
+
       const nombreTecnico = techInfo ? techInfo.nombre : (o.revisor || 'Técnico de Cuadrilla')
-      const cuadrillaTecnico = techInfo?.cuadrilla || null
+      const cuadrillaTecnico = techInfo?.cuadrilla || officialCuadrilla || null
 
       // Para la jornada de hoy (isToday), el estado prioritario es el estado vivo actual en la BD (o.estado_covepa).
       // Para jornadas anteriores, si tuvo transición en esa fecha, se toma el estado que alcanzó en dicha fecha (hTransition.estado_nuevo).

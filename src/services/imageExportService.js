@@ -62,7 +62,7 @@ export async function generateAvanceDiaPNG({
       'CUADRILLA 3': { cuadrilla: 'CUADRILLA 3', tecnico: 'Daniel Javier', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
       'CUADRILLA 4': { cuadrilla: 'CUADRILLA 4', tecnico: 'Alfonso Curi', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
       'CUADRILLA 5': { cuadrilla: 'CUADRILLA 5', tecnico: 'William Avila', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 },
-      'CUADRILLA 6': { cuadrilla: 'CUADRILLA 6', tecnico: 'Gabriel Farro', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 }
+      'CUADRILLA 6': { cuadrilla: 'CUADRILLA 6', tecnico: 'Juan Castro', values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0 }, total: 0 }
     }
 
     rows.forEach(r => {

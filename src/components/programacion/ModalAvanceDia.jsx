@@ -8,6 +8,7 @@ import {
 import { getAvancePorFecha } from '../../services/dashboardService'
 import { ASIGNACIONES_BASE } from '../../services/sitiosService'
 import { DEFAULT_CUADRILLAS_CONFIG } from '../../services/personalService'
+import { supabase } from '../../lib/supabase'
 import CuadrillasMatrixTable from '../shared/CuadrillasMatrixTable'
 import { formatNombrePersona, getPeruDateStr } from '../../utils/helpers'
 // M3: imageExportService importado dinamicamente en handleCopyPNG / handleDownloadPNG
@@ -26,6 +27,42 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
   const [copiedPng, setCopiedPng] = useState(false)
   const [showDetailedList, setShowDetailedList] = useState(false)
   const [selectedCellFilter, setSelectedCellFilter] = useState(null)
+  const [cuadrillaStaffMap, setCuadrillaStaffMap] = useState({})
+
+  // Cargar asignaciones oficiales actualizadas de personal_cuadrillas desde la base de datos
+  useEffect(() => {
+    let isMounted = true
+    const loadCuadrillaStaff = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('personal_cuadrillas')
+          .select('cuadrilla, nombre_completo, cargo')
+          .eq('activo', true)
+
+        if (error) {
+          console.warn('Error cargando personal_cuadrillas en ModalAvanceDia:', error.message)
+          return
+        }
+
+        if (isMounted && data && data.length > 0) {
+          const map = {}
+          data.forEach(row => {
+            const cClean = String(row.cuadrilla || '').toUpperCase().trim()
+            const cargo = (row.cargo || '').toUpperCase()
+            const isTec = cargo.includes('TECN') || cargo.includes('SUPERV') || !cargo.includes('CONDUCT')
+            if (isTec && row.nombre_completo) {
+              map[cClean] = formatNombrePersona(row.nombre_completo)
+            }
+          })
+          setCuadrillaStaffMap(map)
+        }
+      } catch (err) {
+        console.warn('Error en loadCuadrillaStaff:', err)
+      }
+    }
+    loadCuadrillaStaff()
+    return () => { isMounted = false }
+  }, [])
 
   // Cargar datos de avance para la fecha seleccionada
   useEffect(() => {
@@ -96,6 +133,11 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
 
     if (obs.tecnico) {
       const tClean = String(obs.tecnico).toUpperCase().trim()
+      for (const [cName, tecNom] of Object.entries(cuadrillaStaffMap)) {
+        if (tecNom && tClean.includes(tecNom.toUpperCase())) {
+          return cName
+        }
+      }
       for (const [cName, cfg] of Object.entries(DEFAULT_CUADRILLAS_CONFIG)) {
         if (cfg.tecnicoNombre && tClean.includes(cfg.tecnicoNombre.toUpperCase())) {
           return cName
@@ -104,7 +146,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     }
 
     return 'CUADRILLA 1'
-  }, [sitiosMap])
+  }, [sitiosMap, cuadrillaStaffMap])
 
   const stats = avanceData.stats || {}
 
@@ -146,46 +188,52 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
   const matrixData = useMemo(() => {
     const rows = avanceData.rows || []
 
+    const getCuadrillaTecnico = (cName) => {
+      return cuadrillaStaffMap[cName] ||
+        DEFAULT_CUADRILLAS_CONFIG[cName]?.tecnicoNombre ||
+        'Técnico'
+    }
+
     const cuadrillasMap = {
       'CUADRILLA 1': {
         id: 'CUADRILLA 1',
         cuadrilla: 'CUADRILLA 1',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 1']?.tecnicoNombre || 'Jhonatan Flores',
+        tecnico: getCuadrillaTecnico('CUADRILLA 1'),
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       },
       'CUADRILLA 2': {
         id: 'CUADRILLA 2',
         cuadrilla: 'CUADRILLA 2',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 2']?.tecnicoNombre || 'Marco Chamba',
+        tecnico: getCuadrillaTecnico('CUADRILLA 2'),
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       },
       'CUADRILLA 3': {
         id: 'CUADRILLA 3',
         cuadrilla: 'CUADRILLA 3',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 3']?.tecnicoNombre || 'Daniel Javier',
+        tecnico: getCuadrillaTecnico('CUADRILLA 3'),
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       },
       'CUADRILLA 4': {
         id: 'CUADRILLA 4',
         cuadrilla: 'CUADRILLA 4',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 4']?.tecnicoNombre || 'Alfonso Curi',
+        tecnico: getCuadrillaTecnico('CUADRILLA 4'),
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       },
       'CUADRILLA 5': {
         id: 'CUADRILLA 5',
         cuadrilla: 'CUADRILLA 5',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 5']?.tecnicoNombre || 'William Avila',
+        tecnico: getCuadrillaTecnico('CUADRILLA 5'),
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       },
       'CUADRILLA 6': {
         id: 'CUADRILLA 6',
         cuadrilla: 'CUADRILLA 6',
-        tecnico: DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 6']?.tecnicoNombre || 'Gabriel Farro',
+        tecnico: getCuadrillaTecnico('CUADRILLA 6'),
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       }
@@ -234,7 +282,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       matrixTotals: totalsObj,
       matrixGrandTotal: grandTotalNum
     }
-  }, [avanceData.rows, resolveCuadrillaForObs])
+  }, [avanceData.rows, resolveCuadrillaForObs, cuadrillaStaffMap])
 
   // Filtrado de filas detalladas
   const filteredRows = useMemo(() => {

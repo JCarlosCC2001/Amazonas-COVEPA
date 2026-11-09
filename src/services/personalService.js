@@ -142,8 +142,8 @@ export const DEFAULT_CUADRILLAS_CONFIG = {
     conductorTelefono: '999389272'
   },
   'CUADRILLA 6': {
-    idTecnico: '58bf102a-514f-4829-806b-1037856cadb1', // Gabriel Farro
-    tecnicoNombre: 'Gabriel Farro',
+    idTecnico: '84444118-163f-4568-8040-e60e1824fd73', // Juan Castro
+    tecnicoNombre: 'Juan Castro',
     idConductor: 'd879089f-5981-4f08-94ca-ccccf8027f78', // Ander Peralta
     conductorNombre: 'Ander Peralta',
     conductorTelefono: '945551928'

@@ -4,7 +4,7 @@ import {
   MapPin, CheckCircle2, Clock, AlertCircle, List,
   CalendarDays, X, Search, RefreshCw, Eye, ShieldCheck,
   Check, AlertTriangle, Users, Edit3, User, FileSpreadsheet, Download, Send,
-  TrendingUp, History, ChevronUp, FileText, CheckCheck
+  TrendingUp, History, ChevronUp, ChevronDown, FileText, CheckCheck
 } from 'lucide-react'
 // M3: ExcelJS se importa dinámicamente en handleExportXLSX para no inflar el bundle inicial
 import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
@@ -32,7 +32,7 @@ import {
   sincronizarTiemposEjecucion,
   resolverNombreAuditor
 } from '../services/auditoriaSyncService'
-import { ASIGNACIONES_BASE, getCachedSitiosAsignados } from '../services/sitiosService'
+import { ASIGNACIONES_BASE, getCachedSitiosAsignados, getZonaBySiteId } from '../services/sitiosService'
 import { useAuth } from '../hooks/useAuth'
 import { useNotifications } from '../context/NotificationContext'
 import { usePresentationMode } from '../context/PresentationContext'
@@ -52,9 +52,12 @@ const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sáb
 
 export default function Programacion() {
   const { presentationMode } = usePresentationMode()
-  const { user, personalMember, canEditProgramacion, isReadOnly } = useAuth()
+  const { user, personalMember, canEditProgramacion, isReadOnly, isAdmin } = useAuth()
   const { notificarPaseEnRevision } = useNotifications()
   const [batchRevisionLoading, setBatchRevisionLoading] = useState(false)
+  const [exportingReporteDiario, setExportingReporteDiario] = useState(false)
+  const [adminExportOpen, setAdminExportOpen] = useState(false)
+  const adminExportDropdownRef = useRef(null)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('today') // 'today' | 'week'
   const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL' | 'SOLICITANDO' | 'EN_REVISION' | 'VALIDADO' | 'RECHAZADO'
@@ -324,6 +327,196 @@ export default function Programacion() {
       console.error('[PROG-BATCH-REVISION] Error al pasar observaciones a En Revisión:', err)
     } finally {
       setBatchRevisionLoading(false)
+    }
+  }
+
+  // Cerrar menú desplegable de exportación de administrador al hacer clic fuera
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (adminExportDropdownRef.current && !adminExportDropdownRef.current.contains(e.target)) {
+        setAdminExportOpen(false)
+      }
+    }
+    if (adminExportOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [adminExportOpen])
+
+  // Exportar reporte de programación diario a Excel (.xlsx) con o sin nombres de técnicos
+  const handleExportReporteDiario = async (conTecnico = true) => {
+    const targetDateStr = toLocalDateString(currentDate)
+    const progsDelDia = programaciones.filter(p => p.fecha === targetDateStr)
+
+    if (progsDelDia.length === 0) {
+      alert(`No hay programaciones registradas para la fecha ${targetDateStr}.`)
+      return
+    }
+
+    setExportingReporteDiario(true)
+    try {
+      const { default: ExcelJS } = await import('exceljs')
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'COVEPA ERP - Amazonas'
+      workbook.created = new Date()
+
+      const cleanDate = targetDateStr.replace(/[^a-zA-Z0-9]/g, '_')
+      const sheetName = `Prog_${cleanDate}`.slice(0, 31)
+      const worksheet = workbook.addWorksheet(sheetName, {
+        views: [{ showGridLines: true }]
+      })
+
+      // Filas para la tabla
+      const rows = []
+
+      // Ordenar programaciones por cuadrilla del técnico / personal
+      const progsOrdenadas = [...progsDelDia].sort((a, b) => {
+        const cA = a.personal?.cuadrilla || ''
+        const cB = b.personal?.cuadrilla || ''
+        return cA.localeCompare(cB, undefined, { numeric: true })
+      })
+
+      for (const prog of progsOrdenadas) {
+        // Encontrar técnico responsable
+        const team = prog.equipo && prog.equipo.length > 0 ? prog.equipo : [prog.personal || {}]
+        const tec = team.find(m => {
+          const c = (m.cargo || '').toUpperCase()
+          return c.includes('TÉCN') || c.includes('TECN') || c.includes('SUPERVISOR')
+        }) || prog.personal || team[0] || {}
+
+        const nombreTecnico = tec.nombre_completo || 'Técnico sin asignar'
+        const sitios = prog.sitios && prog.sitios.length > 0 ? prog.sitios : []
+
+        if (sitios.length === 0) {
+          const cuadrillaRaw = tec.cuadrilla || prog.personal?.cuadrilla || ''
+          const matchCuad = cuadrillaRaw.match(/\d+/)
+          const cuadrillaStr = matchCuad ? `Cuadrilla ${matchCuad[0]}` : (cuadrillaRaw || 'Sin Cuadrilla')
+          const isZona2 = cuadrillaStr.includes('1') || cuadrillaStr.includes('2')
+          const cm = isZona2 ? 'PEDRO RUIZ' : 'BAGUA GRANDE'
+          const comentario = prog.notas || 'Sin sitios asignados'
+
+          if (conTecnico) {
+            rows.push([nombreTecnico, cuadrillaStr, cm, '-', '-', comentario])
+          } else {
+            rows.push([cuadrillaStr, cm, '-', '-', comentario])
+          }
+        } else {
+          // Ordenar sitios por orden de visita
+          const sitiosOrdenados = [...sitios].sort((a, b) => (a.orden || 0) - (b.orden || 0))
+
+          for (const s of sitiosOrdenados) {
+            const siteId = s.id_sitio
+            const sData = sitiosMap[siteId] || {}
+
+            const cuadrillaRaw = sData.cuadrilla || sData.grupo || tec.cuadrilla || prog.personal?.cuadrilla || ''
+            const matchCuad = cuadrillaRaw.match(/\d+/)
+            const cuadrillaStr = matchCuad ? `Cuadrilla ${matchCuad[0]}` : (cuadrillaRaw || 'Sin Cuadrilla')
+
+            const zona = sData.zona || getZonaBySiteId(siteId)
+            const isZona2 = String(zona).toUpperCase().includes('2') || cuadrillaStr.includes('1') || cuadrillaStr.includes('2')
+            const cm = isZona2 ? 'PEDRO RUIZ' : 'BAGUA GRANDE'
+
+            const lugar = sData.localidad || sData.nombre_nodo || ''
+
+            let comentario = ''
+            if (s.notas_visita && s.notas_visita.trim()) {
+              comentario = s.notas_visita.trim()
+            } else if (prog.notas && prog.notas.trim() && !prog.notas.startsWith('{')) {
+              comentario = prog.notas.trim()
+            } else {
+              comentario = lugar
+                ? `Levantamiento de Observaciones en ${siteId} - ${lugar}`
+                : `Levantamiento de Observaciones en ${siteId}`
+            }
+
+            if (conTecnico) {
+              rows.push([nombreTecnico, cuadrillaStr, cm, siteId, lugar, comentario])
+            } else {
+              rows.push([cuadrillaStr, cm, siteId, lugar, comentario])
+            }
+          }
+        }
+      }
+
+      // Ordenar filas alfabética/numéricamente por Cuadrilla
+      rows.sort((a, b) => {
+        const cA = conTecnico ? a[1] : a[0]
+        const cB = conTecnico ? b[1] : b[0]
+        return cA.localeCompare(cB, undefined, { numeric: true })
+      })
+
+      const columns = conTecnico
+        ? [
+            { name: 'Tecnico', filterButton: true },
+            { name: 'Cuadrilla', filterButton: true },
+            { name: 'CM', filterButton: true },
+            { name: 'Sitio', filterButton: true },
+            { name: 'Lugar', filterButton: true },
+            { name: 'Comentario', filterButton: true }
+          ]
+        : [
+            { name: 'Cuadrilla', filterButton: true },
+            { name: 'CM', filterButton: true },
+            { name: 'Sitio', filterButton: true },
+            { name: 'Lugar', filterButton: true },
+            { name: 'Comentario', filterButton: true }
+          ]
+
+      const cleanTableName = `RepProg_${cleanDate}_${conTecnico ? 'ConTec' : 'SinTec'}`.slice(0, 31)
+
+      worksheet.addTable({
+        name: cleanTableName,
+        ref: 'A1',
+        headerRow: true,
+        totalsRow: false,
+        style: {
+          theme: 'TableStyleMedium9',
+          showRowStripes: true,
+          showColumnStripes: false
+        },
+        columns,
+        rows
+      })
+
+      // Anchos y alineación de columnas
+      const colWidths = conTecnico
+        ? [24, 16, 18, 18, 26, 68]
+        : [16, 18, 18, 26, 68]
+
+      colWidths.forEach((w, i) => {
+        worksheet.getColumn(i + 1).width = w
+      })
+
+      worksheet.eachRow((row, rowNumber) => {
+        row.height = rowNumber === 1 ? 26 : 22
+        row.eachCell((cell, colNumber) => {
+          cell.font = { name: 'Calibri', size: 10 }
+          cell.alignment = {
+            vertical: 'middle',
+            horizontal: conTecnico
+              ? (colNumber === 4 ? 'center' : (colNumber === 2 || colNumber === 3 ? 'center' : 'left'))
+              : (colNumber === 3 ? 'center' : (colNumber === 1 || colNumber === 2 ? 'center' : 'left')),
+            wrapText: colNumber === (conTecnico ? 6 : 5)
+          }
+        })
+      })
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const suffix = conTecnico ? 'Con_Tecnicos' : 'Sin_Tecnicos'
+      a.download = `Programacion_COVEPA_${targetDateStr}_${suffix}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Error generando reporte de programación:', err)
+      alert('Error al generar el reporte en Excel: ' + err.message)
+    } finally {
+      setExportingReporteDiario(false)
     }
   }
 
@@ -929,6 +1122,64 @@ export default function Programacion() {
               <span>{batchRevisionLoading ? 'Procesando...' : 'Pasar a En Revisión'}</span>
               <span className="prog-btn-revision-badge">{solicitandoCount}</span>
             </button>
+          )}
+
+          {/* Botón Exclusivo de Administrador: Reporte Diario Excel (.xlsx) */}
+          {isAdmin && (
+            <div className="prog-admin-export-dropdown" ref={adminExportDropdownRef}>
+              <button
+                type="button"
+                className="prog-btn-admin-export"
+                onClick={() => setAdminExportOpen(prev => !prev)}
+                disabled={exportingReporteDiario}
+                title="Generar y descargar reporte oficial de programación en Excel (.xlsx)"
+              >
+                {exportingReporteDiario ? (
+                  <RefreshCw size={14} className="spinning" />
+                ) : (
+                  <FileSpreadsheet size={15} />
+                )}
+                <span>{exportingReporteDiario ? 'Generando...' : 'Reporte Excel'}</span>
+                <ChevronDown size={13} className={`prog-dropdown-arrow ${adminExportOpen ? 'is-open' : ''}`} />
+              </button>
+
+              {adminExportOpen && (
+                <div className="prog-admin-export-menu animate-fade-in">
+                  <div className="prog-admin-export-header">
+                    <span>Exportar Día ({toLocalDateString(currentDate)})</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="prog-admin-export-item"
+                    onClick={() => {
+                      setAdminExportOpen(false)
+                      handleExportReporteDiario(true)
+                    }}
+                  >
+                    <User size={15} className="prog-export-icon" />
+                    <div className="prog-export-item-text">
+                      <strong>Con Técnicos</strong>
+                      <small>Incluye nombres de técnicos (6 columnas)</small>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="prog-admin-export-item"
+                    onClick={() => {
+                      setAdminExportOpen(false)
+                      handleExportReporteDiario(false)
+                    }}
+                  >
+                    <ShieldCheck size={15} className="prog-export-icon text-emerald" />
+                    <div className="prog-export-item-text">
+                      <strong>Sin Técnicos</strong>
+                      <small>Oculta nombres para vista externa (5 columnas)</small>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {canEditProgramacion && (

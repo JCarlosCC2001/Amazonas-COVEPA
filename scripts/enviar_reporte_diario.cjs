@@ -118,6 +118,19 @@ function formatPeruDateTime(isoStr) {
   }).replace(',', '')
 }
 
+function normalizarEstadoOficial(estado) {
+  if (!estado) return 'Pendiente'
+  const trimmed = String(estado).trim()
+  if (trimmed === 'Validado' || trimmed === 'Enviado') return 'Validado'
+  if (trimmed === 'Rechazado') return 'Rechazado'
+  if (trimmed === 'En Revision' || trimmed === 'En Revisión') return 'En Revisión'
+  if (trimmed === 'Solicitando Revision' || trimmed === 'Solicitando Revisión') return 'Solicitando Revisión'
+  if (trimmed === 'Documentacion' || trimmed === 'Documentación') return 'Documentación'
+  if (trimmed === 'Descartado') return 'Descartado'
+  if (trimmed === 'Pendiente') return 'Pendiente'
+  return trimmed
+}
+
 function esRegistroSoloComentario(h) {
   if (!h) return false
   const com = (h.comentario || '').trim().toLowerCase()

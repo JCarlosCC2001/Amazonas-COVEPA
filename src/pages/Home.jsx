@@ -6,9 +6,8 @@ import {
   FileText,
   Users,
   MapPin,
-  Download,
+  FileSpreadsheet,
   FileBarChart,
-  Zap,
   ShieldCheck,
   Sparkles,
   ArrowRight
@@ -63,11 +62,11 @@ const PORTAL_PAGES = [
   },
   {
     key: 'kmz',
-    title: 'Centro de Descargas',
+    title: 'Zona de Informes',
     path: '/kmz',
-    icon: Download,
-    badge: 'Google Earth & Excel',
-    description: 'Paquetes KMZ satelitales en vivo por grupos, consolidado general y exportaciones oficiales.',
+    icon: FileSpreadsheet,
+    badge: 'Informes Excel',
+    description: 'Reportes ejecutivos de programación diaria, consolidados por cuadrilla y matriz general de observaciones.',
     colorTheme: 'purple'
   },
   {
@@ -78,15 +77,6 @@ const PORTAL_PAGES = [
     badge: 'Despacho por Correo',
     description: 'Configuración y monitoreo de reportes diarios y semanales despachados por correo electrónico.',
     colorTheme: 'rose'
-  },
-  {
-    key: 'eficiencia',
-    title: 'Eficiencia Operativa',
-    path: '/eficiencia',
-    icon: Zap,
-    badge: 'Rendimiento',
-    description: 'Análisis de productividad y tiempos de respuesta por cuadrilla y técnico.',
-    colorTheme: 'orange'
   }
 ]
 

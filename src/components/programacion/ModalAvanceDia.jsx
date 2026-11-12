@@ -187,56 +187,46 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     }
   ], [])
 
-  // Consolidación de datos matriciales (6 Cuadrillas x Estados)
+  // Consolidación de datos matriciales agrupados por Equipos (3 Equipos x Estados)
+  // Regla de Negocio: Equipo 1 = Cuadrilla 1 y 2, Equipo 2 = Cuadrilla 3 y 6, Equipo 3 = Cuadrilla 4 y 5
   const matrixData = useMemo(() => {
     const rows = avanceData.rows || []
 
     const getCuadrillaTecnico = (cName) => {
       return cuadrillaStaffMap[cName] ||
         DEFAULT_CUADRILLAS_CONFIG[cName]?.tecnicoNombre ||
-        'Técnico'
+        ''
     }
 
-    const cuadrillasMap = {
-      'CUADRILLA 1': {
-        id: 'CUADRILLA 1',
-        cuadrilla: 'CUADRILLA 1',
-        tecnico: getCuadrillaTecnico('CUADRILLA 1'),
+    const tecC1 = getCuadrillaTecnico('CUADRILLA 1')
+    const tecC2 = getCuadrillaTecnico('CUADRILLA 2')
+    const tecC3 = getCuadrillaTecnico('CUADRILLA 3')
+    const tecC4 = getCuadrillaTecnico('CUADRILLA 4')
+    const tecC5 = getCuadrillaTecnico('CUADRILLA 5')
+    const tecC6 = getCuadrillaTecnico('CUADRILLA 6')
+
+    const equiposMap = {
+      'EQUIPO 1': {
+        id: 'EQUIPO 1',
+        cuadrilla: 'EQUIPO 1',
+        subtitulo: 'Cuadrilla 1 y 2',
+        tecnico: [tecC1, tecC2].filter(Boolean).join(' · ') || 'Técnicos Equipo 1',
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       },
-      'CUADRILLA 2': {
-        id: 'CUADRILLA 2',
-        cuadrilla: 'CUADRILLA 2',
-        tecnico: getCuadrillaTecnico('CUADRILLA 2'),
+      'EQUIPO 2': {
+        id: 'EQUIPO 2',
+        cuadrilla: 'EQUIPO 2',
+        subtitulo: 'Cuadrilla 3 y 6',
+        tecnico: [tecC3, tecC6].filter(Boolean).join(' · ') || 'Técnicos Equipo 2',
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       },
-      'CUADRILLA 3': {
-        id: 'CUADRILLA 3',
-        cuadrilla: 'CUADRILLA 3',
-        tecnico: getCuadrillaTecnico('CUADRILLA 3'),
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
-        total: 0
-      },
-      'CUADRILLA 4': {
-        id: 'CUADRILLA 4',
-        cuadrilla: 'CUADRILLA 4',
-        tecnico: getCuadrillaTecnico('CUADRILLA 4'),
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
-        total: 0
-      },
-      'CUADRILLA 5': {
-        id: 'CUADRILLA 5',
-        cuadrilla: 'CUADRILLA 5',
-        tecnico: getCuadrillaTecnico('CUADRILLA 5'),
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
-        total: 0
-      },
-      'CUADRILLA 6': {
-        id: 'CUADRILLA 6',
-        cuadrilla: 'CUADRILLA 6',
-        tecnico: getCuadrillaTecnico('CUADRILLA 6'),
+      'EQUIPO 3': {
+        id: 'EQUIPO 3',
+        cuadrilla: 'EQUIPO 3',
+        subtitulo: 'Cuadrilla 4 y 5',
+        tecnico: [tecC4, tecC5].filter(Boolean).join(' · ') || 'Técnicos Equipo 3',
         values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
         total: 0
       }
@@ -244,12 +234,17 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
 
     rows.forEach(r => {
       const targetCuadrilla = resolveCuadrillaForObs(r)
-      const targetObj = cuadrillasMap[targetCuadrilla]
-      if (targetObj) {
-        if (r.tecnico && r.tecnico !== 'No asignado' && r.tecnico !== 'Técnico de Cuadrilla' && r.tecnico !== 'Técnico en ruta') {
-          targetObj.tecnico = formatNombrePersona(r.tecnico)
-        }
+      let targetEquipoKey = 'EQUIPO 1'
+      if (targetCuadrilla === 'CUADRILLA 1' || targetCuadrilla === 'CUADRILLA 2') {
+        targetEquipoKey = 'EQUIPO 1'
+      } else if (targetCuadrilla === 'CUADRILLA 3' || targetCuadrilla === 'CUADRILLA 6') {
+        targetEquipoKey = 'EQUIPO 2'
+      } else if (targetCuadrilla === 'CUADRILLA 4' || targetCuadrilla === 'CUADRILLA 5') {
+        targetEquipoKey = 'EQUIPO 3'
+      }
 
+      const targetObj = equiposMap[targetEquipoKey]
+      if (targetObj) {
         const rawSt = (r.estado || '').trim().toLowerCase()
         if (rawSt === 'solicitando revisión' || rawSt === 'solicitando revision') {
           targetObj.values.solicitando++
@@ -265,7 +260,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       }
     })
 
-    const matrixRowsList = Object.values(cuadrillasMap).map(row => ({
+    const matrixRowsList = Object.values(equiposMap).map(row => ({
       ...row,
       total: row.values.solicitando + row.values.enRevision + row.values.rechazados + row.values.validados + row.values.documentacion
     }))
@@ -367,18 +362,20 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       workbook.creator = 'COVEPA ERP'
       workbook.created = new Date()
 
-      // Hoja 1: Matriz Ejecutiva por Cuadrilla
-      const wsMatriz = workbook.addWorksheet('Matriz_Cuadrillas', {
+      // Hoja 1: Matriz Ejecutiva por Equipos (Cuadrillas 1+2, 3+6, 4+5)
+      const wsMatriz = workbook.addWorksheet('Matriz_Equipos', {
         views: [{ showGridLines: true }]
       })
 
       const matrixTableRows = matrixData.matrixRows.map(r => [
         r.cuadrilla,
+        r.subtitulo || '',
         r.tecnico,
         r.values.solicitando || 0,
         r.values.enRevision || 0,
         r.values.rechazados || 0,
         r.values.validados || 0,
+        r.values.documentacion || 0,
         r.total || 0
       ])
 
@@ -386,15 +383,17 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       matrixTableRows.push([
         'TOTAL DIARIO',
         '',
+        '',
         matrixData.matrixTotals.solicitando || 0,
         matrixData.matrixTotals.enRevision || 0,
         matrixData.matrixTotals.rechazados || 0,
         matrixData.matrixTotals.validados || 0,
+        matrixData.matrixTotals.documentacion || 0,
         matrixData.matrixGrandTotal || 0
       ])
 
       wsMatriz.addTable({
-        name: `Matriz_${fecha.replace(/-/g, '_')}`,
+        name: `Matriz_Equipos_${fecha.replace(/-/g, '_')}`,
         ref: 'A1',
         headerRow: true,
         totalsRow: false,
@@ -404,18 +403,20 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
           showColumnStripes: false
         },
         columns: [
-          { name: 'CUADRILLA', filterButton: true },
-          { name: 'TÉCNICO RESPONSABLE', filterButton: true },
+          { name: 'EQUIPO', filterButton: true },
+          { name: 'INTEGRANTES', filterButton: true },
+          { name: 'TÉCNICOS RESPONSABLES', filterButton: true },
           { name: 'SOLICITANDO REVISIÓN', filterButton: true },
           { name: 'EN REVISIÓN', filterButton: true },
           { name: 'RECHAZADOS', filterButton: true },
           { name: 'VALIDADOS', filterButton: true },
+          { name: 'DOCUMENTACIÓN', filterButton: true },
           { name: 'TOTAL DIARIO', filterButton: true }
         ],
         rows: matrixTableRows
       })
 
-      const matrixColWidths = [18, 28, 24, 18, 16, 16, 18]
+      const matrixColWidths = [16, 20, 32, 24, 18, 16, 16, 18, 18]
       matrixColWidths.forEach((w, i) => {
         wsMatriz.getColumn(i + 1).width = w
       })
@@ -429,7 +430,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
           }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber === 1 || colNumber === 2 ? 'left' : 'center'
+            horizontal: colNumber <= 3 ? 'left' : 'center'
           }
         })
       })
@@ -706,43 +707,15 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
           )}
         </div>
 
-        {/* Barra de Búsqueda y Exportación */}
-        <div className="prog-modal-search-bar">
-          <div className="prog-modal-search-box-wrap">
-            <div className="search-input-container">
-              <Search size={15} className="search-input-icon" />
-              <input
-                type="text"
-                className="prog-modal-search-input"
-                placeholder="Buscar por código, técnico, sitio o revisor..."
-                value={searchTable}
-                onChange={e => setSearchTable(e.target.value)}
-              />
-              {searchTable && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTable('')}
-                  title="Limpiar búsqueda"
-                  className="search-clear-btn"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-            {searchTable && (
-              <span className="search-results-counter">
-                {filteredRows.length} resultado(s)
-              </span>
-            )}
-          </div>
-
+        {/* Barra de Acciones y Exportación */}
+        <div className="prog-modal-search-bar" style={{ justifyContent: 'flex-end', borderBottom: 'none', padding: '0.5rem 0' }}>
           <div className="prog-modal-export-cluster">
             <button
               type="button"
               className={`prog-export-btn prog-export-copy-btn ${copiedPng ? 'copied' : ''}`}
               onClick={handleCopyPNG}
               disabled={exportingPng || (matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0))}
-              title="Copiar imagen del cuadro de resumen por cuadrillas al portapapeles para WhatsApp o correo (Ctrl+V)"
+              title="Copiar imagen del cuadro de resumen por equipos al portapapeles para WhatsApp o correo (Ctrl+V)"
             >
               {copiedPng ? <Check size={14} /> : <Copy size={14} />}
               <span>{copiedPng ? '¡Copiado!' : (exportingPng ? 'Generando...' : 'Copiar PNG')}</span>
@@ -753,7 +726,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
               className="prog-export-btn prog-export-png-btn"
               onClick={handleDownloadPNG}
               disabled={exportingPng || (matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0))}
-              title="Descargar imagen PNG del cuadro de resumen por cuadrillas de alta definición"
+              title="Descargar imagen PNG del cuadro de resumen por equipos de alta definición"
             >
               <Image size={14} />
               <span>{exportingPng ? 'Generando...' : 'Descargar PNG'}</span>
@@ -763,7 +736,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
               type="button"
               className="prog-export-btn prog-export-xlsx-btn"
               onClick={handleExportXLSX}
-              disabled={exportingXlsx || filteredRows.length === 0}
+              disabled={exportingXlsx || (matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0))}
               title="Descargar reporte oficial en Excel (.xlsx)"
             >
               <Download size={14} />
@@ -772,7 +745,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
           </div>
         </div>
 
-        {/* Cuerpo de la Ventana: Tabla de Avance */}
+        {/* Cuerpo de la Ventana: Cuadro de Avance Operativo por Equipos */}
         <div className="prog-details-modal-body prog-avance-modal-body">
           {loading ? (
             <div className="modal-state-msg">
@@ -781,217 +754,27 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
             </div>
           ) : errorMsg ? (
             <div className="modal-state-msg error">{errorMsg}</div>
-          ) : filteredRows.length === 0 ? (
+          ) : matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0) ? (
             <div className="modal-empty-filter-state">
-              <p>
-                {searchTable ? (
-                  <>No se encontraron registros para <strong>"{searchTable}"</strong>.</>
-                ) : (
-                  <>No hay observaciones registradas en este estado para el <strong>{fecha}</strong>.</>
-                )}
-              </p>
-              {(searchTable || filterEstado !== 'TODOS') && (
-                <div className="empty-filter-actions">
-                  {searchTable && (
-                    <button type="button" onClick={() => setSearchTable('')} className="btn-reset-filter">
-                      Borrar búsqueda
-                    </button>
-                  )}
-                  {filterEstado !== 'TODOS' && (
-                    <button type="button" onClick={() => setFilterEstado('TODOS')} className="btn-reset-filter primary">
-                      Ver todos ({avanceData.rows?.length || 0})
-                    </button>
-                  )}
-                </div>
-              )}
+              <p>No hay observaciones registradas para el <strong>{fecha}</strong>.</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {/* Matriz Principal de Cuadrillas y Estados (Diseño idéntico al Dashboard) */}
+              {/* Matriz Principal Ejecutiva por Equipos (Equipo 1: C1+C2, Equipo 2: C3+C6, Equipo 3: C4+C5) */}
               <CuadrillasMatrixTable
                 icon={<TrendingUp size={18} color="#003060" />}
-                title="Resumen Operativo por Cuadrilla"
-                subtitle={`Distribución de estados para la jornada ${fecha}`}
+                title="Resumen Operativo por Equipos"
+                subtitle={`Distribución consolidada por equipos para la jornada ${formattedDate || fecha}`}
                 badgeText={`${matrixData.matrixGrandTotal} Obs. Totales`}
+                groupColumnLabel="Equipo"
+                techColumnLabel="Técnicos"
                 columns={statusColumns}
                 rows={matrixData.matrixRows}
                 totals={matrixData.matrixTotals}
                 grandTotal={matrixData.matrixGrandTotal}
                 footLabel="TOTAL DIARIO"
                 presentationMode={presentationMode}
-                onCellClick={(row, col, count) => {
-                  if (count > 0) {
-                    if (selectedCellFilter?.cuadrilla === row.cuadrilla && selectedCellFilter?.colKey === col.key) {
-                      setSelectedCellFilter(null)
-                    } else {
-                      setSelectedCellFilter({
-                        cuadrilla: row.cuadrilla,
-                        colKey: col.key,
-                        label: col.label
-                      })
-                      setShowDetailedList(true)
-                    }
-                  }
-                }}
               />
-
-              {/* Barra de Acceso y Filtro al Desglose Individual */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.65rem 0.85rem',
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px',
-                flexWrap: 'wrap',
-                gap: '0.5rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-                    {selectedCellFilter ? (
-                      <>
-                        Filtrando detalle por: <strong style={{ color: '#003060' }}>{selectedCellFilter.cuadrilla}</strong> · <strong style={{ color: '#0284c7' }}>{selectedCellFilter.label}</strong> ({displayRows.length} obs.)
-                      </>
-                    ) : (
-                      <span>Desglose unitario de observaciones ({displayRows.length} disponibles)</span>
-                    )}
-                  </span>
-                  {selectedCellFilter && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCellFilter(null)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#e11d48',
-                        fontSize: 'var(--text-2xs)',
-                        fontWeight: 'var(--fw-bold)',
-                        cursor: 'pointer',
-                        padding: '0.2rem 0.4rem',
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      Quitar filtro
-                    </button>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowDetailedList(prev => !prev)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    background: '#ffffff',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '6px',
-                    padding: '0.35rem 0.75rem',
-                    fontSize: 'var(--text-xs)',
-                    fontWeight: 'var(--fw-semibold)',
-                    color: '#003060',
-                    cursor: 'pointer'
-                  }}
-                  title={showDetailedList ? 'Ocultar listado de observaciones' : 'Ver listado de observaciones'}
-                >
-                  <Eye size={13} />
-                  <span>{showDetailedList ? 'Ocultar listado individual' : 'Ver listado individual'}</span>
-                  {showDetailedList ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                </button>
-              </div>
-
-              {/* Listado Individual de Observaciones (Desplegable) */}
-              {showDetailedList && (
-                displayRows.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: 'var(--text-sm)', background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    No hay observaciones para este filtro específico.
-                  </div>
-                ) : (
-                  <div className="prog-avance-table-wrap">
-                    <table className="prog-avance-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: '120px' }}>CÓD. OBS</th>
-                          <th>TÉCNICO / CUADRILLA</th>
-                          <th>CÓDIGO DE SITIO · LOCALIDAD</th>
-                          <th style={{ width: '130px' }}>ESTADO</th>
-                          <th>REVISADO POR</th>
-                          <th style={{ width: '48px', textAlign: 'center' }}>VER</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {displayRows.map((row, idx) => {
-                          const localidad = getLocalidad(row.id_sitio)
-                          const resolvedC = resolveCuadrillaForObs(row)
-                          return (
-                            <tr key={row.id_obs || idx} className="prog-avance-tr">
-                              <td>
-                                <span className="prog-avance-obs-code">{row.id_obs}</span>
-                              </td>
-                              <td>
-                                <div className="prog-avance-tech-cell">
-                                  <User size={13} color="#0284c7" style={{ flexShrink: 0 }} />
-                                  <div className="prog-avance-tech-texts">
-                                    {!presentationMode && (
-                                      <span className="prog-avance-tech-name">{row.tecnico || 'No asignado'}</span>
-                                    )}
-                                    <span className="prog-avance-tech-cuadrilla">{resolvedC || row.cuadrilla || 'Sin Cuadrilla'}</span>
-                                  </div>
-                                </div>
-                              </td>
-                              <td>
-                                <div className="prog-avance-site-cell">
-                                  <MapPin size={12} color="#0284c7" style={{ flexShrink: 0 }} />
-                                  <span className="prog-avance-site-code">{row.id_sitio}</span>
-                                  {localidad && (
-                                    <span className="prog-avance-site-loc">· {localidad}</span>
-                                  )}
-                                  {getZona(row.id_sitio) && (
-                                    <span className="prog-avance-site-loc" style={{ fontWeight: 'var(--fw-bold)', color: '#0369a1' }}>· {getZona(row.id_sitio)}</span>
-                                  )}
-                                </div>
-                              </td>
-                              <td>
-                                {renderEstadoBadge(row.estado)}
-                              </td>
-                              <td>
-                                <div className="prog-avance-revisor-cell">
-                                  {row.estado === 'En Revision' || row.estado === 'En Revisión' ? (
-                                    <>
-                                      <Clock size={12} color="#0284c7" />
-                                      <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: 'var(--text-sm)' }}>
-                                        {row.revisor || 'En proceso'}
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ShieldCheck size={13} color="#059669" />
-                                      <span style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--fw-semibold)', color: '#003060' }}>
-                                        {row.revisor || 'Sin revisor'}
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <button
-                                  type="button"
-                                  className="prog-avance-row-btn"
-                                  title="Ver detalle completo de esta observación"
-                                  onClick={() => setSelectedRowDetail(row)}
-                                >
-                                  <Eye size={13} />
-                                </button>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )
-              )}
             </div>
           )}
         </div>

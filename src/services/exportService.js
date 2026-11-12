@@ -1,7 +1,8 @@
 // M3: ExcelJS se importa dinamicamente dentro de generateStyledExcel
-import { supabase } from '../lib/supabase'
-import { fetchSitios } from './sitiosService'
-import { getPeruDateStr } from '../utils/helpers'
+import { supabase } from '../lib/supabase.js'
+import { fetchSitios, getZonaBySiteId } from './sitiosService.js'
+import { getPeruDateStr } from '../utils/helpers.js'
+import { getProgramaciones } from './programacionService.js'
 
 // Consulta completa de todas las columnas de la tabla 'observaciones'
 const OBS_COLUMNS = '*'
@@ -266,6 +267,190 @@ async function generateStyledExcel({ observations, siteMap, sheetName, fileName 
   const a = document.createElement('a')
   a.href = url
   a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Construye las filas y columnas para el reporte de Programación Diaria y Rutas
+ */
+export async function buildProgramacionDiariaData({ fechaStr, conTecnico = true }) {
+  const [sitios, progs] = await Promise.all([
+    fetchSitios({ soloAsignados: true }),
+    getProgramaciones(fechaStr, fechaStr)
+  ])
+
+  const sitiosMap = Object.fromEntries((sitios || []).map(s => [s.id_site, s]))
+  const rows = []
+
+  // Ordenar programaciones por cuadrilla
+  const progsOrdenadas = [...(progs || [])].sort((a, b) => {
+    const cA = a.personal?.cuadrilla || ''
+    const cB = b.personal?.cuadrilla || ''
+    return cA.localeCompare(cB, undefined, { numeric: true })
+  })
+
+  for (const prog of progsOrdenadas) {
+    const team = prog.equipo && prog.equipo.length > 0 ? prog.equipo : [prog.personal || {}]
+    const tec = team.find(m => {
+      const c = (m.cargo || '').toUpperCase()
+      return c.includes('TÉCN') || c.includes('TECN') || c.includes('SUPERVISOR')
+    }) || prog.personal || team[0] || {}
+
+    const nombreTecnico = tec.nombre_completo || 'Técnico sin asignar'
+    const sitiosProg = prog.sitios && prog.sitios.length > 0 ? prog.sitios : []
+
+    if (sitiosProg.length === 0) {
+      const cuadrillaRaw = tec.cuadrilla || prog.personal?.cuadrilla || ''
+      const matchCuad = cuadrillaRaw.match(/\d+/)
+      const cuadrillaStr = matchCuad ? `Cuadrilla ${matchCuad[0]}` : (cuadrillaRaw || 'Sin Cuadrilla')
+      const isZona2 = cuadrillaStr.includes('1') || cuadrillaStr.includes('2')
+      const cm = isZona2 ? 'PEDRO RUIZ' : 'BAGUA GRANDE'
+      const comentario = prog.notas || 'Sin sitios asignados'
+
+      if (conTecnico) {
+        rows.push([nombreTecnico, cuadrillaStr, cm, '-', '-', comentario])
+      } else {
+        rows.push([cuadrillaStr, cm, '-', '-', comentario])
+      }
+    } else {
+      const sitiosOrdenados = [...sitiosProg].sort((a, b) => (a.orden || 0) - (b.orden || 0))
+
+      for (const s of sitiosOrdenados) {
+        const siteId = s.id_sitio
+        const sData = sitiosMap[siteId] || {}
+
+        const cuadrillaRaw = sData.cuadrilla || sData.grupo || tec.cuadrilla || prog.personal?.cuadrilla || ''
+        const matchCuad = cuadrillaRaw.match(/\d+/)
+        const cuadrillaStr = matchCuad ? `Cuadrilla ${matchCuad[0]}` : (cuadrillaRaw || 'Sin Cuadrilla')
+
+        const zona = sData.zona || getZonaBySiteId(siteId)
+        const isZona2 = String(zona).toUpperCase().includes('2') || cuadrillaStr.includes('1') || cuadrillaStr.includes('2')
+        const cm = isZona2 ? 'PEDRO RUIZ' : 'BAGUA GRANDE'
+
+        const lugar = sData.localidad || sData.nombre_nodo || ''
+
+        let comentario = ''
+        if (s.notas_visita && s.notas_visita.trim()) {
+          comentario = s.notas_visita.trim()
+        } else if (prog.notas && prog.notas.trim() && !prog.notas.startsWith('{')) {
+          comentario = prog.notas.trim()
+        } else {
+          comentario = lugar
+            ? `Levantamiento de Observaciones en ${siteId} - ${lugar}`
+            : `Levantamiento de Observaciones en ${siteId}`
+        }
+
+        if (conTecnico) {
+          rows.push([nombreTecnico, cuadrillaStr, cm, siteId, lugar, comentario])
+        } else {
+          rows.push([cuadrillaStr, cm, siteId, lugar, comentario])
+        }
+      }
+    }
+  }
+
+  // Ordenar filas alfabética/numéricamente por Cuadrilla
+  rows.sort((a, b) => {
+    const cA = conTecnico ? a[1] : a[0]
+    const cB = conTecnico ? b[1] : b[0]
+    return cA.localeCompare(cB, undefined, { numeric: true })
+  })
+
+  const columns = conTecnico
+    ? [
+        { name: 'Tecnico', key: 'tecnico' },
+        { name: 'Cuadrilla', key: 'cuadrilla' },
+        { name: 'CM', key: 'cm' },
+        { name: 'Sitio', key: 'sitio' },
+        { name: 'Lugar', key: 'lugar' },
+        { name: 'Comentario', key: 'comentario' }
+      ]
+    : [
+        { name: 'Cuadrilla', key: 'cuadrilla' },
+        { name: 'CM', key: 'cm' },
+        { name: 'Sitio', key: 'sitio' },
+        { name: 'Lugar', key: 'lugar' },
+        { name: 'Comentario', key: 'comentario' }
+      ]
+
+  return {
+    rows,
+    columns,
+    fecha: fechaStr,
+    conTecnico,
+    totalFilas: rows.length,
+    progsCount: (progs || []).length
+  }
+}
+
+/**
+ * Exporta el reporte oficial de Programación Diaria y Rutas a Excel (.xlsx)
+ */
+export async function exportProgramacionDiariaExcel({ fechaStr, conTecnico = true }) {
+  const data = await buildProgramacionDiariaData({ fechaStr, conTecnico })
+  if (data.rows.length === 0) {
+    throw new Error(`No hay programaciones registradas para la fecha ${fechaStr}.`)
+  }
+
+  const { default: ExcelJS } = await import('exceljs')
+  const workbook = new ExcelJS.Workbook()
+  workbook.creator = 'COVEPA ERP - Amazonas'
+  workbook.created = new Date()
+
+  const cleanDate = fechaStr.replace(/[^a-zA-Z0-9]/g, '_')
+  const sheetName = `Prog_${cleanDate}`.slice(0, 31)
+  const worksheet = workbook.addWorksheet(sheetName, {
+    views: [{ showGridLines: true }]
+  })
+
+  const cleanTableName = `RepProg_${cleanDate}_${conTecnico ? 'ConTec' : 'SinTec'}`.slice(0, 31)
+
+  worksheet.addTable({
+    name: cleanTableName,
+    ref: 'A1',
+    headerRow: true,
+    totalsRow: false,
+    style: {
+      theme: 'TableStyleMedium9',
+      showRowStripes: true,
+      showColumnStripes: false
+    },
+    columns: data.columns.map(c => ({ name: c.name, filterButton: true })),
+    rows: data.rows
+  })
+
+  const colWidths = conTecnico
+    ? [24, 16, 18, 18, 26, 68]
+    : [16, 18, 18, 26, 68]
+
+  colWidths.forEach((w, i) => {
+    worksheet.getColumn(i + 1).width = w
+  })
+
+  worksheet.eachRow((row, rowNumber) => {
+    row.height = rowNumber === 1 ? 26 : 22
+    row.eachCell((cell, colNumber) => {
+      cell.font = { name: 'Calibri', size: 10 }
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: conTecnico
+          ? (colNumber === 4 ? 'center' : (colNumber === 2 || colNumber === 3 ? 'center' : 'left'))
+          : (colNumber === 3 ? 'center' : (colNumber === 1 || colNumber === 2 ? 'center' : 'left')),
+        wrapText: colNumber === (conTecnico ? 6 : 5)
+      }
+    })
+  })
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const suffix = conTecnico ? 'Con_Tecnicos' : 'Sin_Tecnicos'
+  a.download = `Programacion_COVEPA_${fechaStr}_${suffix}.xlsx`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)

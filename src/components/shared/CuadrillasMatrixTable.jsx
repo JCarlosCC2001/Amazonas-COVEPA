@@ -17,6 +17,8 @@ export default function CuadrillasMatrixTable({
   totals = {},
   grandTotal = 0,
   footLabel = 'TOTAL DIARIO',
+  groupColumnLabel = 'Cuadrilla',
+  techColumnLabel = 'Técnico',
   presentationMode = false,
   emptyMessage = 'No hay datos registrados para esta selección.',
   extraHeader = null,
@@ -84,8 +86,8 @@ export default function CuadrillasMatrixTable({
         <table className="dash-weekly-table">
           <thead>
             <tr>
-              <th className="th-left">Cuadrilla</th>
-              <th className="th-left">Técnico</th>
+              <th className="th-left">{groupColumnLabel}</th>
+              <th className="th-left">{techColumnLabel}</th>
               {columns.map(col => (
                 <th
                   key={col.key}
@@ -123,7 +125,12 @@ export default function CuadrillasMatrixTable({
                     style={onRowClick ? { cursor: 'pointer' } : undefined}
                   >
                     <td className="td-left" style={{ fontWeight: 'var(--fw-bold)', color: '#003060' }}>
-                      {cuadrillaName}
+                      <div>{cuadrillaName}</div>
+                      {row.subtitulo && (
+                        <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-normal)' }}>
+                          {row.subtitulo}
+                        </div>
+                      )}
                     </td>
                     <td className="td-left" style={{ color: 'var(--text-secondary)' }}>
                       {techName}

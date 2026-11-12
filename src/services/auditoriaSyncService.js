@@ -136,6 +136,17 @@ export async function registrarHistorialEstado({
   fechaExacta = null
 }) {
   if (!idObs || !estadoNuevo) return null
+
+  // Regla de Negocio: No registrar cambios que sean solo de comentario o donde no haya cambio real de estado
+  const estAntNorm = estadoAnterior ? normalizarEstadoOficial(estadoAnterior) : null
+  const estNuevoNorm = normalizarEstadoOficial(estadoNuevo)
+  if (estAntNorm && estNuevoNorm && estAntNorm === estNuevoNorm) {
+    return null
+  }
+  if (comentario && (comentario.includes('Edición de Comentario COVEPA') || comentario === 'Comentario COVEPA eliminado')) {
+    return null
+  }
+
   try {
     const { data, error } = await supabase
       .from('historial_estados_observaciones')
@@ -143,7 +154,7 @@ export async function registrarHistorialEstado({
         id_obs: idObs,
         id_sitio: idSitio || null,
         estado_anterior: estadoAnterior || null,
-        estado_nuevo: normalizarEstadoOficial(estadoNuevo),
+        estado_nuevo: estNuevoNorm,
         usuario_nombre: usuarioNombre || 'Auditor COVEPA',
         usuario_email: usuarioEmail || null,
         usuario_id: usuarioId || null,
@@ -166,7 +177,34 @@ export async function registrarHistorialEstado({
 }
 
 /**
+ * Evalúa si un registro de historial corresponde únicamente a una edición o eliminación de comentario,
+ * o a un registro redundante sin cambio real de estado (estado anterior igual a estado nuevo).
+ * Estos registros NO deben distorsionar la trazabilidad de estados ni los promedios de tiempo de revisión.
+ *
+ * @param {Object} h - Objeto de historial
+ * @returns {boolean} True si es un cambio de solo comentario o sin transición real
+ */
+export function esRegistroSoloComentario(h) {
+  if (!h) return false
+  const com = (h.comentario || '').trim().toLowerCase()
+  if (
+    com.includes('edición de comentario') ||
+    com.includes('edicion de comentario') ||
+    com === 'comentario covepa eliminado'
+  ) {
+    return true
+  }
+  const ant = normalizarEstadoOficial(h.estado_anterior)
+  const nue = normalizarEstadoOficial(h.estado_nuevo)
+  if (ant && nue && ant === nue) {
+    return true
+  }
+  return false
+}
+
+/**
  * Consulta la lista cronológica de cambios de estado de una observación.
+ * Excluye registros que sean solo de comentario para no distorsionar la trazabilidad de estados.
  *
  * @param {string} idObs - Código de observación
  * @returns {Promise<Array>} Lista de registros ordenada descendentemente por fecha
@@ -184,7 +222,11 @@ export async function fetchHistorialObservacion(idObs) {
       console.warn('[HISTORIAL-FETCH] Error al consultar historial:', error.message)
       return []
     }
-    return data || []
+
+    // Filtrar cambios de solo comentario o sin transición real de estado
+    const limpios = (data || []).filter(h => !esRegistroSoloComentario(h))
+
+    return limpios
   } catch (err) {
     console.warn('[HISTORIAL-FETCH] Error de red al consultar historial:', err)
     return []
@@ -193,7 +235,7 @@ export async function fetchHistorialObservacion(idObs) {
 
 /**
  * Consulta únicamente el registro más reciente del historial y el conteo total para una observación.
- * Optimizado para renderizado ultra rápido en tarjetas y modales.
+ * Optimizado para renderizado ultra rápido en tarjetas y modales, excluyendo ediciones de solo comentario.
  *
  * @param {string} idObs - Código de la observación
  * @returns {Promise<{ latest: Object|null, count: number }>}
@@ -201,18 +243,22 @@ export async function fetchHistorialObservacion(idObs) {
 export async function fetchUltimoCambioObservacion(idObs) {
   if (!idObs) return { latest: null, count: 0 }
   try {
-    const { data, count, error } = await supabase
+    const { data, error } = await supabase
       .from('historial_estados_observaciones')
-      .select('id, id_obs, id_sitio, estado_anterior, estado_nuevo, usuario_nombre, usuario_email, usuario_id, comentario, origen, created_at', { count: 'exact' })
+      .select('id, id_obs, id_sitio, estado_anterior, estado_nuevo, usuario_nombre, usuario_email, usuario_id, comentario, origen, created_at')
       .eq('id_obs', idObs)
       .order('created_at', { ascending: false })
-      .limit(1)
+      .limit(20)
 
     if (error) {
       console.warn('[ULTIMO-CAMBIO-FETCH] Error:', error.message)
       return { latest: null, count: 0 }
     }
-    return { latest: data?.[0] || null, count: count || 0 }
+
+    // Filtrar cambios que sean solo de comentario
+    const limpios = (data || []).filter(h => !esRegistroSoloComentario(h))
+
+    return { latest: limpios[0] || null, count: limpios.length }
   } catch (err) {
     console.warn('[ULTIMO-CAMBIO-FETCH] Error de red:', err)
     return { latest: null, count: 0 }
@@ -496,20 +542,8 @@ export async function sincronizarComentarioObservacion(idObs, comentarioTexto, i
     throw new Error(`Error sincronizando comentario: ${error.message}`)
   }
 
-  // Registrar en historial_estados_observaciones para que quede constancia del autor de la edición
-  if (extraContext.usuarioNombre || extraContext.usuarioEmail) {
-    registrarHistorialEstado({
-      idObs,
-      idSitio,
-      estadoAnterior: extraContext.estadoActual || 'Comentario',
-      estadoNuevo: extraContext.estadoActual || 'Comentario COVEPA',
-      usuarioNombre: extraContext.usuarioNombre || 'Usuario del Sistema',
-      usuarioEmail: extraContext.usuarioEmail,
-      usuarioId: extraContext.usuarioId,
-      comentario: comentarioLimpio ? `Edición de Comentario COVEPA: "${comentarioLimpio}"` : 'Comentario COVEPA eliminado',
-      origen: extraContext.origen || 'web_erp'
-    }).catch(err => console.warn('[HISTORIAL-WARN] Error registrando edición de comentario:', err))
-  }
+  // Nota de diseño: La edición de comentarios NO se registra en historial_estados_observaciones
+  // para no distorsionar las métricas y promedios de tiempo de respuesta de revisión.
 
   return { data: data?.[0] || null, error: null }
 }

@@ -100,6 +100,117 @@ function esRevisorGilat(nombre) {
   return AUDITORES_GILAT_OFICIALES.includes(n)
 }
 
+/**
+ * Formatea una fecha ISO a hora local de Perú (UTC-5) en formato DD/MM/YYYY HH:mm
+ */
+function formatPeruDateTime(isoStr) {
+  if (!isoStr) return '-'
+  const d = new Date(isoStr)
+  if (isNaN(d.getTime())) return '-'
+  return d.toLocaleString('es-PE', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).replace(',', '')
+}
+
+function esRegistroSoloComentario(h) {
+  if (!h) return false
+  const com = (h.comentario || '').trim().toLowerCase()
+  if (
+    com.includes('edición de comentario') ||
+    com.includes('edicion de comentario') ||
+    com === 'comentario covepa eliminado'
+  ) {
+    return true
+  }
+  const ant = normalizarEstadoOficial(h.estado_anterior)
+  const nue = normalizarEstadoOficial(h.estado_nuevo)
+  if (ant && nue && ant === nue) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Calcula los tiempos de solicitud, dictamen y demora de revisión a partir del historial.
+ * Excluye rigurosamente eventos de solo comentario o sin cambio real de estado.
+ */
+function calcularTiemposRevision(events = [], obs = {}) {
+  // Filtrar cambios de solo comentario o donde estado_anterior === estado_nuevo
+  const validEvents = (events || []).filter(e => !esRegistroSoloComentario(e))
+
+  // 1. Solicitó Revisión: evento donde pasó a En Revisión (transición real)
+  const revEvent = validEvents.slice().reverse().find(e =>
+    (e.estado_nuevo === 'En Revisión' || e.estado_nuevo === 'En Revision') &&
+    e.estado_anterior !== e.estado_nuevo
+  ) || validEvents.slice().reverse().find(e =>
+    e.estado_nuevo === 'En Revisión' || e.estado_nuevo === 'En Revision'
+  )
+
+  // 2. Revisado: evento donde se validó, rechazó o descartó
+  const finalEvent = revEvent
+    ? validEvents.find(e =>
+        (e.estado_nuevo === 'Validado' || e.estado_nuevo === 'Rechazado' || e.estado_nuevo === 'Descartado') &&
+        new Date(e.created_at) >= new Date(revEvent.created_at)
+      )
+    : validEvents.slice().reverse().find(e =>
+        e.estado_nuevo === 'Validado' || e.estado_nuevo === 'Rechazado' || e.estado_nuevo === 'Descartado'
+      )
+
+  const estadoActual = (obs.estado || obs.estado_covepa || '').trim()
+  const isEnEspera = estadoActual === 'En Revisión' || estadoActual === 'En Revision' ||
+    estadoActual === 'Solicitando Revisión' || estadoActual === 'Solicitando Revision' ||
+    estadoActual === 'Pendiente'
+
+  // Regla de Negocio: No agregar la hora ni fechas a las observaciones que están en revisión o solicitando revisión
+  if (isEnEspera) {
+    return {
+      fechaSolicitoIso: null,
+      fechaRevisadoIso: null,
+      solicitoDisplay: '-',
+      revisadoDisplay: '-',
+      tiempoRevisionTexto: '-',
+      tiempoDiffMins: null
+    }
+  }
+
+  let fechaSolicitoIso = revEvent ? revEvent.created_at : null
+  let fechaRevisadoIso = finalEvent ? finalEvent.created_at : null
+
+  // Fallback si no está en historial pero fecha_subsanacion existe y ya no está en espera
+  if (!fechaRevisadoIso && obs.fecha_subsanacion && obs.fecha_subsanacion !== 'Pendiente') {
+    fechaRevisadoIso = obs.fecha_subsanacion
+  }
+
+  let tiempoDiffMins = null
+  let tiempoRevisionTexto = '-'
+
+  if (fechaSolicitoIso && fechaRevisadoIso) {
+    const tSol = new Date(fechaSolicitoIso).getTime()
+    const tRev = new Date(fechaRevisadoIso).getTime()
+    if (!isNaN(tSol) && !isNaN(tRev) && tRev >= tSol) {
+      tiempoDiffMins = Math.round((tRev - tSol) / 60000)
+      const hrs = Math.floor(tiempoDiffMins / 60)
+      const mins = tiempoDiffMins % 60
+      tiempoRevisionTexto = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`
+    }
+  }
+
+  return {
+    fechaSolicitoIso,
+    fechaRevisadoIso,
+    solicitoDisplay: fechaSolicitoIso ? formatPeruDateTime(fechaSolicitoIso) : '-',
+    revisadoDisplay: fechaRevisadoIso ? formatPeruDateTime(fechaRevisadoIso) : '-',
+    tiempoRevisionTexto,
+    tiempoDiffMins
+  }
+}
+
 async function main() {
   const { fechaIso, horaMinuto, fechaFormateada } = getPeruDateInfo()
   const isManualRun = process.env.IS_MANUAL_RUN === 'true' ||
@@ -567,10 +678,70 @@ async function main() {
     // Regla de Negocio: El estado "Documentación" se excluye de los reportes por correo
     .filter(o => o.estado !== 'Documentación')
 
-  const validadas = rows.filter(r => r.estado === 'Validado')
-  const rechazadas = rows.filter(r => r.estado === 'Rechazado')
-  const descartadas = rows.filter(r => r.estado === 'Descartado')
-  const enEspera = rows.filter(r => r.estado === 'Solicitando Revisión' || r.estado === 'En Revisión')
+  // 7.3 Obtener historial cronológico para calcular tiempos de revisión exactos
+  const obsIds = rows.map(r => r.id_obs).filter(Boolean)
+  const historyByObs = new Map()
+  if (obsIds.length > 0) {
+    try {
+      const lote = 200
+      for (let i = 0; i < obsIds.length; i += lote) {
+        const sliceIds = obsIds.slice(i, i + lote)
+        const { data: hData, error: hErr } = await supabase
+          .from('historial_estados_observaciones')
+          .select('id_obs, id_sitio, estado_anterior, estado_nuevo, created_at, usuario_nombre, comentario')
+          .in('id_obs', sliceIds)
+          .order('created_at', { ascending: true })
+        if (!hErr && Array.isArray(hData)) {
+          hData.forEach(h => {
+            if (esRegistroSoloComentario(h)) return
+
+            if (!historyByObs.has(h.id_obs)) historyByObs.set(h.id_obs, [])
+            historyByObs.get(h.id_obs).push(h)
+          })
+        }
+      }
+    } catch (eHist) {
+      console.warn('[CRON-REPORTE] ⚠️ Aviso consultando historial para cálculo de tiempos:', eHist.message)
+    }
+  }
+
+  // Enriquecer cada observación con los datos de tiempo de revisión
+  let sumDiffMins = 0
+  let countConTiempo = 0
+
+  const rowsEnriquecidas = rows.map(r => {
+    const evs = historyByObs.get(r.id_obs) || []
+    const calc = calcularTiemposRevision(evs, r)
+    if (calc.tiempoDiffMins !== null) {
+      sumDiffMins += calc.tiempoDiffMins
+      countConTiempo++
+    }
+    return {
+      ...r,
+      fecha_solicito_revision: calc.solicitoDisplay,
+      fecha_revisado: calc.revisadoDisplay,
+      tiempo_revision: calc.tiempoRevisionTexto,
+      tiempo_revision_mins: calc.tiempoDiffMins,
+      fecha_solicito_iso: calc.fechaSolicitoIso,
+      fecha_revisado_iso: calc.fechaRevisadoIso
+    }
+  })
+
+  // Calcular tiempo promedio de revisión de la jornada
+  let tiempoPromedioTexto = '—'
+  let tiempoPromedioHoras = 0
+  if (countConTiempo > 0) {
+    const avgMins = Math.round(sumDiffMins / countConTiempo)
+    const avgHrs = Math.floor(avgMins / 60)
+    const avgRestMins = avgMins % 60
+    tiempoPromedioTexto = avgHrs > 0 ? `${avgHrs}h ${avgRestMins}m` : `${avgRestMins} min`
+    tiempoPromedioHoras = Number((avgMins / 60).toFixed(1))
+  }
+
+  const validadas = rowsEnriquecidas.filter(r => r.estado === 'Validado')
+  const rechazadas = rowsEnriquecidas.filter(r => r.estado === 'Rechazado')
+  const descartadas = rowsEnriquecidas.filter(r => r.estado === 'Descartado')
+  const enEspera = rowsEnriquecidas.filter(r => r.estado === 'Solicitando Revisión' || r.estado === 'En Revisión')
   const totalListados = validadas.length + rechazadas.length + enEspera.length + descartadas.length
 
   const stats = {
@@ -578,10 +749,13 @@ async function main() {
     rechazadas: rechazadas.length,
     descartadas: descartadas.length,
     enEspera: enEspera.length,
-    total: rows.length
+    total: rowsEnriquecidas.length,
+    tiempoPromedioRevision: tiempoPromedioHoras,
+    tiempoPromedioRevisionTexto: tiempoPromedioTexto,
+    totalConTiempo: countConTiempo
   }
 
-  console.log(`[CRON-REPORTE] 📊 Resumen computado: Validadas: ${stats.validadas} | Rechazadas: ${stats.rechazadas} | En Espera: ${stats.enEspera} | Descartadas: ${stats.descartadas}`)
+  console.log(`[CRON-REPORTE] 📊 Resumen computado: Validadas: ${stats.validadas} | Rechazadas: ${stats.rechazadas} | En Espera: ${stats.enEspera} | Descartadas: ${stats.descartadas} | Tiempo Promedio: ${stats.tiempoPromedioRevisionTexto}`)
 
   // 8. Preparar Logo Adjunto (covepa.png con Content-ID)
   const logoPath = path.resolve(__dirname, '../covepa.png')
@@ -609,14 +783,17 @@ async function main() {
       views: [{ showGridLines: true }]
     })
 
-    // Anchos calibrados de las 6 columnas oficiales (Zona entre ID y Código de lugar)
+    // Anchos calibrados de las 9 columnas oficiales
     ws.columns = [
       { width: 22 }, // ID
       { width: 14 }, // Zona
       { width: 20 }, // Código de lugar
       { width: 28 }, // Nombre de localidad
       { width: 24 }, // Persona que validó
-      { width: 22 }  // Estado observación
+      { width: 22 }, // Estado observación
+      { width: 20 }, // Solicitó Revisión
+      { width: 20 }, // Revisado
+      { width: 20 }  // Tiempo de Revisión
     ]
 
     // Consolidado de todas las observaciones trabajadas en la jornada
@@ -635,13 +812,20 @@ async function main() {
       const isGilat = !isEnRev && esRevisorGilat(revRaw)
       const revisorFinal = isGilat ? revRaw : '-'
 
+      const solicitoRevision = isEnRev ? '-' : (r.fecha_solicito_revision || '-')
+      const revisado = isEnRev ? '-' : (r.fecha_revisado || '-')
+      const tiempoRevision = isEnRev ? '-' : (r.tiempo_revision || '-')
+
       return [
         r.id_obs || '',
         r.zona || getZonaForSite(r.id_sitio) || 'ZONA 7',
         r.id_sitio || '',
         r.localidad || '',
         revisorFinal,
-        estadoDisplay
+        estadoDisplay,
+        solicitoRevision,
+        revisado,
+        tiempoRevision
       ]
     })
 
@@ -663,9 +847,12 @@ async function main() {
         { name: 'Código de lugar', filterButton: true },
         { name: 'Nombre de localidad', filterButton: true },
         { name: 'Persona que validó', filterButton: true },
-        { name: 'Estado observación', filterButton: true }
+        { name: 'Estado observación', filterButton: true },
+        { name: 'Solicitó Revisión', filterButton: true },
+        { name: 'Revisado', filterButton: true },
+        { name: 'Tiempo de Revisión', filterButton: true }
       ],
-      rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-', '-']]
+      rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-', '-', '-', '-', '-']]
     })
 
     // Conservar encabezado institucional en color oficial #003060 y texto blanco
@@ -696,7 +883,7 @@ async function main() {
         cell.font = { name: 'Arial', size: 10 }
         cell.alignment = {
           vertical: 'middle',
-          horizontal: (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 6 || cell.value === '-') ? 'center' : 'left'
+          horizontal: (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 6 || colNum === 7 || colNum === 8 || colNum === 9 || cell.value === '-') ? 'center' : 'left'
         }
       })
     }
@@ -836,6 +1023,26 @@ async function main() {
                         <td style="padding:10px 4px;">
                           <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#9333ea;line-height:1;">${stats.descartadas}</div>
                           <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#7e22ce;text-transform:uppercase;margin-top:4px;">🚫 No Aplica</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <!-- Tiempo Promedio de Revisión -->
+                <tr>
+                  <td colspan="4" style="padding-top:10px;">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fed7aa;border-top:3px solid #f97316;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:11px 16px;text-align:center;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:22px;font-weight:bold;color:#c2410c;line-height:1;">
+                            ⏱️ ${escapeHtml(stats.tiempoPromedioRevisionTexto || '—')}
+                          </div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#9a3412;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">
+                            Tiempo Promedio de Revisión
+                          </div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;color:#7c2d12;margin-top:2px;">
+                            Promedio de atención transcurrido desde que se solicitó revisión hasta el dictamen de Gilat
+                          </div>
                         </td>
                       </tr>
                     </table>

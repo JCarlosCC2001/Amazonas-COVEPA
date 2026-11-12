@@ -144,9 +144,10 @@ export async function generateAvanceDiaPNG({
   ctx.fillText('COVEPA · PROYECTO REGIONAL AMAZONAS', marginX, 35)
 
   // Título del cuadro
+  const isEquipos = matrixRows.some(r => (r.cuadrilla || '').toUpperCase().startsWith('EQUIPO'))
   ctx.fillStyle = '#003060'
   ctx.font = '800 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  ctx.fillText('Resumen Operativo por Cuadrilla', marginX, 64)
+  ctx.fillText(isEquipos ? 'Resumen Operativo por Equipos' : 'Resumen Operativo por Cuadrilla', marginX, 64)
 
   // Subtítulo con fecha
   ctx.fillStyle = '#475569'
@@ -211,10 +212,10 @@ export async function generateAvanceDiaPNG({
     ctx.fillText(kpi.label, kx + 10, kpiY + 38)
   })
 
-  // 4. Definición de Columnas de la Matriz de Cuadrillas
+  // 4. Definición de Columnas de la Matriz de Cuadrillas / Equipos
   const colDef = [
-    { key: 'cuadrilla', label: 'Cuadrilla', align: 'left', x: marginX, w: 155 },
-    { key: 'tecnico', label: 'Técnico Asignado', align: 'left', x: marginX + 155, w: 195 },
+    { key: 'cuadrilla', label: isEquipos ? 'Equipo' : 'Cuadrilla', align: 'left', x: marginX, w: 155 },
+    { key: 'tecnico', label: isEquipos ? 'Técnicos Responsables' : 'Técnico Asignado', align: 'left', x: marginX + 155, w: 195 },
     { key: 'solicitando', label: 'Solicitando Revisión', align: 'center', x: marginX + 350, w: 145 },
     { key: 'enRevision', label: 'En Revisión', align: 'center', x: marginX + 495, w: 125 },
     { key: 'rechazados', label: 'Rechazados', align: 'center', x: marginX + 620, w: 110 },
@@ -268,10 +269,18 @@ export async function generateAvanceDiaPNG({
     ctx.lineTo(marginX + 350, ry + rowHeight)
     ctx.stroke()
 
-    // Col 0: Cuadrilla
+    // Col 0: Cuadrilla o Equipo
     ctx.fillStyle = '#003060'
-    ctx.font = '800 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-    ctx.fillText(r.cuadrilla || `CUADRILLA ${idx + 1}`, colDef[0].x + 14, ry + 26)
+    if (r.subtitulo) {
+      ctx.font = '800 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      ctx.fillText(r.cuadrilla || `EQUIPO ${idx + 1}`, colDef[0].x + 14, ry + 19)
+      ctx.fillStyle = '#64748b'
+      ctx.font = '500 9.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      ctx.fillText(r.subtitulo, colDef[0].x + 14, ry + 32)
+    } else {
+      ctx.font = '800 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      ctx.fillText(r.cuadrilla || `CUADRILLA ${idx + 1}`, colDef[0].x + 14, ry + 26)
+    }
 
     // Col 1: Técnico
     ctx.fillStyle = '#334155'

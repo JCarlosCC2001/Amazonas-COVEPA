@@ -3,16 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import {
   Clock, CheckCircle2, XCircle, AlertTriangle, TrendingUp,
   ShieldCheck, ExternalLink, Calendar, Award, UserCheck,
-  Zap, MapPin, Layers, ChevronRight, Activity, Ban
+  Zap, MapPin, Layers, ChevronRight, Activity, Ban,
+  ArrowRightLeft, Building2, Shield
 } from 'lucide-react'
 import MetricCard from '../shared/MetricCard'
 import ErpTable from '../shared/ErpTable'
 
 /**
- * GilatMetricsView — Pestaña Ejecutiva de Desempeño y SLA de Gilat Networks
+ * GilatMetricsView — Pestaña Ejecutiva de Desempeño y SLA de Gilat Networks vs COVEPA
  *
- * Muestra el análisis de velocidad de validación, tiempos de respuesta (SLA),
- * avance diario y desglose por auditor certificado de Gilat.
+ * Muestra el análisis de velocidad de validación, tiempos de respuesta (SLA Gilat vs COVEPA),
+ * avance diario y desglose por auditor certificado de Gilat y colas de espera por bandeja.
  * Cumple estrictamente con el Estándar Tipográfico Inter y números tabulares.
  */
 export default function GilatMetricsView({
@@ -22,7 +23,7 @@ export default function GilatMetricsView({
 }) {
   const navigate = useNavigate()
   const [periodoFiltro, setPeriodoFiltro] = useState('14d') // '7d' | '14d' | 'all'
-  const [bottomTab, setBottomTab] = useState('ranking') // 'ranking' | 'cola'
+  const [bottomTab, setBottomTab] = useState('ranking') // 'ranking' | 'cola-gilat' | 'cola-covepa'
 
   const kpis = metrics?.kpis || {
     totalDictaminadas: 0,
@@ -31,12 +32,26 @@ export default function GilatMetricsView({
     tasaAprobacion: 0,
     tiempoPromedioHoras: 0,
     tiempoPromedioDias: 0,
+    tiempoCovepaHoras: 0,
+    tiempoCovepaDias: 0,
+    cicloTotalHoras: 0,
+    cicloTotalDias: 0,
     colaEsperaActual: 0,
+    colaCovepaActual: 0,
     dictaminadasHoy: 0,
     velocidadDiariaPromedio: 0,
     descartadas: 0,
-    mayorEspera: null
+    mayorEspera: null,
+    mayorEsperaCovepa: null
   }
+
+  // Proporción porcentual del ciclo total de gestión
+  const pctGilat = kpis.cicloTotalHoras > 0
+    ? Math.round((kpis.tiempoPromedioHoras / kpis.cicloTotalHoras) * 100)
+    : 50
+  const pctCovepa = kpis.cicloTotalHoras > 0
+    ? (100 - pctGilat)
+    : 50
 
   // Filtrado de la serie diaria según el período seleccionado
   const serieFiltrada = useMemo(() => {
@@ -328,22 +343,33 @@ export default function GilatMetricsView({
     {
       key: 'estado_covepa',
       label: 'ESTADO ACTUAL',
-      width: '140px',
+      width: '150px',
       align: 'center',
-      render: c => (
-        <span
-          className="t-badge"
-          style={{
-            background: c.estado_covepa === 'En Revisión' ? 'rgba(2, 132, 199, 0.12)' : 'rgba(245, 158, 11, 0.12)',
-            color: c.estado_covepa === 'En Revisión' ? '#0284c7' : '#d97706',
-            fontWeight: 'var(--fw-bold)',
-            padding: '0.2rem 0.55rem',
-            borderRadius: '6px'
-          }}
-        >
-          {c.estado_covepa}
-        </span>
-      )
+      render: c => {
+        let bg = 'rgba(2, 132, 199, 0.12)'
+        let col = '#0284c7'
+        if (c.estado_covepa === 'Solicitando Revisión') {
+          bg = 'rgba(245, 158, 11, 0.12)'
+          col = '#d97706'
+        } else if (c.estado_covepa === 'Documentación') {
+          bg = 'rgba(139, 92, 246, 0.12)'
+          col = '#7c3aed'
+        }
+        return (
+          <span
+            className="t-badge"
+            style={{
+              background: bg,
+              color: col,
+              fontWeight: 'var(--fw-bold)',
+              padding: '0.2rem 0.55rem',
+              borderRadius: '6px'
+            }}
+          >
+            {c.estado_covepa}
+          </span>
+        )
+      }
     },
     {
       key: 'waitHrs',
@@ -389,15 +415,24 @@ export default function GilatMetricsView({
 
   return (
     <div className="dash-gilat-view">
-      {/* ── TIRA SUPERIOR DE 6 MEDIDORES EJECUTIVOS (KPIs GILAT) ── */}
+      {/* ── TIRA SUPERIOR DE 6 MEDIDORES EJECUTIVOS (GILAT VS COVEPA) ── */}
       <div className="dash-metrics-strip-6col">
         <MetricCard
           icon={<Clock size={18} />}
-          label="SLA Respuesta"
+          label="SLA Gilat (Revisión)"
           value={loading ? '—' : `${kpis.tiempoPromedioHoras}h`}
           subtitle={`${kpis.tiempoPromedioDias} días promedio`}
           variant="sky"
-          title="Tiempo promedio transcurrido desde solicitud hasta dictamen de Gilat"
+          title="Tiempo promedio transcurrido desde que la observación entra a 'En Revisión' hasta su dictamen por Gilat (Validado, Rechazado o Documentación)"
+        />
+
+        <MetricCard
+          icon={<Zap size={18} />}
+          label="Demora Interna COVEPA"
+          value={loading ? '—' : `${kpis.tiempoCovepaHoras}h`}
+          subtitle={`${kpis.tiempoCovepaDias} días promedio`}
+          variant="navy"
+          title="Tiempo promedio interno de gestión COVEPA: desde 'Solicitando Revisión' hasta ingreso a 'En Revisión' o ajuste en 'Documentación'"
         />
 
         <MetricCard
@@ -422,32 +457,112 @@ export default function GilatMetricsView({
 
         <MetricCard
           icon={<AlertTriangle size={18} />}
-          label="En Cola Gilat"
+          label="Bandeja Gilat"
           value={loading ? '—' : kpis.colaEsperaActual.toLocaleString()}
-          subtitle={kpis.dictaminadasHoy > 0 ? `${kpis.dictaminadasHoy} resueltas hoy` : 'Pendiente dictamen'}
+          subtitle="En Revisión externa"
           variant="amber"
-          onClick={() => navigate('/observaciones?estado=En Revisión')}
-          title="Observaciones actualmente en espera de respuesta de Gilat"
+          onClick={() => setBottomTab('cola-gilat')}
+          title="Observaciones actualmente en 'En Revisión' esperando dictamen de Gilat"
         />
 
         <MetricCard
-          icon={<TrendingUp size={18} />}
-          label="Ritmo Diario"
-          value={loading ? '—' : `${kpis.velocidadDiariaPromedio}`}
-          subtitle="Obs / día activo"
-          variant="navy"
-          title="Promedio de observaciones revisadas por Gilat en cada jornada activa"
-        />
-
-        <MetricCard
-          icon={<ShieldCheck size={18} />}
-          label="Mayor Espera"
-          value={loading ? '—' : (kpis.mayorEspera ? `${kpis.mayorEspera.waitHrs}h` : '0h')}
-          subtitle={kpis.mayorEspera ? `${kpis.mayorEspera.id_sitio}` : 'Sin cola'}
+          icon={<Layers size={18} />}
+          label="Bandeja COVEPA"
+          value={loading ? '—' : kpis.colaCovepaActual.toLocaleString()}
+          subtitle="Solicitando / Docum."
           variant="purple"
-          onClick={() => kpis.mayorEspera && navigate(`/observaciones?search=${encodeURIComponent(kpis.mayorEspera.id_sitio)}`)}
-          title={kpis.mayorEspera ? `Observación ${kpis.mayorEspera.id_obs} esperando hace ${kpis.mayorEspera.waitHrs} horas` : 'No hay observaciones en cola'}
+          onClick={() => setBottomTab('cola-covepa')}
+          title="Observaciones en gestión interna COVEPA ('Solicitando Revisión' o 'Documentación')"
         />
+      </div>
+
+      {/* ── BARRA DE COMPARATIVA ANALÍTICA DE CICLO Y TIEMPOS DE RESPUESTA ── */}
+      <div
+        className="dash-weekly-card"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0.65rem 1rem',
+          flexWrap: 'wrap',
+          gap: '0.75rem'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <ArrowRightLeft size={15} color="#003060" />
+            <span className="t-name" style={{ color: '#003060' }}>
+              Ciclo de Auditoría:
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <span
+              className="t-badge"
+              style={{
+                background: 'rgba(2, 132, 199, 0.1)',
+                color: '#0284c7',
+                border: '1px solid rgba(2, 132, 199, 0.25)',
+                padding: '0.2rem 0.55rem',
+                borderRadius: '6px'
+              }}
+              title="Demora de Gilat desde que la observación entra a 'En Revisión' hasta su dictamen"
+            >
+              🛡️ Gilat SLA: <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{kpis.tiempoPromedioHoras}h</strong> ({kpis.tiempoPromedioDias} d)
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>+</span>
+            <span
+              className="t-badge"
+              style={{
+                background: 'rgba(0, 48, 96, 0.08)',
+                color: '#003060',
+                border: '1px solid rgba(0, 48, 96, 0.2)',
+                padding: '0.2rem 0.55rem',
+                borderRadius: '6px'
+              }}
+              title="Demora interna COVEPA entre Solicitando Revisión, Documentación y pase a En Revisión"
+            >
+              🏢 Interno COVEPA: <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{kpis.tiempoCovepaHoras}h</strong> ({kpis.tiempoCovepaDias} d)
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>=</span>
+            <span
+              className="t-badge"
+              style={{
+                background: 'rgba(16, 185, 129, 0.1)',
+                color: '#059669',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                padding: '0.2rem 0.55rem',
+                borderRadius: '6px'
+              }}
+              title="Ciclo completo acumulado de subsanación y auditoría"
+            >
+              ⏱️ Ciclo Total: <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{kpis.cicloTotalHoras}h</strong> ({kpis.cicloTotalDias} d)
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: '170px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+              <span className="t-meta" style={{ color: '#0284c7', fontWeight: 'var(--fw-semibold)' }}>
+                Gilat {pctGilat}%
+              </span>
+              <span className="t-meta" style={{ color: '#003060', fontWeight: 'var(--fw-semibold)' }}>
+                COVEPA {pctCovepa}%
+              </span>
+            </div>
+            <div style={{ height: '6px', borderRadius: '3px', background: '#e2e8f0', display: 'flex', overflow: 'hidden' }}>
+              <div
+                style={{ width: `${pctGilat}%`, background: '#0284c7' }}
+                title={`Gilat: ${pctGilat}% del tiempo de ciclo (${kpis.tiempoPromedioHoras}h)`}
+              />
+              <div
+                style={{ width: `${pctCovepa}%`, background: '#003060' }}
+                title={`COVEPA: ${pctCovepa}% del tiempo de ciclo (${kpis.tiempoCovepaHoras}h)`}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── PANEL CENTRAL: AVANCE DIARIO Y REPARTO DE AUDITORES ── */}
@@ -662,10 +777,10 @@ export default function GilatMetricsView({
         </div>
       </div>
 
-      {/* ── PANEL INFERIOR: TABLA EJECUTIVA CON SUB-PESTAÑAS (RANKING AUDITORES / COLA DE ESPERA) ── */}
+      {/* ── PANEL INFERIOR: TABLA EJECUTIVA CON SUB-PESTAÑAS (AUDITORES / BANDEJA GILAT / BANDEJA COVEPA) ── */}
       <div className="dash-weekly-card" style={{ marginTop: '0.75rem' }}>
         <div className="dash-weekly-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button
               type="button"
               className={`dash-pill-filter ${bottomTab === 'ranking' ? 'is-active' : ''}`}
@@ -673,27 +788,42 @@ export default function GilatMetricsView({
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
             >
               <UserCheck size={14} />
-              <span>Desempeño Detallado de Auditores</span>
+              <span>Auditores Gilat</span>
               <span className="dash-subtab-badge">{(metrics?.rankingAuditores || []).length}</span>
             </button>
 
             <button
               type="button"
-              className={`dash-pill-filter ${bottomTab === 'cola' ? 'is-active' : ''}`}
-              onClick={() => setBottomTab('cola')}
+              className={`dash-pill-filter ${bottomTab === 'cola-gilat' ? 'is-active' : ''}`}
+              onClick={() => setBottomTab('cola-gilat')}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
             >
-              <Clock size={14} />
-              <span>Observaciones en Cola de Espera</span>
+              <Shield size={14} />
+              <span>Bandeja Gilat (En Revisión)</span>
               <span className="dash-subtab-badge" style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#d97706' }}>
                 {kpis.colaEsperaActual}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={`dash-pill-filter ${bottomTab === 'cola-covepa' ? 'is-active' : ''}`}
+              onClick={() => setBottomTab('cola-covepa')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              <Building2 size={14} />
+              <span>Bandeja COVEPA (Solicitando / Doc.)</span>
+              <span className="dash-subtab-badge" style={{ background: 'rgba(139, 92, 246, 0.2)', color: '#7c3aed' }}>
+                {kpis.colaCovepaActual}
               </span>
             </button>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span className="t-meta" style={{ color: 'var(--text-muted)' }}>
-              {bottomTab === 'ranking' ? 'Consolidado histórico de revisiones' : 'Observaciones esperando dictamen de Gilat'}
+              {bottomTab === 'ranking' && 'Consolidado histórico de revisiones por auditor'}
+              {bottomTab === 'cola-gilat' && 'Observaciones en "En Revisión" esperando dictamen de Gilat'}
+              {bottomTab === 'cola-covepa' && 'Observaciones en preparación interna COVEPA ("Solicitando Revisión" o "Documentación")'}
             </span>
           </div>
         </div>
@@ -712,16 +842,31 @@ export default function GilatMetricsView({
           />
         )}
 
-        {bottomTab === 'cola' && (
+        {bottomTab === 'cola-gilat' && (
           <ErpTable
             columns={colaColumns}
             data={metrics?.colaDetalle || []}
             keyField="id_obs"
             loading={loading}
-            loadingMessage="Cargando cola de espera..."
-            emptyTitle="Cola de espera vacía"
+            loadingMessage="Cargando bandeja de revisión Gilat..."
+            emptyTitle="Bandeja Gilat al día"
             emptyDescription="¡Excelente! No hay observaciones pendientes esperando revisión por parte de Gilat."
-            entityName="observaciones en cola"
+            entityName="observaciones en revisión Gilat"
+            minWidth="880px"
+            onRowClick={c => navigate(`/observaciones?search=${encodeURIComponent(c.id_sitio)}`)}
+          />
+        )}
+
+        {bottomTab === 'cola-covepa' && (
+          <ErpTable
+            columns={colaColumns}
+            data={metrics?.colaCovepaDetalle || []}
+            keyField="id_obs"
+            loading={loading}
+            loadingMessage="Cargando bandeja interna COVEPA..."
+            emptyTitle="Bandeja COVEPA al día"
+            emptyDescription="No hay observaciones pendientes en gestión interna COVEPA (Solicitando Revisión o Documentación)."
+            entityName="observaciones en gestión COVEPA"
             minWidth="880px"
             onRowClick={c => navigate(`/observaciones?search=${encodeURIComponent(c.id_sitio)}`)}
           />

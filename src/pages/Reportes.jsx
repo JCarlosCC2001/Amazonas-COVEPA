@@ -2002,7 +2002,7 @@ export default function Reportes() {
                   >
                     📎 {tipoVista === 'SEMANAL'
                       ? `Reporte_Semanal_Observaciones_Semana_${datosReporteSemanal?.numeroSemana || 'consolidado'}.xlsx (ID · Zona · Código · Localidad · Revisor · Estado)`
-                      : `Reporte_Observaciones_${datosReporteDiario?.fechaStr || 'jornada'}.xlsx (ID · Zona · Código · Localidad · Revisor · Estado)`}
+                      : `Reporte_Observaciones_${datosReporteDiario?.fechaStr || 'jornada'}.xlsx (ID · Zona · Código · Localidad · Revisor · Estado · Solicitó Revisión · Revisado · Tiempo de Revisión)`}
                   </span>
                 </span>
               </div>

@@ -36,16 +36,12 @@ const PAGE_META = {
     subtitle: 'Catálogo georreferenciado de 156 sitios del proyecto'
   },
   '/kmz': {
-    title: 'Centro de Descargas',
-    subtitle: 'Cartografía satelital KMZ y exportaciones oficiales a Excel'
+    title: 'Zona de Informes',
+    subtitle: 'Informes ejecutivos en Excel (.xlsx), programación diaria y consolidados'
   },
   '/reportes': {
     title: 'Reportes Operativos',
     subtitle: 'Métricas de avance y desempeño técnico'
-  },
-  '/eficiencia': {
-    title: 'Eficiencia Operativa',
-    subtitle: 'Productividad y rendimiento de cuadrillas en campo'
   }
 }
 

@@ -275,18 +275,18 @@ export function AuthProvider({ children }) {
   const canEditProgramacion = Boolean(!isReadOnly && (isAdmin || isSupervisor || isCoordinador))
 
   // 5. Reglas de acceso a rutas:
-  // - asistente_calidad NO accede a '/reportes' ni a '/eficiencia'
-  // - invitado NO accede a '/reportes', '/eficiencia' ni a '/kmz' (Centro de Descargas)
+  // - asistente_calidad NO accede a '/reportes'
+  // - invitado NO accede a '/reportes' ni a '/kmz' (Centro de Descargas)
   const canAccessRoute = (path) => {
     if (!path) return true
     const cleanSegment = path.toLowerCase().replace(/^\//, '').split('?')[0].split('/')[0]
     if (isAsistenteCalidad) {
-      if (cleanSegment === 'reportes' || cleanSegment === 'eficiencia') {
+      if (cleanSegment === 'reportes') {
         return false
       }
     }
     if (isInvitado) {
-      if (cleanSegment === 'reportes' || cleanSegment === 'eficiencia' || cleanSegment === 'kmz') {
+      if (cleanSegment === 'reportes' || cleanSegment === 'kmz') {
         return false
       }
     }

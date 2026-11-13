@@ -60,6 +60,10 @@ export default async function handler(req, res) {
                              (req.body && req.body.destinatario_prueba) ||
                              req.headers['x-destinatario-prueba'] || ''
 
+  const tipoReporte = (req.query?.tipo_reporte) ||
+                      (req.body && req.body.tipo_reporte) ||
+                      req.headers['x-tipo-reporte'] || 'diario'
+
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -73,7 +77,8 @@ export default async function handler(req, res) {
         ref: 'main',
         inputs: {
           forzar: forzarParam ? 'true' : 'false',
-          destinatario_prueba: String(destinatarioPrueba || '').trim()
+          destinatario_prueba: String(destinatarioPrueba || '').trim(),
+          tipo_reporte: String(tipoReporte || 'diario').trim()
         }
       })
     })

@@ -224,7 +224,7 @@ function calcularTiemposRevision(events = [], obs = {}) {
   }
 }
 
-async function main() {
+async function enviarReporteDiarioGilat() {
   const { fechaIso, horaMinuto, fechaFormateada } = getPeruDateInfo()
   const isManualRun = process.env.IS_MANUAL_RUN === 'true' ||
                       process.env.IS_MANUAL_RUN === true ||
@@ -288,22 +288,16 @@ async function main() {
     return
   }
 
-  // 4.1 Comprobar coincidencia de hora si es ejecución programada
+  // 4.1 Comprobar coincidencia de hora si es ejecución programada (cron)
   const [cfgH, cfgM] = (config.hora_envio || '21:00:00').split(':').map(Number)
   const [curH, curM] = horaMinuto.split(':').map(Number)
   const cfgTotalMins = (cfgH || 0) * 60 + (cfgM || 0)
   const curTotalMins = (curH || 0) * 60 + (curM || 0)
-  const diffMins = curTotalMins - cfgTotalMins
+  const diffMins = Math.abs(curTotalMins - cfgTotalMins)
 
-  // a) Si aún no llega la hora programada en hora Perú (diffMins < 0), esperar al siguiente ciclo
-  if (!isManualRun && diffMins < 0) {
-    console.log(`[CRON-REPORTE] ⏳ Hora programada: ${config.hora_envio} | Hora actual Perú: ${horaMinuto}. Faltan ${Math.abs(diffMins)} min para la hora programada. Omitiendo.`)
-    return
-  }
-
-  // b) Si han pasado más de 6 horas desde la hora programada (ej. ya amaneció o es otra jornada), omitir
-  if (!isManualRun && diffMins > 360) {
-    console.log(`[CRON-REPORTE] ⏳ La hora programada (${config.hora_envio}) quedó fuera de la ventana nocturna respecto a la hora actual (${horaMinuto}). Omitiendo.`)
+  // Tolerancia de ±25 minutos para absorber retrasos de inicio del runner de GitHub Actions
+  if (!isManualRun && diffMins > 25) {
+    console.log(`[CRON-REPORTE] ⏳ Hora programada: ${config.hora_envio} | Hora actual Perú: ${horaMinuto} (Diferencia: ${diffMins} min). Fuera de horario. Omitiendo.`)
     return
   }
 
@@ -1277,7 +1271,669 @@ async function main() {
     }
   } catch (_) {}
 
-  console.log(`[CRON-REPORTE] 🏁 Proceso finalizado satisfactoriamente.`)
+  console.log(`[CRON-REPORTE] 🏁 Proceso de reporte diario Gilat finalizado satisfactoriamente.`)
+}
+
+/**
+ * Procesa y despacha el REPORTE DIARIO INTERNO COVEPA con:
+ * - Cifras del día actual (incluyendo Documentación)
+ * - Cuadro Matricial Ejecutivo por Equipos (Equipo 1: C1+C2, Equipo 2: C3+C6, Equipo 3: C4+C5)
+ * - Archivo Excel adjunto con Hoja 1 (Matriz_Equipos) y Hoja 2 (Detalle_Codigos con localidad contigua al sitio)
+ */
+async function enviarReporteDiarioInterno() {
+  const { fechaIso, horaMinuto, fechaFormateada } = getPeruDateInfo()
+  const isManualRun = process.env.IS_MANUAL_RUN === 'true' ||
+                      process.env.IS_MANUAL_RUN === true ||
+                      process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
+  const forzarEnvio = process.env.FORZAR_ENVIO === 'true' || process.env.FORZAR_ENVIO === true
+  const rawDestinatarioPrueba = (process.env.DESTINATARIO_PRUEBA || '').trim()
+
+  console.log(`[REPORTE-INTERNO] 🚀 Iniciando verificación de Reporte Diario Interno COVEPA.`)
+  console.log(`[REPORTE-INTERNO] 🕒 Hora actual Perú: ${horaMinuto} · Fecha: ${fechaIso} | Modo: ${isManualRun ? 'MANUAL FORZADO' : 'PROGRAMADO'}`)
+
+  // 1. Leer configuración desde Supabase (config_diario_interno)
+  let config = {
+    activo: true,
+    hora_envio: '21:30:00',
+    destinatarios: ['ccondor@covepa.pe'],
+    destinatarios_cc: [],
+    asunto: '[COVEPA INTERNO] Resumen Operativo de Jornada - {fecha}',
+    notas_jornada: '',
+    periodo_reporte: 'dia_actual'
+  }
+
+  try {
+    const { data: dbConfig } = await supabase
+      .from('configuracion_reportes_correo')
+      .select('*')
+      .eq('id', 'config_diario_interno')
+      .maybeSingle()
+
+    if (dbConfig) {
+      config = { ...config, ...dbConfig }
+    }
+  } catch (err) {
+    console.warn('[REPORTE-INTERNO] ⚠️ No se pudo leer la tabla de configuración, usando valores por defecto:', err.message)
+  }
+
+  // 1.1 Limpieza de notas de días anteriores
+  let notasLimpias = (config.notas_jornada || '').trim()
+  if (config.updated_at) {
+    const fechaPeruUpdate = getPeruDateString(config.updated_at)
+    if (fechaPeruUpdate && fechaPeruUpdate < fechaIso && notasLimpias) {
+      console.log(`[REPORTE-INTERNO] 🧹 La nota operativa pertenece al día anterior (${fechaPeruUpdate}). Limpiando comentario.`)
+      notasLimpias = ''
+      try {
+        await supabase
+          .from('configuracion_reportes_correo')
+          .update({ notas_jornada: '' })
+          .eq('id', 'config_diario_interno')
+      } catch (_) {}
+    }
+  }
+
+  // 1.2 Determinar jornada objetivo
+  const periodoReporte = config.periodo_reporte || 'dia_actual'
+  const targetDateInfo = periodoReporte === 'dia_anterior' ? getPeruDateInfo(-1) : getPeruDateInfo(0)
+  const targetFechaIso = targetDateInfo.fechaIso
+  const targetFechaFormateada = targetDateInfo.fechaFormateada
+  console.log(`[REPORTE-INTERNO] 📅 Reportando fecha: ${targetFechaIso} (${targetFechaFormateada})`)
+
+  // 1.3 Si está desactivado y es cron, salir
+  if (!config.activo && !isManualRun) {
+    console.log('[REPORTE-INTERNO] ⏸️ El envío automático interno está pausado en la base de datos. Finalizando.')
+    return
+  }
+
+  // 1.4 Si es programado (cron), comprobar hora y frecuencia de 1 al día
+  if (!isManualRun) {
+    const [cfgH, cfgM] = (config.hora_envio || '21:30:00').split(':').map(Number)
+    const [curH, curM] = horaMinuto.split(':').map(Number)
+    const cfgTotalMins = (cfgH || 0) * 60 + (cfgM || 0)
+    const curTotalMins = (curH || 0) * 60 + (curM || 0)
+    const diffMins = Math.abs(curTotalMins - cfgTotalMins)
+
+    // Tolerancia de ±25 minutos para absorber retrasos de inicio del runner de GitHub Actions
+    if (diffMins > 25) {
+      console.log(`[REPORTE-INTERNO] ⏳ Hora programada: ${config.hora_envio} | Hora actual: ${horaMinuto} (Diferencia: ${diffMins} min). Fuera de horario. Omitiendo.`)
+      return
+    }
+
+    if (!forzarEnvio && config.ultimo_envio_at) {
+      const ultimoEnvioPeruDate = getPeruDateString(config.ultimo_envio_at)
+      if (ultimoEnvioPeruDate === fechaIso) {
+        console.log(`[REPORTE-INTERNO] ✋ Ya se envió hoy el reporte interno (${ultimoEnvioPeruDate}). Omitiendo duplicado.`)
+        return
+      }
+    }
+  }
+
+  // 2. Destinatarios
+  let recipients = (config.destinatarios || []).filter(Boolean)
+  let recipientsCC = (config.destinatarios_cc || []).filter(Boolean)
+
+  if (forzarEnvio && rawDestinatarioPrueba) {
+    console.log(`[REPORTE-INTERNO] 🧪 MODO PRUEBA: Enviando exclusivamente al destinatario de prueba: ${rawDestinatarioPrueba}`)
+    recipients = [rawDestinatarioPrueba]
+    recipientsCC = []
+  } else if (recipients.length === 0) {
+    recipients.push('ccondor@covepa.pe')
+  }
+
+  console.log(`[REPORTE-INTERNO] 📬 Destinatarios: ${recipients.join(', ')} | CC: ${recipientsCC.join(', ') || 'Ninguno'}`)
+
+  // 3. Catálogo de Sitios y Personal
+  const [extSitios, localCuadrillas, personalRes] = await Promise.all([
+    supabaseExt.from('sitios').select('id_site, localidad, nombre_nodo').catch(() => ({ data: [] })),
+    supabase.from('sitios_cuadrillas').select('id_site, cuadrilla, zona').eq('activo', true).catch(() => ({ data: [] })),
+    supabaseExt.from('personal').select('nombre, apellido, nombre_completo, email, email_2, cuadrilla_asignada, cargo').catch(() => ({ data: [] }))
+  ])
+
+  const sitiosMap = {}
+  const asignacionesMap = {}
+  ;(localCuadrillas?.data || []).forEach(a => {
+    if (a.id_site) asignacionesMap[a.id_site.toUpperCase()] = a
+  })
+  ;(extSitios?.data || []).forEach(s => {
+    const asig = asignacionesMap[s.id_site?.toUpperCase()] || {}
+    sitiosMap[s.id_site] = {
+      ...s,
+      grupo: asig.cuadrilla || 'Sin Cuadrilla',
+      zona: asig.zona || 'ZONA 7'
+    }
+  })
+
+  // Técnicos titulares por cuadrilla
+  const cuadrillaTecnicos = {
+    'CUADRILLA 1': 'Alfonso Curi',
+    'CUADRILLA 2': 'Marco Chamba',
+    'CUADRILLA 3': 'Percy Rojas',
+    'CUADRILLA 4': 'William Avila',
+    'CUADRILLA 5': 'Jhonatan Flores',
+    'CUADRILLA 6': 'Juan Castro'
+  }
+  ;(personalRes?.data || []).forEach(p => {
+    const c = (p.cuadrilla_asignada || '').trim().toUpperCase()
+    if (c && c.startsWith('CUADRILLA') && !cuadrillaTecnicos[c]) {
+      cuadrillaTecnicos[c] = (p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim()
+    }
+  })
+
+  // 4. Observaciones de la jornada (incluyendo Documentación)
+  const startIsoUtc = new Date(`${targetFechaIso}T00:00:00-05:00`).toISOString()
+  const endIsoUtc = new Date(`${targetFechaIso}T23:59:59.999-05:00`).toISOString()
+  const isToday = targetFechaIso === fechaIso
+
+  const { data: rawObsFecha } = await supabase
+    .from('observaciones')
+    .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+    .gte('fecha_subsanacion', startIsoUtc)
+    .lte('fecha_subsanacion', endIsoUtc)
+
+  const histMap = new Map()
+  try {
+    const { data: rawHist } = await supabase
+      .from('historial_estados_observaciones')
+      .select('id_obs, id_sitio, estado_anterior, estado_nuevo, created_at, usuario_nombre')
+      .gte('created_at', startIsoUtc)
+      .lte('created_at', endIsoUtc)
+      .order('created_at', { ascending: true })
+    ;(rawHist || []).forEach(h => histMap.set(h.id_obs, h))
+  } catch (_) {}
+
+  const obsFechaSet = new Set((rawObsFecha || []).map(o => o.id_obs))
+  const missingObsIds = Array.from(histMap.keys()).filter(id => !obsFechaSet.has(id))
+  let additionalObs = []
+  if (missingObsIds.length > 0) {
+    try {
+      const { data: addData } = await supabase
+        .from('observaciones')
+        .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+        .in('id_obs', missingObsIds)
+      additionalObs = addData || []
+    } catch (_) {}
+  }
+
+  let rawObsRevision = []
+  if (isToday) {
+    try {
+      const { data: revData } = await supabase
+        .from('observaciones')
+        .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+        .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión,estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión')
+      rawObsRevision = revData || []
+    } catch (_) {}
+  }
+
+  const obsMap = new Map()
+  ;(rawObsFecha || []).forEach(o => obsMap.set(o.id_obs, { ...o }))
+  additionalObs.forEach(o => { if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o }) })
+  ;(rawObsRevision || []).forEach(o => { if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o }) })
+
+  // 5. Agrupación por Equipos (Equipo 1: C1+C2, Equipo 2: C3+C6, Equipo 3: C4+C5)
+  const equiposMap = {
+    'EQUIPO 1': {
+      id: 'EQUIPO 1',
+      cuadrilla: 'EQUIPO 1',
+      subtitulo: 'Cuadrilla 1 y 2',
+      tecnico: `${cuadrillaTecnicos['CUADRILLA 1']} · ${cuadrillaTecnicos['CUADRILLA 2']}`,
+      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+      total: 0
+    },
+    'EQUIPO 2': {
+      id: 'EQUIPO 2',
+      cuadrilla: 'EQUIPO 2',
+      subtitulo: 'Cuadrilla 3 y 6',
+      tecnico: `${cuadrillaTecnicos['CUADRILLA 3']} · ${cuadrillaTecnicos['CUADRILLA 6']}`,
+      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+      total: 0
+    },
+    'EQUIPO 3': {
+      id: 'EQUIPO 3',
+      cuadrilla: 'EQUIPO 3',
+      subtitulo: 'Cuadrilla 4 y 5',
+      tecnico: `${cuadrillaTecnicos['CUADRILLA 4']} · ${cuadrillaTecnicos['CUADRILLA 5']}`,
+      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+      total: 0
+    }
+  }
+
+  const resolveCuadrilla = (o) => {
+    const s = sitiosMap[o.id_sitio] || {}
+    let g = (s.grupo || '').toUpperCase()
+    if (g.startsWith('CUADRILLA')) return g
+    return 'CUADRILLA 1'
+  }
+
+  const allDetailRows = []
+
+  Array.from(obsMap.values()).forEach(o => {
+    const hTransition = histMap.get(o.id_obs)
+    const rawSt = (isToday ? (o.estado_covepa || hTransition?.estado_nuevo || '') : (hTransition ? hTransition.estado_nuevo : (o.estado_covepa || ''))).trim()
+
+    let estadoFinal = 'Validado'
+    if (rawSt.toLowerCase().includes('documentaci')) estadoFinal = 'Documentación'
+    else if (rawSt.toLowerCase().includes('solicitando')) estadoFinal = 'Solicitando Revisión'
+    else if (rawSt.toLowerCase().includes('en revisi')) estadoFinal = 'En Revisión'
+    else if (rawSt.toLowerCase().includes('rechaz')) estadoFinal = 'Rechazado'
+    else if (rawSt.toLowerCase().includes('descart')) estadoFinal = 'Descartado'
+
+    const targetCuadrilla = resolveCuadrilla(o)
+    let equipoKey = 'EQUIPO 1'
+    if (targetCuadrilla === 'CUADRILLA 1' || targetCuadrilla === 'CUADRILLA 2') equipoKey = 'EQUIPO 1'
+    else if (targetCuadrilla === 'CUADRILLA 3' || targetCuadrilla === 'CUADRILLA 6') equipoKey = 'EQUIPO 2'
+    else if (targetCuadrilla === 'CUADRILLA 4' || targetCuadrilla === 'CUADRILLA 5') equipoKey = 'EQUIPO 3'
+
+    const targetEq = equiposMap[equipoKey]
+    if (targetEq) {
+      if (estadoFinal === 'Solicitando Revisión') targetEq.values.solicitando++
+      else if (estadoFinal === 'En Revisión') targetEq.values.enRevision++
+      else if (estadoFinal === 'Rechazado') targetEq.values.rechazados++
+      else if (estadoFinal === 'Validado') targetEq.values.validados++
+      else if (estadoFinal === 'Documentación') targetEq.values.documentacion++
+    }
+
+    const sInfo = sitiosMap[o.id_sitio] || {}
+    allDetailRows.push({
+      id_obs: o.id_obs,
+      equipo: equipoKey,
+      cuadrilla: targetCuadrilla,
+      tecnico: cuadrillaTecnicos[targetCuadrilla] || '-',
+      id_sitio: o.id_sitio,
+      localidad: sInfo.localidad || sInfo.nombre_nodo || '',
+      zona: sInfo.zona || 'ZONA 7',
+      estado: estadoFinal,
+      revisor: o.revisor || '-',
+      fecha_subsanacion: o.fecha_subsanacion || '-',
+      detalle: o.detalle || '',
+      comentario: o.justificacion_demora || o.acuerdo_subsanacion || '-'
+    })
+  })
+
+  // Totales de la matriz
+  const matrixRows = Object.values(equiposMap).map(eq => ({
+    ...eq,
+    total: eq.values.solicitando + eq.values.enRevision + eq.values.rechazados + eq.values.validados + eq.values.documentacion
+  }))
+
+  const matrixTotals = {
+    solicitando: matrixRows.reduce((a, r) => a + r.values.solicitando, 0),
+    enRevision: matrixRows.reduce((a, r) => a + r.values.enRevision, 0),
+    rechazados: matrixRows.reduce((a, r) => a + r.values.rechazados, 0),
+    validados: matrixRows.reduce((a, r) => a + r.values.validados, 0),
+    documentacion: matrixRows.reduce((a, r) => a + r.values.documentacion, 0)
+  }
+  const grandTotal = matrixTotals.solicitando + matrixTotals.enRevision + matrixTotals.rechazados + matrixTotals.validados + matrixTotals.documentacion
+
+  console.log(`[REPORTE-INTERNO] 📊 Estadísticas calculadas: Total=${grandTotal} | Validadas=${matrixTotals.validados} | Rechazadas=${matrixTotals.rechazados} | EnEspera=${matrixTotals.solicitando + matrixTotals.enRevision} | Doc=${matrixTotals.documentacion}`)
+
+  // 6. Generar Excel Oficial de 2 Hojas
+  const wb = new ExcelJS.Workbook()
+  wb.creator = 'Amazonas-COVEPA'
+
+  // Hoja 1: Matriz_Equipos
+  const wsMatriz = wb.addWorksheet('Matriz_Equipos', { views: [{ showGridLines: true }] })
+  wsMatriz.columns = [
+    { width: 16 }, { width: 22 }, { width: 34 },
+    { width: 20 }, { width: 16 }, { width: 16 },
+    { width: 16 }, { width: 18 }, { width: 16 }
+  ]
+  wsMatriz.mergeCells('A1:I1')
+  const c1 = wsMatriz.getCell('A1')
+  c1.value = 'COVEPA — REPORTE DIARIO INTERNO (MATRIZ DE EQUIPOS)'
+  c1.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF003060' } }
+  c1.alignment = { vertical: 'middle', horizontal: 'center' }
+  wsMatriz.getRow(1).height = 30
+
+  wsMatriz.mergeCells('A2:I2')
+  const c2 = wsMatriz.getCell('A2')
+  c2.value = `Jornada Operativa: ${targetFechaFormateada} | Total Observaciones Tocadas: ${grandTotal}`
+  c2.font = { name: 'Arial', size: 10, italic: true, color: { argb: 'FF64748B' } }
+  c2.alignment = { vertical: 'middle', horizontal: 'center' }
+  wsMatriz.getRow(2).height = 20
+
+  const headersMatriz = ['Equipo', 'Cuadrillas', 'Técnicos Asignados', 'Solicitando Revisión', 'En Revisión', 'Rechazados', 'Validados', 'Documentación', 'Total']
+  const hrM = wsMatriz.getRow(4)
+  hrM.height = 26
+  headersMatriz.forEach((h, idx) => {
+    const c = hrM.getCell(idx + 1)
+    c.value = h
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
+    c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+    c.alignment = { vertical: 'middle', horizontal: 'center' }
+  })
+
+  matrixRows.forEach((row, i) => {
+    const r = wsMatriz.getRow(5 + i)
+    r.height = 22
+    const vals = [row.id, row.subtitulo, row.tecnico, row.values.solicitando, row.values.enRevision, row.values.rechazados, row.values.validados, row.values.documentacion, row.total]
+    vals.forEach((v, idx) => {
+      const c = r.getCell(idx + 1)
+      c.value = v
+      c.font = { name: 'Arial', size: 10, bold: idx === 0 || idx === 8 }
+      c.alignment = { vertical: 'middle', horizontal: idx <= 2 ? (idx === 2 ? 'left' : 'center') : 'center' }
+      if (idx === 0) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F7FF' } }
+      if (idx === 8) {
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } }
+        c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF0284C7' } }
+      }
+    })
+  })
+
+  const totRow = wsMatriz.getRow(5 + matrixRows.length)
+  totRow.height = 24
+  const totVals = ['TOTAL GENERAL', 'Todas las cuadrillas', '-', matrixTotals.solicitando, matrixTotals.enRevision, matrixTotals.rechazados, matrixTotals.validados, matrixTotals.documentacion, grandTotal]
+  totVals.forEach((v, idx) => {
+    const c = totRow.getCell(idx + 1)
+    c.value = v
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
+    c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+    c.alignment = { vertical: 'middle', horizontal: idx <= 2 ? (idx === 2 ? 'left' : 'center') : 'center' }
+  })
+
+  // Hoja 2: Detalle_Codigos (Regla 2.1: Localidad contigua a Sitio)
+  const wsDetalle = wb.addWorksheet('Detalle_Codigos', { views: [{ showGridLines: true }] })
+  wsDetalle.columns = [
+    { width: 22 }, { width: 14 }, { width: 16 }, { width: 24 },
+    { width: 18 }, { width: 28 }, { width: 12 }, { width: 20 },
+    { width: 22 }, { width: 20 }, { width: 36 }, { width: 36 }
+  ]
+  const detailTableRows = allDetailRows.map(r => [
+    r.id_obs, r.equipo, r.cuadrilla, r.tecnico, r.id_sitio, r.localidad,
+    r.zona, r.estado, r.revisor, r.fecha_subsanacion, r.detalle, r.comentario
+  ])
+  wsDetalle.addTable({
+    name: `Interno_${targetFechaIso.replace(/-/g, '_')}`,
+    ref: 'A1',
+    headerRow: true,
+    totalsRow: false,
+    style: { theme: 'TableStyleMedium9', showRowStripes: true, showColumnStripes: false },
+    columns: [
+      { name: 'ID Obs', filterButton: true },
+      { name: 'Equipo', filterButton: true },
+      { name: 'Cuadrilla', filterButton: true },
+      { name: 'Técnico', filterButton: true },
+      { name: 'Código de Sitio', filterButton: true },
+      { name: 'Localidad', filterButton: true },
+      { name: 'Zona', filterButton: true },
+      { name: 'Estado COVEPA', filterButton: true },
+      { name: 'Revisor', filterButton: true },
+      { name: 'Fecha/Hora Subsanación', filterButton: true },
+      { name: 'Detalle', filterButton: true },
+      { name: 'Comentario', filterButton: true }
+    ],
+    rows: detailTableRows.length > 0 ? detailTableRows : [['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']]
+  })
+  const hrD = wsDetalle.getRow(1)
+  hrD.height = 26
+  hrD.eachCell(c => {
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
+    c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+    c.alignment = { vertical: 'middle', horizontal: 'center' }
+  })
+
+  const excelBuffer = await wb.xlsx.writeBuffer()
+  const excelFileName = `Reporte_Interno_Observaciones_${targetFechaIso}.xlsx`
+
+  // 7. Generar HTML del correo interno
+  const logoUrl = 'https://raw.githubusercontent.com/JCarlosCC2001/Amazonas-COVEPA/main/public/covepa_logo.png'
+  const htmlBody = `
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"><title>COVEPA - Reporte Diario Interno</title></head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f1f5f9;padding:24px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:760px;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+        <tr>
+          <td style="background-color:#003060;padding:24px 30px;text-align:left;">
+            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td valign="middle"><img src="${logoUrl}" alt="COVEPA" width="160" height="42" border="0" style="display:block;width:160px;height:auto;" /></td>
+                <td align="right" valign="middle">
+                  <div style="font-size:11px;font-weight:bold;color:#38bdf8;text-transform:uppercase;letter-spacing:1px;">OPERACIONES & CALIDAD</div>
+                  <div style="font-size:13px;color:#cbd5e1;margin-top:3px;">${escapeHtml(targetFechaFormateada)}</div>
+                </td>
+              </tr>
+            </table>
+            <div style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.15);padding-top:14px;">
+              <h1 style="margin:0;font-size:19px;font-weight:bold;color:#ffffff;">Reporte Diario Interno — Productividad por Equipos</h1>
+              <p style="margin:4px 0 0 0;font-size:12.5px;color:#94a3b8;">Amazonas COVEPA · Matriz ejecutiva de cuadrillas integradas y observaciones de la jornada</p>
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:22px 28px 10px 28px;">
+            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td style="padding-bottom:12px;">
+                  <div style="background-color:#f8fafc;border:1.5px solid #003060;border-radius:10px;padding:14px;text-align:center;">
+                    <div style="font-size:30px;font-weight:bold;color:#003060;line-height:1;">${grandTotal}</div>
+                    <div style="font-size:11px;font-weight:bold;color:#475569;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">Total Observaciones Tocadas en la Jornada</div>
+                  </div>
+                </td>
+              </tr>
+            </table>
+
+            <table role="presentation" width="100%" border="0" cellspacing="6" cellpadding="0">
+              <tr>
+                <td width="25%" style="background-color:#f0fdf4;border:1.5px solid #22c55e;border-radius:8px;padding:10px;text-align:center;">
+                  <div style="font-size:20px;font-weight:bold;color:#15803d;">${matrixTotals.validados}</div>
+                  <div style="font-size:10.5px;font-weight:bold;color:#166534;margin-top:2px;">✓ Validadas</div>
+                </td>
+                <td width="25%" style="background-color:#fff1f2;border:1.5px solid #f43f5e;border-radius:8px;padding:10px;text-align:center;">
+                  <div style="font-size:20px;font-weight:bold;color:#be123c;">${matrixTotals.rechazados}</div>
+                  <div style="font-size:10.5px;font-weight:bold;color:#9f1239;margin-top:2px;">✕ Rechazadas</div>
+                </td>
+                <td width="25%" style="background-color:#f0f9ff;border:1.5px solid #0284c7;border-radius:8px;padding:10px;text-align:center;">
+                  <div style="font-size:20px;font-weight:bold;color:#0369a1;">${matrixTotals.solicitando + matrixTotals.enRevision}</div>
+                  <div style="font-size:10.5px;font-weight:bold;color:#075985;margin-top:2px;">⏳ En Espera</div>
+                </td>
+                <td width="25%" style="background-color:#faf5ff;border:1.5px solid #a855f7;border-radius:8px;padding:10px;text-align:center;">
+                  <div style="font-size:20px;font-weight:bold;color:#7e22ce;">${matrixTotals.documentacion}</div>
+                  <div style="font-size:10.5px;font-weight:bold;color:#6b21a8;margin-top:2px;">📄 Documentación</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- TABLA MATRICIAL DE LOS 3 EQUIPOS -->
+        <tr>
+          <td style="padding:14px 28px 10px 28px;">
+            <div style="font-size:12.5px;font-weight:bold;color:#003060;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">
+              📊 Matriz Ejecutiva por Equipos y Cuadrillas
+            </div>
+            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;border-collapse:collapse;">
+              <thead>
+                <tr style="background-color:#003060;color:#ffffff;">
+                  <th style="padding:10px 12px;font-size:11px;font-weight:bold;text-align:left;">EQUIPO / CUADRILLAS</th>
+                  <th style="padding:10px 10px;font-size:11px;font-weight:bold;text-align:left;">TÉCNICOS</th>
+                  <th style="padding:10px 6px;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;">SOLICITANDO</th>
+                  <th style="padding:10px 6px;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;">EN REV.</th>
+                  <th style="padding:10px 6px;font-size:10px;font-weight:bold;color:#fecdd3;text-align:center;">RECHAZ.</th>
+                  <th style="padding:10px 6px;font-size:10px;font-weight:bold;color:#bbf7d0;text-align:center;">VALID.</th>
+                  <th style="padding:10px 6px;font-size:10px;font-weight:bold;color:#e9d5ff;text-align:center;">DOCUM.</th>
+                  <th style="padding:10px 8px;font-size:11px;font-weight:bold;text-align:center;">TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${matrixRows.map((r, i) => `
+                <tr style="background-color:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};border-bottom:1px solid #e2e8f0;">
+                  <td style="padding:10px 12px;font-size:12px;font-weight:bold;color:#003060;border-right:1px solid #e2e8f0;">
+                    ${escapeHtml(r.id)}
+                    <div style="font-size:10.5px;font-weight:normal;color:#64748b;">${escapeHtml(r.subtitulo)}</div>
+                  </td>
+                  <td style="padding:10px 10px;font-size:11px;color:#334155;border-right:1px solid #e2e8f0;">
+                    ${escapeHtml(r.tecnico)}
+                  </td>
+                  <td style="padding:10px 6px;font-size:12px;font-weight:600;color:#0284c7;text-align:center;border-right:1px solid #e2e8f0;">
+                    ${r.values.solicitando}
+                  </td>
+                  <td style="padding:10px 6px;font-size:12px;font-weight:600;color:#0284c7;text-align:center;border-right:1px solid #e2e8f0;">
+                    ${r.values.enRevision}
+                  </td>
+                  <td style="padding:10px 6px;font-size:12px;font-weight:bold;color:#e11d48;text-align:center;border-right:1px solid #e2e8f0;">
+                    ${r.values.rechazados}
+                  </td>
+                  <td style="padding:10px 6px;font-size:12px;font-weight:bold;color:#16a34a;text-align:center;border-right:1px solid #e2e8f0;">
+                    ${r.values.validados}
+                  </td>
+                  <td style="padding:10px 6px;font-size:12px;font-weight:600;color:#7e22ce;text-align:center;border-right:1px solid #e2e8f0;">
+                    ${r.values.documentacion}
+                  </td>
+                  <td style="padding:10px 8px;font-size:13px;font-weight:bold;color:#003060;text-align:center;background-color:#eff6ff;">
+                    ${r.total}
+                  </td>
+                </tr>
+                `).join('')}
+                <tr style="background-color:#0f172a;color:#ffffff;border-top:2px solid #003060;">
+                  <td colspan="2" style="padding:11px 12px;font-size:12px;font-weight:bold;text-transform:uppercase;">TOTAL GENERAL</td>
+                  <td style="padding:11px 6px;font-size:12.5px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.solicitando}</td>
+                  <td style="padding:11px 6px;font-size:12.5px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.enRevision}</td>
+                  <td style="padding:11px 6px;font-size:12.5px;font-weight:bold;color:#fecdd3;text-align:center;">${matrixTotals.rechazados}</td>
+                  <td style="padding:11px 6px;font-size:12.5px;font-weight:bold;color:#bbf7d0;text-align:center;">${matrixTotals.validados}</td>
+                  <td style="padding:11px 6px;font-size:12.5px;font-weight:bold;color:#e9d5ff;text-align:center;">${matrixTotals.documentacion}</td>
+                  <td style="padding:11px 8px;font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;background-color:#1e293b;">${grandTotal}</td>
+                </tr>
+              </tbody>
+            </table>
+          </td>
+        </tr>
+
+        ${notasLimpias ? `
+        <tr>
+          <td style="padding:10px 28px 14px 28px;">
+            <div style="background-color:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #003060;border-radius:6px;padding:12px 16px;">
+              <div style="font-size:11px;font-weight:bold;color:#003060;text-transform:uppercase;margin-bottom:5px;">💬 Notas Operativas de la Jornada</div>
+              <div style="font-size:12.5px;color:#334155;line-height:1.5;white-space:pre-wrap;">${escapeHtml(notasLimpias)}</div>
+            </div>
+          </td>
+        </tr>
+        ` : ''}
+
+        <tr>
+          <td style="padding:6px 28px 18px 28px;">
+            <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;">
+              <div style="font-size:12px;color:#166534;">
+                📎 <strong>Archivo Adjunto:</strong> Se incluye el archivo Excel oficial con la <strong>Matriz de Equipos</strong> y el <strong>Detalle de los códigos tocados</strong> en la jornada.
+              </div>
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="background-color:#ffffff;border-top:1px solid #e2e8f0;padding:22px 30px;text-align:left;">
+            <div style="font-size:12.5px;color:#475569;margin-bottom:10px;">Saludos cordiales,</div>
+            <div style="margin-bottom:10px;"><img src="${logoUrl}" alt="COVEPA" width="145" height="38" border="0" style="display:block;width:145px;height:auto;" /></div>
+            <div style="font-size:13.5px;font-weight:bold;color:#003060;">Condor Callupe Carlos</div>
+            <div style="font-size:12px;color:#64748b;font-weight:600;margin-top:2px;">Gestor de Calidad · Proyecto Amazonas</div>
+            <div style="font-size:11.5px;color:#64748b;margin-top:6px;">Cel: +51 958 086 874 · Correo: ccondor@covepa.pe</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+  `
+
+  // 8. Enviar correo vía Nodemailer
+  const smtpUser = (process.env.SMTP_USER || 'ccondor@covepa.pe').trim()
+  const smtpPass = (process.env.SMTP_PASS || '').trim()
+  if (!smtpPass) {
+    console.error('[REPORTE-INTERNO] ❌ Falta variable de entorno SMTP_PASS.')
+    return
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'mail.covepa.pe',
+    port: parseInt(process.env.SMTP_PORT || '465', 10),
+    secure: true,
+    auth: { user: smtpUser, pass: smtpPass },
+    tls: { rejectUnauthorized: false }
+  })
+
+  const subjectFinal = (config.asunto || '[COVEPA INTERNO] Resumen Operativo de Jornada - {fecha}')
+    .replace('{fecha}', targetFechaFormateada)
+
+  console.log(`[REPORTE-INTERNO] 📤 Enviando correo a ${recipients.join(', ')}...`)
+
+  const info = await transporter.sendMail({
+    from: `"COVEPA - Gestión de Calidad" <${smtpUser}>`,
+    to: recipients,
+    cc: recipientsCC.length > 0 ? recipientsCC : undefined,
+    bcc: (forzarEnvio && rawDestinatarioPrueba) ? undefined : [smtpUser],
+    subject: subjectFinal,
+    html: htmlBody,
+    attachments: [
+      {
+        filename: excelFileName,
+        content: excelBuffer,
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      }
+    ]
+  })
+
+  console.log(`[REPORTE-INTERNO] ✅ Correo entregado con éxito! MessageId: ${info.messageId}`)
+
+  // 9. Actualizar ultimo_envio_at y registrar en historial
+  if (!forzarEnvio) {
+    try {
+      await supabase
+        .from('configuracion_reportes_correo')
+        .update({ ultimo_envio_at: new Date().toISOString() })
+        .eq('id', 'config_diario_interno')
+    } catch (_) {}
+  }
+
+  try {
+    const esPrueba = Boolean(forzarEnvio && rawDestinatarioPrueba)
+    await supabase.from('historial_reportes_correo').insert({
+      tipo_reporte: 'diario_interno',
+      tipo: esPrueba ? 'prueba' : (forzarEnvio ? 'manual' : 'oficial'),
+      origen: process.env.GITHUB_RUN_ID ? (isManualRun ? 'github_actions' : 'cron') : 'manual',
+      destinatarios: recipients,
+      destinatarios_cc: recipientsCC,
+      asunto: subjectFinal,
+      total_obs: grandTotal,
+      validadas: matrixTotals.validados,
+      rechazadas: matrixTotals.rechazados,
+      en_espera: matrixTotals.solicitando + matrixTotals.enRevision,
+      descartadas: matrixTotals.documentacion,
+      estado: 'exitoso',
+      message_id: info.messageId || null,
+      github_run_id: process.env.GITHUB_RUN_ID || null,
+      created_at: new Date().toISOString()
+    })
+  } catch (_) {}
+
+  console.log(`[REPORTE-INTERNO] 🏁 Proceso de reporte interno completado con éxito.`)
+}
+
+// ============================================================
+// MAIN: DISPATCHER COORDINADOR DE REPORTES DIARIOS
+// ============================================================
+async function main() {
+  const isManualRun = process.env.IS_MANUAL_RUN === 'true' ||
+                      process.env.IS_MANUAL_RUN === true ||
+                      process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
+  const tipoReporte = (process.env.TIPO_REPORTE || '').trim().toLowerCase()
+
+  if (isManualRun && tipoReporte === 'diario_interno') {
+    await enviarReporteDiarioInterno()
+    return
+  }
+
+  if (isManualRun && (tipoReporte === 'diario' || tipoReporte === 'gilat')) {
+    await enviarReporteDiarioGilat()
+    return
+  }
+
+  // Si no se especificó o es ejecución programada (cron), evaluar ambos
+  await enviarReporteDiarioGilat()
+  await enviarReporteDiarioInterno()
 }
 
 main().catch(err => {

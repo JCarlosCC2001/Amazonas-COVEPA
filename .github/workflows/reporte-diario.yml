@@ -2,9 +2,14 @@ name: Reporte Diario de Observaciones COVEPA
 
 on:
   schedule:
-    # Se ejecuta cada 10 minutos de forma desatendida las 24 horas del día.
-    # El script en Node.js consulta Supabase y solo despacha cuando ya se alcanzó la hora programada en hora Perú.
-    - cron: '*/10 * * * *'
+    # Horarios de comprobación automática desatendida (Hora Perú UTC-5):
+    # - 1:00 PM (13:00 Perú = 18:00 UTC)
+    # - 7:00 PM (19:00 Perú = 00:00 UTC)
+    # - 9:00 PM (21:00 Perú = 02:00 UTC)
+    # - 10:00 PM (22:00 Perú = 03:00 UTC)
+    - cron: '0 0,2,3,18 * * *'
+    # - 9:30 PM (21:30 Perú = 02:30 UTC)
+    - cron: '30 2 * * *'
   workflow_dispatch:
     inputs:
       forzar:
@@ -15,6 +20,10 @@ on:
         description: 'Correo de destino para la prueba (opcional)'
         required: false
         default: ''
+      tipo_reporte:
+        description: 'Tipo de reporte (diario o diario_interno)'
+        required: false
+        default: 'diario'
 
 jobs:
   enviar-reporte:
@@ -42,4 +51,5 @@ jobs:
           IS_MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' }}
           FORZAR_ENVIO: ${{ github.event.inputs.forzar == 'true' }}
           DESTINATARIO_PRUEBA: ${{ github.event.inputs.destinatario_prueba }}
+          TIPO_REPORTE: ${{ github.event.inputs.tipo_reporte || 'diario' }}
         run: node scripts/enviar_reporte_diario.cjs

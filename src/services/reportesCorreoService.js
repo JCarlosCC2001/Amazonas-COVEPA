@@ -3,8 +3,10 @@ import { getAvancePorFecha } from './dashboardService'
 import { getCachedSitiosAsignados, getZonaBySiteId } from './sitiosService'
 import { toLocalDateString, getPeruDateStr, getAyerPeruStr } from '../utils/helpers'
 import { esRevisorGilat, esRegistroSoloComentario } from './auditoriaSyncService'
+import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService'
 
 const LOCAL_STORAGE_KEY_DIARIO = 'covepa_config_reporte_correo'
+const LOCAL_STORAGE_KEY_DIARIO_INTERNO = 'covepa_config_reporte_diario_interno'
 const LOCAL_STORAGE_KEY_SEMANAL = 'covepa_config_reporte_semanal'
 
 export const DEFAULT_CONFIG_DIARIO = {
@@ -15,6 +17,18 @@ export const DEFAULT_CONFIG_DIARIO = {
   destinatarios_cc: [],
   asunto: '[COVEPA] Reporte Diario de Observaciones - {fecha}',
   notas_jornada: 'Cierre operativo de observaciones de la jornada.',
+  periodo_reporte: 'dia_actual', // 'dia_actual' | 'dia_anterior'
+  destinatario_prueba: ''
+}
+
+export const DEFAULT_CONFIG_DIARIO_INTERNO = {
+  id: 'config_diario_interno',
+  activo: true,
+  hora_envio: '21:30:00',
+  destinatarios: ['ccondor@covepa.pe'],
+  destinatarios_cc: [],
+  asunto: '[COVEPA INTERNO] Resumen Operativo de Jornada - {fecha}',
+  notas_jornada: 'Reporte interno de cuadrillas y avance de observaciones trabajadas en el día.',
   periodo_reporte: 'dia_actual', // 'dia_actual' | 'dia_anterior'
   destinatario_prueba: ''
 }
@@ -46,9 +60,10 @@ const dbColumnsSupport = {
 
 export async function fetchConfiguracionReporte(tipo = 'diario') {
   const isSemanal = tipo === 'semanal'
-  const configId = isSemanal ? 'config_semanal' : 'config_diario'
-  const storageKey = isSemanal ? LOCAL_STORAGE_KEY_SEMANAL : LOCAL_STORAGE_KEY_DIARIO
-  const defaults = isSemanal ? DEFAULT_CONFIG_SEMANAL : DEFAULT_CONFIG_DIARIO
+  const isInterno = tipo === 'diario_interno' || tipo === 'interno'
+  const configId = isSemanal ? 'config_semanal' : (isInterno ? 'config_diario_interno' : 'config_diario')
+  const storageKey = isSemanal ? LOCAL_STORAGE_KEY_SEMANAL : (isInterno ? LOCAL_STORAGE_KEY_DIARIO_INTERNO : LOCAL_STORAGE_KEY_DIARIO)
+  const defaults = isSemanal ? DEFAULT_CONFIG_SEMANAL : (isInterno ? DEFAULT_CONFIG_DIARIO_INTERNO : DEFAULT_CONFIG_DIARIO)
   const hoyPeru = getPeruDateStr() || toLocalDateString(new Date())
 
   // Recuperar cualquier dato local previo (ej. destinatario_prueba)
@@ -88,7 +103,7 @@ export async function fetchConfiguracionReporte(tipo = 'diario') {
           supabase
             .from('configuracion_reportes_correo')
             .update({ notas_jornada: '' })
-            .eq('id', 'config_diario')
+            .eq('id', configId)
             .then(() => {})
         }
       }
@@ -130,13 +145,14 @@ export async function fetchConfiguracionReporte(tipo = 'diario') {
 }
 
 /**
- * Guarda la configuración del reporte automático (diario o semanal).
+ * Guarda la configuración del reporte automático (diario, diario interno o semanal).
  */
 export async function saveConfiguracionReporte(config, userEmail = null, tipo = 'diario') {
   const isSemanal = tipo === 'semanal'
-  const configId = isSemanal ? 'config_semanal' : 'config_diario'
-  const storageKey = isSemanal ? LOCAL_STORAGE_KEY_SEMANAL : LOCAL_STORAGE_KEY_DIARIO
-  const defaults = isSemanal ? DEFAULT_CONFIG_SEMANAL : DEFAULT_CONFIG_DIARIO
+  const isInterno = tipo === 'diario_interno' || tipo === 'interno'
+  const configId = isSemanal ? 'config_semanal' : (isInterno ? 'config_diario_interno' : 'config_diario')
+  const storageKey = isSemanal ? LOCAL_STORAGE_KEY_SEMANAL : (isInterno ? LOCAL_STORAGE_KEY_DIARIO_INTERNO : LOCAL_STORAGE_KEY_DIARIO)
+  const defaults = isSemanal ? DEFAULT_CONFIG_SEMANAL : (isInterno ? DEFAULT_CONFIG_DIARIO_INTERNO : DEFAULT_CONFIG_DIARIO)
 
   const horaNormalizada = config.hora_envio ? `${config.hora_envio.slice(0, 5)}:00` : defaults.hora_envio
   const payload = {
@@ -440,6 +456,190 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
 }
 
 /**
+ * Obtiene las observaciones de la fecha indicada clasificadas para el REPORTE DIARIO INTERNO.
+ * Incluye la consolidación matricial de los 3 Equipos (Equipo 1: C1+C2, Equipo 2: C3+C6, Equipo 3: C4+C5)
+ * y el detalle completo de observaciones tocadas ese día con localidad contigua al sitio.
+ */
+export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodoReporte = null) {
+  let targetDate = fechaFiltro
+  if (!targetDate) {
+    if (periodoReporte === 'dia_anterior') {
+      targetDate = getAyerPeruStr()
+    } else {
+      targetDate = getPeruDateStr() || toLocalDateString(new Date())
+    }
+  }
+
+  let fechaFormateada = targetDate
+  try {
+    const [y, m, d] = targetDate.split('-').map(Number)
+    const dObj = new Date(y, m - 1, d)
+    fechaFormateada = dObj.toLocaleDateString('es-PE', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+    fechaFormateada = fechaFormateada.charAt(0).toUpperCase() + fechaFormateada.slice(1)
+  } catch (_) {}
+
+  const [avance, sitios, personal] = await Promise.all([
+    getAvancePorFecha(targetDate),
+    getCachedSitiosAsignados(),
+    fetchPersonal().catch(() => [])
+  ])
+
+  const sitiosMap = {}
+  if (Array.isArray(sitios)) {
+    sitios.forEach(s => { sitiosMap[s.id_site] = s })
+  }
+
+  // Mapa de técnicos por cuadrilla
+  const cuadrillaStaffMap = {}
+  if (Array.isArray(personal)) {
+    personal.forEach(p => {
+      const cAsig = (p.cuadrilla_asignada || p.cuadrilla || '').trim().toUpperCase()
+      if (cAsig && !cuadrillaStaffMap[cAsig]) {
+        cuadrillaStaffMap[cAsig] = p.nombre || p.nombre_completo || ''
+      }
+    })
+  }
+
+  const getCuadrillaTecnico = (cName) => {
+    return cuadrillaStaffMap[cName] ||
+      DEFAULT_CUADRILLAS_CONFIG[cName]?.tecnicoNombre ||
+      ''
+  }
+
+  const tecC1 = getCuadrillaTecnico('CUADRILLA 1')
+  const tecC2 = getCuadrillaTecnico('CUADRILLA 2')
+  const tecC3 = getCuadrillaTecnico('CUADRILLA 3')
+  const tecC4 = getCuadrillaTecnico('CUADRILLA 4')
+  const tecC5 = getCuadrillaTecnico('CUADRILLA 5')
+  const tecC6 = getCuadrillaTecnico('CUADRILLA 6')
+
+  // Regla de Negocio Inmutable: Equipo 1 = C1+C2, Equipo 2 = C3+C6, Equipo 3 = C4+C5
+  const equiposMap = {
+    'EQUIPO 1': {
+      id: 'EQUIPO 1',
+      cuadrilla: 'EQUIPO 1',
+      subtitulo: 'Cuadrilla 1 y 2',
+      tecnico: [tecC1, tecC2].filter(Boolean).join(' · ') || 'Técnicos Equipo 1',
+      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+      total: 0
+    },
+    'EQUIPO 2': {
+      id: 'EQUIPO 2',
+      cuadrilla: 'EQUIPO 2',
+      subtitulo: 'Cuadrilla 3 y 6',
+      tecnico: [tecC3, tecC6].filter(Boolean).join(' · ') || 'Técnicos Equipo 2',
+      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+      total: 0
+    },
+    'EQUIPO 3': {
+      id: 'EQUIPO 3',
+      cuadrilla: 'EQUIPO 3',
+      subtitulo: 'Cuadrilla 4 y 5',
+      tecnico: [tecC4, tecC5].filter(Boolean).join(' · ') || 'Técnicos Equipo 3',
+      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+      total: 0
+    }
+  }
+
+  const rawRows = avance?.rows || []
+
+  const resolveCuadrillaForObs = (r) => {
+    let c = (r.cuadrilla || '').trim().toUpperCase()
+    if (c.startsWith('CUADRILLA')) return c
+    const sInfo = sitiosMap[r.id_sitio] || {}
+    if (sInfo.grupo && sInfo.grupo.toUpperCase().startsWith('CUADRILLA')) {
+      return sInfo.grupo.toUpperCase()
+    }
+    const tecUpper = (r.tecnico || '').toUpperCase()
+    if (tecUpper.includes('ALFONSO') || tecUpper.includes('CURI')) return 'CUADRILLA 1'
+    if (tecUpper.includes('CHAMBA') || tecUpper.includes('MARCO')) return 'CUADRILLA 2'
+    if (tecUpper.includes('PERCY') || tecUpper.includes('ROJAS')) return 'CUADRILLA 3'
+    if (tecUpper.includes('WILL') || tecUpper.includes('AVILA')) return 'CUADRILLA 4'
+    if (tecUpper.includes('FLORES') || tecUpper.includes('JHONATAN')) return 'CUADRILLA 5'
+    if (tecUpper.includes('CASTRO') || tecUpper.includes('JUAN')) return 'CUADRILLA 6'
+    return 'CUADRILLA 1'
+  }
+
+  const rowsEnriquecidas = rawRows.map(r => {
+    const sInfo = sitiosMap[r.id_sitio] || {}
+    const targetCuadrilla = resolveCuadrillaForObs(r)
+    let targetEquipoKey = 'EQUIPO 1'
+    if (targetCuadrilla === 'CUADRILLA 1' || targetCuadrilla === 'CUADRILLA 2') {
+      targetEquipoKey = 'EQUIPO 1'
+    } else if (targetCuadrilla === 'CUADRILLA 3' || targetCuadrilla === 'CUADRILLA 6') {
+      targetEquipoKey = 'EQUIPO 2'
+    } else if (targetCuadrilla === 'CUADRILLA 4' || targetCuadrilla === 'CUADRILLA 5') {
+      targetEquipoKey = 'EQUIPO 3'
+    }
+
+    const localidad = r.localidad || sInfo.localidad || ''
+    const zonaFinal = (r.zona && r.zona !== '-') ? r.zona : (sInfo.zona || getZonaBySiteId(r.id_sitio))
+
+    // Computar conteos por equipo
+    const targetObj = equiposMap[targetEquipoKey]
+    if (targetObj) {
+      const rawSt = (r.estado || r.estado_covepa || '').trim().toLowerCase()
+      if (rawSt === 'solicitando revisión' || rawSt === 'solicitando revision') {
+        targetObj.values.solicitando++
+      } else if (rawSt === 'en revisión' || rawSt === 'en revision') {
+        targetObj.values.enRevision++
+      } else if (rawSt === 'rechazado' || rawSt === 'rechazada' || rawSt === 'rechazados') {
+        targetObj.values.rechazados++
+      } else if (rawSt === 'validado' || rawSt === 'validada' || rawSt === 'enviado' || rawSt === 'enviada') {
+        targetObj.values.validados++
+      } else if (rawSt === 'documentación' || rawSt === 'documentacion') {
+        targetObj.values.documentacion++
+      }
+    }
+
+    return {
+      ...r,
+      localidad,
+      zona: zonaFinal,
+      cuadrilla: targetCuadrilla,
+      equipo: targetEquipoKey,
+      tecnico: r.tecnico || cuadrillaStaffMap[targetCuadrilla] || DEFAULT_CUADRILLAS_CONFIG[targetCuadrilla]?.tecnicoNombre || '-'
+    }
+  })
+
+  const matrixRowsList = Object.values(equiposMap).map(row => ({
+    ...row,
+    total: row.values.solicitando + row.values.enRevision + row.values.rechazados + row.values.validados + row.values.documentacion
+  }))
+
+  const totalsObj = {
+    solicitando: matrixRowsList.reduce((acc, r) => acc + r.values.solicitando, 0),
+    enRevision: matrixRowsList.reduce((acc, r) => acc + r.values.enRevision, 0),
+    rechazados: matrixRowsList.reduce((acc, r) => acc + r.values.rechazados, 0),
+    validados: matrixRowsList.reduce((acc, r) => acc + r.values.validados, 0),
+    documentacion: matrixRowsList.reduce((acc, r) => acc + r.values.documentacion, 0)
+  }
+
+  const grandTotalNum = totalsObj.solicitando + totalsObj.enRevision + totalsObj.rechazados + totalsObj.validados + totalsObj.documentacion
+
+  return {
+    fechaStr: targetDate,
+    fechaFormateada,
+    matrixRows: matrixRowsList,
+    matrixTotals: totalsObj,
+    matrixGrandTotal: grandTotalNum,
+    rows: rowsEnriquecidas,
+    stats: {
+      total: grandTotalNum,
+      validadas: totalsObj.validados,
+      rechazadas: totalsObj.rechazados,
+      enEspera: totalsObj.solicitando + totalsObj.enRevision,
+      documentacion: totalsObj.documentacion
+    }
+  }
+}
+
+/**
  * Obtiene el consolidado semanal de observaciones (Lunes a Domingo) para el reporte semanal.
  * Consulta los avances de la semana de forma concurrente para exactitud total.
  */
@@ -683,6 +883,242 @@ export async function exportarExcelReporteDiario(datos) {
   const a = document.createElement('a')
   a.href = url
   a.download = `Reporte_Observaciones_${datos.fechaStr || 'jornada'}.xlsx`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Genera y descarga el archivo Excel (.xlsx) oficial para el REPORTE DIARIO INTERNO:
+ * - Hoja 1: Matriz ejecutiva por Equipos (Equipo 1: C1+C2, Equipo 2: C3+C6, Equipo 3: C4+C5)
+ * - Hoja 2: Detalle completo de observaciones tocadas en el día con código de sitio y localidad contigua.
+ */
+export async function exportarExcelReporteDiarioInterno(datos) {
+  if (!datos) return
+  const ExcelJS = (await import('exceljs')).default || (await import('exceljs'))
+  const wb = new ExcelJS.Workbook()
+  wb.creator = 'Amazonas-COVEPA'
+
+  // ==========================================
+  // PESTAÑA 1: MATRIZ EJECUTIVA POR EQUIPOS
+  // ==========================================
+  const wsMatriz = wb.addWorksheet('Matriz_Equipos', {
+    views: [{ showGridLines: true }]
+  })
+  wsMatriz.columns = [
+    { width: 16 }, // Equipo
+    { width: 22 }, // Cuadrillas
+    { width: 34 }, // Técnicos Asignados
+    { width: 20 }, // Solicitando Revisión
+    { width: 16 }, // En Revisión
+    { width: 16 }, // Rechazados
+    { width: 16 }, // Validados
+    { width: 18 }, // Documentación
+    { width: 16 }  // Total
+  ]
+
+  // Título Institucional
+  wsMatriz.mergeCells('A1:I1')
+  const titleCell = wsMatriz.getCell('A1')
+  titleCell.value = 'COVEPA — REPORTE DIARIO INTERNO (MATRIZ DE EQUIPOS)'
+  titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF003060' } }
+  titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
+  wsMatriz.getRow(1).height = 30
+
+  // Subtítulo con fecha
+  wsMatriz.mergeCells('A2:I2')
+  const subtitleCell = wsMatriz.getCell('A2')
+  subtitleCell.value = `Jornada Operativa: ${datos.fechaFormateada || datos.fechaStr} | Total Observaciones Tocadas: ${datos.matrixGrandTotal || 0}`
+  subtitleCell.font = { name: 'Arial', size: 10, italic: true, color: { argb: 'FF64748B' } }
+  subtitleCell.alignment = { vertical: 'middle', horizontal: 'center' }
+  wsMatriz.getRow(2).height = 20
+
+  // Encabezados de tabla
+  const headersMatriz = [
+    'Equipo', 'Cuadrillas', 'Técnicos Asignados',
+    'Solicitando Revisión', 'En Revisión', 'Rechazados',
+    'Validados', 'Documentación', 'Total'
+  ]
+  const headerRowMatriz = wsMatriz.getRow(4)
+  headerRowMatriz.height = 26
+  headersMatriz.forEach((h, idx) => {
+    const c = headerRowMatriz.getCell(idx + 1)
+    c.value = h
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
+    c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+    c.alignment = { vertical: 'middle', horizontal: 'center' }
+    c.border = {
+      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+    }
+  })
+
+  // Filas por Equipo
+  const matrixRows = datos.matrixRows || []
+  matrixRows.forEach((row, i) => {
+    const rNum = 5 + i
+    const r = wsMatriz.getRow(rNum)
+    r.height = 22
+    const vals = [
+      row.id,
+      row.subtitulo,
+      row.tecnico,
+      row.values.solicitando,
+      row.values.enRevision,
+      row.values.rechazados,
+      row.values.validados,
+      row.values.documentacion,
+      row.total
+    ]
+    vals.forEach((v, idx) => {
+      const c = r.getCell(idx + 1)
+      c.value = v
+      c.font = { name: 'Arial', size: 10, bold: idx === 0 || idx === 8 }
+      c.alignment = {
+        vertical: 'middle',
+        horizontal: (idx <= 2) ? (idx === 2 ? 'left' : 'center') : 'center'
+      }
+      if (idx === 0) {
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F7FF' } }
+      }
+      if (idx === 8) {
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } }
+        c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF0284C7' } }
+      }
+      c.border = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+      }
+    })
+  })
+
+  // Fila de Totales
+  const totRowIndex = 5 + matrixRows.length
+  const totRow = wsMatriz.getRow(totRowIndex)
+  totRow.height = 24
+  const tObj = datos.matrixTotals || { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 }
+  const totVals = [
+    'TOTAL GENERAL',
+    'Todas las cuadrillas',
+    '-',
+    tObj.solicitando,
+    tObj.enRevision,
+    tObj.rechazados,
+    tObj.validados,
+    tObj.documentacion,
+    datos.matrixGrandTotal || 0
+  ]
+  totVals.forEach((v, idx) => {
+    const c = totRow.getCell(idx + 1)
+    c.value = v
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
+    c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+    c.alignment = {
+      vertical: 'middle',
+      horizontal: (idx <= 2) ? (idx === 2 ? 'left' : 'center') : 'center'
+    }
+  })
+
+  // ==========================================
+  // PESTAÑA 2: DETALLE DE CÓDIGOS TOCADOS
+  // ==========================================
+  const wsDetalle = wb.addWorksheet('Detalle_Codigos', {
+    views: [{ showGridLines: true }]
+  })
+  wsDetalle.columns = [
+    { width: 22 }, // ID Obs
+    { width: 14 }, // Equipo
+    { width: 16 }, // Cuadrilla
+    { width: 24 }, // Técnico
+    { width: 18 }, // Código Sitio
+    { width: 28 }, // Localidad
+    { width: 12 }, // Zona
+    { width: 20 }, // Estado COVEPA
+    { width: 22 }, // Revisor
+    { width: 20 }, // Fecha / Hora Subsanación
+    { width: 36 }, // Detalle Observación
+    { width: 36 }  // Comentario / Justificación
+  ]
+
+  const rawRows = datos.rows || []
+  const detailTableRows = rawRows.map(r => {
+    return [
+      r.id_obs || '',
+      r.equipo || '',
+      r.cuadrilla || '',
+      r.tecnico || '-',
+      r.id_sitio || r.codigo_lugar || '',
+      r.localidad || '',
+      r.zona && r.zona !== '-' ? r.zona : getZonaBySiteId(r.id_sitio),
+      r.estado || r.estado_covepa || '',
+      r.revisor || '-',
+      r.fecha_subsanacion || r.fecha_hora || '-',
+      r.detalle || r.descripcion || '',
+      r.comentario || r.justificacion_demora || '-'
+    ]
+  })
+
+  const tableName = `Interno_${(datos.fechaStr || 'jornada').replace(/-/g, '_')}`
+  wsDetalle.addTable({
+    name: tableName,
+    ref: 'A1',
+    headerRow: true,
+    totalsRow: false,
+    style: {
+      theme: 'TableStyleMedium9',
+      showRowStripes: true,
+      showColumnStripes: false
+    },
+    columns: [
+      { name: 'ID Obs', filterButton: true },
+      { name: 'Equipo', filterButton: true },
+      { name: 'Cuadrilla', filterButton: true },
+      { name: 'Técnico', filterButton: true },
+      { name: 'Código de Sitio', filterButton: true },
+      { name: 'Localidad', filterButton: true },
+      { name: 'Zona', filterButton: true },
+      { name: 'Estado COVEPA', filterButton: true },
+      { name: 'Revisor', filterButton: true },
+      { name: 'Fecha/Hora Subsanación', filterButton: true },
+      { name: 'Detalle', filterButton: true },
+      { name: 'Comentario', filterButton: true }
+    ],
+    rows: detailTableRows.length > 0 ? detailTableRows : [['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']]
+  })
+
+  const headerDetalle = wsDetalle.getRow(1)
+  headerDetalle.height = 26
+  headerDetalle.eachCell((cell) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
+    cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.alignment = { vertical: 'middle', horizontal: 'center' }
+  })
+
+  const totalFilasDetalle = detailTableRows.length > 0 ? detailTableRows.length : 1
+  for (let i = 0; i < totalFilasDetalle; i++) {
+    const rowNum = i + 2
+    const row = wsDetalle.getRow(rowNum)
+    row.height = 20
+    row.eachCell((cell, colNum) => {
+      cell.font = { name: 'Arial', size: 9.5 }
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 5 || colNum === 7 || colNum === 8 || colNum === 10 || cell.value === '-') ? 'center' : 'left'
+      }
+    })
+  }
+
+  const buffer = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Reporte_Interno_Observaciones_${datos.fechaStr || 'jornada'}.xlsx`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
@@ -1403,6 +1839,293 @@ export function generarHTMLReporteSemanal({ config, datos, isWebPreview = true }
   `
 }
 
+/**
+ * Genera el correo HTML profesional para el REPORTE DIARIO INTERNO con:
+ * - KPIs de la jornada (Total, Validadas, Rechazadas, En Espera, Documentación)
+ * - Cuadro Matricial Ejecutivo por Equipos y Cuadrillas (Equipo 1: C1+C2, Equipo 2: C3+C6, Equipo 3: C4+C5)
+ * - Notas de la jornada y firma de Calidad COVEPA
+ */
+export function generarHTMLReporteInterno({ config, datos, isWebPreview = true }) {
+  if (!datos) return '<p>No hay datos disponibles para el reporte diario interno.</p>'
+
+  const fechaHeader = datos.fechaFormateada || datos.fechaStr || 'Jornada Operativa'
+  const stats = datos.stats || {
+    total: datos.matrixGrandTotal || 0,
+    validadas: datos.matrixTotals?.validados || 0,
+    rechazadas: datos.matrixTotals?.rechazados || 0,
+    enEspera: (datos.matrixTotals?.solicitando || 0) + (datos.matrixTotals?.enRevision || 0),
+    documentacion: datos.matrixTotals?.documentacion || 0
+  }
+
+  const notas = (config?.notas_jornada || '').trim()
+  const logoSrc = isWebPreview
+    ? '/covepa_logo.png'
+    : 'https://raw.githubusercontent.com/JCarlosCC2001/Amazonas-COVEPA/main/public/covepa_logo.png'
+
+  const matrixRows = datos.matrixRows || []
+  const matrixTotals = datos.matrixTotals || { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 }
+
+  return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>COVEPA - Reporte Diario Interno</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:'Segoe UI',Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f1f5f9;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <!--[if mso]>
+        <table role="presentation" width="760" border="0" cellspacing="0" cellpadding="0" align="center">
+        <tr><td>
+        <![endif]-->
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:760px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.06);border:1px solid #e2e8f0;">
+          
+          <!-- Encabezado Institucional Azul Marino -->
+          <tr>
+            <td style="background-color:#003060;padding:24px 30px;text-align:left;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td valign="middle">
+                    <img src="${logoSrc}" alt="COVEPA" width="160" height="42" border="0" style="display:block;width:160px;max-width:160px;height:auto;border:0;outline:none;" />
+                  </td>
+                  <td align="right" valign="middle">
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#38bdf8;text-transform:uppercase;letter-spacing:1px;">
+                      OPERACIONES & CALIDAD
+                    </div>
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#cbd5e1;margin-top:3px;">
+                      ${escapeHtml(fechaHeader)}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+              <div style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.15);padding-top:14px;">
+                <h1 style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:19px;font-weight:7px;color:#ffffff;letter-spacing:0.3px;">
+                  Reporte Diario Interno — Productividad por Equipos
+                </h1>
+                <p style="margin:4px 0 0 0;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#94a3b8;">
+                  Amazonas COVEPA · Matriz ejecutiva de cuadrillas integradas y observaciones de la jornada
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Tarjetas de Métricas Resumen -->
+          <tr>
+            <td style="padding:22px 28px 10px 28px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="padding-bottom:12px;">
+                    <div style="background-color:#f8fafc;border:1.5px solid #003060;border-radius:10px;padding:14px;text-align:center;">
+                      <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:30px;font-weight:bold;color:#003060;line-height:1;">
+                        ${stats.total}
+                      </div>
+                      <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#475569;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">
+                        Total Observaciones Tocadas en la Jornada
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Fila de 4 KPIs secundarios -->
+              <table role="presentation" width="100%" border="0" cellspacing="6" cellpadding="0">
+                <tr>
+                  <td width="25%" style="background-color:#f0fdf4;border:1.5px solid #22c55e;border-radius:8px;padding:10px;text-align:center;">
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#15803d;">
+                      ${stats.validadas}
+                    </div>
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;color:#166534;margin-top:2px;">
+                      ✓ Validadas
+                    </div>
+                  </td>
+                  <td width="25%" style="background-color:#fff1f2;border:1.5px solid #f43f5e;border-radius:8px;padding:10px;text-align:center;">
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#be123c;">
+                      ${stats.rechazadas}
+                    </div>
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;color:#9f1239;margin-top:2px;">
+                      ✕ Rechazadas
+                    </div>
+                  </td>
+                  <td width="25%" style="background-color:#f0f9ff;border:1.5px solid #0284c7;border-radius:8px;padding:10px;text-align:center;">
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#0369a1;">
+                      ${stats.enEspera}
+                    </div>
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;color:#075985;margin-top:2px;">
+                      ⏳ En Espera
+                    </div>
+                  </td>
+                  <td width="25%" style="background-color:#faf5ff;border:1.5px solid #a855f7;border-radius:8px;padding:10px;text-align:center;">
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#7e22ce;">
+                      ${stats.documentacion}
+                    </div>
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;color:#6b21a8;margin-top:2px;">
+                      📄 Documentación
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CUADRO MATRICIAL EJECUTIVO POR EQUIPOS -->
+          <tr>
+            <td style="padding:14px 28px 10px 28px;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#003060;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">
+                📊 Matriz Ejecutiva por Equipos y Cuadrillas
+              </div>
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;border-collapse:collapse;">
+                <thead>
+                  <tr style="background-color:#003060;">
+                    <th style="padding:10px 12px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#ffffff;text-align:left;border-right:1px solid #1e4b7a;">
+                      EQUIPO / CUADRILLAS
+                    </th>
+                    <th style="padding:10px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#ffffff;text-align:left;border-right:1px solid #1e4b7a;">
+                      TÉCNICOS
+                    </th>
+                    <th style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;border-right:1px solid #1e4b7a;">
+                      SOLICITANDO
+                    </th>
+                    <th style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;border-right:1px solid #1e4b7a;">
+                      EN REV.
+                    </th>
+                    <th style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#fecdd3;text-align:center;border-right:1px solid #1e4b7a;">
+                      RECHAZ.
+                    </th>
+                    <th style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bbf7d0;text-align:center;border-right:1px solid #1e4b7a;">
+                      VALID.
+                    </th>
+                    <th style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#e9d5ff;text-align:center;border-right:1px solid #1e4b7a;">
+                      DOCUM.
+                    </th>
+                    <th style="padding:10px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#ffffff;text-align:center;">
+                      TOTAL
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${matrixRows.map((r, i) => `
+                  <tr style="background-color:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};border-bottom:1px solid #e2e8f0;">
+                    <td style="padding:10px 12px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#003060;border-right:1px solid #e2e8f0;">
+                      ${escapeHtml(r.id)}
+                      <div style="font-size:10.5px;font-weight:normal;color:#64748b;">${escapeHtml(r.subtitulo)}</div>
+                    </td>
+                    <td style="padding:10px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#334155;border-right:1px solid #e2e8f0;">
+                      ${escapeHtml(r.tecnico)}
+                    </td>
+                    <td style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;color:#0284c7;text-align:center;border-right:1px solid #e2e8f0;">
+                      ${r.values.solicitando}
+                    </td>
+                    <td style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;color:#0284c7;text-align:center;border-right:1px solid #e2e8f0;">
+                      ${r.values.enRevision}
+                    </td>
+                    <td style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#e11d48;text-align:center;border-right:1px solid #e2e8f0;">
+                      ${r.values.rechazados}
+                    </td>
+                    <td style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#16a34a;text-align:center;border-right:1px solid #e2e8f0;">
+                      ${r.values.validados}
+                    </td>
+                    <td style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;color:#7e22ce;text-align:center;border-right:1px solid #e2e8f0;">
+                      ${r.values.documentacion}
+                    </td>
+                    <td style="padding:10px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:bold;color:#003060;text-align:center;background-color:#eff6ff;">
+                      ${r.total}
+                    </td>
+                  </tr>
+                  `).join('')}
+                  <!-- Fila de Total General -->
+                  <tr style="background-color:#0f172a;border-top:2px solid #003060;">
+                    <td colspan="2" style="padding:11px 12px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#ffffff;text-transform:uppercase;letter-spacing:0.5px;">
+                      TOTAL GENERAL
+                    </td>
+                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#bae6fd;text-align:center;">
+                      ${matrixTotals.solicitando}
+                    </td>
+                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#bae6fd;text-align:center;">
+                      ${matrixTotals.enRevision}
+                    </td>
+                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#fecdd3;text-align:center;">
+                      ${matrixTotals.rechazados}
+                    </td>
+                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#bbf7d0;text-align:center;">
+                      ${matrixTotals.validados}
+                    </td>
+                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#e9d5ff;text-align:center;">
+                      ${matrixTotals.documentacion}
+                    </td>
+                    <td style="padding:11px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;background-color:#1e293b;">
+                      ${datos.matrixGrandTotal || 0}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Notas de la Jornada -->
+          ${notas ? `
+          <tr>
+            <td style="padding:10px 28px 14px 28px;">
+              <div style="background-color:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #003060;border-radius:6px;padding:12px 16px;">
+                <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#003060;text-transform:uppercase;margin-bottom:5px;letter-spacing:0.8px;">
+                  💬 Notas Operativas de la Jornada
+                </div>
+                <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#334155;line-height:1.5;white-space:pre-wrap;">${escapeHtml(notas)}</div>
+              </div>
+            </td>
+          </tr>
+          ` : ''}
+
+          <!-- Aviso de Archivo Adjunto -->
+          <tr>
+            <td style="padding:6px 28px 18px 28px;">
+              <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;display:flex;align-items:center;">
+                <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#166534;">
+                  📎 <strong>Archivo Adjunto:</strong> Se incluye el archivo Excel oficial con la <strong>Matriz de Equipos</strong> y el <strong>Detalle de los códigos tocados</strong> en la jornada.
+                </div>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Firma Institucional COVEPA -->
+          <tr>
+            <td style="background-color:#ffffff;border-top:1px solid #e2e8f0;padding:22px 30px;text-align:left;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#475569;margin-bottom:10px;">
+                Saludos cordiales,
+              </div>
+              <div style="margin-bottom:10px;">
+                <img src="${logoSrc}" alt="COVEPA" width="145" height="38" border="0" style="display:block;width:145px;max-width:145px;height:auto;border:0;outline:none;" />
+              </div>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13.5px;font-weight:bold;color:#003060;line-height:1.3;">
+                Condor Callupe Carlos
+              </div>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#64748b;font-weight:600;margin-top:2px;">
+                Gestor de Calidad · Proyecto Amazonas
+              </div>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;color:#64748b;margin-top:6px;">
+                Cel: <a href="tel:+51958086874" style="color:#0284c7;text-decoration:none;font-weight:600;">+51 958 086 874</a>
+              </div>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;color:#64748b;margin-top:2px;">
+                Correo: <a href="mailto:ccondor@covepa.pe" style="color:#0284c7;text-decoration:none;font-weight:600;">ccondor@covepa.pe</a>
+              </div>
+            </td>
+          </tr>
+
+        </table>
+        <!--[if mso]>
+        </td></tr>
+        </table>
+        <![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `
+}
+
 function escapeHtml(str) {
   if (!str) return ''
   return String(str)
@@ -1495,6 +2218,98 @@ export async function despacharReporteInmediato({ forzar = true, destinatarioPru
       estado: 'exitoso'
     })
     return { ok: true, message: '¡Reporte despachado exitosamente!' }
+  }
+
+  const errData = await response.json().catch(() => ({}))
+  throw new Error(errData.message || `Error del servidor GitHub (${response.status})`)
+}
+
+/**
+ * Despacha el reporte diario interno de inmediato (prueba de envío manual o disparo).
+ */
+export async function despacharReporteInternoInmediato({ forzar = true, destinatarioPrueba = '' } = {}) {
+  const cronKey = (import.meta.env.VITE_CRON_SECRET || DEFAULT_CRON_KEY).trim()
+  try {
+    const res = await fetch('/api/despachar-reporte', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-key': cronKey,
+        'x-forzar': forzar ? 'true' : 'false',
+        'x-tipo-reporte': 'diario_interno',
+        'x-destinatario-prueba': destinatarioPrueba || ''
+      },
+      body: JSON.stringify({
+        forzar,
+        tipo_reporte: 'diario_interno',
+        destinatario_prueba: destinatarioPrueba || ''
+      })
+    })
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}))
+      registrarEnvioLocal({
+        id: `local-${Date.now()}`,
+        created_at: new Date().toISOString(),
+        tipo_reporte: 'diario_interno',
+        tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
+        origen: 'web',
+        destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
+        destinatarios_cc: [],
+        asunto: '[COVEPA INTERNO] Resumen Operativo de Jornada',
+        estado: 'exitoso'
+      })
+      return { ok: true, message: data.message || '¡Reporte diario interno despachado exitosamente!' }
+    }
+    if (res.status !== 404) {
+      const errData = await res.json().catch(() => ({}))
+      if (errData && errData.error) {
+        throw new Error(errData.error)
+      }
+    }
+  } catch (apiErr) {
+    if (apiErr.message && !apiErr.message.includes('fetch') && !apiErr.message.includes('Failed to fetch')) {
+      throw apiErr
+    }
+  }
+
+  // Fallback directo a la API de GitHub Actions (para entorno local o disparo directo)
+  const token = (import.meta.env.VITE_GITHUB_DISPATCH_TOKEN || '').trim()
+  if (!token) {
+    throw new Error('Falta configurar GITHUB_DISPATCH_TOKEN en Vercel (o VITE_GITHUB_DISPATCH_TOKEN en local) para autorizar el despacho desde la web.')
+  }
+  const repo = 'JCarlosCC2001/Amazonas-COVEPA'
+  const url = `https://api.github.com/repos/${repo}/actions/workflows/reporte-diario.yml/dispatches`
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      ref: 'main',
+      inputs: {
+        forzar: forzar ? 'true' : 'false',
+        destinatario_prueba: destinatarioPrueba || '',
+        tipo_reporte: 'diario_interno'
+      }
+    })
+  })
+
+  if (response.status === 204 || response.ok) {
+    registrarEnvioLocal({
+      id: `local-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      tipo_reporte: 'diario_interno',
+      tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
+      origen: 'web_direct',
+      destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
+      destinatarios_cc: [],
+      asunto: '[COVEPA INTERNO] Resumen Operativo de Jornada',
+      estado: 'exitoso'
+    })
+    return { ok: true, message: '¡Reporte diario interno despachado con éxito! El correo llegará en unos 20 segundos.' }
   }
 
   const errData = await response.json().catch(() => ({}))

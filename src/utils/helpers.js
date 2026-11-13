@@ -101,3 +101,65 @@ export function formatNombrePersona(str) {
   }
   return trimmed
 }
+
+/**
+ * Formatea una fecha/hora ISO en hora peruana amigable para auditoría.
+ */
+export function formatPeruDateTime(isoString) {
+  if (!isoString) return '—'
+  try {
+    const d = new Date(isoString)
+    const dia = d.toLocaleDateString('es-PE', {
+      timeZone: 'America/Lima',
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+    const hora = d.toLocaleTimeString('es-PE', {
+      timeZone: 'America/Lima',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    })
+    return `${dia} · ${hora} hrs`
+  } catch (_) {
+    return isoString
+  }
+}
+
+/**
+ * Determina si una fecha ISO corresponde al día de hoy en hora Perú (America/Lima).
+ */
+export function isHoyPeru(isoString) {
+  if (!isoString) return false
+  try {
+    const d = new Date(isoString)
+    const fRun = d.toLocaleDateString('en-CA', { timeZone: 'America/Lima' })
+    const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' })
+    return fRun === hoy
+  } catch (_) {
+    return false
+  }
+}
+
+import { ASIGNACIONES_BASE } from '../services/sitiosService'
+
+/**
+ * Resuelve la localidad contigua al ID de un sitio.
+ */
+export function getLocalidadBySiteId(siteId) {
+  if (!siteId) return ''
+  const clean = String(siteId).trim().toUpperCase()
+  const found = ASIGNACIONES_BASE.find(s => s.id_site.toUpperCase() === clean)
+  if (found?.localidad) return found.localidad
+  const parts = clean.split('-')
+  if (parts.length >= 2) {
+    const prefix = `${parts[0]}-${parts[1]}`
+    const byPrefix = ASIGNACIONES_BASE.find(s => s.id_site.toUpperCase().startsWith(prefix))
+    if (byPrefix?.localidad) return byPrefix.localidad
+  }
+  return ''
+}
+

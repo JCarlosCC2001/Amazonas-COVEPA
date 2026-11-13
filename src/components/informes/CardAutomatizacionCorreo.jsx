@@ -7,7 +7,26 @@ import {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const HORARIOS_PREESTABLECIDOS = [
+// Catálogo de las 24 horas del día con formato militar y 12 horas AM/PM
+const OPCIONES_24_HORAS = Array.from({ length: 24 }, (_, i) => {
+  const h24 = String(i).padStart(2, '0')
+  const h12Num = i === 0 ? 12 : (i > 12 ? i - 12 : i)
+  const ampm = i >= 12 ? 'PM' : 'AM'
+  const periodo = i < 6 ? 'Madrugada' : (i < 12 ? 'Mañana' : (i < 19 ? 'Tarde' : 'Noche'))
+  return {
+    value: h24,
+    label: `${h24}:00 hrs · (${h12Num}:00 ${ampm}) - ${periodo}`
+  }
+})
+
+const OPCIONES_MINUTOS = [
+  { value: '00', label: ':00 en punto' },
+  { value: '15', label: ':15 minutos' },
+  { value: '30', label: ':30 y media' },
+  { value: '45', label: ':45 minutos' }
+]
+
+const HORARIOS_RAPIDOS = [
   { label: '1:00 PM', value: '13:00:00' },
   { label: '7:00 PM', value: '19:00:00' },
   { label: '9:00 PM', value: '21:00:00' },
@@ -34,6 +53,11 @@ export default function CardAutomatizacionCorreo({
 
   const isActivo = Boolean(config?.activo)
 
+  // Extraer hora y minuto actuales para los selectores de 24 horas
+  const horaEnvioRaw = config?.hora_envio || '21:00:00'
+  const [horaParte = '21', minutoParte = '00'] = horaEnvioRaw.slice(0, 5).split(':')
+  const horaActualDisplay = `${horaParte}:${minutoParte}`
+
   const handleToggleActivo = () => {
     onChangeConfig({
       ...config,
@@ -41,7 +65,23 @@ export default function CardAutomatizacionCorreo({
     })
   }
 
-  const handleSelectPresetHora = (val) => {
+  const handleSelectHora24 = (h) => {
+    const nuevoHorario = `${h}:${minutoParte}:00`
+    onChangeConfig({
+      ...config,
+      hora_envio: nuevoHorario
+    })
+  }
+
+  const handleSelectMinuto = (m) => {
+    const nuevoHorario = `${horaParte}:${m}:00`
+    onChangeConfig({
+      ...config,
+      hora_envio: nuevoHorario
+    })
+  }
+
+  const handleSelectRapido = (val) => {
     onChangeConfig({
       ...config,
       hora_envio: val
@@ -204,7 +244,8 @@ export default function CardAutomatizacionCorreo({
   // ============================================================
   // CASO 2: VISTA DESPLEGADA COMPLETA CUANDO ESTÁ ACTIVADO
   // ============================================================
-  const horaActualDisplay = config.hora_envio ? config.hora_envio.slice(0, 5) : '21:00'
+  const hora12Num = Number(horaParte) === 0 ? 12 : (Number(horaParte) > 12 ? Number(horaParte) - 12 : Number(horaParte))
+  const ampmDisplay = Number(horaParte) >= 12 ? 'PM' : 'AM'
 
   return (
     <div
@@ -275,64 +316,109 @@ export default function CardAutomatizacionCorreo({
         </button>
       </div>
 
-      {/* Selector de Horarios Preestablecidos + Hora Personalizada */}
+      {/* SELECTOR DE HORA DEL DÍA (LAS 24 HORAS COMPLETAS + MINUTOS) */}
       <div
         style={{
           background: '#f8fafc',
           border: '1px solid #e2e8f0',
           borderRadius: '10px',
-          padding: '0.85rem 1rem',
+          padding: '0.9rem 1rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.65rem'
+          gap: '0.75rem'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
           <label className="t-badge" style={{ color: '#003060', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'var(--fw-bold)' }}>
-            <Clock size={14} color="#003060" /> Hora de Despacho (Hora Perú - UTC-5):
+            <Clock size={15} color="#003060" /> Hora de Despacho del Reporte (Las 24 Horas del Día · Hora Perú UTC-5):
           </label>
-          <span className="t-meta" style={{ color: '#64748b' }}>
-            El cronjob evaluará este horario para disparar el correo
-          </span>
+          <div
+            className="t-badge"
+            style={{
+              background: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              color: '#1d4ed8',
+              padding: '0.25rem 0.65rem',
+              borderRadius: '6px',
+              fontWeight: 'var(--fw-bold)'
+            }}
+          >
+            Hora fijada: {horaActualDisplay} hrs ({hora12Num}:{minutoParte} {ampmDisplay})
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <span className="t-meta" style={{ color: '#475569', fontWeight: 'var(--fw-medium)' }}>Horarios recomendados:</span>
-          {HORARIOS_PREESTABLECIDOS.map(h => {
-            const isSelected = (config.hora_envio || '').startsWith(h.value.slice(0, 5))
-            return (
-              <button
-                key={h.value}
-                type="button"
-                onClick={() => handleSelectPresetHora(h.value)}
-                className="t-badge"
-                style={{
-                  padding: '0.3rem 0.65rem',
-                  borderRadius: '6px',
-                  border: isSelected ? '1.5px solid #003060' : '1px solid #cbd5e1',
-                  background: isSelected ? '#003060' : '#ffffff',
-                  color: isSelected ? '#ffffff' : '#334155',
-                  cursor: 'pointer',
-                  fontWeight: isSelected ? 'var(--fw-bold)' : 'var(--fw-medium)',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {h.label}
-              </button>
-            )
-          })}
+        {/* Fila con los 2 selectores principales: Hora (24h) y Minutos */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) minmax(140px, 180px) auto', gap: '0.75rem', alignItems: 'center' }}>
+          {/* Selector de las 24 horas del día */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <span className="t-meta" style={{ color: '#475569', fontWeight: 'var(--fw-semibold)' }}>
+              1. Seleccionar Hora del Día (00:00 a 23:00):
+            </span>
+            <select
+              value={horaParte}
+              onChange={e => handleSelectHora24(e.target.value)}
+              className="t-body"
+              style={{
+                padding: '0.5rem 0.75rem',
+                border: '1.5px solid #cbd5e1',
+                borderRadius: '8px',
+                background: '#ffffff',
+                color: '#003060',
+                fontWeight: 'var(--fw-semibold)',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              {OPCIONES_24_HORAS.map(opt => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
-            <span className="t-meta" style={{ color: '#475569' }}>Otra hora:</span>
+          {/* Selector de Minutos */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <span className="t-meta" style={{ color: '#475569', fontWeight: 'var(--fw-semibold)' }}>
+              2. Minutos:
+            </span>
+            <select
+              value={minutoParte}
+              onChange={e => handleSelectMinuto(e.target.value)}
+              className="t-body"
+              style={{
+                padding: '0.5rem 0.75rem',
+                border: '1.5px solid #cbd5e1',
+                borderRadius: '8px',
+                background: '#ffffff',
+                color: '#003060',
+                fontWeight: 'var(--fw-semibold)',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              {OPCIONES_MINUTOS.map(m => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Input Time libre alternativo */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <span className="t-meta" style={{ color: '#64748b' }}>
+              O escribir exacta:
+            </span>
             <input
               type="time"
               value={horaActualDisplay}
               onChange={e => onChangeConfig({ ...config, hora_envio: `${e.target.value}:00` })}
               className="t-body"
               style={{
-                padding: '0.35rem 0.6rem',
-                border: '1.5px solid #cbd5e1',
-                borderRadius: '6px',
+                padding: '0.45rem 0.65rem',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
                 outline: 'none',
                 color: '#003060',
                 fontWeight: 'var(--fw-semibold)',
@@ -340,6 +426,34 @@ export default function CardAutomatizacionCorreo({
               }}
             />
           </div>
+        </div>
+
+        {/* Atajos de acceso rápido a horas frecuentes */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem', borderTop: '1px dashed #e2e8f0', paddingTop: '0.5rem' }}>
+          <span className="t-meta" style={{ color: '#64748b' }}>Atajos frecuentes:</span>
+          {HORARIOS_RAPIDOS.map(h => {
+            const isSelected = (config.hora_envio || '').startsWith(h.value.slice(0, 5))
+            return (
+              <button
+                key={h.value}
+                type="button"
+                onClick={() => handleSelectRapido(h.value)}
+                className="t-badge"
+                style={{
+                  padding: '0.25rem 0.55rem',
+                  borderRadius: '6px',
+                  border: isSelected ? '1.5px solid #003060' : '1px solid #cbd5e1',
+                  background: isSelected ? '#003060' : '#ffffff',
+                  color: isSelected ? '#ffffff' : '#475569',
+                  cursor: 'pointer',
+                  fontWeight: isSelected ? 'var(--fw-bold)' : 'var(--fw-normal)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {h.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 

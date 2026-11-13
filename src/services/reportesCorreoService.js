@@ -2418,7 +2418,7 @@ export function registrarEnvioLocal(registro) {
 export async function limpiarHistorialEnviosHoy() {
   const hoyPeru = getPeruDateStr() || toLocalDateString(new Date())
 
-  // 1. Limpiar o filtrar localStorage
+  // 1. Limpiar o filtrar localStorage y marcar corte de tiempo
   try {
     const rawLocal = localStorage.getItem(LOCAL_STORAGE_KEY_HISTORIAL)
     if (rawLocal) {
@@ -2432,6 +2432,8 @@ export async function limpiarHistorialEnviosHoy() {
       }
     }
     localStorage.removeItem('covepa_historial_envios_correo')
+    // Guardar marca de corte para que las corridas previas de GitHub de hoy no se muestren
+    localStorage.setItem('covepa_historial_limpiado_hasta', new Date().toISOString())
   } catch (_) {}
 
   // 2. Limpiar ultimo_envio_at en Supabase (modificación de celda existente)
@@ -2439,14 +2441,14 @@ export async function limpiarHistorialEnviosHoy() {
     await supabase
       .from('configuracion_reportes_correo')
       .update({ ultimo_envio_at: null })
-      .in('id', ['config_diario', 'config_semanal'])
+      .in('id', ['config_diario', 'config_diario_interno', 'config_semanal'])
   } catch (err) {
     console.warn('[REPORTES-CORREO] Error al resetear ultimo_envio_at en Supabase:', err)
   }
 
   // 3. Limpiar en configuraciones cacheadas en localStorage
   try {
-    [LOCAL_STORAGE_KEY_DIARIO, LOCAL_STORAGE_KEY_SEMANAL].forEach(k => {
+    [LOCAL_STORAGE_KEY_DIARIO, LOCAL_STORAGE_KEY_DIARIO_INTERNO, LOCAL_STORAGE_KEY_SEMANAL].forEach(k => {
       const raw = localStorage.getItem(k)
       if (raw) {
         const parsed = JSON.parse(raw)
@@ -2589,13 +2591,31 @@ export async function fetchHistorialEnvios(tipoReporte = null) {
     }
   } catch (_) {}
 
-  // 4. Ordenar cronológicamente descendente (más reciente arriba)
-  unified.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  // 4. Filtrar registros previos si el usuario solicitó limpiar el historial de hoy
+  let listaFiltrada = unified
+  try {
+    const limpiadoHastaIso = (typeof window !== 'undefined') ? localStorage.getItem('covepa_historial_limpiado_hasta') : null
+    if (limpiadoHastaIso) {
+      const limpiadoTime = new Date(limpiadoHastaIso).getTime()
+      const hoyPeru = getPeruDateStr() || toLocalDateString(new Date())
+      listaFiltrada = unified.filter(item => {
+        const itemFecha = (item.created_at || '').slice(0, 10)
+        const itemTime = new Date(item.created_at).getTime()
+        if (itemFecha === hoyPeru && itemTime <= limpiadoHastaTime) {
+          return false
+        }
+        return true
+      })
+    }
+  } catch (_) {}
 
-  // 5. Filtrar por tipo específico si se solicita
+  // 5. Ordenar cronológicamente descendente (más reciente arriba)
+  listaFiltrada.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+  // 6. Filtrar por tipo específico si se solicita
   if (tipoReporte) {
-    return unified.filter(item => item.tipo_reporte === tipoReporte)
+    return listaFiltrada.filter(item => item.tipo_reporte === tipoReporte)
   }
 
-  return unified
+  return listaFiltrada
 }

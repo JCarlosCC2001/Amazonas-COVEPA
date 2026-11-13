@@ -62,7 +62,7 @@ export default async function handler(req, res) {
 
   const tipoReporte = (req.query?.tipo_reporte) ||
                       (req.body && req.body.tipo_reporte) ||
-                      req.headers['x-tipo-reporte'] || 'todos'
+                      req.headers['x-tipo-reporte'] || (forzarParam ? 'diario' : 'todos')
 
   try {
     const response = await fetch(url, {

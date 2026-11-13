@@ -2171,9 +2171,14 @@ export async function despacharReporteInmediato({ forzar = true, destinatarioPru
         'Content-Type': 'application/json',
         'x-cron-key': cronKey,
         'x-forzar': forzar ? 'true' : 'false',
+        'x-tipo-reporte': 'diario',
         'x-destinatario-prueba': destinatarioPrueba || ''
       },
-      body: JSON.stringify({ forzar, destinatario_prueba: destinatarioPrueba || '' })
+      body: JSON.stringify({
+        forzar,
+        tipo_reporte: 'diario',
+        destinatario_prueba: destinatarioPrueba || ''
+      })
     })
     if (res.ok) {
       const data = await res.json().catch(() => ({}))
@@ -2221,7 +2226,8 @@ export async function despacharReporteInmediato({ forzar = true, destinatarioPru
       ref: 'main',
       inputs: {
         forzar: forzar ? 'true' : 'false',
-        destinatario_prueba: destinatarioPrueba || ''
+        destinatario_prueba: destinatarioPrueba || '',
+        tipo_reporte: 'diario'
       }
     })
   })
@@ -2349,9 +2355,14 @@ export async function despacharReporteSemanalInmediato({ forzar = true, destinat
         'Content-Type': 'application/json',
         'x-cron-key': cronKey,
         'x-forzar': forzar ? 'true' : 'false',
+        'x-tipo-reporte': 'diario',
         'x-destinatario-prueba': destinatarioPrueba || ''
       },
-      body: JSON.stringify({ forzar, destinatario_prueba: destinatarioPrueba || '' })
+      body: JSON.stringify({
+        forzar,
+        tipo_reporte: 'diario',
+        destinatario_prueba: destinatarioPrueba || ''
+      })
     })
     if (res.ok) {
       const data = await res.json().catch(() => ({}))

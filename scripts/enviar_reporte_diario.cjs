@@ -2041,12 +2041,12 @@ async function main() {
   const tipoReporte = (process.env.TIPO_REPORTE || '').trim().toLowerCase()
 
   // Si es un disparo de prueba forzado manual (ej: botón de enviar prueba desde la web)
-  if (isManualRun && forzarEnvio && tipoReporte === 'diario_interno') {
+  if (isManualRun && forzarEnvio && (tipoReporte === 'diario_interno' || tipoReporte === 'interno')) {
     await enviarReporteDiarioInterno()
     return
   }
 
-  if (isManualRun && forzarEnvio && (tipoReporte === 'diario' || tipoReporte === 'gilat')) {
+  if (isManualRun && forzarEnvio && (tipoReporte === 'diario' || tipoReporte === 'gilat' || tipoReporte === 'externo')) {
     await enviarReporteDiarioGilat()
     return
   }

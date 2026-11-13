@@ -494,13 +494,22 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
     sitios.forEach(s => { sitiosMap[s.id_site] = s })
   }
 
-  // Mapa de técnicos por cuadrilla
-  const cuadrillaStaffMap = {}
+  // Mapa de técnicos por cuadrilla (titulares oficiales)
+  const cuadrillaStaffMap = {
+    'CUADRILLA 1': 'Jhonatan Flores',
+    'CUADRILLA 2': 'Marco Chamba',
+    'CUADRILLA 3': 'Daniel Javier',
+    'CUADRILLA 4': 'Alfonso Curi',
+    'CUADRILLA 5': 'William Avila',
+    'CUADRILLA 6': 'Juan Castro'
+  }
   if (Array.isArray(personal)) {
     personal.forEach(p => {
       const cAsig = (p.cuadrilla_asignada || p.cuadrilla || '').trim().toUpperCase()
-      if (cAsig && !cuadrillaStaffMap[cAsig]) {
-        cuadrillaStaffMap[cAsig] = p.nombre || p.nombre_completo || ''
+      const cargo = (p.cargo || '').trim().toUpperCase()
+      if (cAsig && cAsig.startsWith('CUADRILLA') && (cargo.includes('TÉCNICO') || cargo.includes('TECNICO') || cargo.includes('SUPERVISOR'))) {
+        const nom = (p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim()
+        if (nom) cuadrillaStaffMap[cAsig] = nom
       }
     })
   }
@@ -555,12 +564,15 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
     if (sInfo.grupo && sInfo.grupo.toUpperCase().startsWith('CUADRILLA')) {
       return sInfo.grupo.toUpperCase()
     }
+    if (sInfo.cuadrilla && sInfo.cuadrilla.toUpperCase().startsWith('CUADRILLA')) {
+      return sInfo.cuadrilla.toUpperCase()
+    }
     const tecUpper = (r.tecnico || '').toUpperCase()
-    if (tecUpper.includes('ALFONSO') || tecUpper.includes('CURI')) return 'CUADRILLA 1'
+    if (tecUpper.includes('FLORES') || tecUpper.includes('JHONATAN')) return 'CUADRILLA 1'
     if (tecUpper.includes('CHAMBA') || tecUpper.includes('MARCO')) return 'CUADRILLA 2'
-    if (tecUpper.includes('PERCY') || tecUpper.includes('ROJAS')) return 'CUADRILLA 3'
-    if (tecUpper.includes('WILL') || tecUpper.includes('AVILA')) return 'CUADRILLA 4'
-    if (tecUpper.includes('FLORES') || tecUpper.includes('JHONATAN')) return 'CUADRILLA 5'
+    if (tecUpper.includes('DANIEL') || tecUpper.includes('JAVIER') || tecUpper.includes('PERCY') || tecUpper.includes('ROJAS')) return 'CUADRILLA 3'
+    if (tecUpper.includes('ALFONSO') || tecUpper.includes('CURI')) return 'CUADRILLA 4'
+    if (tecUpper.includes('WILL') || tecUpper.includes('AVILA')) return 'CUADRILLA 5'
     if (tecUpper.includes('CASTRO') || tecUpper.includes('JUAN')) return 'CUADRILLA 6'
     return 'CUADRILLA 1'
   }

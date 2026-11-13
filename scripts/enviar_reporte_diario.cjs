@@ -1386,11 +1386,19 @@ async function enviarReporteDiarioInterno() {
   const [extSitios, localCuadrillas, personalRes] = await Promise.all([
     supabaseExt.from('sitios').select('id_site, localidad, nombre_nodo').then(r => r, () => ({ data: [] })),
     supabase.from('sitios_cuadrillas').select('id_site, cuadrilla, zona').eq('activo', true).then(r => r, () => ({ data: [] })),
-    supabaseExt.from('personal').select('nombre, apellido, nombre_completo, email, email_2, cuadrilla_asignada, cargo').then(r => r, () => ({ data: [] }))
+    supabase.from('personal_cuadrillas').select('nombre_completo, cargo, cuadrilla, activo').eq('activo', true).then(r => r, () => ({ data: [] }))
   ])
+
+  let baseSitiosAsignados = {}
+  try {
+    baseSitiosAsignados = require('./base_sitios_asignados.json')
+  } catch (_) {}
 
   const sitiosMap = {}
   const asignacionesMap = {}
+  Object.entries(baseSitiosAsignados).forEach(([sId, info]) => {
+    asignacionesMap[sId.toUpperCase()] = info
+  })
   ;(localCuadrillas?.data || []).forEach(a => {
     if (a.id_site) asignacionesMap[a.id_site.toUpperCase()] = a
   })
@@ -1398,24 +1406,26 @@ async function enviarReporteDiarioInterno() {
     const asig = asignacionesMap[s.id_site?.toUpperCase()] || {}
     sitiosMap[s.id_site] = {
       ...s,
-      grupo: asig.cuadrilla || 'Sin Cuadrilla',
+      grupo: asig.cuadrilla || asig.grupo || 'Sin Cuadrilla',
       zona: asig.zona || 'ZONA 7'
     }
   })
 
-  // Técnicos titulares por cuadrilla
+  // Técnicos titulares oficiales por cuadrilla
   const cuadrillaTecnicos = {
-    'CUADRILLA 1': 'Alfonso Curi',
+    'CUADRILLA 1': 'Jhonatan Flores',
     'CUADRILLA 2': 'Marco Chamba',
-    'CUADRILLA 3': 'Percy Rojas',
-    'CUADRILLA 4': 'William Avila',
-    'CUADRILLA 5': 'Jhonatan Flores',
+    'CUADRILLA 3': 'Daniel Javier',
+    'CUADRILLA 4': 'Alfonso Curi',
+    'CUADRILLA 5': 'William Avila',
     'CUADRILLA 6': 'Juan Castro'
   }
   ;(personalRes?.data || []).forEach(p => {
-    const c = (p.cuadrilla_asignada || '').trim().toUpperCase()
-    if (c && c.startsWith('CUADRILLA') && !cuadrillaTecnicos[c]) {
-      cuadrillaTecnicos[c] = (p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim()
+    const c = (p.cuadrilla || p.cuadrilla_asignada || '').trim().toUpperCase()
+    const cargo = (p.cargo || '').trim().toUpperCase()
+    if (c && c.startsWith('CUADRILLA') && (cargo.includes('TÉCNICO') || cargo.includes('TECNICO') || cargo.includes('SUPERVISOR'))) {
+      const nom = (p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim()
+      if (nom) cuadrillaTecnicos[c] = nom
     }
   })
 
@@ -1502,6 +1512,20 @@ async function enviarReporteDiarioInterno() {
     const s = sitiosMap[o.id_sitio] || {}
     let g = (s.grupo || '').toUpperCase()
     if (g.startsWith('CUADRILLA')) return g
+
+    const asig = asignacionesMap[(o.id_sitio || '').toUpperCase()]
+    if (asig && (asig.cuadrilla || asig.grupo)) {
+      const cNom = (asig.cuadrilla || asig.grupo).replace(/GRUPO/gi, 'CUADRILLA').toUpperCase()
+      if (cNom.startsWith('CUADRILLA')) return cNom
+    }
+
+    const tecUpper = (o.tecnico || '').toUpperCase()
+    if (tecUpper.includes('FLORES') || tecUpper.includes('JHONATAN')) return 'CUADRILLA 1'
+    if (tecUpper.includes('CHAMBA') || tecUpper.includes('MARCO')) return 'CUADRILLA 2'
+    if (tecUpper.includes('DANIEL') || tecUpper.includes('JAVIER') || tecUpper.includes('PERCY') || tecUpper.includes('ROJAS')) return 'CUADRILLA 3'
+    if (tecUpper.includes('ALFONSO') || tecUpper.includes('CURI')) return 'CUADRILLA 4'
+    if (tecUpper.includes('WILL') || tecUpper.includes('AVILA')) return 'CUADRILLA 5'
+    if (tecUpper.includes('CASTRO') || tecUpper.includes('JUAN')) return 'CUADRILLA 6'
     return 'CUADRILLA 1'
   }
 
@@ -1566,6 +1590,9 @@ async function enviarReporteDiarioInterno() {
   const grandTotal = matrixTotals.solicitando + matrixTotals.enRevision + matrixTotals.rechazados + matrixTotals.validados + matrixTotals.documentacion
 
   console.log(`[REPORTE-INTERNO] 📊 Estadísticas calculadas: Total=${grandTotal} | Validadas=${matrixTotals.validados} | Rechazadas=${matrixTotals.rechazados} | EnEspera=${matrixTotals.solicitando + matrixTotals.enRevision} | Doc=${matrixTotals.documentacion}`)
+  matrixRows.forEach(r => {
+    console.log(`[REPORTE-INTERNO]   • ${r.id} (${r.subtitulo}) [${r.tecnico}]: ${r.total} obs (Val:${r.values.validados}, Rech:${r.values.rechazados}, Esp:${r.values.solicitando + r.values.enRevision}, Doc:${r.values.documentacion})`)
+  })
 
   // 6. Generar Excel Oficial de 2 Hojas
   const wb = new ExcelJS.Workbook()
@@ -1929,11 +1956,6 @@ async function enviarReporteDiarioInterno() {
 </body>
 </html>
   `
-    </td></tr>
-  </table>
-</body>
-</html>
-  `
 
   // 8. Enviar correo vía Nodemailer
   const smtpUser = (process.env.SMTP_USER || 'ccondor@covepa.pe').trim()
@@ -2036,7 +2058,11 @@ async function main() {
   await enviarReporteDiarioInterno()
 }
 
-main().catch(err => {
-  console.error('[CRON-REPORTE] ❌ Error fatal en el proceso:', err)
-  process.exit(1)
-})
+module.exports = { main, enviarReporteDiarioInterno, enviarReporteDiarioGilat }
+
+if (require.main === module) {
+  main().catch(err => {
+    console.error('[CRON-REPORTE] ❌ Error fatal en el proceso:', err)
+    process.exit(1)
+  })
+}

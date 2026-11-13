@@ -1384,9 +1384,9 @@ async function enviarReporteDiarioInterno() {
 
   // 3. Catálogo de Sitios y Personal
   const [extSitios, localCuadrillas, personalRes] = await Promise.all([
-    supabaseExt.from('sitios').select('id_site, localidad, nombre_nodo').catch(() => ({ data: [] })),
-    supabase.from('sitios_cuadrillas').select('id_site, cuadrilla, zona').eq('activo', true).catch(() => ({ data: [] })),
-    supabaseExt.from('personal').select('nombre, apellido, nombre_completo, email, email_2, cuadrilla_asignada, cargo').catch(() => ({ data: [] }))
+    supabaseExt.from('sitios').select('id_site, localidad, nombre_nodo').then(r => r, () => ({ data: [] })),
+    supabase.from('sitios_cuadrillas').select('id_site, cuadrilla, zona').eq('activo', true).then(r => r, () => ({ data: [] })),
+    supabaseExt.from('personal').select('nombre, apellido, nombre_completo, email, email_2, cuadrilla_asignada, cargo').then(r => r, () => ({ data: [] }))
   ])
 
   const sitiosMap = {}

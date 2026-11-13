@@ -1675,164 +1675,260 @@ async function enviarReporteDiarioInterno() {
   const excelBuffer = await wb.xlsx.writeBuffer()
   const excelFileName = `Reporte_Interno_Observaciones_${targetFechaIso}.xlsx`
 
-  // 7. Generar HTML del correo interno
-  const logoUrl = 'https://raw.githubusercontent.com/JCarlosCC2001/Amazonas-COVEPA/main/public/covepa_logo.png'
+  // 7. Generar HTML del correo interno con diseño corporativo impecable y blindado contra bloqueos de imagen
   const htmlBody = `
 <!DOCTYPE html>
 <html lang="es">
-<head><meta charset="utf-8"><title>COVEPA - Reporte Diario Interno</title></head>
-<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>COVEPA - Reporte Diario Interno</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
   <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f1f5f9;padding:24px 12px;">
-    <tr><td align="center">
-      <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:760px;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
-        <tr>
-          <td style="background-color:#003060;padding:24px 30px;text-align:left;">
-            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-              <tr>
-                <td valign="middle"><img src="${logoUrl}" alt="COVEPA" width="160" height="42" border="0" style="display:block;width:160px;height:auto;" /></td>
-                <td align="right" valign="middle">
-                  <div style="font-size:11px;font-weight:bold;color:#38bdf8;text-transform:uppercase;letter-spacing:1px;">OPERACIONES & CALIDAD</div>
-                  <div style="font-size:13px;color:#cbd5e1;margin-top:3px;">${escapeHtml(targetFechaFormateada)}</div>
-                </td>
-              </tr>
-            </table>
-            <div style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.15);padding-top:14px;">
-              <h1 style="margin:0;font-size:19px;font-weight:bold;color:#ffffff;">Reporte Diario Interno — Productividad por Equipos</h1>
-              <p style="margin:4px 0 0 0;font-size:12.5px;color:#94a3b8;">Amazonas COVEPA · Matriz ejecutiva de cuadrillas integradas y observaciones de la jornada</p>
-            </div>
-          </td>
-        </tr>
-
-        <tr>
-          <td style="padding:22px 28px 10px 28px;">
-            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-              <tr>
-                <td style="padding-bottom:12px;">
-                  <div style="background-color:#f8fafc;border:1.5px solid #003060;border-radius:10px;padding:14px;text-align:center;">
-                    <div style="font-size:30px;font-weight:bold;color:#003060;line-height:1;">${grandTotal}</div>
-                    <div style="font-size:11px;font-weight:bold;color:#475569;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">Total Observaciones Tocadas en la Jornada</div>
-                  </div>
-                </td>
-              </tr>
-            </table>
-
-            <table role="presentation" width="100%" border="0" cellspacing="6" cellpadding="0">
-              <tr>
-                <td width="25%" style="background-color:#f0fdf4;border:1.5px solid #22c55e;border-radius:8px;padding:10px;text-align:center;">
-                  <div style="font-size:20px;font-weight:bold;color:#15803d;">${matrixTotals.validados}</div>
-                  <div style="font-size:10.5px;font-weight:bold;color:#166534;margin-top:2px;">✓ Validadas</div>
-                </td>
-                <td width="25%" style="background-color:#fff1f2;border:1.5px solid #f43f5e;border-radius:8px;padding:10px;text-align:center;">
-                  <div style="font-size:20px;font-weight:bold;color:#be123c;">${matrixTotals.rechazados}</div>
-                  <div style="font-size:10.5px;font-weight:bold;color:#9f1239;margin-top:2px;">✕ Rechazadas</div>
-                </td>
-                <td width="25%" style="background-color:#f0f9ff;border:1.5px solid #0284c7;border-radius:8px;padding:10px;text-align:center;">
-                  <div style="font-size:20px;font-weight:bold;color:#0369a1;">${matrixTotals.solicitando + matrixTotals.enRevision}</div>
-                  <div style="font-size:10.5px;font-weight:bold;color:#075985;margin-top:2px;">⏳ En Espera</div>
-                </td>
-                <td width="25%" style="background-color:#faf5ff;border:1.5px solid #a855f7;border-radius:8px;padding:10px;text-align:center;">
-                  <div style="font-size:20px;font-weight:bold;color:#7e22ce;">${matrixTotals.documentacion}</div>
-                  <div style="font-size:10.5px;font-weight:bold;color:#6b21a8;margin-top:2px;">📄 Documentación</div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        <!-- TABLA MATRICIAL DE LOS 3 EQUIPOS -->
-        <tr>
-          <td style="padding:14px 28px 10px 28px;">
-            <div style="font-size:12.5px;font-weight:bold;color:#003060;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">
-              📊 Matriz Ejecutiva por Equipos y Cuadrillas
-            </div>
-            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;border-collapse:collapse;">
-              <thead>
-                <tr style="background-color:#003060;color:#ffffff;">
-                  <th style="padding:10px 12px;font-size:11px;font-weight:bold;text-align:left;">EQUIPO / CUADRILLAS</th>
-                  <th style="padding:10px 10px;font-size:11px;font-weight:bold;text-align:left;">TÉCNICOS</th>
-                  <th style="padding:10px 6px;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;">SOLICITANDO</th>
-                  <th style="padding:10px 6px;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;">EN REV.</th>
-                  <th style="padding:10px 6px;font-size:10px;font-weight:bold;color:#fecdd3;text-align:center;">RECHAZ.</th>
-                  <th style="padding:10px 6px;font-size:10px;font-weight:bold;color:#bbf7d0;text-align:center;">VALID.</th>
-                  <th style="padding:10px 6px;font-size:10px;font-weight:bold;color:#e9d5ff;text-align:center;">DOCUM.</th>
-                  <th style="padding:10px 8px;font-size:11px;font-weight:bold;text-align:center;">TOTAL</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${matrixRows.map((r, i) => `
-                <tr style="background-color:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};border-bottom:1px solid #e2e8f0;">
-                  <td style="padding:10px 12px;font-size:12px;font-weight:bold;color:#003060;border-right:1px solid #e2e8f0;">
-                    ${escapeHtml(r.id)}
-                    <div style="font-size:10.5px;font-weight:normal;color:#64748b;">${escapeHtml(r.subtitulo)}</div>
+    <tr>
+      <td align="center">
+        <!--[if mso]>
+        <table role="presentation" width="740" align="center" border="0" cellspacing="0" cellpadding="0">
+        <tr><td>
+        <![endif]-->
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:740px;width:100%;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #cbd5e1;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
+          
+          <!-- Cabecera Institucional COVEPA (Estilizada en HTML puro, nunca se bloquea) -->
+          <tr>
+            <td style="background-color:#003060;padding:24px 30px;text-align:left;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td valign="middle">
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:4px;">
+                      AMAZONAS · COVEPA S.A.C.
+                    </div>
+                    <h1 style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;line-height:1.25;">
+                      Reporte Diario Interno — Productividad por Equipos
+                    </h1>
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#bfdbfe;margin-top:3px;">
+                      Matriz ejecutiva de cuadrillas integradas y observaciones de la jornada
+                    </div>
                   </td>
-                  <td style="padding:10px 10px;font-size:11px;color:#334155;border-right:1px solid #e2e8f0;">
-                    ${escapeHtml(r.tecnico)}
-                  </td>
-                  <td style="padding:10px 6px;font-size:12px;font-weight:600;color:#0284c7;text-align:center;border-right:1px solid #e2e8f0;">
-                    ${r.values.solicitando}
-                  </td>
-                  <td style="padding:10px 6px;font-size:12px;font-weight:600;color:#0284c7;text-align:center;border-right:1px solid #e2e8f0;">
-                    ${r.values.enRevision}
-                  </td>
-                  <td style="padding:10px 6px;font-size:12px;font-weight:bold;color:#e11d48;text-align:center;border-right:1px solid #e2e8f0;">
-                    ${r.values.rechazados}
-                  </td>
-                  <td style="padding:10px 6px;font-size:12px;font-weight:bold;color:#16a34a;text-align:center;border-right:1px solid #e2e8f0;">
-                    ${r.values.validados}
-                  </td>
-                  <td style="padding:10px 6px;font-size:12px;font-weight:600;color:#7e22ce;text-align:center;border-right:1px solid #e2e8f0;">
-                    ${r.values.documentacion}
-                  </td>
-                  <td style="padding:10px 8px;font-size:13px;font-weight:bold;color:#003060;text-align:center;background-color:#eff6ff;">
-                    ${r.total}
+                  <td align="right" valign="top" style="padding-left:15px;">
+                    <span style="display:inline-block;background-color:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:16px;padding:6px 14px;color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;white-space:nowrap;">
+                      📅 ${escapeHtml(targetFechaFormateada)}
+                    </span>
                   </td>
                 </tr>
-                `).join('')}
-                <tr style="background-color:#0f172a;color:#ffffff;border-top:2px solid #003060;">
-                  <td colspan="2" style="padding:11px 12px;font-size:12px;font-weight:bold;text-transform:uppercase;">TOTAL GENERAL</td>
-                  <td style="padding:11px 6px;font-size:12.5px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.solicitando}</td>
-                  <td style="padding:11px 6px;font-size:12.5px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.enRevision}</td>
-                  <td style="padding:11px 6px;font-size:12.5px;font-weight:bold;color:#fecdd3;text-align:center;">${matrixTotals.rechazados}</td>
-                  <td style="padding:11px 6px;font-size:12.5px;font-weight:bold;color:#bbf7d0;text-align:center;">${matrixTotals.validados}</td>
-                  <td style="padding:11px 6px;font-size:12.5px;font-weight:bold;color:#e9d5ff;text-align:center;">${matrixTotals.documentacion}</td>
-                  <td style="padding:11px 8px;font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;background-color:#1e293b;">${grandTotal}</td>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Panel de Control de Métricas (Dashboard KPI) -->
+          <tr>
+            <td style="background-color:#f8fafc;border-bottom:1px solid #e2e8f0;padding:18px 24px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <!-- Total General Trabajado -->
+                <tr>
+                  <td colspan="4" style="padding-bottom:10px;">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #cbd5e1;border-top:3px solid #003060;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:12px 16px;text-align:center;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:28px;font-weight:bold;color:#003060;line-height:1;">
+                            ${grandTotal}
+                          </div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">
+                            Total de Observaciones Tocadas en la Jornada
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
                 </tr>
-              </tbody>
-            </table>
-          </td>
-        </tr>
+                <!-- Fila de los 4 Medidores de Estado -->
+                <tr>
+                  <!-- Validadas -->
+                  <td width="25%" style="padding:0 3px 0 0;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bbf7d0;border-top:3px solid #16a34a;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:10px 4px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#16a34a;line-height:1;">${matrixTotals.validados}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#15803d;text-transform:uppercase;margin-top:4px;">✓ Validadas</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <!-- Rechazadas -->
+                  <td width="25%" style="padding:0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fecdd3;border-top:3px solid #e11d48;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:10px 4px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#e11d48;line-height:1;">${matrixTotals.rechazados}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#be123c;text-transform:uppercase;margin-top:4px;">✕ Rechazadas</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <!-- En Espera -->
+                  <td width="25%" style="padding:0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bfdbfe;border-top:3px solid #0284c7;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:10px 4px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#0284c7;line-height:1;">${matrixTotals.solicitando + matrixTotals.enRevision}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#0369a1;text-transform:uppercase;margin-top:4px;">⏳ En Espera</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <!-- Documentación -->
+                  <td width="25%" style="padding:0 0 0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #e9d5ff;border-top:3px solid #9333ea;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:10px 4px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#9333ea;line-height:1;">${matrixTotals.documentacion}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#7e22ce;text-transform:uppercase;margin-top:4px;">📄 Documentación</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-        ${notasLimpias ? `
-        <tr>
-          <td style="padding:10px 28px 14px 28px;">
-            <div style="background-color:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #003060;border-radius:6px;padding:12px 16px;">
-              <div style="font-size:11px;font-weight:bold;color:#003060;text-transform:uppercase;margin-bottom:5px;">💬 Notas Operativas de la Jornada</div>
-              <div style="font-size:12.5px;color:#334155;line-height:1.5;white-space:pre-wrap;">${escapeHtml(notasLimpias)}</div>
-            </div>
-          </td>
-        </tr>
-        ` : ''}
-
-        <tr>
-          <td style="padding:6px 28px 18px 28px;">
-            <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;">
-              <div style="font-size:12px;color:#166534;">
-                📎 <strong>Archivo Adjunto:</strong> Se incluye el archivo Excel oficial con la <strong>Matriz de Equipos</strong> y el <strong>Detalle de los códigos tocados</strong> en la jornada.
+          <!-- TABLA MATRICIAL EJECUTIVA DE LOS 3 EQUIPOS -->
+          <tr>
+            <td style="padding:20px 24px 12px 24px;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#003060;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.6px;">
+                📊 Matriz Ejecutiva por Equipos y Cuadrillas Integradas
               </div>
-            </div>
-          </td>
-        </tr>
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;border-collapse:collapse;width:100%;">
+                <thead>
+                  <tr style="background-color:#003060;color:#ffffff;">
+                    <th style="padding:11px 12px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;text-align:left;letter-spacing:0.5px;width:24%;">EQUIPO / CUADRILLAS</th>
+                    <th style="padding:11px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;text-align:left;letter-spacing:0.5px;width:26%;">TÉCNICOS</th>
+                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;letter-spacing:0.5px;width:8%;">SOLICIT.</th>
+                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;letter-spacing:0.5px;width:8%;">EN REV.</th>
+                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#fecdd3;text-align:center;letter-spacing:0.5px;width:8%;">RECHAZ.</th>
+                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bbf7d0;text-align:center;letter-spacing:0.5px;width:8%;">VALID.</th>
+                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#e9d5ff;text-align:center;letter-spacing:0.5px;width:8%;">DOCUM.</th>
+                    <th style="padding:11px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#ffffff;text-align:center;letter-spacing:0.5px;width:10%;">TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${matrixRows.map((r, i) => `
+                  <tr style="background-color:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};border-bottom:1px solid #e2e8f0;">
+                    <td style="padding:11px 12px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#003060;border-right:1px solid #e2e8f0;">
+                      ${escapeHtml(r.id)}
+                      <div style="font-size:10.5px;font-weight:normal;color:#64748b;margin-top:2px;">${escapeHtml(r.subtitulo)}</div>
+                    </td>
+                    <td style="padding:11px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;color:#334155;border-right:1px solid #e2e8f0;">
+                      ${escapeHtml(r.tecnico)}
+                    </td>
+                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${r.values.solicitando > 0 ? '#0284c7' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
+                      ${r.values.solicitando}
+                    </td>
+                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${r.values.enRevision > 0 ? '#0284c7' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
+                      ${r.values.enRevision}
+                    </td>
+                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${r.values.rechazados > 0 ? '#e11d48' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
+                      ${r.values.rechazados}
+                    </td>
+                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${r.values.validados > 0 ? '#16a34a' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
+                      ${r.values.validados}
+                    </td>
+                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${r.values.documentacion > 0 ? '#7e22ce' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
+                      ${r.values.documentacion}
+                    </td>
+                    <td style="padding:11px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:bold;color:${r.total > 0 ? '#003060' : '#94a3b8'};text-align:center;background-color:${r.total > 0 ? '#eff6ff' : 'transparent'};">
+                      ${r.total}
+                    </td>
+                  </tr>
+                  `).join('')}
+                  <!-- Fila de Total General -->
+                  <tr style="background-color:#0f172a;color:#ffffff;border-top:2px solid #003060;">
+                    <td colspan="2" style="padding:12px 12px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:0.8px;">
+                      TOTAL GENERAL DE JORNADA
+                    </td>
+                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.solicitando}</td>
+                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.enRevision}</td>
+                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#fecdd3;text-align:center;">${matrixTotals.rechazados}</td>
+                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#bbf7d0;text-align:center;">${matrixTotals.validados}</td>
+                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#e9d5ff;text-align:center;">${matrixTotals.documentacion}</td>
+                    <td style="padding:12px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;background-color:#1e293b;">${grandTotal}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
 
-        <tr>
-          <td style="background-color:#ffffff;border-top:1px solid #e2e8f0;padding:22px 30px;text-align:left;">
-            <div style="font-size:12.5px;color:#475569;margin-bottom:10px;">Saludos cordiales,</div>
-            <div style="margin-bottom:10px;"><img src="${logoUrl}" alt="COVEPA" width="145" height="38" border="0" style="display:block;width:145px;height:auto;" /></div>
-            <div style="font-size:13.5px;font-weight:bold;color:#003060;">Condor Callupe Carlos</div>
-            <div style="font-size:12px;color:#64748b;font-weight:600;margin-top:2px;">Gestor de Calidad · Proyecto Amazonas</div>
-            <div style="font-size:11.5px;color:#64748b;margin-top:6px;">Cel: +51 958 086 874 · Correo: ccondor@covepa.pe</div>
-          </td>
-        </tr>
-      </table>
+          <!-- Notas Operativas de la Jornada (Solo si se ingresó texto) -->
+          ${notasLimpias ? `
+          <tr>
+            <td style="padding:8px 24px 14px 24px;">
+              <div style="background-color:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #003060;border-radius:6px;padding:12px 16px;">
+                <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#003060;text-transform:uppercase;margin-bottom:5px;letter-spacing:0.8px;">
+                  💬 Notas Operativas de la Jornada
+                </div>
+                <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#334155;line-height:1.5;white-space:pre-wrap;">${escapeHtml(notasLimpias)}</div>
+              </div>
+            </td>
+          </tr>
+          ` : ''}
+
+          <!-- Aviso de Archivo Adjunto -->
+          <tr>
+            <td style="padding:6px 24px 18px 24px;">
+              <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;">
+                <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td width="30" valign="top" style="font-size:18px;line-height:1;">📊</td>
+                    <td style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#166534;line-height:1.45;">
+                      <strong>Archivo Excel Adjunto:</strong> Se incluye el archivo oficial <strong>${escapeHtml(excelFileName)}</strong> con la <strong>Matriz de Equipos</strong> (Hoja 1) y el <strong>Detalle de Códigos Tocados</strong> (Hoja 2, con Localidad contigua al Código de Sitio).
+                    </td>
+                  </tr>
+                </table>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Firma Institucional COVEPA (Elegante y Blindada contra Bloqueos) -->
+          <tr>
+            <td style="background-color:#ffffff;border-top:1px solid #e2e8f0;padding:24px 28px;text-align:left;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#475569;margin-bottom:12px;">
+                Saludos cordiales,
+              </div>
+              <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="border-left:3px solid #003060;padding-left:14px;">
+                <tr>
+                  <td>
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:14.5px;font-weight:bold;color:#003060;line-height:1.2;">
+                      Carlos Condor Callupe
+                    </div>
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#475569;font-weight:600;margin-top:3px;">
+                      Gestión de Calidad & Operaciones · COVEPA S.A.C.
+                    </div>
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;color:#64748b;margin-top:2px;">
+                      Proyecto Red Dorsal & Regional Amazonas
+                    </div>
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;color:#334155;margin-top:6px;">
+                      📱 Celular: <strong>+51 958 086 874</strong> &nbsp;·&nbsp; ✉️ Correo: <a href="mailto:ccondor@covepa.pe" style="color:#0284c7;text-decoration:none;font-weight:600;">ccondor@covepa.pe</a>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+              <div style="margin-top:14px;border-top:1px solid #f1f5f9;padding-top:10px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;color:#94a3b8;line-height:1.4;">
+                Este mensaje y los archivos adjuntos son para uso exclusivo del personal de COVEPA y contienen información operativa confidencial.
+              </div>
+            </td>
+          </tr>
+
+        </table>
+        <!--[if mso]>
+        </td></tr>
+        </table>
+        <![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `
     </td></tr>
   </table>
 </body>

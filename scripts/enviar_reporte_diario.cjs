@@ -295,8 +295,8 @@ async function enviarReporteDiarioGilat() {
   const curTotalMins = (curH || 0) * 60 + (curM || 0)
   const diffMins = Math.abs(curTotalMins - cfgTotalMins)
 
-  // Tolerancia de ±25 minutos para absorber retrasos de inicio del runner de GitHub Actions
-  if (!isManualRun && diffMins > 25) {
+  // Tolerancia de ±30 minutos para absorber diferencias de inicio o ejecución horaria
+  if (!forzarEnvio && diffMins > 30) {
     console.log(`[CRON-REPORTE] ⏳ Hora programada: ${config.hora_envio} | Hora actual Perú: ${horaMinuto} (Diferencia: ${diffMins} min). Fuera de horario. Omitiendo.`)
     return
   }
@@ -1353,8 +1353,8 @@ async function enviarReporteDiarioInterno() {
     const curTotalMins = (curH || 0) * 60 + (curM || 0)
     const diffMins = Math.abs(curTotalMins - cfgTotalMins)
 
-    // Tolerancia de ±25 minutos para absorber retrasos de inicio del runner de GitHub Actions
-    if (diffMins > 25) {
+    // Tolerancia de ±30 minutos para absorber diferencias de inicio o ejecución horaria
+    if (!forzarEnvio && diffMins > 30) {
       console.log(`[REPORTE-INTERNO] ⏳ Hora programada: ${config.hora_envio} | Hora actual: ${horaMinuto} (Diferencia: ${diffMins} min). Fuera de horario. Omitiendo.`)
       return
     }
@@ -1919,19 +1919,23 @@ async function main() {
   const isManualRun = process.env.IS_MANUAL_RUN === 'true' ||
                       process.env.IS_MANUAL_RUN === true ||
                       process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
+  const forzarEnvio = process.env.FORZAR_ENVIO === 'true' || process.env.FORZAR_ENVIO === true
   const tipoReporte = (process.env.TIPO_REPORTE || '').trim().toLowerCase()
 
-  if (isManualRun && tipoReporte === 'diario_interno') {
+  // Si es un disparo de prueba forzado manual (ej: botón de enviar prueba desde la web)
+  if (isManualRun && forzarEnvio && tipoReporte === 'diario_interno') {
     await enviarReporteDiarioInterno()
     return
   }
 
-  if (isManualRun && (tipoReporte === 'diario' || tipoReporte === 'gilat')) {
+  if (isManualRun && forzarEnvio && (tipoReporte === 'diario' || tipoReporte === 'gilat')) {
     await enviarReporteDiarioGilat()
     return
   }
 
-  // Si no se especificó o es ejecución programada (cron), evaluar ambos
+  // Si es corrida programada (por cron o disparada por cron-job.org sin forzar),
+  // evaluar de forma inteligente cada reporte contra su hora configurada en Supabase:
+  console.log('[MAIN] 🧭 Evaluación programada de reportes activos...')
   await enviarReporteDiarioGilat()
   await enviarReporteDiarioInterno()
 }

@@ -20,6 +20,7 @@ import {
   exportarExcelReporteDiario,
   generarHTMLReporte,
   despacharReporteInmediato,
+  despacharReporteAmpliacionInmediato,
   fetchDatosReporteDiarioInterno,
   exportarExcelReporteDiarioInterno,
   generarHTMLReporteInterno,
@@ -31,6 +32,7 @@ import {
   fetchHistorialEnvios,
   limpiarHistorialEnviosHoy,
   DEFAULT_CONFIG_DIARIO,
+  DEFAULT_CONFIG_DIARIO_AMPLIACION,
   DEFAULT_CONFIG_DIARIO_INTERNO,
   DEFAULT_CONFIG_SEMANAL
 } from '../services/reportesCorreoService'
@@ -51,7 +53,8 @@ const CUADRILLAS_CATALOGO = [
   { id: 'cuadrilla-3', code: 'CUADRILLA 3', title: 'Cuadrilla 3', baseCM: 'BAGUA GRANDE', sitios: 22, zonas: 'ZONA 7' },
   { id: 'cuadrilla-4', code: 'CUADRILLA 4', title: 'Cuadrilla 4', baseCM: 'BAGUA GRANDE', sitios: 22, zonas: 'ZONA 7' },
   { id: 'cuadrilla-5', code: 'CUADRILLA 5', title: 'Cuadrilla 5', baseCM: 'BAGUA GRANDE', sitios: 39, zonas: 'ZONA 7' },
-  { id: 'cuadrilla-6', code: 'CUADRILLA 6', title: 'Cuadrilla 6', baseCM: 'BAGUA GRANDE', sitios: 15, zonas: 'ZONA 7' }
+  { id: 'cuadrilla-6', code: 'CUADRILLA 6', title: 'Cuadrilla 6', baseCM: 'BAGUA GRANDE', sitios: 15, zonas: 'ZONA 7' },
+  { id: 'cuadrilla-7', code: 'CUADRILLA 7', title: 'Cuadrilla 7 (Ampliación)', baseCM: 'AMAZONAS', sitios: 27, zonas: 'ZONA 2 y ZONA 7' }
 ]
 
 export default function KMZ() {
@@ -81,6 +84,7 @@ export default function KMZ() {
   // 1. CONFIGURACIONES DE CORREO AUTOMÁTICO
   // ========================================================
   const [configDiario, setConfigDiario] = useState(DEFAULT_CONFIG_DIARIO)
+  const [configDiarioAmpliacion, setConfigDiarioAmpliacion] = useState(DEFAULT_CONFIG_DIARIO_AMPLIACION)
   const [configInterno, setConfigInterno] = useState(DEFAULT_CONFIG_DIARIO_INTERNO)
   const [configSemanal, setConfigSemanal] = useState(DEFAULT_CONFIG_SEMANAL)
   const [savingConfig, setSavingConfig] = useState(false)
@@ -91,6 +95,10 @@ export default function KMZ() {
   const [fechaReporteDiario, setFechaReporteDiario] = useState(() => getPeruDateStr())
   const [datosDiario, setDatosDiario] = useState(null)
   const [loadingDiario, setLoadingDiario] = useState(false)
+
+  const [fechaReporteDiarioAmpliacion, setFechaReporteDiarioAmpliacion] = useState(() => getPeruDateStr())
+  const [datosDiarioAmpliacion, setDatosDiarioAmpliacion] = useState(null)
+  const [loadingDiarioAmpliacion, setLoadingDiarioAmpliacion] = useState(false)
 
   const [fechaReporteInterno, setFechaReporteInterno] = useState(() => getPeruDateStr())
   const [datosInterno, setDatosInterno] = useState(null)
@@ -142,14 +150,16 @@ export default function KMZ() {
     let mounted = true
     async function init() {
       try {
-        const [cDiario, cInterno, cSemanal, pList] = await Promise.all([
+        const [cDiario, cAmpliacion, cInterno, cSemanal, pList] = await Promise.all([
           fetchConfiguracionReporte('diario'),
+          fetchConfiguracionReporte('diario_ampliacion'),
           fetchConfiguracionReporte('diario_interno'),
           fetchConfiguracionReporte('semanal'),
           fetchPersonal().catch(() => [])
         ])
         if (mounted) {
           setConfigDiario(cDiario)
+          if (cAmpliacion) setConfigDiarioAmpliacion(cAmpliacion)
           setConfigInterno(cInterno)
           setConfigSemanal(cSemanal)
           setPersonalList(pList || [])
@@ -162,31 +172,44 @@ export default function KMZ() {
     return () => { mounted = false }
   }, [])
 
-  // Cargar datos del Reporte Diario Gilat
+  // Cargar datos del Reporte Diario Amazonas Original
   const loadDiarioData = useCallback(async (targetDate) => {
     setLoadingDiario(true)
     try {
-      const data = await fetchDatosReporteDiario(targetDate)
+      const data = await fetchDatosReporteDiario(targetDate, configDiario.periodo_reporte, 'original')
       setDatosDiario(data)
     } catch (err) {
-      console.warn('Error cargando datos de reporte diario:', err)
+      console.warn('Error cargando datos de reporte diario original:', err)
     } finally {
       setLoadingDiario(false)
     }
-  }, [])
+  }, [configDiario.periodo_reporte])
 
-  // Cargar datos del Reporte Diario Interno
+  // Cargar datos del Reporte Diario Amazonas Ampliación
+  const loadDiarioAmpliacionData = useCallback(async (targetDate) => {
+    setLoadingDiarioAmpliacion(true)
+    try {
+      const data = await fetchDatosReporteDiario(targetDate, configDiarioAmpliacion.periodo_reporte, 'ampliacion')
+      setDatosDiarioAmpliacion(data)
+    } catch (err) {
+      console.warn('Error cargando datos de reporte diario ampliación:', err)
+    } finally {
+      setLoadingDiarioAmpliacion(false)
+    }
+  }, [configDiarioAmpliacion.periodo_reporte])
+
+  // Cargar datos del Reporte Diario Interno (Ambos tramos unificados)
   const loadInternoData = useCallback(async (targetDate) => {
     setLoadingInterno(true)
     try {
-      const data = await fetchDatosReporteDiarioInterno(targetDate)
+      const data = await fetchDatosReporteDiarioInterno(targetDate, configInterno.periodo_reporte)
       setDatosInterno(data)
     } catch (err) {
       console.warn('Error cargando datos de reporte diario interno:', err)
     } finally {
       setLoadingInterno(false)
     }
-  }, [])
+  }, [configInterno.periodo_reporte])
 
   // Cargar datos del Reporte Semanal
   const loadSemanalData = useCallback(async () => {
@@ -219,6 +242,8 @@ export default function KMZ() {
   useEffect(() => {
     if (activeReport === 'diario-gilat' && !datosDiario) {
       loadDiarioData(fechaReporteDiario)
+    } else if (activeReport === 'diario-ampliacion' && !datosDiarioAmpliacion) {
+      loadDiarioAmpliacionData(fechaReporteDiarioAmpliacion)
     } else if (activeReport === 'diario-interno' && !datosInterno) {
       loadInternoData(fechaReporteInterno)
     } else if (activeReport === 'semanal' && !datosSemanal) {
@@ -226,7 +251,7 @@ export default function KMZ() {
     } else if (activeReport === 'programacion') {
       loadProgData(fechaProg, mostrarTecnico)
     }
-  }, [activeReport, fechaReporteDiario, fechaReporteInterno, fechaProg, mostrarTecnico, datosDiario, datosInterno, datosSemanal, loadDiarioData, loadInternoData, loadSemanalData, loadProgData])
+  }, [activeReport, fechaReporteDiario, fechaReporteDiarioAmpliacion, fechaReporteInterno, fechaProg, mostrarTecnico, datosDiario, datosDiarioAmpliacion, datosInterno, datosSemanal, loadDiarioData, loadDiarioAmpliacionData, loadInternoData, loadSemanalData, loadProgData])
 
   // ========================================================
   // GUARDAR CONFIGURACIÓN DE CORREO
@@ -236,6 +261,7 @@ export default function KMZ() {
     try {
       const userEmail = user?.email || 'coordinador'
       let configTarget = configDiario
+      if (tipo === 'diario_ampliacion') configTarget = configDiarioAmpliacion
       if (tipo === 'diario_interno') configTarget = configInterno
       if (tipo === 'semanal') configTarget = configSemanal
 
@@ -257,6 +283,8 @@ export default function KMZ() {
       let res = null
       if (tipo === 'diario') {
         res = await despacharReporteInmediato({ forzar: true, destinatarioPrueba: configDiario.destinatario_prueba || '' })
+      } else if (tipo === 'diario_ampliacion') {
+        res = await despacharReporteAmpliacionInmediato({ forzar: true, destinatarioPrueba: configDiarioAmpliacion.destinatario_prueba || '' })
       } else if (tipo === 'diario_interno') {
         res = await despacharReporteInternoInmediato({ forzar: true, destinatarioPrueba: configInterno.destinatario_prueba || '' })
       } else if (tipo === 'semanal') {
@@ -283,6 +311,13 @@ export default function KMZ() {
       setPreviewDestinatarios(configDiario.destinatarios || [])
       setPreviewDestinatariosCC(configDiario.destinatarios_cc || [])
       setPreviewAdjunto(`Reporte_Observaciones_${datosDiario?.fechaStr || 'jornada'}.xlsx`)
+    } else if (tipo === 'diario_ampliacion') {
+      const html = generarHTMLReporte({ config: configDiarioAmpliacion, datos: datosDiarioAmpliacion, isWebPreview: true })
+      setPreviewHtml(html)
+      setPreviewSubject((configDiarioAmpliacion.asunto || '').replace('{fecha}', datosDiarioAmpliacion?.fechaStr || ''))
+      setPreviewDestinatarios(configDiarioAmpliacion.destinatarios || [])
+      setPreviewDestinatariosCC(configDiarioAmpliacion.destinatarios_cc || [])
+      setPreviewAdjunto(`Reporte_Observaciones_Ampliacion_${datosDiarioAmpliacion?.fechaStr || 'jornada'}.xlsx`)
     } else if (tipo === 'diario_interno') {
       const html = generarHTMLReporteInterno({ config: configInterno, datos: datosInterno, isWebPreview: true })
       setPreviewHtml(html)
@@ -336,9 +371,13 @@ export default function KMZ() {
     const emailNorm = email.toLowerCase().trim()
     const isInterno = targetConfigForPersonal === 'interno'
     const isSemanal = targetConfigForPersonal === 'semanal'
+    const isAmpliacion = targetConfigForPersonal === 'ampliacion' || targetConfigForPersonal === 'diario_ampliacion'
 
-    const cfg = isInterno ? configInterno : (isSemanal ? configSemanal : configDiario)
-    const setCfg = isInterno ? setConfigInterno : (isSemanal ? setConfigSemanal : setConfigDiario)
+    let cfg = configDiario
+    let setCfg = setConfigDiario
+    if (isInterno) { cfg = configInterno; setCfg = setConfigInterno }
+    else if (isSemanal) { cfg = configSemanal; setCfg = setConfigSemanal }
+    else if (isAmpliacion) { cfg = configDiarioAmpliacion; setCfg = setConfigDiarioAmpliacion }
 
     const curPara = cfg.destinatarios || []
     const curCC = cfg.destinatarios_cc || []
@@ -358,9 +397,13 @@ export default function KMZ() {
     const emailNorm = email.toLowerCase().trim()
     const isInterno = targetConfigForPersonal === 'interno'
     const isSemanal = targetConfigForPersonal === 'semanal'
+    const isAmpliacion = targetConfigForPersonal === 'ampliacion' || targetConfigForPersonal === 'diario_ampliacion'
 
-    const cfg = isInterno ? configInterno : (isSemanal ? configSemanal : configDiario)
-    const setCfg = isInterno ? setConfigInterno : (isSemanal ? setConfigSemanal : setConfigDiario)
+    let cfg = configDiario
+    let setCfg = setConfigDiario
+    if (isInterno) { cfg = configInterno; setCfg = setConfigInterno }
+    else if (isSemanal) { cfg = configSemanal; setCfg = setConfigSemanal }
+    else if (isAmpliacion) { cfg = configDiarioAmpliacion; setCfg = setConfigDiarioAmpliacion }
 
     const curPara = cfg.destinatarios || []
     const curCC = cfg.destinatarios_cc || []
@@ -383,9 +426,23 @@ export default function KMZ() {
     setDownloadingReport('diario-gilat')
     try {
       let d = datosDiario
-      if (!d) d = await fetchDatosReporteDiario(fechaReporteDiario)
-      await exportarExcelReporteDiario(d)
-      showFeedback(`Reporte Diario (${d.fechaStr}) descargado exitosamente`)
+      if (!d) d = await fetchDatosReporteDiario(fechaReporteDiario, configDiario.periodo_reporte, 'original')
+      await exportarExcelReporteDiario(d, `Reporte_Observaciones_Amazonas_${d.fechaStr}.xlsx`)
+      showFeedback(`Reporte Diario Original (${d.fechaStr}) descargado exitosamente`)
+    } catch (err) {
+      alert(`Error al generar Excel: ${err.message}`)
+    } finally {
+      setDownloadingReport(null)
+    }
+  }
+
+  const handleDownloadDiarioAmpliacion = async () => {
+    setDownloadingReport('diario-ampliacion')
+    try {
+      let d = datosDiarioAmpliacion
+      if (!d) d = await fetchDatosReporteDiario(fechaReporteDiarioAmpliacion, configDiarioAmpliacion.periodo_reporte, 'ampliacion')
+      await exportarExcelReporteDiario(d, `Reporte_Observaciones_Ampliacion_${d.fechaStr}.xlsx`)
+      showFeedback(`Reporte Diario Ampliación (${d.fechaStr}) descargado exitosamente`)
     } catch (err) {
       alert(`Error al generar Excel: ${err.message}`)
     } finally {
@@ -463,19 +520,27 @@ export default function KMZ() {
   const reportCards = useMemo(() => [
     {
       id: 'diario-gilat',
-      title: 'Reporte Diario (Gilat / General)',
+      title: 'Reporte Diario — Amazonas Original',
       badge: 'Automático · 21:00 hrs',
       badgeColor: '#0284c7',
       icon: TrendingUp,
-      description: 'Consolidado oficial nocturno con tiempo promedio de revisión y despacho por correo.'
+      description: 'Consolidado nocturno oficial de observaciones de Amazonas Original con tiempo de revisión y Excel adjunto.'
+    },
+    {
+      id: 'diario-ampliacion',
+      title: 'Reporte Diario — Amazonas Ampliación',
+      badge: 'Automático · 21:00 hrs',
+      badgeColor: '#0ea5e9',
+      icon: Layers,
+      description: 'Consolidado nocturno de levantamiento de observaciones para los 27 sitios de Ampliación (AMEX).'
     },
     {
       id: 'diario-interno',
-      title: 'Reporte Diario Interno',
+      title: 'Reporte Diario Interno (4 Equipos)',
       badge: 'Automático · 21:30 hrs',
       badgeColor: '#10b981',
-      icon: Layers,
-      description: 'Cifras del día y Cuadro Matricial por Equipos (C1+C2, C3+C6, C4+C5) con Excel adjunto.'
+      icon: Layers3,
+      description: 'Cifras integradas (Original + Ampliación) y Cuadro Matricial de 4 Equipos (C1+C2, C3+C6, C4+C5, C7).'
     },
     {
       id: 'semanal',
@@ -549,6 +614,29 @@ export default function KMZ() {
       tiempo_revision: r.tiempo_revision || '-'
     }))
   }, [datosDiario])
+
+  // 1.1 Filas: Diario Ampliación
+  const rowsDiarioAmpliacion = useMemo(() => {
+    if (!datosDiarioAmpliacion) return []
+    const all = [
+      ...(datosDiarioAmpliacion.validadas || []),
+      ...(datosDiarioAmpliacion.rechazadas || []),
+      ...(datosDiarioAmpliacion.enEspera || []),
+      ...(datosDiarioAmpliacion.descartadas || [])
+    ]
+    return all.map(r => ({
+      id: r.id_obs,
+      id_obs: r.id_obs || '',
+      zona: r.zona || '-',
+      id_sitio: r.id_sitio || r.codigo_lugar || '',
+      localidad: r.localidad || getLocalidadBySiteId(r.id_sitio) || '',
+      revisor: r.revisor || '-',
+      estado: r.estado || 'Validado',
+      fecha_solicito_revision: r.fecha_solicito_revision || '-',
+      fecha_revisado: r.fecha_revisado || '-',
+      tiempo_revision: r.tiempo_revision || '-'
+    }))
+  }, [datosDiarioAmpliacion])
 
   // 2. Columnas y Filas: Diario Interno - Hoja 1: Matriz Equipos
   const columnsInternoMatriz = useMemo(() => [
@@ -1060,18 +1148,169 @@ export default function KMZ() {
                     setTargetConfigForPersonal('diario')
                     setModalPersonalOpen(true)
                   }}
-                  titulo="Envío Automático del Reporte Diario a Gilat"
-                  subtitulo="Despacho oficial de las 21:00 hrs con archivo Excel adjunto y tiempo de revisión"
+                  titulo="Envío Automático del Reporte Diario (Amazonas Original)"
+                  subtitulo="Despacho oficial de las 21:00 hrs con archivo Excel adjunto y tiempo de revisión para Amazonas Original"
                 />
               </div>
             ) : (
               <TablaExcelDetalle
                 columns={columnsDiarioGilat}
                 data={rowsDiarioGilat}
-                fileName={`Reporte_Observaciones_${fechaReporteDiario}.xlsx`}
+                fileName={`Reporte_Observaciones_Amazonas_${fechaReporteDiario}.xlsx`}
                 onDownload={handleDownloadDiario}
                 downloading={downloadingReport === 'diario-gilat'}
-                sheetNotice="Previsualización de las columnas y registros oficiales del Excel diario para Gilat."
+                sheetNotice="Previsualización de las columnas y registros oficiales del Excel diario para Amazonas Original."
+              />
+            )
+          )}
+
+          {/* ======================================================== */}
+          {/* CASO 1.1: REPORTE DIARIO AMAZONAS AMPLIACIÓN            */}
+          {/* ======================================================== */}
+          {activeReport === 'diario-ampliacion' && (
+            vistaCara === 'frente' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {/* Métricas y Cifras Resumidas de Ampliación */}
+                <div style={{ background: '#ffffff', border: '1px solid #d8e5f1', borderRadius: '12px', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <div>
+                      <h4 className="t-name" style={{ margin: 0, color: '#003060' }}>
+                        Cifras Resumidas — Amazonas Ampliación (Sitios AMEX)
+                      </h4>
+                      <span className="t-meta" style={{ color: '#64748b' }}>
+                        {datosDiarioAmpliacion?.fechaFormateada || fechaReporteDiarioAmpliacion}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <input
+                        type="date"
+                        value={fechaReporteDiarioAmpliacion}
+                        onChange={e => {
+                          setFechaReporteDiarioAmpliacion(e.target.value)
+                          loadDiarioAmpliacionData(e.target.value)
+                        }}
+                        className="t-body"
+                        style={{ padding: '0.35rem 0.65rem', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleDownloadDiarioAmpliacion}
+                        disabled={downloadingReport === 'diario-ampliacion'}
+                        className="btn btn-secondary"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                      >
+                        <Download size={14} />
+                        <span>Descargar Excel</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tarjeta Principal de Total */}
+                  <div style={{ background: '#f8fafc', border: '1.5px solid #003060', borderRadius: '10px', padding: '1.1rem', textAlign: 'center', marginBottom: '0.85rem' }}>
+                    <div className="t-metric-kpi" style={{ color: '#003060' }}>
+                      {datosDiarioAmpliacion?.stats?.total ?? (loadingDiarioAmpliacion ? '...' : 0)}
+                    </div>
+                    <div className="t-badge" style={{ color: '#475569', textTransform: 'uppercase', letterSpacing: '0.8px', marginTop: '4px' }}>
+                      Total de Observaciones de Ampliación Trabajadas en la Jornada
+                    </div>
+                  </div>
+
+                  {/* 4 KPIs Secundarios */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <div style={{ background: '#f0fdf4', border: '1.5px solid #22c55e', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
+                      <div className="t-title-section" style={{ color: '#15803d', margin: 0 }}>
+                        {datosDiarioAmpliacion?.stats?.validadas ?? 0}
+                      </div>
+                      <div className="t-badge" style={{ color: '#166534', marginTop: '2px' }}>✓ Validadas</div>
+                    </div>
+
+                    <div style={{ background: '#fff1f2', border: '1.5px solid #f43f5e', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
+                      <div className="t-title-section" style={{ color: '#be123c', margin: 0 }}>
+                        {datosDiarioAmpliacion?.stats?.rechazadas ?? 0}
+                      </div>
+                      <div className="t-badge" style={{ color: '#9f1239', marginTop: '2px' }}>✕ Rechazadas</div>
+                    </div>
+
+                    <div style={{ background: '#f0f9ff', border: '1.5px solid #0284c7', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
+                      <div className="t-title-section" style={{ color: '#0369a1', margin: 0 }}>
+                        {datosDiarioAmpliacion?.stats?.enEspera ?? 0}
+                      </div>
+                      <div className="t-badge" style={{ color: '#075985', marginTop: '2px' }}>⏳ En Espera</div>
+                    </div>
+
+                    <div style={{ background: '#faf5ff', border: '1.5px solid #a855f7', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
+                      <div className="t-title-section" style={{ color: '#7e22ce', margin: 0 }}>
+                        {datosDiarioAmpliacion?.stats?.descartadas ?? 0}
+                      </div>
+                      <div className="t-badge" style={{ color: '#6b21a8', marginTop: '2px' }}>⊘ No Aplica</div>
+                    </div>
+                  </div>
+
+                  {/* Tarjeta Destacada de Tiempo Promedio de Revisión */}
+                  <div style={{
+                    background: '#fffbeb',
+                    border: '1.5px solid #f59e0b',
+                    borderRadius: '10px',
+                    padding: '0.9rem 1.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Clock size={26} color="#d97706" />
+                      <div>
+                        <div className="t-name" style={{ color: '#92400e', margin: 0 }}>
+                          Tiempo Promedio de Revisión
+                        </div>
+                        <span className="t-meta" style={{ color: '#b45309' }}>
+                          Promedio de atención transcurrido desde que se solicitó revisión hasta el dictamen
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: '#ffffff',
+                      border: '1px solid #fde68a',
+                      borderRadius: '8px',
+                      padding: '0.35rem 0.85rem',
+                      textAlign: 'center'
+                    }}>
+                      <span className="t-title-section" style={{ color: '#b45309', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+                        {datosDiarioAmpliacion?.stats?.tiempoPromedioRevisionTexto || '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card de Automatización y Envío de Correo */}
+                <CardAutomatizacionCorreo
+                  config={configDiarioAmpliacion}
+                  onChangeConfig={setConfigDiarioAmpliacion}
+                  onSave={() => handleSaveConfig('diario_ampliacion')}
+                  saving={savingConfig}
+                  onOpenPreview={() => handleOpenPreview('diario_ampliacion')}
+                  onSendTest={() => handleSendTest('diario_ampliacion')}
+                  sendingTest={despachando}
+                  onOpenHistorial={() => handleOpenHistorial('diario_ampliacion')}
+                  onOpenPersonalSelector={() => {
+                    setTargetConfigForPersonal('ampliacion')
+                    setModalPersonalOpen(true)
+                  }}
+                  titulo="Envío Automático del Reporte Diario (Amazonas Ampliación)"
+                  subtitulo="Despacho oficial de las 21:00 hrs con archivo Excel adjunto para los 27 sitios de Ampliación (AMEX)"
+                />
+              </div>
+            ) : (
+              <TablaExcelDetalle
+                columns={columnsDiarioGilat}
+                data={rowsDiarioAmpliacion}
+                fileName={`Reporte_Observaciones_Ampliacion_${fechaReporteDiarioAmpliacion}.xlsx`}
+                onDownload={handleDownloadDiarioAmpliacion}
+                downloading={downloadingReport === 'diario-ampliacion'}
+                sheetNotice="Previsualización de las columnas y registros oficiales del Excel diario para Amazonas Ampliación."
               />
             )
           )}

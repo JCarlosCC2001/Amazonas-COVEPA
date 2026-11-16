@@ -6,6 +6,7 @@ import { esRevisorGilat, esRegistroSoloComentario } from './auditoriaSyncService
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService'
 
 const LOCAL_STORAGE_KEY_DIARIO = 'covepa_config_reporte_correo'
+const LOCAL_STORAGE_KEY_DIARIO_AMPLIACION = 'covepa_config_reporte_diario_ampliacion'
 const LOCAL_STORAGE_KEY_DIARIO_INTERNO = 'covepa_config_reporte_diario_interno'
 const LOCAL_STORAGE_KEY_SEMANAL = 'covepa_config_reporte_semanal'
 
@@ -15,9 +16,21 @@ export const DEFAULT_CONFIG_DIARIO = {
   hora_envio: '21:00:00',
   destinatarios: ['ccondor@covepa.pe'],
   destinatarios_cc: [],
-  asunto: '[COVEPA] Reporte Diario de Observaciones - {fecha}',
-  notas_jornada: 'Cierre operativo de observaciones de la jornada.',
+  asunto: '[COVEPA] Reporte Diario de Observaciones (Amazonas Original) - {fecha}',
+  notas_jornada: 'Cierre operativo de observaciones de la jornada - Amazonas Original.',
   periodo_reporte: 'dia_actual', // 'dia_actual' | 'dia_anterior'
+  destinatario_prueba: ''
+}
+
+export const DEFAULT_CONFIG_DIARIO_AMPLIACION = {
+  id: 'config_diario_ampliacion',
+  activo: true,
+  hora_envio: '21:00:00',
+  destinatarios: ['ccondor@covepa.pe'],
+  destinatarios_cc: [],
+  asunto: '[COVEPA] Reporte Diario de Observaciones (Amazonas Ampliación) - {fecha}',
+  notas_jornada: 'Cierre operativo de observaciones de la jornada - Amazonas Ampliación.',
+  periodo_reporte: 'dia_actual',
   destinatario_prueba: ''
 }
 
@@ -61,9 +74,26 @@ const dbColumnsSupport = {
 export async function fetchConfiguracionReporte(tipo = 'diario') {
   const isSemanal = tipo === 'semanal'
   const isInterno = tipo === 'diario_interno' || tipo === 'interno'
-  const configId = isSemanal ? 'config_semanal' : (isInterno ? 'config_diario_interno' : 'config_diario')
-  const storageKey = isSemanal ? LOCAL_STORAGE_KEY_SEMANAL : (isInterno ? LOCAL_STORAGE_KEY_DIARIO_INTERNO : LOCAL_STORAGE_KEY_DIARIO)
-  const defaults = isSemanal ? DEFAULT_CONFIG_SEMANAL : (isInterno ? DEFAULT_CONFIG_DIARIO_INTERNO : DEFAULT_CONFIG_DIARIO)
+  const isAmpliacion = tipo === 'diario_ampliacion' || tipo === 'ampliacion'
+
+  let configId = 'config_diario'
+  let storageKey = LOCAL_STORAGE_KEY_DIARIO
+  let defaults = DEFAULT_CONFIG_DIARIO
+
+  if (isSemanal) {
+    configId = 'config_semanal'
+    storageKey = LOCAL_STORAGE_KEY_SEMANAL
+    defaults = DEFAULT_CONFIG_SEMANAL
+  } else if (isInterno) {
+    configId = 'config_diario_interno'
+    storageKey = LOCAL_STORAGE_KEY_DIARIO_INTERNO
+    defaults = DEFAULT_CONFIG_DIARIO_INTERNO
+  } else if (isAmpliacion) {
+    configId = 'config_diario_ampliacion'
+    storageKey = LOCAL_STORAGE_KEY_DIARIO_AMPLIACION
+    defaults = DEFAULT_CONFIG_DIARIO_AMPLIACION
+  }
+
   const hoyPeru = getPeruDateStr() || toLocalDateString(new Date())
 
   // Recuperar cualquier dato local previo (ej. destinatario_prueba)
@@ -150,9 +180,25 @@ export async function fetchConfiguracionReporte(tipo = 'diario') {
 export async function saveConfiguracionReporte(config, userEmail = null, tipo = 'diario') {
   const isSemanal = tipo === 'semanal'
   const isInterno = tipo === 'diario_interno' || tipo === 'interno'
-  const configId = isSemanal ? 'config_semanal' : (isInterno ? 'config_diario_interno' : 'config_diario')
-  const storageKey = isSemanal ? LOCAL_STORAGE_KEY_SEMANAL : (isInterno ? LOCAL_STORAGE_KEY_DIARIO_INTERNO : LOCAL_STORAGE_KEY_DIARIO)
-  const defaults = isSemanal ? DEFAULT_CONFIG_SEMANAL : (isInterno ? DEFAULT_CONFIG_DIARIO_INTERNO : DEFAULT_CONFIG_DIARIO)
+  const isAmpliacion = tipo === 'diario_ampliacion' || tipo === 'ampliacion'
+
+  let configId = 'config_diario'
+  let storageKey = LOCAL_STORAGE_KEY_DIARIO
+  let defaults = DEFAULT_CONFIG_DIARIO
+
+  if (isSemanal) {
+    configId = 'config_semanal'
+    storageKey = LOCAL_STORAGE_KEY_SEMANAL
+    defaults = DEFAULT_CONFIG_SEMANAL
+  } else if (isInterno) {
+    configId = 'config_diario_interno'
+    storageKey = LOCAL_STORAGE_KEY_DIARIO_INTERNO
+    defaults = DEFAULT_CONFIG_DIARIO_INTERNO
+  } else if (isAmpliacion) {
+    configId = 'config_diario_ampliacion'
+    storageKey = LOCAL_STORAGE_KEY_DIARIO_AMPLIACION
+    defaults = DEFAULT_CONFIG_DIARIO_AMPLIACION
+  }
 
   const horaNormalizada = config.hora_envio ? `${config.hora_envio.slice(0, 5)}:00` : defaults.hora_envio
   const payload = {
@@ -324,7 +370,7 @@ function calcularTiemposRevision(events = [], obs = {}) {
  * Obtiene las observaciones de la fecha indicada clasificadas para el reporte diario.
  * Utiliza getAvancePorFecha para garantizar coincidencia matemática 100% con Programación y Avance del Día.
  */
-export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte = null) {
+export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte = null, tramo = 'original') {
   let targetDate = fechaFiltro
   if (!targetDate) {
     if (periodoReporte === 'dia_anterior') {
@@ -342,9 +388,18 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
   if (Array.isArray(sitios)) {
     sitios.forEach(s => { sitiosMap[s.id_site] = s })
   }
+
+  // Filtrar observaciones por estado válido y por tramo (Original vs Ampliación)
+  const isAmpliacion = tramo === 'ampliacion'
+  const isOriginal = tramo === 'original'
+
   const rawRows = (avance?.rows || []).filter(r => {
     const st = (r.estado || r.estado_covepa || '').trim()
-    return st !== 'Documentación' && st !== 'Documentacion'
+    if (st === 'Documentación' || st === 'Documentacion') return false
+    const sId = String(r.id_sitio || '').toUpperCase()
+    if (isAmpliacion) return sId.startsWith('AMEX-')
+    if (isOriginal) return !sId.startsWith('AMEX-')
+    return true
   })
   const baseRows = rawRows.map(r => {
     const sInfo = sitiosMap[r.id_sitio] || {}
@@ -501,7 +556,8 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
     'CUADRILLA 3': 'Daniel Javier',
     'CUADRILLA 4': 'Alfonso Curi',
     'CUADRILLA 5': 'William Avila',
-    'CUADRILLA 6': 'Juan Castro'
+    'CUADRILLA 6': 'Juan Castro',
+    'CUADRILLA 7': 'Por Asignar'
   }
   if (Array.isArray(personal)) {
     personal.forEach(p => {
@@ -526,8 +582,9 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
   const tecC4 = getCuadrillaTecnico('CUADRILLA 4')
   const tecC5 = getCuadrillaTecnico('CUADRILLA 5')
   const tecC6 = getCuadrillaTecnico('CUADRILLA 6')
+  const tecC7 = getCuadrillaTecnico('CUADRILLA 7')
 
-  // Regla de Negocio Inmutable: Equipo 1 = C1+C2, Equipo 2 = C3+C6, Equipo 3 = C4+C5
+  // Regla de Negocio: Equipo 1 = C1+C2, Equipo 2 = C3+C6, Equipo 3 = C4+C5, Equipo 4 = C7
   const equiposMap = {
     'EQUIPO 1': {
       id: 'EQUIPO 1',
@@ -552,12 +609,23 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
       tecnico: [tecC4, tecC5].filter(Boolean).join(' · ') || 'Técnicos Equipo 3',
       values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
       total: 0
+    },
+    'EQUIPO 4': {
+      id: 'EQUIPO 4',
+      cuadrilla: 'EQUIPO 4',
+      subtitulo: 'Cuadrilla 7',
+      tecnico: tecC7 || 'Por Asignar',
+      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+      total: 0
     }
   }
 
   const rawRows = avance?.rows || []
 
   const resolveCuadrillaForObs = (r) => {
+    const sId = String(r.id_sitio || '').toUpperCase()
+    if (sId.startsWith('AMEX-')) return 'CUADRILLA 7'
+
     let c = (r.cuadrilla || '').trim().toUpperCase()
     if (c.startsWith('CUADRILLA')) return c
     const sInfo = sitiosMap[r.id_sitio] || {}
@@ -587,6 +655,8 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
       targetEquipoKey = 'EQUIPO 2'
     } else if (targetCuadrilla === 'CUADRILLA 4' || targetCuadrilla === 'CUADRILLA 5') {
       targetEquipoKey = 'EQUIPO 3'
+    } else if (targetCuadrilla === 'CUADRILLA 7') {
+      targetEquipoKey = 'EQUIPO 4'
     }
 
     const localidad = r.localidad || sInfo.localidad || ''
@@ -780,7 +850,7 @@ export async function fetchDatosReporteSemanal(fechaFiltro = null, periodoReport
 /**
  * Genera y descarga un archivo Excel (.xlsx) estructurado con las observaciones de la jornada diaria.
  */
-export async function exportarExcelReporteDiario(datos) {
+export async function exportarExcelReporteDiario(datos, customFileName = null) {
   if (!datos) return
   const ExcelJS = (await import('exceljs')).default || (await import('exceljs'))
   const wb = new ExcelJS.Workbook()
@@ -894,7 +964,7 @@ export async function exportarExcelReporteDiario(datos) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `Reporte_Observaciones_${datos.fechaStr || 'jornada'}.xlsx`
+  a.download = customFileName || `Reporte_Observaciones_${datos.fechaStr || 'jornada'}.xlsx`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
@@ -2245,6 +2315,98 @@ export async function despacharReporteInmediato({ forzar = true, destinatarioPru
       estado: 'exitoso'
     })
     return { ok: true, message: '¡Reporte despachado exitosamente!' }
+  }
+
+  const errData = await response.json().catch(() => ({}))
+  throw new Error(errData.message || `Error del servidor GitHub (${response.status})`)
+}
+
+/**
+ * Despacha el reporte diario de Amazonas Ampliación de inmediato (prueba de envío o disparo).
+ */
+export async function despacharReporteAmpliacionInmediato({ forzar = true, destinatarioPrueba = '' } = {}) {
+  const cronKey = (import.meta.env.VITE_CRON_SECRET || DEFAULT_CRON_KEY).trim()
+  try {
+    const res = await fetch('/api/despachar-reporte', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-key': cronKey,
+        'x-forzar': forzar ? 'true' : 'false',
+        'x-tipo-reporte': 'diario_ampliacion',
+        'x-destinatario-prueba': destinatarioPrueba || ''
+      },
+      body: JSON.stringify({
+        forzar,
+        tipo_reporte: 'diario_ampliacion',
+        destinatario_prueba: destinatarioPrueba || ''
+      })
+    })
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}))
+      registrarEnvioLocal({
+        id: `local-${Date.now()}`,
+        created_at: new Date().toISOString(),
+        tipo_reporte: 'diario_ampliacion',
+        tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
+        origen: 'web',
+        destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
+        destinatarios_cc: [],
+        asunto: 'Reporte Diario de Levantamiento de Observaciones (Amazonas Ampliación)',
+        estado: 'exitoso'
+      })
+      return { ok: true, message: data.message || '¡Reporte de Ampliación despachado exitosamente!' }
+    }
+    if (res.status !== 404) {
+      const errData = await res.json().catch(() => ({}))
+      if (errData && errData.error) {
+        throw new Error(errData.error)
+      }
+    }
+  } catch (apiErr) {
+    if (apiErr.message && !apiErr.message.includes('fetch') && !apiErr.message.includes('Failed to fetch')) {
+      throw apiErr
+    }
+  }
+
+  // Fallback directo a la API de GitHub Actions
+  const token = (import.meta.env.VITE_GITHUB_DISPATCH_TOKEN || '').trim()
+  if (!token) {
+    throw new Error('Falta configurar GITHUB_DISPATCH_TOKEN en Vercel (o VITE_GITHUB_DISPATCH_TOKEN en local) para autorizar el despacho desde la web.')
+  }
+  const repo = 'JCarlosCC2001/Amazonas-COVEPA'
+  const url = `https://api.github.com/repos/${repo}/actions/workflows/reporte-diario.yml/dispatches`
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      ref: 'main',
+      inputs: {
+        forzar: forzar ? 'true' : 'false',
+        destinatario_prueba: destinatarioPrueba || '',
+        tipo_reporte: 'diario_ampliacion'
+      }
+    })
+  })
+
+  if (response.status === 204 || response.ok) {
+    registrarEnvioLocal({
+      id: `local-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      tipo_reporte: 'diario_ampliacion',
+      tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
+      origen: 'web_direct',
+      destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
+      destinatarios_cc: [],
+      asunto: 'Reporte Diario de Levantamiento de Observaciones (Amazonas Ampliación)',
+      estado: 'exitoso'
+    })
+    return { ok: true, message: '¡Reporte de Ampliación despachado exitosamente!' }
   }
 
   const errData = await response.json().catch(() => ({}))

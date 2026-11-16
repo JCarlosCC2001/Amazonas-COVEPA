@@ -224,15 +224,20 @@ function calcularTiemposRevision(events = [], obs = {}) {
   }
 }
 
-async function enviarReporteDiarioGilat() {
+async function enviarReporteDiarioGilat(tramo = 'original') {
+  const isAmpliacion = tramo === 'ampliacion'
+  const configId = isAmpliacion ? 'config_diario_ampliacion' : 'config_diario'
+  const tagLog = isAmpliacion ? '[CRON-REPORTE-AMPLIACION]' : '[CRON-REPORTE-ORIGINAL]'
+  const tituloTramo = isAmpliacion ? 'Amazonas Ampliación' : 'Amazonas Original'
+
   const { fechaIso, horaMinuto, fechaFormateada } = getPeruDateInfo()
   const isManualRun = process.env.IS_MANUAL_RUN === 'true' ||
                       process.env.IS_MANUAL_RUN === true ||
                       process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
   const forzarEnvio = process.env.FORZAR_ENVIO === 'true' || process.env.FORZAR_ENVIO === true
 
-  console.log(`[CRON-REPORTE] 🚀 Iniciando verificación de reporte diario COVEPA.`)
-  console.log(`[CRON-REPORTE] 🕒 Hora actual Perú: ${horaMinuto} · Fecha: ${fechaIso} | Modo: ${isManualRun ? 'MANUAL FORZADO' : 'PROGRAMADO'}`)
+  console.log(`${tagLog} 🚀 Iniciando verificación de reporte diario COVEPA (${tituloTramo}).`)
+  console.log(`${tagLog} 🕒 Hora actual Perú: ${horaMinuto} · Fecha: ${fechaIso} | Modo: ${isManualRun ? 'MANUAL FORZADO' : 'PROGRAMADO'}`)
 
   // 3. Leer Configuración desde Supabase
   let config = {
@@ -240,7 +245,9 @@ async function enviarReporteDiarioGilat() {
     hora_envio: '21:00:00',
     destinatarios: ['ccondor@covepa.pe'],
     destinatarios_cc: [],
-    asunto: 'Reporte Diario de Levantamiento de Observaciones Amazonas - Zona 2 y Zona 7',
+    asunto: isAmpliacion
+      ? '[COVEPA] Reporte Diario de Observaciones — Amazonas Ampliación - Zona 2 y Zona 7'
+      : 'Reporte Diario de Levantamiento de Observaciones Amazonas Original - Zona 2 y Zona 7',
     notas_jornada: '',
     periodo_reporte: 'dia_actual'
   }
@@ -249,14 +256,14 @@ async function enviarReporteDiarioGilat() {
     const { data: dbConfig } = await supabase
       .from('configuracion_reportes_correo')
       .select('*')
-      .eq('id', 'config_diario')
+      .eq('id', configId)
       .maybeSingle()
 
     if (dbConfig) {
       config = { ...config, ...dbConfig }
     }
   } catch (err) {
-    console.warn('[CRON-REPORTE] ⚠️ No se pudo leer la tabla de configuración, usando valores por defecto:', err.message)
+    console.warn(`${tagLog} ⚠️ No se pudo leer la tabla de configuración, usando valores por defecto:`, err.message)
   }
 
   // 3.1 Limpieza automática diaria de notas_jornada si provienen de un día anterior
@@ -264,13 +271,13 @@ async function enviarReporteDiarioGilat() {
   if (config.updated_at) {
     const fechaPeruUpdate = getPeruDateString(config.updated_at)
     if (fechaPeruUpdate && fechaPeruUpdate < fechaIso && notasLimpias) {
-      console.log(`[CRON-REPORTE] 🧹 La nota operativa pertenece al día anterior (${fechaPeruUpdate}). Limpiando comentario para la nueva jornada.`)
+      console.log(`${tagLog} 🧹 La nota operativa pertenece al día anterior (${fechaPeruUpdate}). Limpiando comentario para la nueva jornada.`)
       notasLimpias = ''
       try {
         await supabase
           .from('configuracion_reportes_correo')
           .update({ notas_jornada: '' })
-          .eq('id', 'config_diario')
+          .eq('id', configId)
       } catch (_) {}
     }
   }
@@ -658,6 +665,7 @@ async function enviarReporteDiarioGilat() {
   })
 
   const rows = Array.from(obsMap.values())
+    .filter(o => isAmpliacion ? String(o.id_sitio || '').toUpperCase().startsWith('AMEX-') : !String(o.id_sitio || '').toUpperCase().startsWith('AMEX-'))
     .map(o => {
       // Para la jornada de hoy (isToday), el estado prioritario es el estado vivo actual en la BD (o.estado_covepa).
       // Para jornadas anteriores, si tuvo transición en esa fecha, se toma el estado que alcanzó en dicha fecha (hTransition.estado_nuevo).
@@ -896,14 +904,15 @@ async function enviarReporteDiarioGilat() {
     }
 
     const excelBuffer = await wb.xlsx.writeBuffer()
+    const outFilename = isAmpliacion ? `Reporte_Observaciones_Ampliacion_${targetFechaIso}.xlsx` : `Reporte_Observaciones_Amazonas_${targetFechaIso}.xlsx`
     attachments.push({
-      filename: `Reporte_Observaciones_${targetFechaIso}.xlsx`,
+      filename: outFilename,
       content: excelBuffer,
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     })
-    console.log(`[CRON-REPORTE] 📊 Archivo Excel con formato de tabla generado y adjuntado: Reporte_Observaciones_${targetFechaIso}.xlsx (${allRows.length} registros)`)
+    console.log(`${tagLog} 📊 Archivo Excel generado y adjuntado: ${outFilename} (${allRows.length} registros)`)
   } catch (errExcel) {
-    console.error('[CRON-REPORTE] ⚠️ Error generando Excel adjunto:', errExcel)
+    console.error(`${tagLog} ⚠️ Error generando Excel adjunto:`, errExcel)
   }
 
   // 9. Asunto oficial
@@ -957,7 +966,7 @@ async function enviarReporteDiarioGilat() {
                 Reporte Diario de Levantamiento de Observaciones
               </h1>
               <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#bfdbfe;margin-top:3px;font-weight:500;">
-                Amazonas — Zona 2 y Zona 7
+                ${isAmpliacion ? 'Amazonas Ampliación — Zona 2 y Zona 7' : 'Amazonas Original — Zona 2 y Zona 7'}
               </div>
               <div style="margin-top:10px;">
                 <span style="display:inline-block;background-color:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:16px;padding:5px 14px;color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;white-space:nowrap;">
@@ -1233,23 +1242,23 @@ async function enviarReporteDiarioGilat() {
       const { error: updErr } = await supabase
         .from('configuracion_reportes_correo')
         .update({ ultimo_envio_at: new Date().toISOString() })
-        .eq('id', 'config_diario')
+        .eq('id', configId)
 
       if (updErr) {
-        console.warn('[CRON-REPORTE] ⚠️ Aviso al actualizar ultimo_envio_at en Supabase:', updErr.message)
+        console.warn(`${tagLog} ⚠️ Aviso al actualizar ultimo_envio_at en Supabase:`, updErr.message)
       } else {
-        console.log('[CRON-REPORTE] 📝 Base de datos actualizada con la marca de tiempo de envío programado.')
+        console.log(`${tagLog} 📝 Base de datos actualizada con la marca de tiempo de envío programado.`)
       }
     } catch (_) {}
   } else {
-    console.log('[CRON-REPORTE] 🧪 Envío de prueba manual completado con éxito. El despacho automático nocturno queda intacto y listo para ejecutarse.')
+    console.log(`${tagLog} 🧪 Envío de prueba manual completado con éxito. El despacho automático nocturno queda intacto y listo para ejecutarse.`)
   }
 
   // 13. Registrar en historial_reportes_correo si la tabla existe en Supabase
   try {
     const esPrueba = Boolean(forzarEnvio && rawDestinatarioPrueba)
     const logItem = {
-      tipo_reporte: 'diario',
+      tipo_reporte: isAmpliacion ? 'diario_ampliacion' : 'diario',
       tipo: esPrueba ? 'prueba' : (forzarEnvio ? 'manual' : 'oficial'),
       origen: process.env.GITHUB_RUN_ID ? (isManual ? 'github_actions' : 'cron') : 'manual',
       destinatarios: recipients,
@@ -1267,11 +1276,15 @@ async function enviarReporteDiarioGilat() {
     }
     const { error: insErr } = await supabase.from('historial_reportes_correo').insert(logItem)
     if (!insErr) {
-      console.log('[CRON-REPORTE] 📜 Registro guardado exitosamente en historial_reportes_correo.')
+      console.log(`${tagLog} 📜 Registro guardado exitosamente en historial_reportes_correo.`)
     }
   } catch (_) {}
 
-  console.log(`[CRON-REPORTE] 🏁 Proceso de reporte diario Gilat finalizado satisfactoriamente.`)
+  console.log(`${tagLog} 🏁 Proceso de reporte diario ${tituloTramo} finalizado satisfactoriamente.`)
+}
+
+async function enviarReporteDiarioAmpliacion() {
+  return enviarReporteDiarioGilat('ampliacion')
 }
 
 /**
@@ -1418,7 +1431,8 @@ async function enviarReporteDiarioInterno() {
     'CUADRILLA 3': 'Daniel Javier',
     'CUADRILLA 4': 'Alfonso Curi',
     'CUADRILLA 5': 'William Avila',
-    'CUADRILLA 6': 'Juan Castro'
+    'CUADRILLA 6': 'Juan Castro',
+    'CUADRILLA 7': 'Por Asignar'
   }
   ;(personalRes?.data || []).forEach(p => {
     const c = (p.cuadrilla || p.cuadrilla_asignada || '').trim().toUpperCase()
@@ -1480,7 +1494,7 @@ async function enviarReporteDiarioInterno() {
   additionalObs.forEach(o => { if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o }) })
   ;(rawObsRevision || []).forEach(o => { if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o }) })
 
-  // 5. Agrupación por Equipos (Equipo 1: C1+C2, Equipo 2: C3+C6, Equipo 3: C4+C5)
+  // 5. Agrupación por Equipos (Equipo 1: C1+C2, Equipo 2: C3+C6, Equipo 3: C4+C5, Equipo 4: C7)
   const equiposMap = {
     'EQUIPO 1': {
       id: 'EQUIPO 1',
@@ -1505,15 +1519,26 @@ async function enviarReporteDiarioInterno() {
       tecnico: `${cuadrillaTecnicos['CUADRILLA 4']} · ${cuadrillaTecnicos['CUADRILLA 5']}`,
       values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
       total: 0
+    },
+    'EQUIPO 4': {
+      id: 'EQUIPO 4',
+      cuadrilla: 'EQUIPO 4',
+      subtitulo: 'Cuadrilla 7',
+      tecnico: `${cuadrillaTecnicos['CUADRILLA 7'] || 'Por Asignar'}`,
+      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+      total: 0
     }
   }
 
   const resolveCuadrilla = (o) => {
+    const sId = (o.id_sitio || '').toUpperCase()
+    if (sId.startsWith('AMEX-')) return 'CUADRILLA 7'
+
     const s = sitiosMap[o.id_sitio] || {}
     let g = (s.grupo || '').toUpperCase()
     if (g.startsWith('CUADRILLA')) return g
 
-    const asig = asignacionesMap[(o.id_sitio || '').toUpperCase()]
+    const asig = asignacionesMap[sId]
     if (asig && (asig.cuadrilla || asig.grupo)) {
       const cNom = (asig.cuadrilla || asig.grupo).replace(/GRUPO/gi, 'CUADRILLA').toUpperCase()
       if (cNom.startsWith('CUADRILLA')) return cNom
@@ -1547,6 +1572,7 @@ async function enviarReporteDiarioInterno() {
     if (targetCuadrilla === 'CUADRILLA 1' || targetCuadrilla === 'CUADRILLA 2') equipoKey = 'EQUIPO 1'
     else if (targetCuadrilla === 'CUADRILLA 3' || targetCuadrilla === 'CUADRILLA 6') equipoKey = 'EQUIPO 2'
     else if (targetCuadrilla === 'CUADRILLA 4' || targetCuadrilla === 'CUADRILLA 5') equipoKey = 'EQUIPO 3'
+    else if (targetCuadrilla === 'CUADRILLA 7') equipoKey = 'EQUIPO 4'
 
     const targetEq = equiposMap[equipoKey]
     if (targetEq) {
@@ -2046,19 +2072,25 @@ async function main() {
     return
   }
 
-  if (isManualRun && forzarEnvio && (tipoReporte === 'diario' || tipoReporte === 'gilat' || tipoReporte === 'externo')) {
-    await enviarReporteDiarioGilat()
+  if (isManualRun && forzarEnvio && (tipoReporte === 'diario_ampliacion' || tipoReporte === 'ampliacion')) {
+    await enviarReporteDiarioAmpliacion()
+    return
+  }
+
+  if (isManualRun && forzarEnvio && (tipoReporte === 'diario' || tipoReporte === 'gilat' || tipoReporte === 'externo' || tipoReporte === 'original')) {
+    await enviarReporteDiarioGilat('original')
     return
   }
 
   // Si es corrida programada (por cron o disparada por cron-job.org sin forzar),
   // evaluar de forma inteligente cada reporte contra su hora configurada en Supabase:
   console.log('[MAIN] 🧭 Evaluación programada de reportes activos...')
-  await enviarReporteDiarioGilat()
+  await enviarReporteDiarioGilat('original')
+  await enviarReporteDiarioAmpliacion()
   await enviarReporteDiarioInterno()
 }
 
-module.exports = { main, enviarReporteDiarioInterno, enviarReporteDiarioGilat }
+module.exports = { main, enviarReporteDiarioInterno, enviarReporteDiarioGilat, enviarReporteDiarioAmpliacion }
 
 if (require.main === module) {
   main().catch(err => {

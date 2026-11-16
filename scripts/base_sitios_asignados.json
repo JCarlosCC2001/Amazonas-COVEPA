@@ -618,5 +618,113 @@
   "AM-0126-A01": {
     "cuadrilla": "CUADRILLA 2",
     "zona": "ZONA 2"
+  },
+  "AMEX-0316-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 2"
+  },
+  "AMEX-0317-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0319-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0319-IE01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0322-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0322-IE01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0325-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0326-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0326-IE01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0327-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0328-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0328-IE01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0331-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0332-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0333-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0334-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0335-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0338-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0340-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0341-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0342-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0343-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0344-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0345-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0346-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0348-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
+  },
+  "AMEX-0350-A01": {
+    "cuadrilla": "CUADRILLA 7",
+    "zona": "ZONA 7"
   }
 }

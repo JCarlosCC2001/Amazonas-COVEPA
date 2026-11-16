@@ -147,6 +147,13 @@ export const DEFAULT_CUADRILLAS_CONFIG = {
     idConductor: 'd879089f-5981-4f08-94ca-ccccf8027f78', // Ander Peralta
     conductorNombre: 'Ander Peralta',
     conductorTelefono: '945551928'
+  },
+  'CUADRILLA 7': {
+    idTecnico: '',
+    tecnicoNombre: 'Por Asignar',
+    idConductor: '',
+    conductorNombre: 'Por Asignar',
+    conductorTelefono: ''
   }
 }
 

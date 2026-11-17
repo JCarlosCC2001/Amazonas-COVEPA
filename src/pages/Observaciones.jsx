@@ -850,6 +850,8 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
           </div>
           <div className="agrupada-site-pills">
             {stats.pendientes > 0 && <span className="pill pill-yellow">{stats.pendientes} pendientes</span>}
+            {stats.solicitando > 0 && <span className="pill pill-blue">{stats.solicitando} solicitando</span>}
+            {stats.enRevision > 0 && <span className="pill pill-blue">{stats.enRevision} en revisión</span>}
             {stats.enviadas > 0 && <span className="pill pill-purple">{stats.enviadas} subidas</span>}
             {stats.validadas > 0 && <span className="pill pill-green">{stats.validadas} validadas</span>}
             {stats.rechazadas > 0 && <span className="pill pill-red">{stats.rechazadas} rechazadas</span>}

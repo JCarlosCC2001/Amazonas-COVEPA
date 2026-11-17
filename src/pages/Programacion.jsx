@@ -4,7 +4,7 @@ import {
   MapPin, CheckCircle2, Clock, AlertCircle, List,
   CalendarDays, X, Search, RefreshCw, Eye, ShieldCheck,
   Check, AlertTriangle, Users, Edit3, User, FileSpreadsheet, Download, Send,
-  TrendingUp, History, ChevronUp, ChevronDown, FileText, CheckCheck
+  TrendingUp, History, ChevronUp, ChevronDown, FileText, CheckCheck, Globe
 } from 'lucide-react'
 // M3: ExcelJS se importa dinámicamente en handleExportXLSX para no inflar el bundle inicial
 import ModalAvanceDia from '../components/programacion/ModalAvanceDia'
@@ -61,6 +61,7 @@ export default function Programacion() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('today') // 'today' | 'week'
   const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL' | 'SOLICITANDO' | 'EN_REVISION' | 'VALIDADO' | 'RECHAZADO'
+  const [proyectoFilter, setProyectoFilter] = useState('ALL') // 'ALL' | 'ORIGINAL' | 'AMPLIACION'
   const [loading, setLoading] = useState(true)
   const [programaciones, setProgramaciones] = useState([])
   const [tecnicos, setTecnicos] = useState([])
@@ -572,7 +573,12 @@ export default function Programacion() {
 
     programaciones.forEach(p => {
       ;(p.sitios || []).forEach(s => {
-        if (s.id_sitio && !weekSitesSet.has(s.id_sitio)) {
+        if (!s.id_sitio) return
+        const isAmex = String(s.id_sitio).toUpperCase().startsWith('AMEX')
+        if (proyectoFilter === 'ORIGINAL' && isAmex) return
+        if (proyectoFilter === 'AMPLIACION' && !isAmex) return
+
+        if (!weekSitesSet.has(s.id_sitio)) {
           weekSitesSet.add(s.id_sitio)
           const stat = sitiosStats[s.id_sitio]
           if (stat) {
@@ -602,12 +608,23 @@ export default function Programacion() {
       documentacion,
       totalSitios: weekSitesSet.size
     }
-  }, [programaciones, sitiosStats])
+  }, [programaciones, sitiosStats, proyectoFilter])
 
   // Estadísticas y datos específicos para la vista 'Hoy'
   const todayStats = useMemo(() => {
     const dateStr = toLocalDateString(currentDate)
-    const progs = programaciones.filter(p => p.fecha === dateStr)
+    const progsRaw = programaciones.filter(p => p.fecha === dateStr)
+    const progs = progsRaw
+      .map(p => {
+        let sitios = p.sitios || []
+        if (proyectoFilter === 'ORIGINAL') {
+          sitios = sitios.filter(s => !String(s.id_sitio || '').toUpperCase().startsWith('AMEX'))
+        } else if (proyectoFilter === 'AMPLIACION') {
+          sitios = sitios.filter(s => String(s.id_sitio || '').toUpperCase().startsWith('AMEX'))
+        }
+        return { ...p, sitios }
+      })
+      .filter(p => (p.sitios || []).length > 0)
 
     let totalObs = 0
     let resueltas = 0
@@ -661,16 +678,54 @@ export default function Programacion() {
       documentacion,
       progs
     }
-  }, [programaciones, sitiosStats, currentDate])
+  }, [programaciones, sitiosStats, currentDate, proyectoFilter])
 
-  const solicitandoCount = viewMode === 'today' ? (dayAvance.stats?.solicitando ?? 0) : (weekStats.solicitando ?? 0)
+  // Métricas del día filtradas por ámbito de proyecto ('ALL' | 'ORIGINAL' | 'AMPLIACION')
+  const filteredDayAvanceStats = useMemo(() => {
+    if (!dayAvance.rows || dayAvance.rows.length === 0) return dayAvance.stats || {}
+    if (proyectoFilter === 'ALL') return dayAvance.stats || {}
 
-  // Helper para filtrar cualquier lista de programaciones por estado de observación
+    const isTarget = (siteId) => {
+      const isAmex = String(siteId || '').toUpperCase().startsWith('AMEX')
+      return proyectoFilter === 'AMPLIACION' ? isAmex : !isAmex
+    }
+
+    const filteredRows = dayAvance.rows.filter(r => isTarget(r.id_sitio))
+    return {
+      total: filteredRows.length,
+      validadas: filteredRows.filter(r => r.estado === 'Validado' || r.estado === 'Enviado').length,
+      rechazadas: filteredRows.filter(r => r.estado === 'Rechazado').length,
+      enRevision: filteredRows.filter(r => r.estado === 'En Revisión' || r.estado === 'En Revision').length,
+      solicitando: filteredRows.filter(r => r.estado === 'Solicitando Revisión' || r.estado === 'Solicitando Revision').length,
+      documentacion: filteredRows.filter(r => r.estado === 'Documentación').length,
+      prevalidadas: filteredRows.filter(r => r.estado === 'Pre-validado').length,
+      criticas: filteredRows.filter(r => r.estado === 'Crítico').length,
+      descartadas: filteredRows.filter(r => r.estado === 'Descartado').length,
+    }
+  }, [dayAvance.rows, dayAvance.stats, proyectoFilter])
+
+  const solicitandoCount = viewMode === 'today' ? (filteredDayAvanceStats?.solicitando ?? 0) : (weekStats.solicitando ?? 0)
+
+  // Helper para filtrar cualquier lista de programaciones por estado de observación y proyecto
   const filterProgsByStatus = useCallback((progsList) => {
     if (!progsList) return []
-    if (statusFilter === 'ALL') return progsList
 
-    // Sitios que tienen observaciones en el estado seleccionado para la fecha en revisión
+    // 1. Filtrar sitios según el proyecto seleccionado ('ALL' | 'ORIGINAL' | 'AMPLIACION')
+    const mappedList = progsList
+      .map(prog => {
+        let sitios = prog.sitios || []
+        if (proyectoFilter === 'ORIGINAL') {
+          sitios = sitios.filter(s => !String(s.id_sitio || '').toUpperCase().startsWith('AMEX'))
+        } else if (proyectoFilter === 'AMPLIACION') {
+          sitios = sitios.filter(s => String(s.id_sitio || '').toUpperCase().startsWith('AMEX'))
+        }
+        return { ...prog, sitios }
+      })
+      .filter(prog => (prog.sitios || []).length > 0)
+
+    if (statusFilter === 'ALL') return mappedList
+
+    // 2. Sitios que tienen observaciones en el estado seleccionado para la fecha en revisión
     const matchingSites = new Set(
       (dayAvance.rows || [])
         .filter(r => {
@@ -684,7 +739,7 @@ export default function Programacion() {
         .map(r => r.id_sitio)
     )
 
-    return progsList.filter(prog => {
+    return mappedList.filter(prog => {
       const sitios = prog.sitios || []
       return sitios.some(s => {
         if (matchingSites.has(s.id_sitio)) return true
@@ -698,7 +753,7 @@ export default function Programacion() {
         return true
       })
     })
-  }, [statusFilter, dayAvance.rows, sitiosStats])
+  }, [statusFilter, proyectoFilter, dayAvance.rows, sitiosStats])
 
   // Filtrado de cuadrillas de hoy según el estado seleccionado
   const filteredTodayProgs = useMemo(() => {
@@ -961,7 +1016,7 @@ export default function Programacion() {
     <div className="prog-container">
       {/* ── MEDIDORES / KPIs Y FILTROS INTERACTIVOS SUPERIORES ── */}
       {(() => {
-        const docCount = viewMode === 'today' ? (dayAvance.stats?.documentacion ?? 0) : (weekStats.documentacion ?? 0)
+        const docCount = viewMode === 'today' ? (filteredDayAvanceStats?.documentacion ?? 0) : (weekStats.documentacion ?? 0)
         const showDoc = docCount > 0 || statusFilter === 'DOCUMENTACION'
         return (
           <MetricGrid columns={showDoc ? 5 : 4}>
@@ -979,7 +1034,7 @@ export default function Programacion() {
             <MetricCard
               icon={<Search size={20} />}
               label="En Revisión"
-              value={viewMode === 'today' ? (dayAvance.stats?.enRevision ?? 0) : (weekStats.enRevision ?? 0)}
+              value={viewMode === 'today' ? (filteredDayAvanceStats?.enRevision ?? 0) : (weekStats.enRevision ?? 0)}
               subtitle={viewMode === 'today' ? 'en auditoría técnica' : 'en la semana'}
               variant="sky"
               onClick={() => setStatusFilter(prev => prev === 'EN_REVISION' ? 'ALL' : 'EN_REVISION')}
@@ -990,7 +1045,7 @@ export default function Programacion() {
             <MetricCard
               icon={<CheckCircle2 size={20} />}
               label="Validados (Por Subir)"
-              value={viewMode === 'today' ? (dayAvance.stats?.validadas ?? 0) : (weekStats.validadas ?? 0)}
+              value={viewMode === 'today' ? (filteredDayAvanceStats?.validadas ?? 0) : (weekStats.validadas ?? 0)}
               subtitle={viewMode === 'today' ? 'listos para cargar' : 'en la semana'}
               variant="emerald"
               onClick={() => setStatusFilter(prev => prev === 'VALIDADO' ? 'ALL' : 'VALIDADO')}
@@ -1001,7 +1056,7 @@ export default function Programacion() {
             <MetricCard
               icon={<AlertTriangle size={20} />}
               label="Rechazadas"
-              value={viewMode === 'today' ? (dayAvance.stats?.rechazadas ?? 0) : (weekStats.rechazadas ?? 0)}
+              value={viewMode === 'today' ? (filteredDayAvanceStats?.rechazadas ?? 0) : (weekStats.rechazadas ?? 0)}
               subtitle={viewMode === 'today' ? 'observaciones rechazadas' : 'en la semana'}
               variant="rose"
               onClick={() => setStatusFilter(prev => prev === 'RECHAZADO' ? 'ALL' : 'RECHAZADO')}
@@ -1069,8 +1124,37 @@ export default function Programacion() {
           </button>
         </div>
 
-        {/* Derecha: Toggle Hoy / Semana + Botón Nueva Programación */}
+        {/* Derecha: Selector de Ámbito de Proyecto + Toggle Hoy / Semana + Botón Nueva Programación */}
         <div className="prog-toolbar-actions">
+          {/* Selector de Ámbito de Proyecto: Todos / Original / Ampliación */}
+          <div className="prog-proyecto-toggle" role="group" aria-label="Filtro de proyecto">
+            <button
+              type="button"
+              className={`prog-proj-btn ${proyectoFilter === 'ALL' ? 'active' : ''}`}
+              onClick={() => setProyectoFilter('ALL')}
+              title="Ver todo el proyecto consolidado (Original + Ampliación)"
+            >
+              <Globe size={13} />
+              <span>Todos</span>
+            </button>
+            <button
+              type="button"
+              className={`prog-proj-btn ${proyectoFilter === 'ORIGINAL' ? 'active' : ''}`}
+              onClick={() => setProyectoFilter('ORIGINAL')}
+              title="Filtrar solo Amazonas Original (sitios AM-...)"
+            >
+              <span>Original</span>
+            </button>
+            <button
+              type="button"
+              className={`prog-proj-btn ${proyectoFilter === 'AMPLIACION' ? 'active' : ''}`}
+              onClick={() => setProyectoFilter('AMPLIACION')}
+              title="Filtrar solo Amazonas Ampliación (sitios AMEX-...)"
+            >
+              <span>Ampliación</span>
+            </button>
+          </div>
+
           <div className="prog-views-toggle">
             <button
               className={`prog-view-btn ${viewMode === 'today' ? 'active' : ''}`}
@@ -1374,24 +1458,37 @@ export default function Programacion() {
       {/* ── CONTENIDO PRINCIPAL: VISTA HOY ── */}
       {viewMode === 'today' && (
         <div className="prog-today-container">
-          {/* Indicador de filtro activo si se seleccionó un medidor específico */}
-          {statusFilter !== 'ALL' && (
+          {/* Indicador de filtro activo si se seleccionó un medidor específico o ámbito de proyecto */}
+          {(statusFilter !== 'ALL' || proyectoFilter !== 'ALL') && (
             <div className="prog-filter-notice-banner">
               <span>
-                Filtrando cuadrillas con observaciones en estado: <strong>{
-                  statusFilter === 'SOLICITANDO' ? 'Solicitando Revisión' :
-                  statusFilter === 'EN_REVISION' ? 'En Revisión' :
-                  statusFilter === 'VALIDADO' ? 'Validados (Por subir)' :
-                  statusFilter === 'RECHAZADO' ? 'Rechazadas' :
-                  statusFilter
-                }</strong>
+                {proyectoFilter !== 'ALL' && (
+                  <strong style={{ marginRight: '6px' }}>
+                    Ámbito: {proyectoFilter === 'AMPLIACION' ? '🚀 Amazonas Ampliación (AMEX)' : '🏛️ Amazonas Original (AM)'}
+                    {statusFilter !== 'ALL' ? ' · ' : ''}
+                  </strong>
+                )}
+                {statusFilter !== 'ALL' && (
+                  <>
+                    Filtrando cuadrillas con observaciones en estado: <strong>{
+                      statusFilter === 'SOLICITANDO' ? 'Solicitando Revisión' :
+                      statusFilter === 'EN_REVISION' ? 'En Revisión' :
+                      statusFilter === 'VALIDADO' ? 'Validados (Por subir)' :
+                      statusFilter === 'RECHAZADO' ? 'Rechazadas' :
+                      statusFilter
+                    }</strong>
+                  </>
+                )}
               </span>
               <button
                 type="button"
                 className="prog-filter-notice-btn"
-                onClick={() => setStatusFilter('ALL')}
+                onClick={() => {
+                  setStatusFilter('ALL')
+                  setProyectoFilter('ALL')
+                }}
               >
-                ✕ Mostrar Todas
+                ✕ Limpiar Filtros
               </button>
             </div>
           )}
@@ -1704,25 +1801,38 @@ export default function Programacion() {
       {/* ── CONTENIDO PRINCIPAL: VISTA SEMANA ── */}
       {viewMode === 'week' && (
         <div className="prog-week-wrap">
-          {/* Indicador de filtro activo si se seleccionó un medidor específico en la semana */}
-          {statusFilter !== 'ALL' && (
+          {/* Indicador de filtro activo si se seleccionó un medidor específico o ámbito de proyecto en la semana */}
+          {(statusFilter !== 'ALL' || proyectoFilter !== 'ALL') && (
             <div className="prog-filter-notice-banner" style={{ marginBottom: '0.85rem' }}>
               <span>
-                Filtrando cuadrillas con observaciones en estado: <strong>{
-                  statusFilter === 'SOLICITANDO' ? 'Solicitando Revisión' :
-                  statusFilter === 'EN_REVISION' ? 'En Revisión' :
-                  statusFilter === 'VALIDADO' ? 'Validados (Por subir)' :
-                  statusFilter === 'ENVIADO' ? 'Enviados por COVEPA' :
-                  statusFilter === 'RECHAZADO' ? 'Rechazadas' :
-                  statusFilter
-                }</strong>
+                {proyectoFilter !== 'ALL' && (
+                  <strong style={{ marginRight: '6px' }}>
+                    Ámbito: {proyectoFilter === 'AMPLIACION' ? '🚀 Amazonas Ampliación (AMEX)' : '🏛️ Amazonas Original (AM)'}
+                    {statusFilter !== 'ALL' ? ' · ' : ''}
+                  </strong>
+                )}
+                {statusFilter !== 'ALL' && (
+                  <>
+                    Filtrando cuadrillas con observaciones en estado: <strong>{
+                      statusFilter === 'SOLICITANDO' ? 'Solicitando Revisión' :
+                      statusFilter === 'EN_REVISION' ? 'En Revisión' :
+                      statusFilter === 'VALIDADO' ? 'Validados (Por subir)' :
+                      statusFilter === 'ENVIADO' ? 'Enviados por COVEPA' :
+                      statusFilter === 'RECHAZADO' ? 'Rechazadas' :
+                      statusFilter
+                    }</strong>
+                  </>
+                )}
               </span>
               <button
                 type="button"
                 className="prog-filter-notice-btn"
-                onClick={() => setStatusFilter('ALL')}
+                onClick={() => {
+                  setStatusFilter('ALL')
+                  setProyectoFilter('ALL')
+                }}
               >
-                ✕ Mostrar Todas
+                ✕ Limpiar Filtros
               </button>
             </div>
           )}
@@ -1896,6 +2006,7 @@ export default function Programacion() {
         <ModalAvanceDia
           fecha={toLocalDateString(currentDate)}
           sitiosMap={sitiosMap}
+          initialProyecto={proyectoFilter}
           onClose={() => setModalAvanceOpen(false)}
         />
       )}
@@ -3495,7 +3606,7 @@ function ModalDetallesProgramacion({
               if (currentEstado === 'Solicitando Revision') currentEstado = 'Solicitando Revisión'
               if (currentEstado === 'Enviado') currentEstado = 'Validado'
               const isUpdating = updatingId === obs.id_obs
-              const showRevisorYFecha = currentEstado !== 'Pendiente' && currentEstado !== 'Solicitando Revisión' && currentEstado !== 'En Revisión' && currentEstado !== 'En Revision' && currentEstado !== 'Documentación' && currentEstado !== 'Documentacion'
+              const showRevisorYFecha = currentEstado !== 'Pendiente' && currentEstado !== 'Solicitando Revisión' && currentEstado !== 'En Revisión' && currentEstado !== 'En Revision' && currentEstado !== 'Documentación' && currentEstado !== 'Documentacion' && currentEstado !== 'Crítico' && currentEstado !== 'Critico'
 
               return (
                 <div key={obs.id_obs} className="prog-obs-card-item">
@@ -3526,7 +3637,9 @@ function ModalDetallesProgramacion({
                           <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
                           <option value="En Revisión">🔍 En Revisión</option>
                           <option value="Documentación">📄 Documentación</option>
+                          <option value="Pre-validado">📸 Pre-validado</option>
                           <option value="Validado">✓ Validado</option>
+                          <option value="Crítico">⚠️ Crítico</option>
                           <option value="Descartado">🚫 Descartado</option>
                           <option value="Rechazado">✕ Rechazado</option>
                         </select>
@@ -3582,6 +3695,7 @@ function ModalDetallesProgramacion({
                           <Clock size={12} color="#0284c7" />
                           <span>
                             {currentEstado === 'Validado' ? 'F. Validación:' :
+                             currentEstado === 'Pre-validado' ? 'F. Pre-validación:' :
                              currentEstado === 'Descartado' ? 'F. Descarte:' :
                              currentEstado === 'Rechazado' ? 'F. Rechazo:' :
                              currentEstado === 'Enviado' ? 'F. Envío:' : 'Fecha:'}

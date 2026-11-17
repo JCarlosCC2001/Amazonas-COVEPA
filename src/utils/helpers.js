@@ -76,7 +76,9 @@ export function getCargoClass(cargo) {
 export function estadoCovepaBadge(estado) {
   if (!estado) return 'badge-muted'
   if (estado === 'Validado') return 'badge-green'
+  if (estado === 'Pre-validado' || estado === 'Prevalidado') return 'badge-teal'
   if (estado === 'Descartado') return 'badge-dark'
+  if (estado === 'Crítico' || estado === 'Critico') return 'badge-critico'
   if (estado === 'Pendiente') return 'badge-yellow'
   if (estado === 'Rechazado') return 'badge-red'
   if (estado === 'En Revision' || estado === 'En Revisión') return 'badge-blue'

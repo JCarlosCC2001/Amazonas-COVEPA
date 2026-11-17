@@ -31,3 +31,4 @@ INSERT INTO public.configuracion_reportes_correo (
 ON CONFLICT (id) DO UPDATE SET
   asunto = EXCLUDED.asunto,
   periodo_reporte = EXCLUDED.periodo_reporte;
+

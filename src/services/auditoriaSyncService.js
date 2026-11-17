@@ -23,14 +23,16 @@ import { asegurarProgramacionSitio } from './programacionService'
 import { getPeruISOString } from '../utils/helpers'
 
 /**
- * Catálogo estricto de los 6 estados oficiales permitidos por la integración
+ * Catálogo estricto de los estados oficiales permitidos por la integración
  */
 export const ESTADOS_OFICIALES_COVEPA = Object.freeze([
   'Validado',
+  'Pre-validado',
   'Rechazado',
   'En Revisión',
   'Solicitando Revisión',
   'Documentación',
+  'Crítico',
   'Descartado',
   'Pendiente'
 ])
@@ -46,10 +48,12 @@ export function normalizarEstadoOficial(estado) {
   const trimmed = String(estado).trim()
 
   if (trimmed === 'Validado' || trimmed === 'Enviado') return 'Validado'
+  if (trimmed === 'Pre-validado' || trimmed === 'Pre-Validado' || trimmed === 'Prevalidado') return 'Pre-validado'
   if (trimmed === 'Rechazado') return 'Rechazado'
   if (trimmed === 'En Revision' || trimmed === 'En Revisión') return 'En Revisión'
   if (trimmed === 'Solicitando Revision' || trimmed === 'Solicitando Revisión') return 'Solicitando Revisión'
   if (trimmed === 'Documentacion' || trimmed === 'Documentación') return 'Documentación'
+  if (trimmed === 'Critico' || trimmed === 'Crítico') return 'Crítico'
   if (trimmed === 'Descartado') return 'Descartado'
   if (trimmed === 'Pendiente') return 'Pendiente'
 
@@ -305,9 +309,9 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
       updatePayload.fecha_subsanacion = fechaIso
     }
 
-    // Regla de Negocio: En estado 'En Revisión', 'Solicitando Revisión' o 'Documentación' NUNCA debe haber revisor asignado.
-    // Para otros estados (Validado, Rechazado, Descartado), solo personal de GILAT puede ser Revisor.
-    if (estadoNorm === 'En Revisión' || estadoNorm === 'Solicitando Revisión' || estadoNorm === 'Documentación') {
+    // Regla de Negocio: En estado 'En Revisión', 'Solicitando Revisión', 'Documentación' o 'Crítico' NUNCA debe haber revisor asignado.
+    // Para otros estados (Validado, Pre-validado, Rechazado, Descartado), solo personal de GILAT puede ser Revisor.
+    if (estadoNorm === 'En Revisión' || estadoNorm === 'Solicitando Revisión' || estadoNorm === 'Documentación' || estadoNorm === 'Crítico') {
       updatePayload.revisor = null
     } else if (revisor !== undefined) {
       updatePayload.revisor = (revisor && esRevisorGilat(revisor, extraContext.gilatOptions)) ? String(revisor).trim() : null
@@ -438,9 +442,14 @@ export async function sincronizarAuditoriaObservacion(idObs, {
     comentario_covepa: comentarioLimpio
   }
 
-  // Regla de Negocio: Si el estado pasa a 'En Revisión' o 'Solicitando Revisión', revisor DEBE ser null.
-  // Para los demás estados, solo personal de Gilat puede ser revisor, NUNCA autocompletar con el usuario de sesión ni técnicos de campo.
-  if (estadoNormalizado === 'En Revisión' || estadoNormalizado === 'Solicitando Revisión') {
+  // Regla de Negocio: Si el estado pasa a 'En Revisión', 'Solicitando Revisión', 'Documentación' o 'Crítico', revisor DEBE ser null.
+  // Para los demás estados (Validado, Pre-validado, Rechazado, Descartado), solo personal de Gilat puede ser revisor.
+  if (
+    estadoNormalizado === 'En Revisión' ||
+    estadoNormalizado === 'Solicitando Revisión' ||
+    estadoNormalizado === 'Documentación' ||
+    estadoNormalizado === 'Crítico'
+  ) {
     payload.revisor = null
   } else if (revisor !== undefined) {
     payload.revisor = (revisor && esRevisorGilat(revisor)) ? String(revisor).trim() : null

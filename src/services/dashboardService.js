@@ -433,6 +433,8 @@ export async function getAvancePorFecha(fechaStr) {
       let estadoNormalizado = 'Validado'
       if (rawSt === 'Documentación' || rawSt === 'Documentacion') estadoNormalizado = 'Documentación'
       else if (rawSt === 'Descartado') estadoNormalizado = 'Descartado'
+      else if (rawSt === 'Crítico' || rawSt === 'Critico') estadoNormalizado = 'Crítico'
+      else if (rawSt === 'Pre-validado' || rawSt === 'Pre-Validado' || rawSt === 'Prevalidado') estadoNormalizado = 'Pre-validado'
       else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') estadoNormalizado = 'Solicitando Revisión'
       else if (rawSt === 'En Revision' || rawSt === 'En Revisión') estadoNormalizado = 'En Revisión'
       else if (rawSt === 'Rechazado') estadoNormalizado = 'Rechazado'
@@ -467,7 +469,9 @@ export async function getAvancePorFecha(fechaStr) {
     const revisionRows = rows.filter(r => r.estado === 'En Revisión')
     const solicitandoRows = rows.filter(r => r.estado === 'Solicitando Revisión')
     const documentacionRows = rows.filter(r => r.estado === 'Documentación')
+    const prevalidadasRows = rows.filter(r => r.estado === 'Pre-validado')
     const validadasRows = rows.filter(r => r.estado === 'Validado')
+    const criticasRows = rows.filter(r => r.estado === 'Crítico')
     const rechazadasRows = rows.filter(r => r.estado === 'Rechazado')
     const descartadasRows = rows.filter(r => r.estado === 'Descartado')
     const sitiosEnRevision = Array.from(new Set(revisionRows.map(r => r.id_sitio)))
@@ -475,6 +479,8 @@ export async function getAvancePorFecha(fechaStr) {
     const statsDia = {
       total: rows.length,
       validadas: validadasRows.length,
+      prevalidadas: prevalidadasRows.length,
+      criticas: criticasRows.length,
       solicitando: solicitandoRows.length,
       enRevision: revisionRows.length,
       documentacion: documentacionRows.length,

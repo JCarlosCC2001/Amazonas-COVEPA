@@ -327,6 +327,22 @@
   border-color: #4f46e5;
 }
 
+.variant-teal {
+  --card-gradient: linear-gradient(90deg, #0d9488 0%, #2dd4bf 100%);
+  --card-accent: #0d9488;
+  --card-icon-bg: #ccfbf1;
+  --card-icon-border: #99f6e4;
+  --card-icon-color: #0f766e;
+  --card-val-color: #0f766e;
+  --card-pill-bg: #f0fdfa;
+  --card-pill-color: #115e59;
+  --card-pill-border: #99f6e4;
+  --card-watermark-color: #0d9488;
+}
+.variant-teal:hover {
+  border-color: #0d9488;
+}
+
 /* ── RESPONSIVE PARA TABLET Y CELULAR ── */
 @media (max-width: 1400px) {
   .covepa-metric-grid.cols-8,

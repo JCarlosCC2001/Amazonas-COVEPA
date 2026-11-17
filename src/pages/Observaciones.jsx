@@ -6,7 +6,7 @@ import {
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,
   AlertTriangle, FileText, Save, LayoutList, Table2,
   ChevronDown, ChevronUp, MapPin, Loader2, Calendar, Ban, UploadCloud, Layers, Clock,
-  Users, Check, Info, History, CheckCheck, Send
+  Users, Check, Info, History, CheckCheck, Send, Camera, AlertOctagon, Globe
 } from 'lucide-react'
 import HistorialEstadosTimeline from '../components/shared/HistorialEstadosTimeline'
 import UltimoCambioBadge from '../components/shared/UltimoCambioBadge'
@@ -101,7 +101,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   }, [obs?.id_obs])
 
   const currentEstado = obsLocal?.estado_covepa || (obsLocal?.fecha_subsanacion ? 'Validado' : 'Pendiente')
-  const isEnRevCurrent = currentEstado === 'Pendiente' || currentEstado === 'Solicitando Revisión' || currentEstado === 'Solicitando Revision' || currentEstado === 'En Revision' || currentEstado === 'En Revisión' || currentEstado === 'Documentación' || currentEstado === 'Documentacion'
+  const isEnRevCurrent = currentEstado === 'Pendiente' || currentEstado === 'Solicitando Revisión' || currentEstado === 'Solicitando Revision' || currentEstado === 'En Revision' || currentEstado === 'En Revisión' || currentEstado === 'Documentación' || currentEstado === 'Documentacion' || currentEstado === 'Crítico' || currentEstado === 'Critico'
   const currentRevisor = isEnRevCurrent ? '' : (obsLocal?.revisor || obsLocal?.validado_por || '')
   const currentFecha = isEnRevCurrent ? '' : (obsLocal?.fecha_subsanacion || '')
   const showRevisorYFecha = !isEnRevCurrent
@@ -411,7 +411,9 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
                   <option value="En Revisión">🔍 En Revisión</option>
                   <option value="Documentación">📄 Documentación</option>
+                  <option value="Pre-validado">📸 Pre-validado</option>
                   <option value="Validado">✓ Validado</option>
+                  <option value="Crítico">⚠️ Crítico</option>
                   <option value="Descartado">🚫 Descartado</option>
                   <option value="Rechazado">✕ Rechazado</option>
                 </select>
@@ -459,6 +461,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                     <Clock size={12} color="#0284c7" />
                     <span>
                       {currentEstado === 'Validado' ? 'F. Validación:' :
+                       currentEstado === 'Pre-validado' ? 'F. Pre-validación:' :
                        currentEstado === 'Descartado' ? 'F. Descarte:' :
                        currentEstado === 'Rechazado' ? 'F. Rechazo:' :
                        currentEstado === 'Enviado' ? 'F. Envío:' : 'Fecha:'}
@@ -1089,6 +1092,7 @@ export default function Observaciones() {
   const [idSitio, setIdSitio] = useState('')
   const [cuadrilla, setCuadrilla] = useState('')
   const [filtroDemora, setFiltroDemora] = useState('')
+  const [proyecto, setProyecto] = useState('todos') // 'todos' | 'original' | 'ampliacion'
   const [page, setPage] = useState(1)
   const pageSize = 20
 
@@ -1157,6 +1161,16 @@ export default function Observaciones() {
     }
   }, [filterPopoverOpen])
 
+  const handleProyectoChange = (nuevoProyecto) => {
+    setProyecto(nuevoProyecto)
+    setPage(1)
+    if (idSitio) {
+      const isAmex = String(idSitio).toUpperCase().startsWith('AMEX')
+      if (nuevoProyecto === 'ampliacion' && !isAmex) setIdSitio('')
+      if (nuevoProyecto === 'original' && isAmex) setIdSitio('')
+    }
+  }
+
   const activeFilterCount = useMemo(() => {
     let count = 0
     if (cuadrilla) count++
@@ -1164,8 +1178,9 @@ export default function Observaciones() {
     if (idSitio) count++
     if (estadoCovepa) count++
     if (filtroDemora) count++
+    if (proyecto !== 'todos') count++
     return count
-  }, [cuadrilla, protocolo, idSitio, estadoCovepa, filtroDemora])
+  }, [cuadrilla, protocolo, idSitio, estadoCovepa, filtroDemora, proyecto])
 
   const clearAdvancedFilters = () => {
     setCuadrilla('')
@@ -1173,6 +1188,7 @@ export default function Observaciones() {
     setIdSitio('')
     setEstadoCovepa('')
     setFiltroDemora('')
+    setProyecto('todos')
     setPage(1)
   }
 
@@ -1207,24 +1223,41 @@ export default function Observaciones() {
       .map(s => s.id_site)
   }, [cuadrilla, sitiosMap])
 
+  const sitiosFiltradosPorProyecto = useMemo(() => {
+    const all = filtros.sitios || []
+    if (proyecto === 'ampliacion') {
+      return all.filter(s => String(s).toUpperCase().startsWith('AMEX'))
+    }
+    if (proyecto === 'original') {
+      return all.filter(s => !String(s).toUpperCase().startsWith('AMEX'))
+    }
+    return all
+  }, [filtros.sitios, proyecto])
+
   const filtrosActivos = useMemo(() => ({
     search,
     protocolo,
     estadoCovepa,
     idSitio,
     idSitios: siteIdsForCuadrilla,
-    filtroDemora
-  }), [search, protocolo, estadoCovepa, idSitio, siteIdsForCuadrilla, filtroDemora])
+    filtroDemora,
+    proyecto
+  }), [search, protocolo, estadoCovepa, idSitio, siteIdsForCuadrilla, filtroDemora, proyecto])
 
   const loadKpis = useCallback(async () => {
     setLoadingKpis(true)
     try {
-      const k = await fetchObservacionesKPIs()
+      const k = await fetchObservacionesKPIs(proyecto)
       setKpis(k)
     } finally {
       setLoadingKpis(false)
     }
-  }, [])
+  }, [proyecto])
+
+  // Recalcular KPIs cuando cambia el ámbito del proyecto
+  useEffect(() => {
+    loadKpis()
+  }, [loadKpis])
 
   // Carga de datos
   const loadData = useCallback(async (resetPage = false) => {
@@ -1425,7 +1458,7 @@ export default function Observaciones() {
   }, [observaciones, sortField, sortDirection, sitiosMap])
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1
-  const totalSitios = idSitio ? 1 : (filtros.sitios?.length || 156)
+  const totalSitios = idSitio ? 1 : (sitiosFiltradosPorProyecto.length || (proyecto === 'ampliacion' ? 27 : (proyecto === 'original' ? 156 : 183)))
 
   const obsColumns = useMemo(() => [
     {
@@ -1650,6 +1683,16 @@ export default function Observaciones() {
           title="Filtrar por observaciones en proceso de documentación"
         />
         <MetricCard
+          icon={<Camera size={22} />}
+          label="Pre-validadas"
+          value={loadingKpis ? '—' : (kpis.prevalidadas || 0).toLocaleString()}
+          subtitle="Fotos pendientes"
+          variant="teal"
+          onClick={() => setEstadoCovepa(prev => (prev === 'Pre-validado' || prev === 'Prevalidado') ? '' : 'Pre-validado')}
+          active={estadoCovepa === 'Pre-validado' || estadoCovepa === 'Prevalidado'}
+          title="Filtrar por observaciones pre-validadas que requieren registro fotográfico"
+        />
+        <MetricCard
           icon={<CheckCircle2 size={22} />}
           label="Validadas"
           value={loadingKpis ? '—' : (kpis.validadas || 0).toLocaleString()}
@@ -1658,6 +1701,16 @@ export default function Observaciones() {
           onClick={() => setEstadoCovepa(prev => prev === 'Validado' ? '' : 'Validado')}
           active={estadoCovepa === 'Validado'}
           title="Filtrar por observaciones validadas formalmente"
+        />
+        <MetricCard
+          icon={<AlertOctagon size={22} />}
+          label="Críticas"
+          value={loadingKpis ? '—' : (kpis.criticas || 0).toLocaleString()}
+          subtitle="Inviable recursos"
+          variant="rose"
+          onClick={() => setEstadoCovepa(prev => (prev === 'Crítico' || prev === 'Critico') ? '' : 'Crítico')}
+          active={estadoCovepa === 'Crítico' || estadoCovepa === 'Critico'}
+          title="Filtrar por observaciones críticas que no se ejecutarán por exceder recursos"
         />
         <MetricCard
           icon={<AlertTriangle size={22} />}
@@ -1683,8 +1736,37 @@ export default function Observaciones() {
 
       {/* ── Toolbar Filtros — Fila 1: Buscador + Filtros | Fila 2: Acciones + Switch ── */}
       <div className="obs-toolbar">
-        {/* Fila 1: Buscador y Filtros comparten el espacio */}
+        {/* Fila 1: Selector de Ámbito, Buscador y Filtros comparten el espacio */}
         <div className="obs-toolbar-row-search-filter">
+          {/* Selector de Ámbito de Proyecto: Todos / Original / Ampliación */}
+          <div className="obs-proyecto-toggle" role="group" aria-label="Filtro de proyecto">
+            <button
+              type="button"
+              className={`obs-proj-btn ${proyecto === 'todos' ? 'active' : ''}`}
+              onClick={() => handleProyectoChange('todos')}
+              title="Ver todo el proyecto consolidado (Original + Ampliación)"
+            >
+              <Globe size={13} />
+              <span>Todos</span>
+            </button>
+            <button
+              type="button"
+              className={`obs-proj-btn ${proyecto === 'original' ? 'active' : ''}`}
+              onClick={() => handleProyectoChange('original')}
+              title="Filtrar solo Amazonas Original (sitios AM-...)"
+            >
+              <span>Original</span>
+            </button>
+            <button
+              type="button"
+              className={`obs-proj-btn ${proyecto === 'ampliacion' ? 'active' : ''}`}
+              onClick={() => handleProyectoChange('ampliacion')}
+              title="Filtrar solo Amazonas Ampliación (sitios AMEX-...)"
+            >
+              <span>Ampliación</span>
+            </button>
+          </div>
+
           <div className="obs-search-box">
             <Search size={16} className="obs-search-icon" />
             <input
@@ -1744,6 +1826,22 @@ export default function Observaciones() {
                 </div>
 
                 <div className="obs-filter-popover-body">
+                  {/* Ámbito de Proyecto */}
+                  <div className="obs-popover-field">
+                    <label className="obs-popover-label">
+                      <Globe size={12} /> Ámbito del Proyecto
+                    </label>
+                    <select
+                      className="popover-select"
+                      value={proyecto}
+                      onChange={e => handleProyectoChange(e.target.value)}
+                    >
+                      <option value="todos">🌐 Todo el Proyecto (Consolidado)</option>
+                      <option value="original">🏛️ Amazonas Original (AM-...)</option>
+                      <option value="ampliacion">🚀 Amazonas Ampliación (AMEX-...)</option>
+                    </select>
+                  </div>
+
                   {/* Cuadrilla */}
                   <div className="obs-popover-field">
                     <label className="obs-popover-label">
@@ -1791,8 +1889,8 @@ export default function Observaciones() {
                       value={idSitio}
                       onChange={e => { setIdSitio(e.target.value); setPage(1) }}
                     >
-                      <option value="">Todos los Sitios</option>
-                      {filtros.sitios.map(s => {
+                      <option value="">Todos los Sitios ({sitiosFiltradosPorProyecto.length})</option>
+                      {sitiosFiltradosPorProyecto.map(s => {
                         const loc = sitiosMap[s]?.localidad
                         return (
                           <option key={s} value={s}>

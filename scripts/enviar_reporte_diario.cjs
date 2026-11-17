@@ -1501,7 +1501,7 @@ async function enviarReporteDiarioInterno() {
       cuadrilla: 'EQUIPO 1',
       subtitulo: 'Cuadrilla 1 y 2',
       tecnico: `${cuadrillaTecnicos['CUADRILLA 1']} · ${cuadrillaTecnicos['CUADRILLA 2']}`,
-      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
       total: 0
     },
     'EQUIPO 2': {
@@ -1509,7 +1509,7 @@ async function enviarReporteDiarioInterno() {
       cuadrilla: 'EQUIPO 2',
       subtitulo: 'Cuadrilla 3 y 6',
       tecnico: `${cuadrillaTecnicos['CUADRILLA 3']} · ${cuadrillaTecnicos['CUADRILLA 6']}`,
-      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
       total: 0
     },
     'EQUIPO 3': {
@@ -1517,7 +1517,7 @@ async function enviarReporteDiarioInterno() {
       cuadrilla: 'EQUIPO 3',
       subtitulo: 'Cuadrilla 4 y 5',
       tecnico: `${cuadrillaTecnicos['CUADRILLA 4']} · ${cuadrillaTecnicos['CUADRILLA 5']}`,
-      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
       total: 0
     },
     'EQUIPO 4': {
@@ -1525,7 +1525,7 @@ async function enviarReporteDiarioInterno() {
       cuadrilla: 'EQUIPO 4',
       subtitulo: 'Cuadrilla 7',
       tecnico: `${cuadrillaTecnicos['CUADRILLA 7'] || 'Por Asignar'}`,
-      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
       total: 0
     }
   }
@@ -1562,6 +1562,8 @@ async function enviarReporteDiarioInterno() {
 
     let estadoFinal = 'Validado'
     if (rawSt.toLowerCase().includes('documentaci')) estadoFinal = 'Documentación'
+    else if (rawSt.toLowerCase().includes('pre-valid') || rawSt.toLowerCase().includes('prevalid')) estadoFinal = 'Pre-validado'
+    else if (rawSt.toLowerCase().includes('crític') || rawSt.toLowerCase().includes('critic')) estadoFinal = 'Crítico'
     else if (rawSt.toLowerCase().includes('solicitando')) estadoFinal = 'Solicitando Revisión'
     else if (rawSt.toLowerCase().includes('en revisi')) estadoFinal = 'En Revisión'
     else if (rawSt.toLowerCase().includes('rechaz')) estadoFinal = 'Rechazado'
@@ -1580,7 +1582,9 @@ async function enviarReporteDiarioInterno() {
       else if (estadoFinal === 'En Revisión') targetEq.values.enRevision++
       else if (estadoFinal === 'Rechazado') targetEq.values.rechazados++
       else if (estadoFinal === 'Validado') targetEq.values.validados++
+      else if (estadoFinal === 'Pre-validado') targetEq.values.prevalidados++
       else if (estadoFinal === 'Documentación') targetEq.values.documentacion++
+      else if (estadoFinal === 'Crítico') targetEq.values.criticos++
     }
 
     const sInfo = sitiosMap[o.id_sitio] || {}
@@ -1603,7 +1607,7 @@ async function enviarReporteDiarioInterno() {
   // Totales de la matriz
   const matrixRows = Object.values(equiposMap).map(eq => ({
     ...eq,
-    total: eq.values.solicitando + eq.values.enRevision + eq.values.rechazados + eq.values.validados + eq.values.documentacion
+    total: eq.values.solicitando + eq.values.enRevision + eq.values.rechazados + eq.values.validados + eq.values.prevalidados + eq.values.documentacion + eq.values.criticos
   }))
 
   const matrixTotals = {
@@ -1611,9 +1615,11 @@ async function enviarReporteDiarioInterno() {
     enRevision: matrixRows.reduce((a, r) => a + r.values.enRevision, 0),
     rechazados: matrixRows.reduce((a, r) => a + r.values.rechazados, 0),
     validados: matrixRows.reduce((a, r) => a + r.values.validados, 0),
-    documentacion: matrixRows.reduce((a, r) => a + r.values.documentacion, 0)
+    prevalidados: matrixRows.reduce((a, r) => a + r.values.prevalidados, 0),
+    documentacion: matrixRows.reduce((a, r) => a + r.values.documentacion, 0),
+    criticos: matrixRows.reduce((a, r) => a + r.values.criticos, 0)
   }
-  const grandTotal = matrixTotals.solicitando + matrixTotals.enRevision + matrixTotals.rechazados + matrixTotals.validados + matrixTotals.documentacion
+  const grandTotal = matrixTotals.solicitando + matrixTotals.enRevision + matrixTotals.rechazados + matrixTotals.validados + matrixTotals.prevalidados + matrixTotals.documentacion + matrixTotals.criticos
 
   console.log(`[REPORTE-INTERNO] 📊 Estadísticas calculadas: Total=${grandTotal} | Validadas=${matrixTotals.validados} | Rechazadas=${matrixTotals.rechazados} | EnEspera=${matrixTotals.solicitando + matrixTotals.enRevision} | Doc=${matrixTotals.documentacion}`)
   matrixRows.forEach(r => {
@@ -1628,24 +1634,37 @@ async function enviarReporteDiarioInterno() {
   const wsMatriz = wb.addWorksheet('Matriz_Equipos', { views: [{ showGridLines: true }] })
   wsMatriz.columns = [
     { width: 16 }, { width: 22 }, { width: 34 },
-    { width: 20 }, { width: 16 }, { width: 16 },
-    { width: 16 }, { width: 18 }, { width: 16 }
+    { width: 18 }, { width: 14 }, { width: 14 },
+    { width: 14 }, { width: 16 }, { width: 16 },
+    { width: 14 }, { width: 14 }
   ]
-  wsMatriz.mergeCells('A1:I1')
+  wsMatriz.mergeCells('A1:K1')
   const c1 = wsMatriz.getCell('A1')
   c1.value = 'COVEPA — REPORTE DIARIO INTERNO (MATRIZ DE EQUIPOS)'
   c1.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF003060' } }
   c1.alignment = { vertical: 'middle', horizontal: 'center' }
   wsMatriz.getRow(1).height = 30
 
-  wsMatriz.mergeCells('A2:I2')
+  wsMatriz.mergeCells('A2:K2')
   const c2 = wsMatriz.getCell('A2')
   c2.value = `Jornada Operativa: ${targetFechaFormateada} | Total Observaciones Tocadas: ${grandTotal}`
   c2.font = { name: 'Arial', size: 10, italic: true, color: { argb: 'FF64748B' } }
   c2.alignment = { vertical: 'middle', horizontal: 'center' }
   wsMatriz.getRow(2).height = 20
 
-  const headersMatriz = ['Equipo', 'Cuadrillas', 'Técnicos Asignados', 'Solicitando Revisión', 'En Revisión', 'Rechazados', 'Validados', 'Documentación', 'Total']
+  const headersMatriz = [
+    'Equipo',
+    'Cuadrillas',
+    'Técnicos Asignados',
+    'Solicitando Revisión',
+    'En Revisión',
+    'Rechazados',
+    'Validados',
+    'Pre-validados',
+    'Documentación',
+    'Críticos',
+    'Total'
+  ]
   const hrM = wsMatriz.getRow(4)
   hrM.height = 26
   headersMatriz.forEach((h, idx) => {
@@ -1659,14 +1678,26 @@ async function enviarReporteDiarioInterno() {
   matrixRows.forEach((row, i) => {
     const r = wsMatriz.getRow(5 + i)
     r.height = 22
-    const vals = [row.id, row.subtitulo, row.tecnico, row.values.solicitando, row.values.enRevision, row.values.rechazados, row.values.validados, row.values.documentacion, row.total]
+    const vals = [
+      row.id,
+      row.subtitulo,
+      row.tecnico,
+      row.values.solicitando,
+      row.values.enRevision,
+      row.values.rechazados,
+      row.values.validados,
+      row.values.prevalidados || 0,
+      row.values.documentacion,
+      row.values.criticos || 0,
+      row.total
+    ]
     vals.forEach((v, idx) => {
       const c = r.getCell(idx + 1)
       c.value = v
-      c.font = { name: 'Arial', size: 10, bold: idx === 0 || idx === 8 }
+      c.font = { name: 'Arial', size: 10, bold: idx === 0 || idx === 10 }
       c.alignment = { vertical: 'middle', horizontal: idx <= 2 ? (idx === 2 ? 'left' : 'center') : 'center' }
       if (idx === 0) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F7FF' } }
-      if (idx === 8) {
+      if (idx === 10) {
         c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } }
         c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF0284C7' } }
       }
@@ -1675,7 +1706,19 @@ async function enviarReporteDiarioInterno() {
 
   const totRow = wsMatriz.getRow(5 + matrixRows.length)
   totRow.height = 24
-  const totVals = ['TOTAL GENERAL', 'Todas las cuadrillas', '-', matrixTotals.solicitando, matrixTotals.enRevision, matrixTotals.rechazados, matrixTotals.validados, matrixTotals.documentacion, grandTotal]
+  const totVals = [
+    'TOTAL GENERAL',
+    'Todas las cuadrillas',
+    '-',
+    matrixTotals.solicitando,
+    matrixTotals.enRevision,
+    matrixTotals.rechazados,
+    matrixTotals.validados,
+    matrixTotals.prevalidados || 0,
+    matrixTotals.documentacion,
+    matrixTotals.criticos || 0,
+    grandTotal
+  ]
   totVals.forEach((v, idx) => {
     const c = totRow.getCell(idx + 1)
     c.value = v
@@ -1845,7 +1888,7 @@ async function enviarReporteDiarioInterno() {
             </td>
           </tr>
 
-          <!-- TABLA MATRICIAL EJECUTIVA DE LOS 3 EQUIPOS -->
+          <!-- TABLA MATRICIAL EJECUTIVA DE LOS 4 EQUIPOS -->
           <tr>
             <td style="padding:20px 24px 12px 24px;">
               <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#003060;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.6px;">
@@ -1854,57 +1897,67 @@ async function enviarReporteDiarioInterno() {
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;border-collapse:collapse;width:100%;">
                 <thead>
                   <tr style="background-color:#003060;color:#ffffff;">
-                    <th style="padding:11px 12px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;text-align:left;letter-spacing:0.5px;width:24%;">EQUIPO / CUADRILLAS</th>
-                    <th style="padding:11px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;text-align:left;letter-spacing:0.5px;width:26%;">TÉCNICOS</th>
-                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;letter-spacing:0.5px;width:8%;">SOLICIT.</th>
-                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;letter-spacing:0.5px;width:8%;">EN REV.</th>
-                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#fecdd3;text-align:center;letter-spacing:0.5px;width:8%;">RECHAZ.</th>
-                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bbf7d0;text-align:center;letter-spacing:0.5px;width:8%;">VALID.</th>
-                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#e9d5ff;text-align:center;letter-spacing:0.5px;width:8%;">DOCUM.</th>
-                    <th style="padding:11px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#ffffff;text-align:center;letter-spacing:0.5px;width:10%;">TOTAL</th>
+                    <th style="padding:11px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;text-align:left;letter-spacing:0.5px;width:20%;">EQUIPO / CUADRILLAS</th>
+                    <th style="padding:11px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;text-align:left;letter-spacing:0.5px;width:22%;">TÉCNICOS</th>
+                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;width:7%;">SOLICIT.</th>
+                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;width:7%;">EN REV.</th>
+                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#fecdd3;text-align:center;width:7%;">RECHAZ.</th>
+                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bbf7d0;text-align:center;width:7%;">VALID.</th>
+                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#99f6e4;text-align:center;width:8%;">PRE-VAL.</th>
+                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#e9d5ff;text-align:center;width:7%;">DOCUM.</th>
+                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#fecdd3;text-align:center;width:7%;">CRÍT.</th>
+                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#ffffff;text-align:center;width:8%;">TOTAL</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${matrixRows.map((r, i) => `
                   <tr style="background-color:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};border-bottom:1px solid #e2e8f0;">
-                    <td style="padding:11px 12px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#003060;border-right:1px solid #e2e8f0;">
+                    <td style="padding:10px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:#003060;border-right:1px solid #e2e8f0;">
                       ${escapeHtml(r.id)}
-                      <div style="font-size:10.5px;font-weight:normal;color:#64748b;margin-top:2px;">${escapeHtml(r.subtitulo)}</div>
+                      <div style="font-size:10px;font-weight:normal;color:#64748b;margin-top:2px;">${escapeHtml(r.subtitulo)}</div>
                     </td>
-                    <td style="padding:11px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;color:#334155;border-right:1px solid #e2e8f0;">
+                    <td style="padding:10px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#334155;border-right:1px solid #e2e8f0;">
                       ${escapeHtml(r.tecnico)}
                     </td>
-                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${r.values.solicitando > 0 ? '#0284c7' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
+                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.solicitando > 0 ? '#0284c7' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
                       ${r.values.solicitando}
                     </td>
-                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${r.values.enRevision > 0 ? '#0284c7' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
+                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.enRevision > 0 ? '#0284c7' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
                       ${r.values.enRevision}
                     </td>
-                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${r.values.rechazados > 0 ? '#e11d48' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
+                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.rechazados > 0 ? '#e11d48' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
                       ${r.values.rechazados}
                     </td>
-                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${r.values.validados > 0 ? '#16a34a' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
+                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.validados > 0 ? '#16a34a' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
                       ${r.values.validados}
                     </td>
-                    <td style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:${r.values.documentacion > 0 ? '#7e22ce' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
+                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${(r.values.prevalidados || 0) > 0 ? '#0d9488' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${(r.values.prevalidados || 0) > 0 ? '#f0fdfa' : 'transparent'};">
+                      ${r.values.prevalidados || 0}
+                    </td>
+                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.documentacion > 0 ? '#7e22ce' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
                       ${r.values.documentacion}
                     </td>
-                    <td style="padding:11px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:bold;color:${r.total > 0 ? '#003060' : '#94a3b8'};text-align:center;background-color:${r.total > 0 ? '#eff6ff' : 'transparent'};">
+                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${(r.values.criticos || 0) > 0 ? '#b91c1c' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${(r.values.criticos || 0) > 0 ? '#fef2f2' : 'transparent'};">
+                      ${r.values.criticos || 0}
+                    </td>
+                    <td style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:${r.total > 0 ? '#003060' : '#94a3b8'};text-align:center;background-color:${r.total > 0 ? '#eff6ff' : 'transparent'};">
                       ${r.total}
                     </td>
                   </tr>
                   `).join('')}
                   <!-- Fila de Total General -->
                   <tr style="background-color:#0f172a;color:#ffffff;border-top:2px solid #003060;">
-                    <td colspan="2" style="padding:12px 12px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:0.8px;">
+                    <td colspan="2" style="padding:12px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;text-transform:uppercase;letter-spacing:0.8px;">
                       TOTAL GENERAL DE JORNADA
                     </td>
-                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.solicitando}</td>
-                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.enRevision}</td>
-                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#fecdd3;text-align:center;">${matrixTotals.rechazados}</td>
-                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#bbf7d0;text-align:center;">${matrixTotals.validados}</td>
-                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#e9d5ff;text-align:center;">${matrixTotals.documentacion}</td>
-                    <td style="padding:12px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;background-color:#1e293b;">${grandTotal}</td>
+                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.solicitando}</td>
+                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.enRevision}</td>
+                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#fecdd3;text-align:center;">${matrixTotals.rechazados}</td>
+                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#bbf7d0;text-align:center;">${matrixTotals.validados}</td>
+                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#99f6e4;text-align:center;">${matrixTotals.prevalidados || 0}</td>
+                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#e9d5ff;text-align:center;">${matrixTotals.documentacion}</td>
+                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#fecdd3;text-align:center;">${matrixTotals.criticos || 0}</td>
+                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:13.5px;font-weight:bold;color:#38bdf8;text-align:center;background-color:#1e293b;">${grandTotal}</td>
                   </tr>
                 </tbody>
               </table>

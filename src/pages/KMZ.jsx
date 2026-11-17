@@ -647,7 +647,9 @@ export default function KMZ() {
     { key: 'enRevision', title: 'En Revisión', align: 'center' },
     { key: 'rechazados', title: 'Rechazados', align: 'center' },
     { key: 'validados', title: 'Validados', align: 'center' },
+    { key: 'prevalidados', title: 'Pre-val.', align: 'center' },
     { key: 'documentacion', title: 'Documentación', align: 'center' },
+    { key: 'criticos', title: 'Crítico', align: 'center' },
     { key: 'total', title: 'Total', align: 'center' }
   ], [])
 
@@ -661,7 +663,9 @@ export default function KMZ() {
       enRevision: r.values.enRevision,
       rechazados: r.values.rechazados,
       validados: r.values.validados,
+      prevalidados: r.values.prevalidados || 0,
       documentacion: r.values.documentacion,
+      criticos: r.values.criticos || 0,
       total: r.total
     }))
 
@@ -675,7 +679,9 @@ export default function KMZ() {
       enRevision: t.enRevision || 0,
       rechazados: t.rechazados || 0,
       validados: t.validados || 0,
+      prevalidados: t.prevalidados || 0,
       documentacion: t.documentacion || 0,
+      criticos: t.criticos || 0,
       total: datosInterno.matrixGrandTotal || 0
     })
     return rows
@@ -1404,12 +1410,14 @@ export default function KMZ() {
                         <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
                           <th style={{ padding: '0.6rem 0.85rem', color: '#003060' }} className="t-badge">Equipo / Cuadrillas</th>
                           <th style={{ padding: '0.6rem 0.85rem', color: '#003060' }} className="t-badge">Técnicos</th>
-                          <th style={{ padding: '0.6rem 0.65rem', color: '#003060', textAlign: 'center' }} className="t-badge">Solicitando</th>
-                          <th style={{ padding: '0.6rem 0.65rem', color: '#003060', textAlign: 'center' }} className="t-badge">En Rev.</th>
-                          <th style={{ padding: '0.6rem 0.65rem', color: '#003060', textAlign: 'center' }} className="t-badge">Rechaz.</th>
-                          <th style={{ padding: '0.6rem 0.65rem', color: '#003060', textAlign: 'center' }} className="t-badge">Valid.</th>
-                          <th style={{ padding: '0.6rem 0.65rem', color: '#003060', textAlign: 'center' }} className="t-badge">Docum.</th>
-                          <th style={{ padding: '0.6rem 0.85rem', color: '#003060', textAlign: 'center' }} className="t-badge">Total</th>
+                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Solicitando</th>
+                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">En Rev.</th>
+                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Rechaz.</th>
+                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Valid.</th>
+                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Pre-val.</th>
+                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Docum.</th>
+                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Crítico</th>
+                          <th style={{ padding: '0.6rem 0.75rem', color: '#003060', textAlign: 'center' }} className="t-badge">Total</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1422,22 +1430,28 @@ export default function KMZ() {
                             <td style={{ padding: '0.65rem 0.85rem' }}>
                               <span className="t-meta" style={{ color: '#334155' }}>{row.tecnico}</span>
                             </td>
-                            <td style={{ padding: '0.65rem 0.65rem', textAlign: 'center' }}>
+                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center' }}>
                               <span className="t-name" style={{ color: '#0284c7', fontVariantNumeric: 'tabular-nums' }}>{row.values.solicitando}</span>
                             </td>
-                            <td style={{ padding: '0.65rem 0.65rem', textAlign: 'center' }}>
+                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center' }}>
                               <span className="t-name" style={{ color: '#0284c7', fontVariantNumeric: 'tabular-nums' }}>{row.values.enRevision}</span>
                             </td>
-                            <td style={{ padding: '0.65rem 0.65rem', textAlign: 'center' }}>
+                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center' }}>
                               <span className="t-name" style={{ color: '#e11d48', fontVariantNumeric: 'tabular-nums' }}>{row.values.rechazados}</span>
                             </td>
-                            <td style={{ padding: '0.65rem 0.65rem', textAlign: 'center' }}>
+                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center' }}>
                               <span className="t-name" style={{ color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{row.values.validados}</span>
                             </td>
-                            <td style={{ padding: '0.65rem 0.65rem', textAlign: 'center' }}>
+                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center', background: (row.values.prevalidados || 0) > 0 ? '#f0fdfa' : 'transparent' }}>
+                              <span className="t-name" style={{ color: (row.values.prevalidados || 0) > 0 ? '#0d9488' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{row.values.prevalidados || 0}</span>
+                            </td>
+                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center' }}>
                               <span className="t-name" style={{ color: '#7e22ce', fontVariantNumeric: 'tabular-nums' }}>{row.values.documentacion}</span>
                             </td>
-                            <td style={{ padding: '0.65rem 0.85rem', textAlign: 'center', background: '#eff6ff' }}>
+                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center', background: (row.values.criticos || 0) > 0 ? '#fef2f2' : 'transparent' }}>
+                              <span className="t-name" style={{ color: (row.values.criticos || 0) > 0 ? '#b91c1c' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{row.values.criticos || 0}</span>
+                            </td>
+                            <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', background: '#eff6ff' }}>
                               <span className="t-title-section" style={{ color: '#003060', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{row.total}</span>
                             </td>
                           </tr>
@@ -1447,22 +1461,28 @@ export default function KMZ() {
                           <td colSpan={2} style={{ padding: '0.75rem 0.85rem' }}>
                             <span className="t-name" style={{ color: '#ffffff', letterSpacing: '0.5px' }}>TOTAL GENERAL</span>
                           </td>
-                          <td style={{ padding: '0.75rem 0.65rem', textAlign: 'center' }}>
+                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
                             <span className="t-name" style={{ color: '#bae6fd', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.solicitando || 0}</span>
                           </td>
-                          <td style={{ padding: '0.75rem 0.65rem', textAlign: 'center' }}>
+                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
                             <span className="t-name" style={{ color: '#bae6fd', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.enRevision || 0}</span>
                           </td>
-                          <td style={{ padding: '0.75rem 0.65rem', textAlign: 'center' }}>
+                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
                             <span className="t-name" style={{ color: '#fecdd3', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.rechazados || 0}</span>
                           </td>
-                          <td style={{ padding: '0.75rem 0.65rem', textAlign: 'center' }}>
+                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
                             <span className="t-name" style={{ color: '#bbf7d0', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.validados || 0}</span>
                           </td>
-                          <td style={{ padding: '0.75rem 0.65rem', textAlign: 'center' }}>
+                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
+                            <span className="t-name" style={{ color: '#99f6e4', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.prevalidados || 0}</span>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
                             <span className="t-name" style={{ color: '#e9d5ff', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.documentacion || 0}</span>
                           </td>
-                          <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center', background: '#1e293b' }}>
+                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
+                            <span className="t-name" style={{ color: '#fecdd3', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.criticos || 0}</span>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.75rem', textAlign: 'center', background: '#1e293b' }}>
                             <span className="t-title-section" style={{ color: '#38bdf8', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixGrandTotal || 0}</span>
                           </td>
                         </tr>

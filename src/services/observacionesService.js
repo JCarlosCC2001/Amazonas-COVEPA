@@ -64,7 +64,8 @@ function applyQueryFilters(query, {
   estadoCovepa = '',
   idSitio = '',
   idSitios = null,
-  filtroDemora = ''
+  filtroDemora = '',
+  proyecto = 'todos'
 } = {}) {
   const searchOr = buildSearchOr(search)
   if (searchOr) query = query.or(searchOr)
@@ -84,6 +85,11 @@ function applyQueryFilters(query, {
     query = query.not('justificacion_demora', 'is', null).neq('justificacion_demora', '')
   } else if (filtroDemora === 'SIN_DEMORA') {
     query = query.or('justificacion_demora.is.null,justificacion_demora.eq.')
+  }
+  if (proyecto === 'ampliacion') {
+    query = query.like('id_sitio', 'AMEX%')
+  } else if (proyecto === 'original') {
+    query = query.not('id_sitio', 'like', 'AMEX%')
   }
   return query
 }
@@ -131,6 +137,7 @@ export async function fetchObservaciones({
   idSitio = '',
   idSitios = null,
   filtroDemora = '',
+  proyecto = 'todos',
   page = 1,
   pageSize = 20,
   sortBy = 'id_obs',
@@ -140,7 +147,7 @@ export async function fetchObservaciones({
     .from('observaciones')
     .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,fecha_registro_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora', { count: 'exact' })
 
-  query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio, idSitios, filtroDemora })
+  query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio, idSitios, filtroDemora, proyecto })
 
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
@@ -171,7 +178,7 @@ export async function fetchObservaciones({
     let fallbackQuery = supabase
       .from('observaciones')
       .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora', { count: 'exact' })
-    fallbackQuery = applyQueryFilters(fallbackQuery, { search, protocolo, estadoCovepa, idSitio, idSitios, filtroDemora })
+    fallbackQuery = applyQueryFilters(fallbackQuery, { search, protocolo, estadoCovepa, idSitio, idSitios, filtroDemora, proyecto })
     const res = await fallbackQuery.order(dbCol, { ascending: isAsc, nullsFirst: false }).range(from, to)
     data = res.data
     count = res.count
@@ -183,38 +190,51 @@ export async function fetchObservaciones({
 
 // ────────────────────────────────────────────────────────────
 // 2. Obtiene los KPIs globales de COVEPA (Medidores / Indicadores)
-// Siempre calcula los totales globales del proyecto sin verse alterados por filtros de búsqueda o tabla
+// Siempre calcula los totales del ámbito seleccionado ('todos' | 'original' | 'ampliacion')
 // Utiliza head: true en paralelo -> exacto, instantáneo y sin límite de 1,000
 // ────────────────────────────────────────────────────────────
-export async function fetchObservacionesKPIs() {
+export async function fetchObservacionesKPIs(proyecto = 'todos') {
   try {
-    // 1. Intentar llamar a la función RPC ultrarrápida (1 sola petición, ~150 bytes)
-    try {
-      const { data: rpcData, error: rpcErr } = await supabase.rpc('get_dashboard_kpis')
-      if (!rpcErr && rpcData && typeof rpcData.total === 'number') {
-        return {
-          total: rpcData.total,
-          pendientes: rpcData.pendientes,
-          solicitando: rpcData.solicitando,
-          enRevision: rpcData.enRevision,
-          documentacion: rpcData.documentacion ?? 0,
-          validadas: rpcData.validadas,
-          rechazadas: rpcData.rechazadas,
-          descartadas: rpcData.descartadas
+    // 1. Intentar llamar a la función RPC ultrarrápida solo para 'todos' si tiene prevalidadas/criticas
+    if (proyecto === 'todos') {
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('get_dashboard_kpis')
+        if (!rpcErr && rpcData && typeof rpcData.total === 'number' && typeof rpcData.prevalidadas === 'number') {
+          return {
+            total: rpcData.total,
+            pendientes: rpcData.pendientes,
+            solicitando: rpcData.solicitando,
+            enRevision: rpcData.enRevision,
+            documentacion: rpcData.documentacion ?? 0,
+            prevalidadas: rpcData.prevalidadas ?? 0,
+            validadas: rpcData.validadas,
+            criticas: rpcData.criticas ?? 0,
+            rechazadas: rpcData.rechazadas,
+            descartadas: rpcData.descartadas
+          }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
-    // 2. Fallback con consultas HEAD paralelas
-    const [qTotal, qPend, qSol, qRev, qDoc, qValidadas, qRech, qDesc] = await Promise.all([
-      supabase.from('observaciones').select('*', { count: 'exact', head: true }),
-      supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Pendiente,estado_covepa.is.null'),
-      supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['Solicitando Revisión', 'Solicitando Revision']),
-      supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['En Revisión', 'En Revision']),
-      supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['Documentación', 'Documentacion']),
-      supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Solicitando Revision,estado_covepa.neq.Solicitando Revisión,estado_covepa.neq.Rechazado,estado_covepa.neq.Documentación,estado_covepa.neq.Documentacion)'),
-      supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Rechazado'),
-      supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Descartado'),
+    // Helper para aplicar filtro de proyecto a consultas head
+    const applyProj = (q) => {
+      if (proyecto === 'ampliacion') return q.like('id_sitio', 'AMEX%')
+      if (proyecto === 'original') return q.not('id_sitio', 'like', 'AMEX%')
+      return q
+    }
+
+    // 2. Consultas HEAD paralelas
+    const [qTotal, qPend, qSol, qRev, qDoc, qPreVal, qValidadas, qCrit, qRech, qDesc] = await Promise.all([
+      applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true })),
+      applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Pendiente,estado_covepa.is.null')),
+      applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['Solicitando Revisión', 'Solicitando Revision'])),
+      applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['En Revisión', 'En Revision'])),
+      applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['Documentación', 'Documentacion'])),
+      applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['Pre-validado', 'Pre-Validado', 'Prevalidado'])),
+      applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.Crítico,estado_covepa.neq.Critico,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Solicitando Revision,estado_covepa.neq.Solicitando Revisión,estado_covepa.neq.Rechazado,estado_covepa.neq.Documentación,estado_covepa.neq.Documentacion,estado_covepa.neq.Pre-validado)')),
+      applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['Crítico', 'Critico'])),
+      applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Rechazado')),
+      applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Descartado')),
     ])
 
     return {
@@ -223,13 +243,15 @@ export async function fetchObservacionesKPIs() {
       solicitando: qSol.count ?? 0,
       enRevision: qRev.count ?? 0,
       documentacion: qDoc.count ?? 0,
+      prevalidadas: qPreVal.count ?? 0,
       validadas: qValidadas.count ?? 0,
+      criticas: qCrit.count ?? 0,
       rechazadas: qRech.count ?? 0,
       descartadas: qDesc.count ?? 0,
     }
   } catch (err) {
     console.error('Error al calcular KPIs globales:', err)
-    return { total: 0, pendientes: 0, solicitando: 0, enRevision: 0, documentacion: 0, validadas: 0, rechazadas: 0, descartadas: 0 }
+    return { total: 0, pendientes: 0, solicitando: 0, enRevision: 0, documentacion: 0, prevalidadas: 0, validadas: 0, criticas: 0, rechazadas: 0, descartadas: 0 }
   }
 }
 
@@ -261,7 +283,7 @@ export async function fetchFiltrosObservaciones(forceRefresh = false) {
     const unique = (field) => [...new Set(data.map(d => d[field]).filter(Boolean))].sort()
     const result = {
       protocolos: unique('protocolo'),
-      estadosCovepa: [...new Set(['Pendiente', 'Solicitando Revisión', 'En Revisión', 'Documentación', 'Validado', 'Rechazado', 'Descartado', ...unique('estado_covepa')])],
+      estadosCovepa: [...new Set(['Pendiente', 'Solicitando Revisión', 'En Revisión', 'Documentación', 'Pre-validado', 'Validado', 'Crítico', 'Rechazado', 'Descartado', ...unique('estado_covepa')])],
       sitios: unique('id_sitio'),
     }
     _cachedFiltros = result
@@ -361,7 +383,7 @@ export async function fetchResumenPorSitio(filters = {}) {
   const resumen = {}
   for (const row of data) {
     if (!resumen[row.id_sitio]) {
-      resumen[row.id_sitio] = { total: 0, pendientes: 0, solicitando: 0, descartadas: 0, subsanadas: 0, validadas: 0, enRevision: 0, rechazadas: 0 }
+      resumen[row.id_sitio] = { total: 0, pendientes: 0, solicitando: 0, descartadas: 0, subsanadas: 0, validadas: 0, prevalidadas: 0, criticas: 0, enRevision: 0, rechazadas: 0 }
     }
     const r = resumen[row.id_sitio]
     r.total++
@@ -369,6 +391,8 @@ export async function fetchResumenPorSitio(filters = {}) {
     const rawSt = row.estado_covepa ? row.estado_covepa.trim() : null
     let st = 'Pendiente'
     if (rawSt === 'Descartado') st = 'Descartado'
+    else if (rawSt === 'Crítico' || rawSt === 'Critico') st = 'Crítico'
+    else if (rawSt === 'Pre-validado' || rawSt === 'Pre-Validado' || rawSt === 'Prevalidado') st = 'Pre-validado'
     else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') st = 'Solicitando Revisión'
     else if (rawSt === 'En Revision' || rawSt === 'En Revisión') st = 'En Revision'
     else if (rawSt === 'Validado' || rawSt === 'Enviado') st = 'Validado'
@@ -378,6 +402,10 @@ export async function fetchResumenPorSitio(filters = {}) {
 
     if (st === 'Descartado') {
       r.descartadas++
+    } else if (st === 'Crítico') {
+      r.criticas++
+    } else if (st === 'Pre-validado') {
+      r.prevalidadas++
     } else if (st === 'Solicitando Revisión') {
       r.solicitando++
     } else if (st === 'En Revision') {

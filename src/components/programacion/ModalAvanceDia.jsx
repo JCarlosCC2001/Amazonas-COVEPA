@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   TrendingUp, X, Search, Download, MapPin, User,
   Clock, ShieldCheck, RefreshCw, AlertCircle, Eye, FileText,
-  Copy, Image, Check, ChevronDown, ChevronUp
+  Copy, Image, Check, ChevronDown, ChevronUp, Globe
 } from 'lucide-react'
 // M3: ExcelJS importado dinamicamente en handleExportXLSX
 import { getAvancePorFecha } from '../../services/dashboardService'
@@ -14,13 +14,14 @@ import { formatNombrePersona, getPeruDateStr } from '../../utils/helpers'
 // M3: imageExportService importado dinamicamente en handleCopyPNG / handleDownloadPNG
 import { usePresentationMode } from '../../context/PresentationContext'
 
-export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
+export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto = 'ALL', onClose }) {
   const { presentationMode } = usePresentationMode()
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [avanceData, setAvanceData] = useState({ rows: [], stats: {}, programacionesDelDia: 0 })
   const [searchTable, setSearchTable] = useState('')
   const [filterEstado, setFilterEstado] = useState('TODOS')
+  const [proyectoModal, setProyectoModal] = useState(initialProyecto || 'ALL') // 'ALL' | 'ORIGINAL' | 'AMPLIACION'
   const [selectedRowDetail, setSelectedRowDetail] = useState(null)
   const [exportingXlsx, setExportingXlsx] = useState(false)
   const [exportingPng, setExportingPng] = useState(false)
@@ -151,7 +152,38 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     return 'CUADRILLA 1'
   }, [sitiosMap, cuadrillaStaffMap])
 
-  const stats = avanceData.stats || {}
+  const stats = useMemo(() => {
+    const rawRows = (avanceData.rows || []).filter(r => {
+      const isAmex = String(r.id_sitio || '').toUpperCase().startsWith('AMEX')
+      if (proyectoModal === 'ORIGINAL' && isAmex) return false
+      if (proyectoModal === 'AMPLIACION' && !isAmex) return false
+      return true
+    })
+
+    const st = {
+      total: rawRows.length,
+      solicitando: 0,
+      enRevision: 0,
+      rechazadas: 0,
+      validadas: 0,
+      prevalidadas: 0,
+      documentacion: 0,
+      criticas: 0,
+      descartadas: 0
+    }
+    rawRows.forEach(r => {
+      const raw = (r.estado || '').trim().toLowerCase()
+      if (raw === 'solicitando revisión' || raw === 'solicitando revision') st.solicitando++
+      else if (raw === 'en revisión' || raw === 'en revision') st.enRevision++
+      else if (raw === 'rechazado' || raw === 'rechazada' || raw === 'rechazados') st.rechazadas++
+      else if (raw === 'validado' || raw === 'validada' || raw === 'enviado' || raw === 'enviada') st.validadas++
+      else if (raw === 'pre-validado' || raw === 'pre-validada' || raw === 'prevalidado') st.prevalidadas++
+      else if (raw === 'documentación' || raw === 'documentacion') st.documentacion++
+      else if (raw === 'crítico' || raw === 'critico') st.criticas++
+      else if (raw === 'descartado' || raw === 'descartada') st.descartadas++
+    })
+    return st
+  }, [avanceData.rows, proyectoModal])
 
   // Columnas semánticas para la Matriz de Cuadrillas
   const statusColumns = useMemo(() => [
@@ -180,17 +212,33 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       title: 'Observaciones validadas conformes'
     },
     {
+      key: 'prevalidados',
+      label: 'Pre-validados',
+      badgeVariant: 'sky',
+      title: 'Observaciones pre-validadas que requieren fotos'
+    },
+    {
       key: 'documentacion',
       label: 'Documentación',
       badgeVariant: 'purple',
       title: 'Observaciones en recopilación técnica de documentación'
+    },
+    {
+      key: 'criticos',
+      label: 'Críticos',
+      badgeVariant: 'rose',
+      title: 'Observaciones críticas que no se ejecutarán'
     }
   ], [])
 
-  // Consolidación de datos matriciales agrupados por Equipos (3 Equipos x Estados)
-  // Regla de Negocio: Equipo 1 = Cuadrilla 1 y 2, Equipo 2 = Cuadrilla 3 y 6, Equipo 3 = Cuadrilla 4 y 5
+  // Consolidación de datos matriciales agrupados por Equipos
   const matrixData = useMemo(() => {
-    const rows = avanceData.rows || []
+    const rows = (avanceData.rows || []).filter(r => {
+      const isAmex = String(r.id_sitio || '').toUpperCase().startsWith('AMEX')
+      if (proyectoModal === 'ORIGINAL' && isAmex) return false
+      if (proyectoModal === 'AMPLIACION' && !isAmex) return false
+      return true
+    })
 
     const getCuadrillaTecnico = (cName) => {
       return cuadrillaStaffMap[cName] ||
@@ -204,30 +252,44 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     const tecC4 = getCuadrillaTecnico('CUADRILLA 4')
     const tecC5 = getCuadrillaTecnico('CUADRILLA 5')
     const tecC6 = getCuadrillaTecnico('CUADRILLA 6')
+    const tecC7 = getCuadrillaTecnico('CUADRILLA 7')
 
-    const equiposMap = {
-      'EQUIPO 1': {
+    const equiposMap = {}
+
+    if (proyectoModal !== 'AMPLIACION') {
+      equiposMap['EQUIPO 1'] = {
         id: 'EQUIPO 1',
         cuadrilla: 'EQUIPO 1',
         subtitulo: 'Cuadrilla 1 y 2',
         tecnico: [tecC1, tecC2].filter(Boolean).join(' · ') || 'Técnicos Equipo 1',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
         total: 0
-      },
-      'EQUIPO 2': {
+      }
+      equiposMap['EQUIPO 2'] = {
         id: 'EQUIPO 2',
         cuadrilla: 'EQUIPO 2',
         subtitulo: 'Cuadrilla 3 y 6',
         tecnico: [tecC3, tecC6].filter(Boolean).join(' · ') || 'Técnicos Equipo 2',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
         total: 0
-      },
-      'EQUIPO 3': {
+      }
+      equiposMap['EQUIPO 3'] = {
         id: 'EQUIPO 3',
         cuadrilla: 'EQUIPO 3',
         subtitulo: 'Cuadrilla 4 y 5',
         tecnico: [tecC4, tecC5].filter(Boolean).join(' · ') || 'Técnicos Equipo 3',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 },
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+        total: 0
+      }
+    }
+
+    if (proyectoModal !== 'ORIGINAL') {
+      equiposMap['EQUIPO 4'] = {
+        id: 'EQUIPO 4',
+        cuadrilla: 'EQUIPO 4',
+        subtitulo: 'Cuadrilla 7',
+        tecnico: tecC7 || 'Por Asignar',
+        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
         total: 0
       }
     }
@@ -241,6 +303,8 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
         targetEquipoKey = 'EQUIPO 2'
       } else if (targetCuadrilla === 'CUADRILLA 4' || targetCuadrilla === 'CUADRILLA 5') {
         targetEquipoKey = 'EQUIPO 3'
+      } else if (targetCuadrilla === 'CUADRILLA 7') {
+        targetEquipoKey = 'EQUIPO 4'
       }
 
       const targetObj = equiposMap[targetEquipoKey]
@@ -254,15 +318,19 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
           targetObj.values.rechazados++
         } else if (rawSt === 'validado' || rawSt === 'validada' || rawSt === 'enviado' || rawSt === 'enviada') {
           targetObj.values.validados++
+        } else if (rawSt === 'pre-validado' || rawSt === 'pre-validada' || rawSt === 'prevalidado') {
+          targetObj.values.prevalidados++
         } else if (rawSt === 'documentación' || rawSt === 'documentacion') {
           targetObj.values.documentacion++
+        } else if (rawSt === 'crítico' || rawSt === 'critico') {
+          targetObj.values.criticos++
         }
       }
     })
 
     const matrixRowsList = Object.values(equiposMap).map(row => ({
       ...row,
-      total: row.values.solicitando + row.values.enRevision + row.values.rechazados + row.values.validados + row.values.documentacion
+      total: row.values.solicitando + row.values.enRevision + row.values.rechazados + row.values.validados + (row.values.prevalidados || 0) + row.values.documentacion + (row.values.criticos || 0)
     }))
 
     const totalsObj = {
@@ -270,21 +338,27 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       enRevision: matrixRowsList.reduce((acc, r) => acc + r.values.enRevision, 0),
       rechazados: matrixRowsList.reduce((acc, r) => acc + r.values.rechazados, 0),
       validados: matrixRowsList.reduce((acc, r) => acc + r.values.validados, 0),
-      documentacion: matrixRowsList.reduce((acc, r) => acc + r.values.documentacion, 0)
+      prevalidados: matrixRowsList.reduce((acc, r) => acc + (r.values.prevalidados || 0), 0),
+      documentacion: matrixRowsList.reduce((acc, r) => acc + r.values.documentacion, 0),
+      criticos: matrixRowsList.reduce((acc, r) => acc + (r.values.criticos || 0), 0)
     }
 
-    const grandTotalNum = totalsObj.solicitando + totalsObj.enRevision + totalsObj.rechazados + totalsObj.validados + totalsObj.documentacion
+    const grandTotalNum = totalsObj.solicitando + totalsObj.enRevision + totalsObj.rechazados + totalsObj.validados + totalsObj.prevalidados + totalsObj.documentacion + totalsObj.criticos
 
     return {
       matrixRows: matrixRowsList,
       matrixTotals: totalsObj,
       matrixGrandTotal: grandTotalNum
     }
-  }, [avanceData.rows, resolveCuadrillaForObs, cuadrillaStaffMap])
+  }, [avanceData.rows, resolveCuadrillaForObs, cuadrillaStaffMap, proyectoModal])
 
   // Filtrado de filas detalladas
   const filteredRows = useMemo(() => {
     return (avanceData.rows || []).filter(r => {
+      const isAmex = String(r.id_sitio || '').toUpperCase().startsWith('AMEX')
+      if (proyectoModal === 'ORIGINAL' && isAmex) return false
+      if (proyectoModal === 'AMPLIACION' && !isAmex) return false
+
       const loc = getLocalidad(r.id_sitio)
       const q = searchTable.toLowerCase().trim()
       const matchSearch = !q ||
@@ -298,18 +372,34 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       if (!matchSearch) return false
 
       if (filterEstado === 'TODOS') return true
-      if (filterEstado === 'Validado') {
-        return r.estado === 'Validado' || r.estado === 'Enviado'
-      }
+      const raw = (r.estado || '').trim().toLowerCase()
       if (filterEstado === 'Solicitando Revisión') {
-        return r.estado === 'Solicitando Revisión' || r.estado === 'Solicitando Revision'
+        return raw === 'solicitando revisión' || raw === 'solicitando revision'
       }
       if (filterEstado === 'En Revisión') {
-        return r.estado === 'En Revision' || r.estado === 'En Revisión'
+        return raw === 'en revisión' || raw === 'en revision'
+      }
+      if (filterEstado === 'Validado') {
+        return raw === 'validado' || raw === 'validada' || raw === 'enviado' || raw === 'enviada'
+      }
+      if (filterEstado === 'Pre-validado') {
+        return raw === 'pre-validado' || raw === 'pre-validada' || raw === 'prevalidado'
+      }
+      if (filterEstado === 'Descartado') {
+        return raw === 'descartado' || raw === 'descartada'
+      }
+      if (filterEstado === 'Rechazado') {
+        return raw === 'rechazado' || raw === 'rechazada' || raw === 'rechazados'
+      }
+      if (filterEstado === 'Documentación') {
+        return raw === 'documentación' || raw === 'documentacion'
+      }
+      if (filterEstado === 'Crítico') {
+        return raw === 'crítico' || raw === 'critico'
       }
       return r.estado === filterEstado
     })
-  }, [avanceData.rows, filterEstado, searchTable, sitiosMap])
+  }, [avanceData.rows, searchTable, filterEstado, sitiosMap, proyectoModal])
 
   // Filas finales para el desglose (aplicando filtro de celda si está activo)
   const displayRows = useMemo(() => {
@@ -603,9 +693,36 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                     · {formattedDate}
                   </span>
                 </div>
-                <div className="prog-details-site-meta-pills">
+                <div className="prog-details-site-meta-pills" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                  <div className="prog-proyecto-toggle">
+                    <button
+                      type="button"
+                      className={`prog-proj-btn ${proyectoModal === 'ALL' ? 'active' : ''}`}
+                      onClick={() => setProyectoModal('ALL')}
+                      title="Ver consolidado (Original + Ampliación)"
+                    >
+                      <Globe size={11} />
+                      <span>Todos</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`prog-proj-btn ${proyectoModal === 'ORIGINAL' ? 'active' : ''}`}
+                      onClick={() => setProyectoModal('ORIGINAL')}
+                      title="Ver únicamente Amazonas Original"
+                    >
+                      <span>Original</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`prog-proj-btn ${proyectoModal === 'AMPLIACION' ? 'active' : ''}`}
+                      onClick={() => setProyectoModal('AMPLIACION')}
+                      title="Ver únicamente Amazonas Ampliación"
+                    >
+                      <span>Ampliación</span>
+                    </button>
+                  </div>
                   <span className="meta-pill" style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd', fontWeight: 'var(--fw-bold)' }}>
-                    {avanceData.rows?.length || 0} observaciones registradas
+                    {filteredRows.length} observaciones registradas
                   </span>
                   {avanceData.programacionesDelDia > 0 && (
                     <span className="meta-pill">

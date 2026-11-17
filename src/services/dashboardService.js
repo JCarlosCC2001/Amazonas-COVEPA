@@ -605,18 +605,28 @@ export async function getDashboardProjectOverview() {
       }
     }
 
-    // Consultar si hay asignaciones dinámicas en la tabla local personal_cuadrillas
+    // Consultar si hay asignaciones dinámicas en la tabla local personal_cuadrillas vinculadas por id_personal
     try {
-      const { data: dbCuad } = await supabase
-        .from('personal_cuadrillas')
-        .select('nombre_completo, cuadrilla, cargo') // M8
-        .eq('activo', true)
+      const [dbCuadRes, allStaff] = await Promise.all([
+        supabase
+          .from('personal_cuadrillas')
+          .select('id_personal, cuadrilla, cargo')
+          .eq('activo', true),
+        fetchPersonal().catch(() => [])
+      ])
+      const dbCuad = dbCuadRes?.data || []
+      const staffMap = {}
+      ;(allStaff || []).forEach(p => {
+        if (p.id) staffMap[p.id] = p.nombre_completo || p.nombre || ''
+      })
+
       if (dbCuad && dbCuad.length > 0) {
         dbCuad.forEach(cRow => {
           const cName = (cRow.cuadrilla || '').toUpperCase().trim().replace(/GRUPO/gi, 'CUADRILLA')
           const isLead = (cRow.cargo || '').toUpperCase().includes('TÉCNICO') || (cRow.cargo || '').toUpperCase().includes('SUPERVISOR')
-          if (isLead && perGroup[cName]) {
-            perGroup[cName].tecnico = cRow.nombre_completo || cRow.nombre || perGroup[cName].tecnico
+          const techName = staffMap[cRow.id_personal]
+          if (isLead && perGroup[cName] && techName) {
+            perGroup[cName].tecnico = techName
           }
         })
       }

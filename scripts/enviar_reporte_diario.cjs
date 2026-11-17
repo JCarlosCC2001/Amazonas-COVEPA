@@ -85,6 +85,21 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;')
 }
 
+function formatNombrePersona(str) {
+  if (!str) return ''
+  const trimmed = String(str).trim()
+  if (!trimmed) return ''
+  return trimmed
+    .split(/\s+/)
+    .map(w => {
+      if (w.length > 1 && w === w.toUpperCase() && /[A-Z]/.test(w)) {
+        return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+      }
+      return w
+    })
+    .join(' ')
+}
+
 const AUDITORES_GILAT_OFICIALES = [
   'AMILCAR HANDER',
   'HELIO CAMAC',
@@ -168,12 +183,12 @@ function calcularTiemposRevision(events = [], obs = {}) {
   // 2. Revisado: evento donde se validó, rechazó o descartó
   const finalEvent = revEvent
     ? validEvents.find(e =>
-        (e.estado_nuevo === 'Validado' || e.estado_nuevo === 'Rechazado' || e.estado_nuevo === 'Descartado') &&
-        new Date(e.created_at) >= new Date(revEvent.created_at)
-      )
+      (e.estado_nuevo === 'Validado' || e.estado_nuevo === 'Rechazado' || e.estado_nuevo === 'Descartado') &&
+      new Date(e.created_at) >= new Date(revEvent.created_at)
+    )
     : validEvents.slice().reverse().find(e =>
-        e.estado_nuevo === 'Validado' || e.estado_nuevo === 'Rechazado' || e.estado_nuevo === 'Descartado'
-      )
+      e.estado_nuevo === 'Validado' || e.estado_nuevo === 'Rechazado' || e.estado_nuevo === 'Descartado'
+    )
 
   const estadoActual = (obs.estado || obs.estado_covepa || '').trim()
   const isEnEspera = estadoActual === 'En Revisión' || estadoActual === 'En Revision' ||
@@ -232,8 +247,8 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
 
   const { fechaIso, horaMinuto, fechaFormateada } = getPeruDateInfo()
   const isManualRun = process.env.IS_MANUAL_RUN === 'true' ||
-                      process.env.IS_MANUAL_RUN === true ||
-                      process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
+    process.env.IS_MANUAL_RUN === true ||
+    process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
   const forzarEnvio = process.env.FORZAR_ENVIO === 'true' || process.env.FORZAR_ENVIO === true
 
   console.log(`${tagLog} 🚀 Iniciando verificación de reporte diario COVEPA (${tituloTramo}).`)
@@ -278,7 +293,7 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
           .from('configuracion_reportes_correo')
           .update({ notas_jornada: '' })
           .eq('id', configId)
-      } catch (_) {}
+      } catch (_) { }
     }
   }
 
@@ -289,8 +304,8 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
   const targetFechaFormateada = targetDateInfo.fechaFormateada
   console.log(`[CRON-REPORTE] 📅 Configuración de jornada: ${periodoReporte === 'dia_anterior' ? 'DÍA ANTERIOR' : 'DÍA ACTUAL'} -> Reportando fecha: ${targetFechaIso} (${targetFechaFormateada})`)
 
-  // 4. Si el envío automático está desactivado y no es corrida manual, salir
-  if (!config.activo && !isManualRun) {
+  // 4. Si el envío automático está desactivado y no es corrida forzada de prueba, salir
+  if (!config.activo && !forzarEnvio) {
     console.log('[CRON-REPORTE] ⏸️ El envío automático está marcado como inactivo en la base de datos. Finalizando.')
     return
   }
@@ -553,7 +568,7 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
 
     if (personalRes && personalRes.data) {
       personalRes.data.forEach(p => {
-        const fullName = (p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim()
+        const fullName = formatNombrePersona((p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim())
         if (fullName) {
           if (p.email) emailToNameMap[p.email.toLowerCase().trim()] = fullName
           if (p.email_2) emailToNameMap[p.email_2.toLowerCase().trim()] = fullName
@@ -615,9 +630,9 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
       .lte('created_at', endIsoUtc)
       .order('created_at', { ascending: true })
 
-    ;(rawHist || []).forEach(h => {
-      histMap.set(h.id_obs, h)
-    })
+      ; (rawHist || []).forEach(h => {
+        histMap.set(h.id_obs, h)
+      })
   } catch (histErr) {
     console.warn('[CRON-REPORTE] ⚠️ Aviso consultando historial de cambios en fecha:', histErr.message)
   }
@@ -656,16 +671,21 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
 
   // Consolidar observaciones de la fecha y de revisión activa sin duplicados
   const obsMap = new Map()
-  ;(rawObsFecha || []).forEach(o => obsMap.set(o.id_obs, { ...o }))
+    ; (rawObsFecha || []).forEach(o => obsMap.set(o.id_obs, { ...o }))
   additionalObs.forEach(o => {
     if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o })
   })
-  ;(rawObsRevision || []).forEach(o => {
-    if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o })
-  })
+    ; (rawObsRevision || []).forEach(o => {
+      if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o })
+    })
 
   const rows = Array.from(obsMap.values())
-    .filter(o => isAmpliacion ? String(o.id_sitio || '').toUpperCase().startsWith('AMEX-') : !String(o.id_sitio || '').toUpperCase().startsWith('AMEX-'))
+    .filter(o => {
+      const sId = String(o.id_sitio || '').toUpperCase().trim()
+      const oId = String(o.id_obs || '').toUpperCase().trim()
+      const esDeAmpliacion = sId.startsWith('AMEX') || oId.startsWith('AMEX')
+      return isAmpliacion ? esDeAmpliacion : !esDeAmpliacion
+    })
     .map(o => {
       // Para la jornada de hoy (isToday), el estado prioritario es el estado vivo actual en la BD (o.estado_covepa).
       // Para jornadas anteriores, si tuvo transición en esa fecha, se toma el estado que alcanzó en dicha fecha (hTransition.estado_nuevo).
@@ -757,14 +777,16 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
   const rechazadas = rowsEnriquecidas.filter(r => r.estado === 'Rechazado')
   const descartadas = rowsEnriquecidas.filter(r => r.estado === 'Descartado')
   const enEspera = rowsEnriquecidas.filter(r => r.estado === 'Solicitando Revisión' || r.estado === 'En Revisión')
-  const totalListados = validadas.length + rechazadas.length + enEspera.length + descartadas.length
+  const documentacion = rowsEnriquecidas.filter(r => r.estado === 'Documentación')
+  const totalListados = validadas.length + rechazadas.length + enEspera.length + descartadas.length + documentacion.length
 
   const stats = {
     validadas: validadas.length,
     rechazadas: rechazadas.length,
     descartadas: descartadas.length,
     enEspera: enEspera.length,
-    total: rowsEnriquecidas.length,
+    documentacion: documentacion.length,
+    total: totalListados,
     tiempoPromedioRevision: tiempoPromedioHoras,
     tiempoPromedioRevisionTexto: tiempoPromedioTexto,
     totalConTiempo: countConTiempo
@@ -798,17 +820,14 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
       views: [{ showGridLines: true }]
     })
 
-    // Anchos calibrados de las 9 columnas oficiales
+    // Anchos calibrados de las 6 columnas oficiales
     ws.columns = [
       { width: 22 }, // ID
       { width: 14 }, // Zona
       { width: 20 }, // Código de lugar
       { width: 28 }, // Nombre de localidad
       { width: 24 }, // Persona que validó
-      { width: 22 }, // Estado observación
-      { width: 20 }, // Solicitó Revisión
-      { width: 20 }, // Revisado
-      { width: 20 }  // Tiempo de Revisión
+      { width: 22 }  // Estado observación
     ]
 
     // Consolidado de todas las observaciones trabajadas en la jornada
@@ -816,7 +835,8 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
       ...validadas,
       ...rechazadas,
       ...enEspera,
-      ...descartadas
+      ...descartadas,
+      ...documentacion
     ]
 
     const tableRows = allRows.map(r => {
@@ -827,20 +847,13 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
       const isGilat = !isEnRev && esRevisorGilat(revRaw)
       const revisorFinal = isGilat ? revRaw : '-'
 
-      const solicitoRevision = isEnRev ? '-' : (r.fecha_solicito_revision || '-')
-      const revisado = isEnRev ? '-' : (r.fecha_revisado || '-')
-      const tiempoRevision = isEnRev ? '-' : (r.tiempo_revision || '-')
-
       return [
         r.id_obs || '',
         r.zona || getZonaForSite(r.id_sitio) || 'ZONA 7',
         r.id_sitio || '',
         r.localidad || '',
         revisorFinal,
-        estadoDisplay,
-        solicitoRevision,
-        revisado,
-        tiempoRevision
+        estadoDisplay
       ]
     })
 
@@ -862,12 +875,9 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
         { name: 'Código de lugar', filterButton: true },
         { name: 'Nombre de localidad', filterButton: true },
         { name: 'Persona que validó', filterButton: true },
-        { name: 'Estado observación', filterButton: true },
-        { name: 'Solicitó Revisión', filterButton: true },
-        { name: 'Revisado', filterButton: true },
-        { name: 'Tiempo de Revisión', filterButton: true }
+        { name: 'Estado observación', filterButton: true }
       ],
-      rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-', '-', '-', '-', '-']]
+      rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-', '-']]
     })
 
     // Conservar encabezado institucional en color oficial #003060 y texto blanco
@@ -898,7 +908,7 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
         cell.font = { name: 'Arial', size: 10 }
         cell.alignment = {
           vertical: 'middle',
-          horizontal: (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 6 || colNum === 7 || colNum === 8 || colNum === 9 || cell.value === '-') ? 'center' : 'left'
+          horizontal: (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 6 || cell.value === '-') ? 'center' : 'left'
         }
       })
     }
@@ -963,10 +973,10 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
                 AMAZONAS · COVEPA
               </div>
               <h1 style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;line-height:1.25;">
-                Reporte Diario de Levantamiento de Observaciones
+                ${isAmpliacion ? 'Reporte Diario de Levantamiento de Observaciones Amazonas Ampliación - Zona 2 y Zona 7' : 'Reporte Diario de Levantamiento de Observaciones Amazonas Original'}
               </h1>
               <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#bfdbfe;margin-top:3px;font-weight:500;">
-                ${isAmpliacion ? 'Amazonas Ampliación — Zona 2 y Zona 7' : 'Amazonas Original — Zona 2 y Zona 7'}
+                ${isAmpliacion ? 'Zona 2 y Zona 7 (Sitios AMEX)' : 'Zona 2 y Zona 7 (Sitios Originales)'}
               </div>
               <div style="margin-top:10px;">
                 <span style="display:inline-block;background-color:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:16px;padding:5px 14px;color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;white-space:nowrap;">
@@ -982,7 +992,7 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
                 <!-- Total General Trabajado (Centrado como los medidores de abajo, conservando su posición) -->
                 <tr>
-                  <td colspan="4" style="padding-bottom:10px;">
+                  <td colspan="5" style="padding-bottom:10px;">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #cbd5e1;border-top:3px solid #003060;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:12px 16px;text-align:center;">
@@ -990,6 +1000,8 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
                             ${stats.total}
                           </div>
                           <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">
+                            ${isAmpliacion ? 'Total de Observaciones de Ampliación Trabajadas en la Jornada' : 'Total de Observaciones Trabajadas en la Jornada'}
+                          </div>
                             Total de Observaciones Trabajadas en la Jornada
                           </div>
                         </td>
@@ -997,10 +1009,10 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
                     </table>
                   </td>
                 </tr>
-                <!-- Fila de los 4 Medidores -->
+                <!-- Fila de los 5 Medidores -->
                 <tr>
                   <!-- Validadas -->
-                  <td width="25%" style="padding:0 3px 0 0;" valign="top">
+                  <td width="20%" style="padding:0 2px 0 0;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bbf7d0;border-top:3px solid #16a34a;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:10px 4px;">
@@ -1011,7 +1023,7 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
                     </table>
                   </td>
                   <!-- Rechazadas -->
-                  <td width="25%" style="padding:0 3px;" valign="top">
+                  <td width="20%" style="padding:0 2px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fecdd3;border-top:3px solid #e11d48;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:10px 4px;">
@@ -1022,7 +1034,7 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
                     </table>
                   </td>
                   <!-- En Espera -->
-                  <td width="25%" style="padding:0 3px;" valign="top">
+                  <td width="20%" style="padding:0 2px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bfdbfe;border-top:3px solid #0284c7;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:10px 4px;">
@@ -1032,33 +1044,24 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
                       </tr>
                     </table>
                   </td>
+                  <!-- En Documentación -->
+                  <td width="20%" style="padding:0 2px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #c7d2fe;border-top:3px solid #6366f1;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:10px 4px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#4f46e5;line-height:1;">${stats.documentacion ?? 0}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#4338ca;text-transform:uppercase;margin-top:4px;">📁 Documentación</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
                   <!-- No Aplica -->
-                  <td width="25%" style="padding:0 0 0 3px;" valign="top">
+                  <td width="20%" style="padding:0 0 0 2px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #e9d5ff;border-top:3px solid #9333ea;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:10px 4px;">
                           <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#9333ea;line-height:1;">${stats.descartadas}</div>
                           <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#7e22ce;text-transform:uppercase;margin-top:4px;">🚫 No Aplica</div>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-                <!-- Tiempo Promedio de Revisión -->
-                <tr>
-                  <td colspan="4" style="padding-top:10px;">
-                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fed7aa;border-top:3px solid #f97316;border-radius:6px;text-align:center;">
-                      <tr>
-                        <td style="padding:11px 16px;text-align:center;">
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:22px;font-weight:bold;color:#c2410c;line-height:1;">
-                            ⏱️ ${escapeHtml(stats.tiempoPromedioRevisionTexto || '—')}
-                          </div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#9a3412;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">
-                            Tiempo Promedio de Revisión
-                          </div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;color:#7c2d12;margin-top:2px;">
-                            Promedio de atención transcurrido desde que se solicitó revisión hasta el dictamen de Gilat
-                          </div>
                         </td>
                       </tr>
                     </table>
@@ -1104,7 +1107,19 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
           </tr>
           ` : ''}
 
-          <!-- 4. Agrupación: Observaciones No Aplica (Solo si tiene códigos) -->
+          <!-- 4. Agrupación: Observaciones en Documentación (Solo si tiene códigos) -->
+          ${documentacion && documentacion.length > 0 ? `
+          <tr>
+            <td style="padding:10px 28px 10px 28px;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
+                <span style="color:#6366f1;margin-right:6px;">📁</span> Observaciones en Documentación (${documentacion.length})
+              </div>
+              ${renderCodeList(documentacion, '#4338ca', '#c7d2fe', '#eef2ff')}
+            </td>
+          </tr>
+          ` : ''}
+
+          <!-- 5. Agrupación: Observaciones No Aplica (Solo si tiene códigos) -->
           ${descartadas.length > 0 ? `
           <tr>
             <td style="padding:10px 28px 10px 28px;">
@@ -1249,7 +1264,7 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
       } else {
         console.log(`${tagLog} 📝 Base de datos actualizada con la marca de tiempo de envío programado.`)
       }
-    } catch (_) {}
+    } catch (_) { }
   } else {
     console.log(`${tagLog} 🧪 Envío de prueba manual completado con éxito. El despacho automático nocturno queda intacto y listo para ejecutarse.`)
   }
@@ -1278,7 +1293,7 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
     if (!insErr) {
       console.log(`${tagLog} 📜 Registro guardado exitosamente en historial_reportes_correo.`)
     }
-  } catch (_) {}
+  } catch (_) { }
 
   console.log(`${tagLog} 🏁 Proceso de reporte diario ${tituloTramo} finalizado satisfactoriamente.`)
 }
@@ -1296,8 +1311,8 @@ async function enviarReporteDiarioAmpliacion() {
 async function enviarReporteDiarioInterno() {
   const { fechaIso, horaMinuto, fechaFormateada } = getPeruDateInfo()
   const isManualRun = process.env.IS_MANUAL_RUN === 'true' ||
-                      process.env.IS_MANUAL_RUN === true ||
-                      process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
+    process.env.IS_MANUAL_RUN === true ||
+    process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
   const forzarEnvio = process.env.FORZAR_ENVIO === 'true' || process.env.FORZAR_ENVIO === true
   const rawDestinatarioPrueba = (process.env.DESTINATARIO_PRUEBA || '').trim()
 
@@ -1310,7 +1325,7 @@ async function enviarReporteDiarioInterno() {
     hora_envio: '21:30:00',
     destinatarios: ['ccondor@covepa.pe'],
     destinatarios_cc: [],
-    asunto: '[COVEPA INTERNO] Resumen Operativo de Jornada - {fecha}',
+    asunto: 'Reporte Interno Diario - {fecha}',
     notas_jornada: '',
     periodo_reporte: 'dia_actual'
   }
@@ -1341,7 +1356,7 @@ async function enviarReporteDiarioInterno() {
           .from('configuracion_reportes_correo')
           .update({ notas_jornada: '' })
           .eq('id', 'config_diario_interno')
-      } catch (_) {}
+      } catch (_) { }
     }
   }
 
@@ -1352,14 +1367,14 @@ async function enviarReporteDiarioInterno() {
   const targetFechaFormateada = targetDateInfo.fechaFormateada
   console.log(`[REPORTE-INTERNO] 📅 Reportando fecha: ${targetFechaIso} (${targetFechaFormateada})`)
 
-  // 1.3 Si está desactivado y es cron, salir
-  if (!config.activo && !isManualRun) {
+  // 1.3 Si está desactivado y no es envío forzado de prueba, salir
+  if (!config.activo && !forzarEnvio) {
     console.log('[REPORTE-INTERNO] ⏸️ El envío automático interno está pausado en la base de datos. Finalizando.')
     return
   }
 
-  // 1.4 Si es programado (cron), comprobar hora y frecuencia de 1 al día
-  if (!isManualRun) {
+  // 1.4 Si es programado (no forzado), comprobar hora y frecuencia de 1 al día
+  if (!forzarEnvio) {
     const [cfgH, cfgM] = (config.hora_envio || '21:30:00').split(':').map(Number)
     const [curH, curM] = horaMinuto.split(':').map(Number)
     const cfgTotalMins = (cfgH || 0) * 60 + (cfgM || 0)
@@ -1367,16 +1382,24 @@ async function enviarReporteDiarioInterno() {
     const diffMins = Math.abs(curTotalMins - cfgTotalMins)
 
     // Tolerancia de ±30 minutos para absorber diferencias de inicio o ejecución horaria
-    if (!forzarEnvio && diffMins > 30) {
+    if (diffMins > 30) {
       console.log(`[REPORTE-INTERNO] ⏳ Hora programada: ${config.hora_envio} | Hora actual: ${horaMinuto} (Diferencia: ${diffMins} min). Fuera de horario. Omitiendo.`)
       return
     }
 
-    if (!forzarEnvio && config.ultimo_envio_at) {
+    if (config.ultimo_envio_at) {
       const ultimoEnvioPeruDate = getPeruDateString(config.ultimo_envio_at)
-      if (ultimoEnvioPeruDate === fechaIso) {
-        console.log(`[REPORTE-INTERNO] ✋ Ya se envió hoy el reporte interno (${ultimoEnvioPeruDate}). Omitiendo duplicado.`)
+      const configUpdateTime = config.updated_at ? new Date(config.updated_at).getTime() : 0
+      const ultimoEnvioTime = new Date(config.ultimo_envio_at).getTime()
+      const fueReprogramado = configUpdateTime > (ultimoEnvioTime + 10000)
+
+      if (ultimoEnvioPeruDate === fechaIso && !fueReprogramado) {
+        console.log(`[REPORTE-INTERNO] ✋ Ya se envió hoy el reporte interno (${ultimoEnvioPeruDate}) y no hay cambios posteriores. Omitiendo duplicado.`)
         return
+      }
+
+      if (fueReprogramado) {
+        console.log(`[REPORTE-INTERNO] 🔄 Se detectó reprogramación posterior al último envío (${config.updated_at} > ${config.ultimo_envio_at}). Procediendo con el nuevo despacho.`)
       }
     }
   }
@@ -1405,24 +1428,24 @@ async function enviarReporteDiarioInterno() {
   let baseSitiosAsignados = {}
   try {
     baseSitiosAsignados = require('./base_sitios_asignados.json')
-  } catch (_) {}
+  } catch (_) { }
 
   const sitiosMap = {}
   const asignacionesMap = {}
   Object.entries(baseSitiosAsignados).forEach(([sId, info]) => {
     asignacionesMap[sId.toUpperCase()] = info
   })
-  ;(localCuadrillas?.data || []).forEach(a => {
-    if (a.id_site) asignacionesMap[a.id_site.toUpperCase()] = a
-  })
-  ;(extSitios?.data || []).forEach(s => {
-    const asig = asignacionesMap[s.id_site?.toUpperCase()] || {}
-    sitiosMap[s.id_site] = {
-      ...s,
-      grupo: asig.cuadrilla || asig.grupo || 'Sin Cuadrilla',
-      zona: asig.zona || 'ZONA 7'
-    }
-  })
+    ; (localCuadrillas?.data || []).forEach(a => {
+      if (a.id_site) asignacionesMap[a.id_site.toUpperCase()] = a
+    })
+    ; (extSitios?.data || []).forEach(s => {
+      const asig = asignacionesMap[s.id_site?.toUpperCase()] || {}
+      sitiosMap[s.id_site] = {
+        ...s,
+        grupo: asig.cuadrilla || asig.grupo || 'Sin Cuadrilla',
+        zona: asig.zona || 'ZONA 7'
+      }
+    })
 
   // Técnicos titulares oficiales por cuadrilla
   const cuadrillaTecnicos = {
@@ -1434,14 +1457,14 @@ async function enviarReporteDiarioInterno() {
     'CUADRILLA 6': 'Juan Castro',
     'CUADRILLA 7': 'Por Asignar'
   }
-  ;(personalRes?.data || []).forEach(p => {
-    const c = (p.cuadrilla || p.cuadrilla_asignada || '').trim().toUpperCase()
-    const cargo = (p.cargo || '').trim().toUpperCase()
-    if (c && c.startsWith('CUADRILLA') && (cargo.includes('TÉCNICO') || cargo.includes('TECNICO') || cargo.includes('SUPERVISOR'))) {
-      const nom = (p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim()
-      if (nom) cuadrillaTecnicos[c] = nom
-    }
-  })
+    ; (personalRes?.data || []).forEach(p => {
+      const c = (p.cuadrilla || p.cuadrilla_asignada || '').trim().toUpperCase()
+      const cargo = (p.cargo || '').trim().toUpperCase()
+      if (c && c.startsWith('CUADRILLA') && (cargo.includes('TÉCNICO') || cargo.includes('TECNICO') || cargo.includes('SUPERVISOR'))) {
+        const nom = (p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim()
+        if (nom) cuadrillaTecnicos[c] = formatNombrePersona(nom)
+      }
+    })
 
   // 4. Observaciones de la jornada (incluyendo Documentación)
   const startIsoUtc = new Date(`${targetFechaIso}T00:00:00-05:00`).toISOString()
@@ -1462,8 +1485,8 @@ async function enviarReporteDiarioInterno() {
       .gte('created_at', startIsoUtc)
       .lte('created_at', endIsoUtc)
       .order('created_at', { ascending: true })
-    ;(rawHist || []).forEach(h => histMap.set(h.id_obs, h))
-  } catch (_) {}
+      ; (rawHist || []).forEach(h => histMap.set(h.id_obs, h))
+  } catch (_) { }
 
   const obsFechaSet = new Set((rawObsFecha || []).map(o => o.id_obs))
   const missingObsIds = Array.from(histMap.keys()).filter(id => !obsFechaSet.has(id))
@@ -1475,7 +1498,7 @@ async function enviarReporteDiarioInterno() {
         .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
         .in('id_obs', missingObsIds)
       additionalObs = addData || []
-    } catch (_) {}
+    } catch (_) { }
   }
 
   let rawObsRevision = []
@@ -1486,22 +1509,22 @@ async function enviarReporteDiarioInterno() {
         .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
         .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión,estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión')
       rawObsRevision = revData || []
-    } catch (_) {}
+    } catch (_) { }
   }
 
   const obsMap = new Map()
-  ;(rawObsFecha || []).forEach(o => obsMap.set(o.id_obs, { ...o }))
+    ; (rawObsFecha || []).forEach(o => obsMap.set(o.id_obs, { ...o }))
   additionalObs.forEach(o => { if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o }) })
-  ;(rawObsRevision || []).forEach(o => { if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o }) })
+    ; (rawObsRevision || []).forEach(o => { if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o }) })
 
-  // 5. Agrupación por Equipos (Equipo 1: C1+C2, Equipo 2: C3+C6, Equipo 3: C4+C5, Equipo 4: C7)
-  const equiposMap = {
+  // 5. Agrupación por Equipos: Amazonas Original (Equipos 1, 2, 3) y Amazonas Ampliación (Equipo 4)
+  const equiposOriginalMap = {
     'EQUIPO 1': {
       id: 'EQUIPO 1',
       cuadrilla: 'EQUIPO 1',
       subtitulo: 'Cuadrilla 1 y 2',
       tecnico: `${cuadrillaTecnicos['CUADRILLA 1']} · ${cuadrillaTecnicos['CUADRILLA 2']}`,
-      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
       total: 0
     },
     'EQUIPO 2': {
@@ -1509,7 +1532,7 @@ async function enviarReporteDiarioInterno() {
       cuadrilla: 'EQUIPO 2',
       subtitulo: 'Cuadrilla 3 y 6',
       tecnico: `${cuadrillaTecnicos['CUADRILLA 3']} · ${cuadrillaTecnicos['CUADRILLA 6']}`,
-      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
       total: 0
     },
     'EQUIPO 3': {
@@ -1517,15 +1540,18 @@ async function enviarReporteDiarioInterno() {
       cuadrilla: 'EQUIPO 3',
       subtitulo: 'Cuadrilla 4 y 5',
       tecnico: `${cuadrillaTecnicos['CUADRILLA 4']} · ${cuadrillaTecnicos['CUADRILLA 5']}`,
-      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
       total: 0
-    },
+    }
+  }
+
+  const equiposAmpliacionMap = {
     'EQUIPO 4': {
       id: 'EQUIPO 4',
       cuadrilla: 'EQUIPO 4',
       subtitulo: 'Cuadrilla 7',
       tecnico: `${cuadrillaTecnicos['CUADRILLA 7'] || 'Por Asignar'}`,
-      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
       total: 0
     }
   }
@@ -1562,9 +1588,8 @@ async function enviarReporteDiarioInterno() {
 
     let estadoFinal = 'Validado'
     if (rawSt.toLowerCase().includes('documentaci')) estadoFinal = 'Documentación'
-    else if (rawSt.toLowerCase().includes('pre-valid') || rawSt.toLowerCase().includes('prevalid')) estadoFinal = 'Pre-validado'
     else if (rawSt.toLowerCase().includes('crític') || rawSt.toLowerCase().includes('critic')) estadoFinal = 'Crítico'
-    else if (rawSt.toLowerCase().includes('solicitando')) estadoFinal = 'Solicitando Revisión'
+    else if (rawSt.toLowerCase().includes('solicitando')) estadoFinal = 'En Revisión'
     else if (rawSt.toLowerCase().includes('en revisi')) estadoFinal = 'En Revisión'
     else if (rawSt.toLowerCase().includes('rechaz')) estadoFinal = 'Rechazado'
     else if (rawSt.toLowerCase().includes('descart')) estadoFinal = 'Descartado'
@@ -1576,15 +1601,14 @@ async function enviarReporteDiarioInterno() {
     else if (targetCuadrilla === 'CUADRILLA 4' || targetCuadrilla === 'CUADRILLA 5') equipoKey = 'EQUIPO 3'
     else if (targetCuadrilla === 'CUADRILLA 7') equipoKey = 'EQUIPO 4'
 
-    const targetEq = equiposMap[equipoKey]
+    const targetEq = equiposOriginalMap[equipoKey] || equiposAmpliacionMap[equipoKey]
     if (targetEq) {
-      if (estadoFinal === 'Solicitando Revisión') targetEq.values.solicitando++
-      else if (estadoFinal === 'En Revisión') targetEq.values.enRevision++
+      if (estadoFinal === 'En Revisión') targetEq.values.enRevision++
+      else if (estadoFinal === 'Descartado') targetEq.values.descartados++
+      else if (estadoFinal === 'Crítico') targetEq.values.criticos++
+      else if (estadoFinal === 'Documentación') targetEq.values.documentacion++
       else if (estadoFinal === 'Rechazado') targetEq.values.rechazados++
       else if (estadoFinal === 'Validado') targetEq.values.validados++
-      else if (estadoFinal === 'Pre-validado') targetEq.values.prevalidados++
-      else if (estadoFinal === 'Documentación') targetEq.values.documentacion++
-      else if (estadoFinal === 'Crítico') targetEq.values.criticos++
     }
 
     const sInfo = sitiosMap[o.id_sitio] || {}
@@ -1605,47 +1629,78 @@ async function enviarReporteDiarioInterno() {
   })
 
   // Totales de la matriz
-  const matrixRows = Object.values(equiposMap).map(eq => ({
-    ...eq,
-    total: eq.values.solicitando + eq.values.enRevision + eq.values.rechazados + eq.values.validados + eq.values.prevalidados + eq.values.documentacion + eq.values.criticos
-  }))
+  const buildMatrix = (map) => {
+    const rowsList = Object.values(map).map(row => ({
+      ...row,
+      total: row.values.enRevision + (row.values.descartados || 0) + (row.values.criticos || 0) + row.values.documentacion + row.values.rechazados + row.values.validados
+    }))
 
-  const matrixTotals = {
-    solicitando: matrixRows.reduce((a, r) => a + r.values.solicitando, 0),
-    enRevision: matrixRows.reduce((a, r) => a + r.values.enRevision, 0),
-    rechazados: matrixRows.reduce((a, r) => a + r.values.rechazados, 0),
-    validados: matrixRows.reduce((a, r) => a + r.values.validados, 0),
-    prevalidados: matrixRows.reduce((a, r) => a + r.values.prevalidados, 0),
-    documentacion: matrixRows.reduce((a, r) => a + r.values.documentacion, 0),
-    criticos: matrixRows.reduce((a, r) => a + r.values.criticos, 0)
+    const totalsObj = {
+      enRevision: rowsList.reduce((acc, r) => acc + r.values.enRevision, 0),
+      descartados: rowsList.reduce((acc, r) => acc + (r.values.descartados || 0), 0),
+      criticos: rowsList.reduce((acc, r) => acc + (r.values.criticos || 0), 0),
+      documentacion: rowsList.reduce((acc, r) => acc + r.values.documentacion, 0),
+      rechazados: rowsList.reduce((acc, r) => acc + r.values.rechazados, 0),
+      validados: rowsList.reduce((acc, r) => acc + r.values.validados, 0)
+    }
+
+    const totalCalculado = totalsObj.enRevision + totalsObj.descartados + totalsObj.criticos + totalsObj.documentacion + totalsObj.rechazados + totalsObj.validados
+
+    return {
+      matrixRows: rowsList,
+      matrixTotals: totalsObj,
+      matrixGrandTotal: totalCalculado
+    }
   }
-  const grandTotal = matrixTotals.solicitando + matrixTotals.enRevision + matrixTotals.rechazados + matrixTotals.validados + matrixTotals.prevalidados + matrixTotals.documentacion + matrixTotals.criticos
 
-  console.log(`[REPORTE-INTERNO] 📊 Estadísticas calculadas: Total=${grandTotal} | Validadas=${matrixTotals.validados} | Rechazadas=${matrixTotals.rechazados} | EnEspera=${matrixTotals.solicitando + matrixTotals.enRevision} | Doc=${matrixTotals.documentacion}`)
+  const origMatrix = buildMatrix(equiposOriginalMap)
+  const amplMatrix = buildMatrix(equiposAmpliacionMap)
+
+  const matrixRows = [...origMatrix.matrixRows, ...amplMatrix.matrixRows]
+  const matrixTotals = {
+    enRevision: origMatrix.matrixTotals.enRevision + amplMatrix.matrixTotals.enRevision,
+    descartados: origMatrix.matrixTotals.descartados + amplMatrix.matrixTotals.descartados,
+    criticos: origMatrix.matrixTotals.criticos + amplMatrix.matrixTotals.criticos,
+    documentacion: origMatrix.matrixTotals.documentacion + amplMatrix.matrixTotals.documentacion,
+    rechazados: origMatrix.matrixTotals.rechazados + amplMatrix.matrixTotals.rechazados,
+    validados: origMatrix.matrixTotals.validados + amplMatrix.matrixTotals.validados
+  }
+  const grandTotal = origMatrix.matrixGrandTotal + amplMatrix.matrixGrandTotal
+
+  console.log(`[REPORTE-INTERNO] 📊 Estadísticas calculadas: Total=${grandTotal} | Validadas=${matrixTotals.validados} | Rechazadas=${matrixTotals.rechazados} | EnRevision=${matrixTotals.enRevision} | Doc=${matrixTotals.documentacion}`)
   matrixRows.forEach(r => {
-    console.log(`[REPORTE-INTERNO]   • ${r.id} (${r.subtitulo}) [${r.tecnico}]: ${r.total} obs (Val:${r.values.validados}, Rech:${r.values.rechazados}, Esp:${r.values.solicitando + r.values.enRevision}, Doc:${r.values.documentacion})`)
+    console.log(`[REPORTE-INTERNO]   • ${r.id} (${r.subtitulo}) [${r.tecnico}]: ${r.total} obs (Val:${r.values.validados}, Rech:${r.values.rechazados}, Rev:${r.values.enRevision}, Doc:${r.values.documentacion})`)
   })
 
-  // 6. Generar Excel Oficial de 2 Hojas
+  // 6. Generar Excel Oficial de 3 Hojas:
+  // - Hoja 1: Matriz_Equipos (Separado en 2 tablas: Amazonas Original y Amazonas Ampliación)
+  // - Hoja 2: Detalle_Original (Observaciones de Amazonas Original)
+  // - Hoja 3: Detalle_Ampliacion (Observaciones de Amazonas Ampliación)
   const wb = new ExcelJS.Workbook()
   wb.creator = 'Amazonas-COVEPA'
 
   // Hoja 1: Matriz_Equipos
   const wsMatriz = wb.addWorksheet('Matriz_Equipos', { views: [{ showGridLines: true }] })
   wsMatriz.columns = [
-    { width: 16 }, { width: 22 }, { width: 34 },
-    { width: 18 }, { width: 14 }, { width: 14 },
-    { width: 14 }, { width: 16 }, { width: 16 },
-    { width: 14 }, { width: 14 }
+    { width: 16 }, // Equipo
+    { width: 22 }, // Cuadrillas
+    { width: 34 }, // Técnicos Asignados
+    { width: 16 }, // En Revisión
+    { width: 16 }, // Descartados
+    { width: 14 }, // Críticos
+    { width: 16 }, // Documentación
+    { width: 14 }, // Rechazados
+    { width: 14 }, // Validados
+    { width: 14 }  // Total Diario
   ]
-  wsMatriz.mergeCells('A1:K1')
+  wsMatriz.mergeCells('A1:J1')
   const c1 = wsMatriz.getCell('A1')
   c1.value = 'COVEPA — REPORTE DIARIO INTERNO (MATRIZ DE EQUIPOS)'
   c1.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF003060' } }
   c1.alignment = { vertical: 'middle', horizontal: 'center' }
   wsMatriz.getRow(1).height = 30
 
-  wsMatriz.mergeCells('A2:K2')
+  wsMatriz.mergeCells('A2:J2')
   const c2 = wsMatriz.getCell('A2')
   c2.value = `Jornada Operativa: ${targetFechaFormateada} | Total Observaciones Tocadas: ${grandTotal}`
   c2.font = { name: 'Arial', size: 10, italic: true, color: { argb: 'FF64748B' } }
@@ -1656,120 +1711,268 @@ async function enviarReporteDiarioInterno() {
     'Equipo',
     'Cuadrillas',
     'Técnicos Asignados',
-    'Solicitando Revisión',
     'En Revisión',
+    'Descartados',
+    'Críticos',
+    'Documentación',
     'Rechazados',
     'Validados',
-    'Pre-validados',
-    'Documentación',
-    'Críticos',
-    'Total'
+    'Total Diario'
   ]
-  const hrM = wsMatriz.getRow(4)
-  hrM.height = 26
-  headersMatriz.forEach((h, idx) => {
-    const c = hrM.getCell(idx + 1)
-    c.value = h
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
-    c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
-    c.alignment = { vertical: 'middle', horizontal: 'center' }
-  })
 
-  matrixRows.forEach((row, i) => {
-    const r = wsMatriz.getRow(5 + i)
-    r.height = 22
-    const vals = [
-      row.id,
-      row.subtitulo,
-      row.tecnico,
-      row.values.solicitando,
-      row.values.enRevision,
-      row.values.rechazados,
-      row.values.validados,
-      row.values.prevalidados || 0,
-      row.values.documentacion,
-      row.values.criticos || 0,
-      row.total
-    ]
-    vals.forEach((v, idx) => {
-      const c = r.getCell(idx + 1)
-      c.value = v
-      c.font = { name: 'Arial', size: 10, bold: idx === 0 || idx === 10 }
-      c.alignment = { vertical: 'middle', horizontal: idx <= 2 ? (idx === 2 ? 'left' : 'center') : 'center' }
-      if (idx === 0) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F7FF' } }
-      if (idx === 10) {
-        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } }
-        c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF0284C7' } }
-      }
+  let currentRowIdx = 4
+
+  const renderMatrizSection = (tituloSeccion, rows, totals, grand) => {
+    // Título de la sección
+    wsMatriz.mergeCells(`A${currentRowIdx}:J${currentRowIdx}`)
+    const secCell = wsMatriz.getCell(`A${currentRowIdx}`)
+    secCell.value = `📈 ${tituloSeccion.toUpperCase()}`
+    secCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
+    secCell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
+    secCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 }
+    wsMatriz.getRow(currentRowIdx).height = 24
+    currentRowIdx++
+
+    // Encabezados
+    const hr = wsMatriz.getRow(currentRowIdx)
+    hr.height = 24
+    headersMatriz.forEach((h, idx) => {
+      const c = hr.getCell(idx + 1)
+      c.value = h
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } }
+      c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+      c.alignment = { vertical: 'middle', horizontal: 'center' }
     })
-  })
+    currentRowIdx++
 
-  const totRow = wsMatriz.getRow(5 + matrixRows.length)
-  totRow.height = 24
-  const totVals = [
-    'TOTAL GENERAL',
+    // Filas de datos
+    rows.forEach(row => {
+      const r = wsMatriz.getRow(currentRowIdx)
+      r.height = 22
+      const vals = [
+        row.id,
+        row.subtitulo,
+        row.tecnico,
+        row.values.enRevision,
+        row.values.descartados || 0,
+        row.values.criticos || 0,
+        row.values.documentacion,
+        row.values.rechazados,
+        row.values.validados,
+        row.total
+      ]
+      vals.forEach((v, idx) => {
+        const c = r.getCell(idx + 1)
+        c.value = v
+        c.font = { name: 'Arial', size: 10, bold: idx === 0 || idx === 9 }
+        c.alignment = { vertical: 'middle', horizontal: idx <= 2 ? (idx === 2 ? 'left' : 'center') : 'center' }
+        if (idx === 0) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F7FF' } }
+        if (idx === 9) {
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } }
+          c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF0284C7' } }
+        }
+      })
+      currentRowIdx++
+    })
+
+    // Fila Total de la Sección
+    const totRow = wsMatriz.getRow(currentRowIdx)
+    totRow.height = 24
+    const totVals = [
+      `TOTAL ${tituloSeccion.toUpperCase()}`,
+      '-',
+      '-',
+      totals.enRevision,
+      totals.descartados || 0,
+      totals.criticos || 0,
+      totals.documentacion,
+      totals.rechazados,
+      totals.validados,
+      grand
+    ]
+    totVals.forEach((v, idx) => {
+      const c = totRow.getCell(idx + 1)
+      c.value = v
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
+      c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+      c.alignment = { vertical: 'middle', horizontal: idx <= 2 ? (idx === 2 ? 'left' : 'center') : 'center' }
+    })
+    currentRowIdx += 2 // Deja una fila en blanco
+  }
+
+  // Renderizar Tabla 1: Amazonas Original
+  renderMatrizSection('Amazonas Original', origMatrix.matrixRows, origMatrix.matrixTotals, origMatrix.matrixGrandTotal)
+
+  // Renderizar Tabla 2: Amazonas Ampliación
+  renderMatrizSection('Amazonas Ampliación', amplMatrix.matrixRows, amplMatrix.matrixTotals, amplMatrix.matrixGrandTotal)
+
+  // Fila Total Consolidado General de la Jornada
+  const grandTotRow = wsMatriz.getRow(currentRowIdx)
+  grandTotRow.height = 26
+  const grandTotVals = [
+    'TOTAL GENERAL DE JORNADA',
     'Todas las cuadrillas',
     '-',
-    matrixTotals.solicitando,
     matrixTotals.enRevision,
+    matrixTotals.descartados,
+    matrixTotals.criticos,
+    matrixTotals.documentacion,
     matrixTotals.rechazados,
     matrixTotals.validados,
-    matrixTotals.prevalidados || 0,
-    matrixTotals.documentacion,
-    matrixTotals.criticos || 0,
     grandTotal
   ]
-  totVals.forEach((v, idx) => {
-    const c = totRow.getCell(idx + 1)
+  grandTotVals.forEach((v, idx) => {
+    const c = grandTotRow.getCell(idx + 1)
     c.value = v
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
-    c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF002244' } }
+    c.font = { name: 'Arial', size: 10.5, bold: true, color: { argb: 'FFFFFFFF' } }
     c.alignment = { vertical: 'middle', horizontal: idx <= 2 ? (idx === 2 ? 'left' : 'center') : 'center' }
   })
 
-  // Hoja 2: Detalle_Codigos (Regla 2.1: Localidad contigua a Sitio)
-  const wsDetalle = wb.addWorksheet('Detalle_Codigos', { views: [{ showGridLines: true }] })
-  wsDetalle.columns = [
+  // Separar los registros de detalle en Amazonas Original y Amazonas Ampliación
+  const detailRowsOriginal = allDetailRows.filter(r => r.equipo !== 'EQUIPO 4')
+  const detailRowsAmpliacion = allDetailRows.filter(r => r.equipo === 'EQUIPO 4')
+
+  const detailColsConfig = [
     { width: 22 }, { width: 14 }, { width: 16 }, { width: 24 },
     { width: 18 }, { width: 28 }, { width: 12 }, { width: 20 },
     { width: 22 }, { width: 20 }, { width: 36 }, { width: 36 }
   ]
-  const detailTableRows = allDetailRows.map(r => [
-    r.id_obs, r.equipo, r.cuadrilla, r.tecnico, r.id_sitio, r.localidad,
-    r.zona, r.estado, r.revisor, r.fecha_subsanacion, r.detalle, r.comentario
-  ])
-  wsDetalle.addTable({
-    name: `Interno_${targetFechaIso.replace(/-/g, '_')}`,
-    ref: 'A1',
-    headerRow: true,
-    totalsRow: false,
-    style: { theme: 'TableStyleMedium9', showRowStripes: true, showColumnStripes: false },
-    columns: [
-      { name: 'ID Obs', filterButton: true },
-      { name: 'Equipo', filterButton: true },
-      { name: 'Cuadrilla', filterButton: true },
-      { name: 'Técnico', filterButton: true },
-      { name: 'Código de Sitio', filterButton: true },
-      { name: 'Localidad', filterButton: true },
-      { name: 'Zona', filterButton: true },
-      { name: 'Estado COVEPA', filterButton: true },
-      { name: 'Revisor', filterButton: true },
-      { name: 'Fecha/Hora Subsanación', filterButton: true },
-      { name: 'Detalle', filterButton: true },
-      { name: 'Comentario', filterButton: true }
-    ],
-    rows: detailTableRows.length > 0 ? detailTableRows : [['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']]
-  })
-  const hrD = wsDetalle.getRow(1)
-  hrD.height = 26
-  hrD.eachCell(c => {
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
-    c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
-    c.alignment = { vertical: 'middle', horizontal: 'center' }
-  })
+  const detailTableColsDef = [
+    { name: 'ID Obs', filterButton: true },
+    { name: 'Equipo', filterButton: true },
+    { name: 'Cuadrilla', filterButton: true },
+    { name: 'Técnico', filterButton: true },
+    { name: 'Código de Sitio', filterButton: true },
+    { name: 'Localidad', filterButton: true },
+    { name: 'Zona', filterButton: true },
+    { name: 'Estado COVEPA', filterButton: true },
+    { name: 'Revisor', filterButton: true },
+    { name: 'Fecha/Hora Subsanación', filterButton: true },
+    { name: 'Detalle', filterButton: true },
+    { name: 'Comentario', filterButton: true }
+  ]
+
+  const buildDetailWorksheet = (sheetName, tableName, rows) => {
+    const ws = wb.addWorksheet(sheetName, { views: [{ showGridLines: true }] })
+    ws.columns = detailColsConfig
+    const mappedRows = rows.map(r => [
+      r.id_obs, r.equipo, r.cuadrilla, r.tecnico, r.id_sitio, r.localidad,
+      r.zona, r.estado, r.revisor, r.fecha_subsanacion, r.detalle, r.comentario
+    ])
+    ws.addTable({
+      name: tableName,
+      ref: 'A1',
+      headerRow: true,
+      totalsRow: false,
+      style: { theme: 'TableStyleMedium9', showRowStripes: true, showColumnStripes: false },
+      columns: detailTableColsDef,
+      rows: mappedRows.length > 0 ? mappedRows : [['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']]
+    })
+    const hr = ws.getRow(1)
+    hr.height = 26
+    hr.eachCell(c => {
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
+      c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+      c.alignment = { vertical: 'middle', horizontal: 'center' }
+    })
+    return ws
+  }
+
+  // Hoja 2: Detalle_Original (Regla 2.1: Localidad contigua a Sitio)
+  buildDetailWorksheet(
+    'Detalle_Original',
+    `Interno_Orig_${targetFechaIso.replace(/-/g, '_')}`,
+    detailRowsOriginal
+  )
+
+  // Hoja 3: Detalle_Ampliacion (Regla 2.1: Localidad contigua a Sitio)
+  buildDetailWorksheet(
+    'Detalle_Ampliacion',
+    `Interno_Ampl_${targetFechaIso.replace(/-/g, '_')}`,
+    detailRowsAmpliacion
+  )
 
   const excelBuffer = await wb.xlsx.writeBuffer()
   const excelFileName = `Reporte_Interno_Observaciones_${targetFechaIso}.xlsx`
+
+  const logoPath = path.resolve(__dirname, '../covepa.png')
+  const hasLogo = fs.existsSync(logoPath)
+  const logoSrc = hasLogo ? 'cid:covepa-logo' : 'https://byywikicdvmmmndhkooe.supabase.co/storage/v1/object/public/covepa.png'
+
+  const renderTablaMatricialHTML = (titulo, matrix) => {
+    const rows = matrix?.matrixRows || []
+    const totals = matrix?.matrixTotals || { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 }
+    const tGrand = matrix?.matrixGrandTotal || 0
+
+    return `
+      <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#003060;margin:14px 0 6px 0;letter-spacing:0.3px;">
+        📈 ${escapeHtml(titulo)}
+      </div>
+      <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;border-collapse:collapse;width:100%;table-layout:fixed;margin-bottom:8px;">
+        <thead>
+          <tr style="background-color:#003060;color:#ffffff;">
+            <th style="padding:10px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;text-align:left;letter-spacing:0.4px;width:14%;overflow:hidden;white-space:nowrap;">EQUIPO</th>
+            <th style="padding:10px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;text-align:left;letter-spacing:0.4px;width:20%;overflow:hidden;white-space:nowrap;">TÉCNICOS</th>
+            <th style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#bae6fd;text-align:center;width:11%;">EN REVISIÓN</th>
+            <th style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#cbd5e1;text-align:center;width:11%;">DESCARTADOS</th>
+            <th style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#fecdd3;text-align:center;width:9%;">CRÍTICOS</th>
+            <th style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#e9d5ff;text-align:center;width:12%;">DOCUMENTACIÓN</th>
+            <th style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#fecdd3;text-align:center;width:9%;">RECHAZADOS</th>
+            <th style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#bbf7d0;text-align:center;width:9%;">VALIDADOS</th>
+            <th style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;color:#ffffff;text-align:center;width:5%;">TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r, i) => `
+          <tr style="background-color:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};border-bottom:1px solid #e2e8f0;">
+            <td style="padding:9px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#003060;border-right:1px solid #e2e8f0;overflow:hidden;white-space:nowrap;">
+              ${escapeHtml(r.id)}
+              <div style="font-size:9.5px;font-weight:normal;color:#64748b;margin-top:1px;">${escapeHtml(r.subtitulo)}</div>
+            </td>
+            <td style="padding:9px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;color:#334155;border-right:1px solid #e2e8f0;overflow:hidden;white-space:nowrap;">
+              ${escapeHtml(r.tecnico)}
+            </td>
+            <td style="padding:9px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:${r.values.enRevision > 0 ? '#0284c7' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${r.values.enRevision > 0 ? '#f0f9ff' : 'transparent'};">
+              ${r.values.enRevision}
+            </td>
+            <td style="padding:9px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:${(r.values.descartados || 0) > 0 ? '#475569' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${(r.values.descartados || 0) > 0 ? '#f1f5f9' : 'transparent'};">
+              ${r.values.descartados || 0}
+            </td>
+            <td style="padding:9px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:${(r.values.criticos || 0) > 0 ? '#b91c1c' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${(r.values.criticos || 0) > 0 ? '#fef2f2' : 'transparent'};">
+              ${r.values.criticos || 0}
+            </td>
+            <td style="padding:9px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:${r.values.documentacion > 0 ? '#7e22ce' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${r.values.documentacion > 0 ? '#faf5ff' : 'transparent'};">
+              ${r.values.documentacion}
+            </td>
+            <td style="padding:9px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:${r.values.rechazados > 0 ? '#e11d48' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${r.values.rechazados > 0 ? '#fff1f2' : 'transparent'};">
+              ${r.values.rechazados}
+            </td>
+            <td style="padding:9px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:${r.values.validados > 0 ? '#16a34a' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${r.values.validados > 0 ? '#f0fdf4' : 'transparent'};">
+              ${r.values.validados}
+            </td>
+            <td style="padding:9px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.total > 0 ? '#003060' : '#94a3b8'};text-align:center;background-color:${r.total > 0 ? '#eff6ff' : 'transparent'};">
+              ${r.total}
+            </td>
+          </tr>
+          `).join('')}
+          <!-- Fila de Total Tabla -->
+          <tr style="background-color:#0f172a;color:#ffffff;border-top:2px solid #003060;">
+            <td colspan="2" style="padding:10px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;text-transform:uppercase;letter-spacing:0.6px;">
+              TOTAL DIARIO
+            </td>
+            <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#bae6fd;text-align:center;">${totals.enRevision}</td>
+            <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#cbd5e1;text-align:center;">${totals.descartados || 0}</td>
+            <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#fecdd3;text-align:center;">${totals.criticos || 0}</td>
+            <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#e9d5ff;text-align:center;">${totals.documentacion}</td>
+            <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#fecdd3;text-align:center;">${totals.rechazados}</td>
+            <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#bbf7d0;text-align:center;">${totals.validados}</td>
+            <td style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#38bdf8;text-align:center;background-color:#1e293b;">${tGrand}</td>
+          </tr>
+        </tbody>
+      </table>
+    `
+  }
 
   // 7. Generar HTML del correo interno con diseño corporativo impecable y blindado contra bloqueos de imagen
   const htmlBody = `
@@ -1780,105 +1983,114 @@ async function enviarReporteDiarioInterno() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>COVEPA - Reporte Diario Interno</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:'Segoe UI',Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
   <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f1f5f9;padding:24px 12px;">
     <tr>
       <td align="center">
         <!--[if mso]>
-        <table role="presentation" width="740" align="center" border="0" cellspacing="0" cellpadding="0">
+        <table role="presentation" width="760" align="center" border="0" cellspacing="0" cellpadding="0">
         <tr><td>
         <![endif]-->
-        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:740px;width:100%;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #cbd5e1;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:760px;width:100%;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #cbd5e1;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
           
-          <!-- Cabecera Institucional COVEPA (Estilizada en HTML puro, nunca se bloquea) -->
+          <!-- Cabecera Institucional COVEPA (Homologada con los demás reportes) -->
           <tr>
             <td style="background-color:#003060;padding:24px 30px;text-align:left;">
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td valign="middle">
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:4px;">
-                      AMAZONAS · COVEPA S.A.C.
-                    </div>
-                    <h1 style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;line-height:1.25;">
-                      Reporte Diario Interno — Productividad por Equipos
-                    </h1>
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#bfdbfe;margin-top:3px;">
-                      Matriz ejecutiva de cuadrillas integradas y observaciones de la jornada
-                    </div>
-                  </td>
-                  <td align="right" valign="top" style="padding-left:15px;">
-                    <span style="display:inline-block;background-color:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:16px;padding:6px 14px;color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;white-space:nowrap;">
-                      📅 ${escapeHtml(targetFechaFormateada)}
-                    </span>
-                  </td>
-                </tr>
-              </table>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:4px;">
+                AMAZONAS · COVEPA
+              </div>
+              <h1 style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;line-height:1.25;">
+                Reporte Diario Interno — Productividad por Equipos
+              </h1>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#93c5fd;margin-top:3px;font-weight:500;">
+                Matriz ejecutiva de cuadrillas integradas y observaciones de la jornada
+              </div>
+              <div style="margin-top:10px;">
+                <span style="display:inline-block;background-color:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:16px;padding:5px 14px;color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;white-space:nowrap;">
+                  📅 ${escapeHtml(targetFechaFormateada)}
+                </span>
+              </div>
             </td>
           </tr>
 
-          <!-- Panel de Control de Métricas (Dashboard KPI) -->
+          <!-- Panel de Control de Métricas (Dashboard KPI: 7 Medidores en Fila Homologada) -->
           <tr>
-            <td style="background-color:#f8fafc;border-bottom:1px solid #e2e8f0;padding:18px 24px;">
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-                <!-- Total General Trabajado -->
+            <td style="background-color:#f8fafc;border-bottom:1px solid #e2e8f0;padding:14px 16px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="table-layout:fixed;width:100%;">
                 <tr>
-                  <td colspan="4" style="padding-bottom:10px;">
+                  <!-- 1. Total -->
+                  <td style="padding:0 3px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #cbd5e1;border-top:3px solid #003060;border-radius:6px;text-align:center;">
                       <tr>
-                        <td style="padding:12px 16px;text-align:center;">
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:28px;font-weight:bold;color:#003060;line-height:1;">
-                            ${grandTotal}
-                          </div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">
-                            Total de Observaciones Tocadas en la Jornada
-                          </div>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#003060;line-height:1;">${grandTotal}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#003060;text-transform:uppercase;margin-top:4px;">TOTAL</div>
                         </td>
                       </tr>
                     </table>
                   </td>
-                </tr>
-                <!-- Fila de los 4 Medidores de Estado -->
-                <tr>
-                  <!-- Validadas -->
-                  <td width="25%" style="padding:0 3px 0 0;" valign="top">
-                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bbf7d0;border-top:3px solid #16a34a;border-radius:6px;text-align:center;">
-                      <tr>
-                        <td style="padding:10px 4px;">
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#16a34a;line-height:1;">${matrixTotals.validados}</div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#15803d;text-transform:uppercase;margin-top:4px;">✓ Validadas</div>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                  <!-- Rechazadas -->
-                  <td width="25%" style="padding:0 3px;" valign="top">
-                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fecdd3;border-top:3px solid #e11d48;border-radius:6px;text-align:center;">
-                      <tr>
-                        <td style="padding:10px 4px;">
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#e11d48;line-height:1;">${matrixTotals.rechazados}</div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#be123c;text-transform:uppercase;margin-top:4px;">✕ Rechazadas</div>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                  <!-- En Espera -->
-                  <td width="25%" style="padding:0 3px;" valign="top">
+                  <!-- 2. En Revisión -->
+                  <td style="padding:0 3px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bfdbfe;border-top:3px solid #0284c7;border-radius:6px;text-align:center;">
                       <tr>
-                        <td style="padding:10px 4px;">
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#0284c7;line-height:1;">${matrixTotals.solicitando + matrixTotals.enRevision}</div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#0369a1;text-transform:uppercase;margin-top:4px;">⏳ En Espera</div>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#0284c7;line-height:1;">${matrixTotals.enRevision}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#0369a1;text-transform:uppercase;margin-top:4px;">🔍 EN REV.</div>
                         </td>
                       </tr>
                     </table>
                   </td>
-                  <!-- Documentación -->
-                  <td width="25%" style="padding:0 0 0 3px;" valign="top">
+                  <!-- 3. Descartadas -->
+                  <td style="padding:0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #cbd5e1;border-top:3px solid #64748b;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#475569;line-height:1;">${matrixTotals.descartados}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#334155;text-transform:uppercase;margin-top:4px;">🚫 DESCART.</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <!-- 4. Críticos -->
+                  <td style="padding:0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fecdd3;border-top:3px solid #e11d48;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#e11d48;line-height:1;">${matrixTotals.criticos}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#be123c;text-transform:uppercase;margin-top:4px;">⚠️ CRÍTICOS</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <!-- 5. Documentación -->
+                  <td style="padding:0 3px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #e9d5ff;border-top:3px solid #9333ea;border-radius:6px;text-align:center;">
                       <tr>
-                        <td style="padding:10px 4px;">
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#9333ea;line-height:1;">${matrixTotals.documentacion}</div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#7e22ce;text-transform:uppercase;margin-top:4px;">📄 Documentación</div>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#9333ea;line-height:1;">${matrixTotals.documentacion}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#7e22ce;text-transform:uppercase;margin-top:4px;">📁 DOCUM.</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <!-- 6. Rechazadas -->
+                  <td style="padding:0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fecdd3;border-top:3px solid #e11d48;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#e11d48;line-height:1;">${matrixTotals.rechazados}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#be123c;text-transform:uppercase;margin-top:4px;">✕ RECHAZ.</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <!-- 7. Validadas -->
+                  <td style="padding:0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bbf7d0;border-top:3px solid #16a34a;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#16a34a;line-height:1;">${matrixTotals.validados}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#15803d;text-transform:uppercase;margin-top:4px;">✓ VALID.</div>
                         </td>
                       </tr>
                     </table>
@@ -1888,79 +2100,12 @@ async function enviarReporteDiarioInterno() {
             </td>
           </tr>
 
-          <!-- TABLA MATRICIAL EJECUTIVA DE LOS 4 EQUIPOS -->
+          <!-- TABLAS MATRICIALES EJECUTIVAS: AMAZONAS ORIGINAL Y AMAZONAS AMPLIACIÓN -->
           <tr>
-            <td style="padding:20px 24px 12px 24px;">
-              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#003060;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.6px;">
-                📊 Matriz Ejecutiva por Equipos y Cuadrillas Integradas
-              </div>
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;border-collapse:collapse;width:100%;">
-                <thead>
-                  <tr style="background-color:#003060;color:#ffffff;">
-                    <th style="padding:11px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;text-align:left;letter-spacing:0.5px;width:20%;">EQUIPO / CUADRILLAS</th>
-                    <th style="padding:11px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;text-align:left;letter-spacing:0.5px;width:22%;">TÉCNICOS</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;width:7%;">SOLICIT.</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;width:7%;">EN REV.</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#fecdd3;text-align:center;width:7%;">RECHAZ.</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bbf7d0;text-align:center;width:7%;">VALID.</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#99f6e4;text-align:center;width:8%;">PRE-VAL.</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#e9d5ff;text-align:center;width:7%;">DOCUM.</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#fecdd3;text-align:center;width:7%;">CRÍT.</th>
-                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#ffffff;text-align:center;width:8%;">TOTAL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${matrixRows.map((r, i) => `
-                  <tr style="background-color:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};border-bottom:1px solid #e2e8f0;">
-                    <td style="padding:10px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:#003060;border-right:1px solid #e2e8f0;">
-                      ${escapeHtml(r.id)}
-                      <div style="font-size:10px;font-weight:normal;color:#64748b;margin-top:2px;">${escapeHtml(r.subtitulo)}</div>
-                    </td>
-                    <td style="padding:10px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#334155;border-right:1px solid #e2e8f0;">
-                      ${escapeHtml(r.tecnico)}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.solicitando > 0 ? '#0284c7' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
-                      ${r.values.solicitando}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.enRevision > 0 ? '#0284c7' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
-                      ${r.values.enRevision}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.rechazados > 0 ? '#e11d48' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
-                      ${r.values.rechazados}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.validados > 0 ? '#16a34a' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
-                      ${r.values.validados}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${(r.values.prevalidados || 0) > 0 ? '#0d9488' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${(r.values.prevalidados || 0) > 0 ? '#f0fdfa' : 'transparent'};">
-                      ${r.values.prevalidados || 0}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.documentacion > 0 ? '#7e22ce' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
-                      ${r.values.documentacion}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${(r.values.criticos || 0) > 0 ? '#b91c1c' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${(r.values.criticos || 0) > 0 ? '#fef2f2' : 'transparent'};">
-                      ${r.values.criticos || 0}
-                    </td>
-                    <td style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:${r.total > 0 ? '#003060' : '#94a3b8'};text-align:center;background-color:${r.total > 0 ? '#eff6ff' : 'transparent'};">
-                      ${r.total}
-                    </td>
-                  </tr>
-                  `).join('')}
-                  <!-- Fila de Total General -->
-                  <tr style="background-color:#0f172a;color:#ffffff;border-top:2px solid #003060;">
-                    <td colspan="2" style="padding:12px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;text-transform:uppercase;letter-spacing:0.8px;">
-                      TOTAL GENERAL DE JORNADA
-                    </td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.solicitando}</td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.enRevision}</td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#fecdd3;text-align:center;">${matrixTotals.rechazados}</td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#bbf7d0;text-align:center;">${matrixTotals.validados}</td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#99f6e4;text-align:center;">${matrixTotals.prevalidados || 0}</td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#e9d5ff;text-align:center;">${matrixTotals.documentacion}</td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#fecdd3;text-align:center;">${matrixTotals.criticos || 0}</td>
-                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:13.5px;font-weight:bold;color:#38bdf8;text-align:center;background-color:#1e293b;">${grandTotal}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <td style="padding:16px 24px 12px 24px;">
+              ${renderTablaMatricialHTML('Amazonas Original', origMatrix)}
+              <div style="height:10px;"></div>
+              ${renderTablaMatricialHTML('Amazonas Ampliación', amplMatrix)}
             </td>
           </tr>
 
@@ -1978,46 +2123,27 @@ async function enviarReporteDiarioInterno() {
           </tr>
           ` : ''}
 
-          <!-- Aviso de Archivo Adjunto -->
-          <tr>
-            <td style="padding:6px 24px 18px 24px;">
-              <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;">
-                <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-                  <tr>
-                    <td width="30" valign="top" style="font-size:18px;line-height:1;">📊</td>
-                    <td style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#166534;line-height:1.45;">
-                      <strong>Archivo Excel Adjunto:</strong> Se incluye el archivo oficial <strong>${escapeHtml(excelFileName)}</strong> con la <strong>Matriz de Equipos</strong> (Hoja 1) y el <strong>Detalle de Códigos Tocados</strong> (Hoja 2, con Localidad contigua al Código de Sitio).
-                    </td>
-                  </tr>
-                </table>
-              </div>
-            </td>
-          </tr>
-
-          <!-- Firma Institucional COVEPA (Elegante y Blindada contra Bloqueos) -->
+          <!-- Firma Institucional COVEPA (Idéntica a los demás reportes) -->
           <tr>
             <td style="background-color:#ffffff;border-top:1px solid #e2e8f0;padding:24px 28px;text-align:left;">
-              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#475569;margin-bottom:12px;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#475569;margin-bottom:12px;">
                 Saludos cordiales,
               </div>
-              <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="border-left:3px solid #003060;padding-left:14px;">
-                <tr>
-                  <td>
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:14.5px;font-weight:bold;color:#003060;line-height:1.2;">
-                      Carlos Condor Callupe
-                    </div>
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#475569;font-weight:600;margin-top:3px;">
-                      Gestión de Calidad & Operaciones · COVEPA S.A.C.
-                    </div>
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;color:#64748b;margin-top:2px;">
-                      Proyecto Red Dorsal & Regional Amazonas
-                    </div>
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;color:#334155;margin-top:6px;">
-                      📱 Celular: <strong>+51 958 086 874</strong> &nbsp;·&nbsp; ✉️ Correo: <a href="mailto:ccondor@covepa.pe" style="color:#0284c7;text-decoration:none;font-weight:600;">ccondor@covepa.pe</a>
-                    </div>
-                  </td>
-                </tr>
-              </table>
+              <div style="margin-bottom:12px;">
+                <img src="${logoSrc}" alt="COVEPA" width="145" height="38" border="0" style="display:block;width:145px;max-width:145px;height:auto;border:0;outline:none;" />
+              </div>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:14px;font-weight:bold;color:#003060;line-height:1.3;">
+                Condor Callupe Carlos
+              </div>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#64748b;font-weight:600;margin-top:2px;">
+                Gestor de Calidad
+              </div>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#64748b;margin-top:6px;">
+                Cel: <a href="tel:+51958086874" style="color:#0284c7;text-decoration:none;font-weight:600;">+51 958 086 874</a>
+              </div>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#64748b;margin-top:3px;">
+                Correo: <a href="mailto:ccondor@covepa.pe" style="color:#0284c7;text-decoration:none;font-weight:600;">ccondor@covepa.pe</a>
+              </div>
               <div style="margin-top:14px;border-top:1px solid #f1f5f9;padding-top:10px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;color:#94a3b8;line-height:1.4;">
                 Este mensaje y los archivos adjuntos son para uso exclusivo del personal de COVEPA y contienen información operativa confidencial.
               </div>
@@ -2052,7 +2178,7 @@ async function enviarReporteDiarioInterno() {
     tls: { rejectUnauthorized: false }
   })
 
-  const subjectFinal = (config.asunto || '[COVEPA INTERNO] Resumen Operativo de Jornada - {fecha}')
+  const subjectFinal = (config.asunto || 'Reporte Interno Diario - {fecha}')
     .replace('{fecha}', targetFechaFormateada)
 
   console.log(`[REPORTE-INTERNO] 📤 Enviando correo a ${recipients.join(', ')}...`)
@@ -2065,6 +2191,11 @@ async function enviarReporteDiarioInterno() {
     subject: subjectFinal,
     html: htmlBody,
     attachments: [
+      ...(hasLogo ? [{
+        filename: 'covepa.png',
+        path: logoPath,
+        cid: 'covepa-logo'
+      }] : []),
       {
         filename: excelFileName,
         content: excelBuffer,
@@ -2082,7 +2213,7 @@ async function enviarReporteDiarioInterno() {
         .from('configuracion_reportes_correo')
         .update({ ultimo_envio_at: new Date().toISOString() })
         .eq('id', 'config_diario_interno')
-    } catch (_) {}
+    } catch (_) { }
   }
 
   try {
@@ -2104,7 +2235,7 @@ async function enviarReporteDiarioInterno() {
       github_run_id: process.env.GITHUB_RUN_ID || null,
       created_at: new Date().toISOString()
     })
-  } catch (_) {}
+  } catch (_) { }
 
   console.log(`[REPORTE-INTERNO] 🏁 Proceso de reporte interno completado con éxito.`)
 }
@@ -2113,31 +2244,27 @@ async function enviarReporteDiarioInterno() {
 // MAIN: DISPATCHER COORDINADOR DE REPORTES DIARIOS
 // ============================================================
 async function main() {
-  const isManualRun = process.env.IS_MANUAL_RUN === 'true' ||
-                      process.env.IS_MANUAL_RUN === true ||
-                      process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
-  const forzarEnvio = process.env.FORZAR_ENVIO === 'true' || process.env.FORZAR_ENVIO === true
   const tipoReporte = (process.env.TIPO_REPORTE || '').trim().toLowerCase()
 
-  // Si es un disparo de prueba forzado manual (ej: botón de enviar prueba desde la web)
-  if (isManualRun && forzarEnvio && (tipoReporte === 'diario_interno' || tipoReporte === 'interno')) {
+  // Disparo dirigido a un reporte específico (sea prueba forzada o programado)
+  if (tipoReporte === 'diario_interno' || tipoReporte === 'interno') {
     await enviarReporteDiarioInterno()
     return
   }
 
-  if (isManualRun && forzarEnvio && (tipoReporte === 'diario_ampliacion' || tipoReporte === 'ampliacion')) {
+  if (tipoReporte === 'diario_ampliacion' || tipoReporte === 'ampliacion') {
     await enviarReporteDiarioAmpliacion()
     return
   }
 
-  if (isManualRun && forzarEnvio && (tipoReporte === 'diario' || tipoReporte === 'gilat' || tipoReporte === 'externo' || tipoReporte === 'original')) {
+  if (tipoReporte === 'diario' || tipoReporte === 'gilat' || tipoReporte === 'externo' || tipoReporte === 'original') {
     await enviarReporteDiarioGilat('original')
     return
   }
 
-  // Si es corrida programada (por cron o disparada por cron-job.org sin forzar),
-  // evaluar de forma inteligente cada reporte contra su hora configurada en Supabase:
-  console.log('[MAIN] 🧭 Evaluación programada de reportes activos...')
+  // Si tipoReporte es 'todos' o no especificado (ej: señal periódica de cron-job.org):
+  // Evalúa inteligentemente cada reporte contra su estado (activo) y su hora programada en Supabase
+  console.log('[MAIN] 🧭 Evaluación programada de reportes activos según su hora configurada...')
   await enviarReporteDiarioGilat('original')
   await enviarReporteDiarioAmpliacion()
   await enviarReporteDiarioInterno()

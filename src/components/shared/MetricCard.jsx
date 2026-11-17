@@ -26,7 +26,8 @@ export default function MetricCard({
   active = false,
   loading = false,
   className = '',
-  style = {}
+  style = {},
+  title
 }) {
   const isClickable = typeof onClick === 'function'
 
@@ -37,6 +38,7 @@ export default function MetricCard({
       role={isClickable ? 'button' : undefined}
       tabIndex={isClickable ? 0 : undefined}
       onKeyDown={isClickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(e) } : undefined}
+      title={title}
       style={style}
     >
       {/* Barra de acento superior */}

@@ -14,7 +14,7 @@ const _RAW_ASIGNACIONES = [
   { id_site: 'AM-0041-HS01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
   { id_site: 'AM-0034-A01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
   { id_site: 'AM-0034-CS01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0123-A01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
+  { id_site: 'AM-0123-A01', grupo: 'GRUPO 3', zona: 'ZONA 2' },
   { id_site: 'AM-0042-A01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
   { id_site: 'AM-0042-CS01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
   { id_site: 'AM-0042-CO01', grupo: 'GRUPO 1', zona: 'ZONA 2' },

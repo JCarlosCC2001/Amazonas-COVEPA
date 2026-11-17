@@ -182,13 +182,15 @@ export async function generateAvanceDiaPNG({
   // 3. Tarjetas Resumen de KPIs (Métricas Superiores)
   const kpis = [
     { label: 'TOTAL DIARIO', val: grandTotal, color: '#003060', bg: '#f1f5f9', border: '#cbd5e1' },
-    { label: 'SOLICITANDO REVISIÓN', val: matrixTotals.solicitando || 0, color: '#b45309', bg: '#fef3c7', border: '#fde68a' },
-    { label: 'EN REVISIÓN', val: matrixTotals.enRevision || 0, color: '#0369a1', bg: '#e0f2fe', border: '#bae6fd' },
-    { label: 'RECHAZADOS', val: matrixTotals.rechazados || 0, color: '#b91c1c', bg: '#fee2e2', border: '#fecaca' },
-    { label: 'VALIDADOS', val: matrixTotals.validados || 0, color: '#15803d', bg: '#dcfce7', border: '#bbf7d0' }
+    { label: 'EN REVISIÓN', val: (matrixTotals.enRevision || 0) + (matrixTotals.solicitando || 0), color: '#0369a1', bg: '#e0f2fe', border: '#bae6fd' },
+    { label: 'DESCARTADAS', val: matrixTotals.descartados || 0, color: '#475569', bg: '#f1f5f9', border: '#cbd5e1' },
+    { label: 'CRÍTICOS', val: matrixTotals.criticos || 0, color: '#e11d48', bg: '#fff1f2', border: '#fecdd3' },
+    { label: 'DOCUMENTACIÓN', val: matrixTotals.documentacion || 0, color: '#9333ea', bg: '#faf5ff', border: '#e9d5ff' },
+    { label: 'RECHAZADAS', val: matrixTotals.rechazados || 0, color: '#b91c1c', bg: '#fee2e2', border: '#fecaca' },
+    { label: 'VALIDADAS', val: matrixTotals.validados || 0, color: '#15803d', bg: '#dcfce7', border: '#bbf7d0' }
   ]
 
-  const kpiGap = 10
+  const kpiGap = 8
   const kpiCount = kpis.length
   const kpiWidth = (printableWidth - (kpiCount - 1) * kpiGap) / kpiCount
   const kpiY = headerHeight + 12
@@ -203,24 +205,26 @@ export async function generateAvanceDiaPNG({
 
     // Número
     ctx.fillStyle = kpi.color
-    ctx.font = '800 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    ctx.font = '800 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     const numText = String(kpi.val)
-    ctx.fillText(numText, kx + 10, kpiY + 25)
+    ctx.fillText(numText, kx + 8, kpiY + 24)
 
     // Etiqueta
-    ctx.font = '700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-    ctx.fillText(kpi.label, kx + 10, kpiY + 38)
+    ctx.font = '700 8px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    ctx.fillText(kpi.label, kx + 8, kpiY + 37)
   })
 
   // 4. Definición de Columnas de la Matriz de Cuadrillas / Equipos
   const colDef = [
-    { key: 'cuadrilla', label: isEquipos ? 'Equipo' : 'Cuadrilla', align: 'left', x: marginX, w: 155 },
-    { key: 'tecnico', label: isEquipos ? 'Técnicos Responsables' : 'Técnico Asignado', align: 'left', x: marginX + 155, w: 195 },
-    { key: 'solicitando', label: 'Solicitando Revisión', align: 'center', x: marginX + 350, w: 145 },
-    { key: 'enRevision', label: 'En Revisión', align: 'center', x: marginX + 495, w: 125 },
-    { key: 'rechazados', label: 'Rechazados', align: 'center', x: marginX + 620, w: 110 },
-    { key: 'validados', label: 'Validados', align: 'center', x: marginX + 730, w: 110 },
-    { key: 'total', label: 'Total', align: 'center', x: marginX + 840, w: 88 }
+    { key: 'cuadrilla', label: isEquipos ? 'Equipo' : 'Cuadrilla', align: 'left', x: marginX, w: 120 },
+    { key: 'tecnico', label: isEquipos ? 'Técnicos' : 'Técnico', align: 'left', x: marginX + 120, w: 154 },
+    { key: 'enRevision', label: 'En Revisión', align: 'center', x: marginX + 274, w: 98 },
+    { key: 'descartados', label: 'Descartados', align: 'center', x: marginX + 372, w: 98 },
+    { key: 'criticos', label: 'Críticos', align: 'center', x: marginX + 470, w: 86 },
+    { key: 'documentacion', label: 'Documentación', align: 'center', x: marginX + 556, w: 108 },
+    { key: 'rechazados', label: 'Rechazados', align: 'center', x: marginX + 664, w: 96 },
+    { key: 'validados', label: 'Validados', align: 'center', x: marginX + 760, w: 96 },
+    { key: 'total', label: 'Total', align: 'center', x: marginX + 856, w: 72 }
   ]
 
   const thY = headerHeight + kpiHeight + 10
@@ -315,29 +319,42 @@ export async function generateAvanceDiaPNG({
       }
     }
 
-    // Col 2: Solicitando Revisión
-    renderCellPill(r.values?.solicitando || 0, colDef[2], { bg: '#fef3c7', border: '#fde68a', color: '#b45309' })
+    // Col 2: En Revisión
+    renderCellPill((r.values?.enRevision || 0) + (r.values?.solicitando || 0), colDef[2], { bg: '#e0f2fe', border: '#bae6fd', color: '#0369a1' })
 
-    // Col 3: En Revisión
-    renderCellPill(r.values?.enRevision || 0, colDef[3], { bg: '#e0f2fe', border: '#bae6fd', color: '#0369a1' })
+    // Col 3: Descartados
+    renderCellPill(r.values?.descartados || 0, colDef[3], { bg: '#f1f5f9', border: '#cbd5e1', color: '#475569' })
 
-    // Col 4: Rechazados
-    renderCellPill(r.values?.rechazados || 0, colDef[4], { bg: '#fee2e2', border: '#fecaca', color: '#b91c1c' })
+    // Col 4: Críticos
+    renderCellPill(r.values?.criticos || 0, colDef[4], { bg: '#fff1f2', border: '#fecdd3', color: '#e11d48' })
 
-    // Col 5: Validados
-    renderCellPill(r.values?.validados || 0, colDef[5], { bg: '#dcfce7', border: '#bbf7d0', color: '#15803d' })
+    // Col 5: Documentación
+    renderCellPill(r.values?.documentacion || 0, colDef[5], { bg: '#faf5ff', border: '#e9d5ff', color: '#9333ea' })
 
-    // Col 6: Total de Fila
-    const rowTotal = r.total ?? ((r.values?.solicitando || 0) + (r.values?.enRevision || 0) + (r.values?.rechazados || 0) + (r.values?.validados || 0))
+    // Col 6: Rechazados
+    renderCellPill(r.values?.rechazados || 0, colDef[6], { bg: '#fee2e2', border: '#fecaca', color: '#b91c1c' })
+
+    // Col 7: Validados
+    renderCellPill(r.values?.validados || 0, colDef[7], { bg: '#dcfce7', border: '#bbf7d0', color: '#15803d' })
+
+    // Col 8: Total de Fila
+    const rowTotal = r.total ?? (
+      ((r.values?.enRevision || 0) + (r.values?.solicitando || 0)) +
+      (r.values?.descartados || 0) +
+      (r.values?.criticos || 0) +
+      (r.values?.documentacion || 0) +
+      (r.values?.rechazados || 0) +
+      (r.values?.validados || 0)
+    )
     ctx.textAlign = 'center'
     if (rowTotal > 0) {
       ctx.fillStyle = '#003060'
       ctx.font = '800 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      ctx.fillText(String(rowTotal), colDef[6].x + colDef[6].w / 2, ry + 26)
+      ctx.fillText(String(rowTotal), colDef[8].x + colDef[8].w / 2, ry + 26)
     } else {
       ctx.fillStyle = '#94a3b8'
       ctx.font = '500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      ctx.fillText('0', colDef[6].x + colDef[6].w / 2, ry + 26)
+      ctx.fillText('0', colDef[8].x + colDef[8].w / 2, ry + 26)
     }
     ctx.textAlign = 'left'
   })
@@ -369,7 +386,7 @@ export async function generateAvanceDiaPNG({
       ctx.fillText('0', centerX, tfootY + 28)
       ctx.textAlign = 'left'
     } else {
-      const pw = 50
+      const pw = 48
       const ph = 26
       const px = centerX - pw / 2
       const py = tfootY + (footerRowHeight - ph) / 2
@@ -379,21 +396,23 @@ export async function generateAvanceDiaPNG({
       roundRect(ctx, px, py, pw, ph, 13, true, true)
 
       ctx.fillStyle = pillConfig.color
-      ctx.font = '800 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      ctx.font = '800 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(String(val), centerX, py + 18)
+      ctx.fillText(String(val), centerX, py + 17.5)
       ctx.textAlign = 'left'
     }
   }
 
-  renderFootTotal(matrixTotals.solicitando || 0, colDef[2], { bg: '#fef3c7', border: '#fde68a', color: '#b45309' })
-  renderFootTotal(matrixTotals.enRevision || 0, colDef[3], { bg: '#e0f2fe', border: '#bae6fd', color: '#0369a1' })
-  renderFootTotal(matrixTotals.rechazados || 0, colDef[4], { bg: '#fee2e2', border: '#fecaca', color: '#b91c1c' })
-  renderFootTotal(matrixTotals.validados || 0, colDef[5], { bg: '#dcfce7', border: '#bbf7d0', color: '#15803d' })
+  renderFootTotal((matrixTotals.enRevision || 0) + (matrixTotals.solicitando || 0), colDef[2], { bg: '#e0f2fe', border: '#bae6fd', color: '#0369a1' })
+  renderFootTotal(matrixTotals.descartados || 0, colDef[3], { bg: '#f1f5f9', border: '#cbd5e1', color: '#475569' })
+  renderFootTotal(matrixTotals.criticos || 0, colDef[4], { bg: '#fff1f2', border: '#fecdd3', color: '#e11d48' })
+  renderFootTotal(matrixTotals.documentacion || 0, colDef[5], { bg: '#faf5ff', border: '#e9d5ff', color: '#9333ea' })
+  renderFootTotal(matrixTotals.rechazados || 0, colDef[6], { bg: '#fee2e2', border: '#fecaca', color: '#b91c1c' })
+  renderFootTotal(matrixTotals.validados || 0, colDef[7], { bg: '#dcfce7', border: '#bbf7d0', color: '#15803d' })
 
   // Gran Total en Foot
-  const grandTotalCenterX = colDef[6].x + colDef[6].w / 2
-  const gtw = 52
+  const grandTotalCenterX = colDef[8].x + colDef[8].w / 2
+  const gtw = 50
   const gth = 28
   const gtx = grandTotalCenterX - gtw / 2
   const gty = tfootY + (footerRowHeight - gth) / 2

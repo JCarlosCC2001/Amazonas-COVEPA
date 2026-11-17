@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   Mail, Clock, Users, Send, Eye, History, Save,
   Plus, X, CheckCircle2, AlertCircle, Sparkles, Power,
@@ -7,32 +7,20 @@ import {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-// Catálogo de las 24 horas del día con formato militar y 12 horas AM/PM
-const OPCIONES_24_HORAS = Array.from({ length: 24 }, (_, i) => {
-  const h24 = String(i).padStart(2, '0')
-  const h12Num = i === 0 ? 12 : (i > 12 ? i - 12 : i)
-  const ampm = i >= 12 ? 'PM' : 'AM'
-  const periodo = i < 6 ? 'Madrugada' : (i < 12 ? 'Mañana' : (i < 19 ? 'Tarde' : 'Noche'))
-  return {
-    value: h24,
-    label: `${h24}:00 hrs · (${h12Num}:00 ${ampm}) - ${periodo}`
+// Catálogo de opciones de hora exacta cada 15 minutos (00:00 a 23:45)
+const OPCIONES_HORA_EXACTA = []
+for (let h = 0; h < 24; h++) {
+  for (let m = 0; m < 60; m += 15) {
+    const h24 = String(h).padStart(2, '0')
+    const min = String(m).padStart(2, '0')
+    const val = `${h24}:${min}:00`
+    OPCIONES_HORA_EXACTA.push({
+      value: val,
+      key: `${h24}:${min}`,
+      label: `${h24}:${min} hrs`
+    })
   }
-})
-
-const OPCIONES_MINUTOS = [
-  { value: '00', label: ':00 en punto' },
-  { value: '15', label: ':15 minutos' },
-  { value: '30', label: ':30 y media' },
-  { value: '45', label: ':45 minutos' }
-]
-
-const HORARIOS_RAPIDOS = [
-  { label: '1:00 PM', value: '13:00:00' },
-  { label: '7:00 PM', value: '19:00:00' },
-  { label: '9:00 PM', value: '21:00:00' },
-  { label: '9:30 PM', value: '21:30:00' },
-  { label: '10:00 PM', value: '22:00:00' }
-]
+}
 
 export default function CardAutomatizacionCorreo({
   config,
@@ -44,47 +32,56 @@ export default function CardAutomatizacionCorreo({
   sendingTest = false,
   onOpenHistorial,
   onOpenPersonalSelector,
-  titulo = 'Programación de Envío Automático por Correo',
-  subtitulo = 'Configura el despacho automático del reporte oficial'
+  titulo = 'Configuración de Correo Automático',
+  subtitulo = 'Programación y despacho automático del reporte oficial'
 }) {
+  const [desplegado, setDesplegado] = useState(false)
   const [nuevoPara, setNuevoPara] = useState('')
   const [nuevoCC, setNuevoCC] = useState('')
   const [errorInput, setErrorInput] = useState(null)
 
   const isActivo = Boolean(config?.activo)
 
-  // Extraer hora y minuto actuales para los selectores de 24 horas
+  // Extraer hora y minuto actuales para el selector de hora exacta
   const horaEnvioRaw = config?.hora_envio || '21:00:00'
   const [horaParte = '21', minutoParte = '00'] = horaEnvioRaw.slice(0, 5).split(':')
-  const horaActualDisplay = `${horaParte}:${minutoParte}`
+  const horaActualDisplay = `${horaParte.padStart(2, '0')}:${minutoParte.padStart(2, '0')}`
+  const horaActualVal = `${horaActualDisplay}:00`
+
+  const hNum = Number(horaParte)
+  const h12Num = isNaN(hNum) ? 12 : (hNum === 0 ? 12 : (hNum > 12 ? hNum - 12 : hNum))
+  const ampmDisplay = isNaN(hNum) ? 'PM' : (hNum >= 12 ? 'PM' : 'AM')
+
+  const handleManualTimeChange = (newVal) => {
+    if (!newVal) return
+    const [h = '21', m = '00'] = newVal.split(':')
+    const formatted = `${h.padStart(2, '0')}:${m.padStart(2, '0')}:00`
+    onChangeConfig({
+      ...config,
+      hora_envio: formatted
+    })
+  }
+
+  // Asegurar que si la hora configurada no coincide exactamente con un intervalo de 15m, aparezca en la lista
+  const opcionesHoras = useMemo(() => {
+    const existe = OPCIONES_HORA_EXACTA.some(opt => opt.key === horaActualDisplay)
+    if (!existe) {
+      return [
+        {
+          value: horaActualVal,
+          key: horaActualDisplay,
+          label: `${horaActualDisplay} hrs (${h12Num}:${minutoParte} ${ampmDisplay})`
+        },
+        ...OPCIONES_HORA_EXACTA
+      ].sort((a, b) => a.key.localeCompare(b.key))
+    }
+    return OPCIONES_HORA_EXACTA
+  }, [horaActualDisplay, horaActualVal, h12Num, minutoParte, ampmDisplay])
 
   const handleToggleActivo = () => {
     onChangeConfig({
       ...config,
       activo: !isActivo
-    })
-  }
-
-  const handleSelectHora24 = (h) => {
-    const nuevoHorario = `${h}:${minutoParte}:00`
-    onChangeConfig({
-      ...config,
-      hora_envio: nuevoHorario
-    })
-  }
-
-  const handleSelectMinuto = (m) => {
-    const nuevoHorario = `${horaParte}:${m}:00`
-    onChangeConfig({
-      ...config,
-      hora_envio: nuevoHorario
-    })
-  }
-
-  const handleSelectRapido = (val) => {
-    onChangeConfig({
-      ...config,
-      hora_envio: val
     })
   }
 
@@ -145,96 +142,156 @@ export default function CardAutomatizacionCorreo({
   }
 
   // ============================================================
-  // CASO 1: VISTA PLEGADA / COLAPSADA CUANDO ESTÁ DESACTIVADO
+  // CASO 1: VISTA COMPRIMIDA POR DEFECTO (ACORDEÓN PLEGADO)
   // ============================================================
-  if (!isActivo) {
+  if (!desplegado) {
     return (
       <div
         style={{
-          background: '#f8fafc',
-          border: '1.5px dashed #cbd5e1',
+          background: isActivo ? '#ffffff' : '#f8fafc',
+          border: isActivo ? '1px solid #bfdbfe' : '1.5px dashed #cbd5e1',
           borderRadius: '12px',
-          padding: '1.1rem 1.25rem',
+          padding: '0.85rem 1.25rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: '1rem',
-          transition: 'all 0.2s ease'
+          boxShadow: isActivo ? 'var(--shadow-sm)' : 'none',
+          transition: 'all 0.2s ease',
+          cursor: 'pointer'
         }}
+        onClick={() => setDesplegado(true)}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '260px', flex: '1 1 300px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '260px', flex: '1 1 320px' }}>
           <div
             style={{
-              width: '40px',
-              height: '40px',
+              width: '38px',
+              height: '38px',
               borderRadius: '10px',
-              background: '#e2e8f0',
+              background: isActivo ? '#e0f2fe' : '#e2e8f0',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#64748b',
+              color: isActivo ? '#003060' : '#64748b',
               flexShrink: 0
             }}
           >
-            <Mail size={20} />
+            <Mail size={18} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <h4 className="t-name" style={{ margin: 0, color: '#334155' }}>
+              <h4 className="t-name" style={{ margin: 0, color: '#003060' }}>
                 {titulo}
               </h4>
               <span
                 className="t-badge"
                 style={{
-                  background: '#f1f5f9',
-                  border: '1px solid #cbd5e1',
-                  color: '#64748b',
+                  background: isActivo ? '#f0fdf4' : '#f1f5f9',
+                  border: `1px solid ${isActivo ? '#86efac' : '#cbd5e1'}`,
+                  color: isActivo ? '#15803d' : '#64748b',
                   padding: '2px 8px',
                   borderRadius: '12px',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px'
+                  gap: '5px'
                 }}
               >
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#94a3b8' }} />
-                <span>ENVÍO DESACTIVADO</span>
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: isActivo ? '#22c55e' : '#94a3b8'
+                  }}
+                />
+                <span>{isActivo ? `PROGRAMADO: ${horaActualDisplay} hrs` : 'ENVÍO DESACTIVADO'}</span>
               </span>
             </div>
-            <p className="t-meta" style={{ margin: '0.2rem 0 0 0', color: '#64748b' }}>
-              El despacho automático está apagado para este informe. Actívalo para desplegar y configurar horario y destinatarios.
-            </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {onOpenHistorial && (
-            <button
-              type="button"
-              onClick={onOpenHistorial}
-              className="btn btn-secondary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '0.45rem 0.85rem' }}
-              title="Consultar envíos previos"
-            >
-              <History size={14} />
-              <span>Historial</span>
-            </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+          {isActivo && (
+            <>
+              {onOpenPreview && (
+                <button
+                  type="button"
+                  onClick={onOpenPreview}
+                  className="btn btn-secondary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '0.35rem 0.65rem'
+                  }}
+                  title="Vista Previa del Correo"
+                  aria-label="Vista Previa"
+                >
+                  <Eye size={14} />
+                  <span>Vista Previa</span>
+                </button>
+              )}
+
+              {onSendTest && (
+                <button
+                  type="button"
+                  onClick={onSendTest}
+                  disabled={sendingTest}
+                  className="btn btn-secondary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '0.35rem 0.65rem'
+                  }}
+                  title="Enviar Correo de Prueba"
+                  aria-label="Enviar Prueba"
+                >
+                  <Send size={14} />
+                  <span>{sendingTest ? 'Enviando...' : 'Enviar Prueba'}</span>
+                </button>
+              )}
+
+              {onOpenHistorial && (
+                <button
+                  type="button"
+                  onClick={onOpenHistorial}
+                  className="btn btn-secondary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '0.35rem 0.65rem'
+                  }}
+                  title="Historial de Envíos"
+                  aria-label="Historial"
+                >
+                  <History size={14} />
+                  <span>Historial</span>
+                </button>
+              )}
+            </>
           )}
 
           <button
             type="button"
-            onClick={handleToggleActivo}
+            onClick={() => setDesplegado(true)}
             className="btn btn-primary"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '0.45rem 1rem',
+              justifyContent: 'center',
+              width: '34px',
+              height: '34px',
+              padding: 0,
+              borderRadius: '8px',
               backgroundColor: '#003060'
             }}
+            title="Desplegar Configuración"
+            aria-label="Desplegar Configuración"
           >
-            <Power size={14} />
-            <span>Activar Envío por Correo</span>
+            <ChevronDown size={18} />
           </button>
         </div>
       </div>
@@ -242,10 +299,8 @@ export default function CardAutomatizacionCorreo({
   }
 
   // ============================================================
-  // CASO 2: VISTA DESPLEGADA COMPLETA CUANDO ESTÁ ACTIVADO
+  // CASO 2: VISTA DESPLEGADA AL PRESIONAR (FORMULARIO COMPLETO)
   // ============================================================
-  const hora12Num = Number(horaParte) === 0 ? 12 : (Number(horaParte) > 12 ? Number(horaParte) - 12 : Number(horaParte))
-  const ampmDisplay = Number(horaParte) >= 12 ? 'PM' : 'AM'
 
   return (
     <div
@@ -261,62 +316,184 @@ export default function CardAutomatizacionCorreo({
         transition: 'all 0.2s ease'
       }}
     >
-      {/* Cabecera de la tarjeta con Switch de desactivación */}
+      {/* Cabecera de la tarjeta con Botón Comprimir */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid #edf4fb', paddingBottom: '0.85rem' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Mail size={18} color="#003060" />
-            <h4 className="t-name" style={{ margin: 0, color: '#003060' }}>
-              {titulo}
-            </h4>
-            <span
-              className="t-badge"
-              style={{
-                background: '#f0fdf4',
-                border: '1px solid #86efac',
-                color: '#15803d',
-                padding: '2px 8px',
-                borderRadius: '12px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px'
-              }}
-            >
-              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
-              <span>ENVÍO PROGRAMADO ACTIVO</span>
-            </span>
-          </div>
-          <p className="t-meta" style={{ margin: '0.2rem 0 0 0', color: '#64748b' }}>
-            {subtitulo}
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Mail size={18} color="#003060" />
+          <h4 className="t-name" style={{ margin: 0, color: '#003060' }}>
+            {titulo}
+          </h4>
+          <span
+            className="t-badge"
+            style={{
+              background: isActivo ? '#f0fdf4' : '#f1f5f9',
+              border: `1px solid ${isActivo ? '#86efac' : '#cbd5e1'}`,
+              color: isActivo ? '#15803d' : '#64748b',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+          >
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: isActivo ? '#22c55e' : '#94a3b8' }} />
+            <span>{isActivo ? 'ENVÍO PROGRAMADO ACTIVO' : 'ENVÍO DESACTIVADO'}</span>
+          </span>
         </div>
 
-        {/* Botón para Desactivar / Pausar */}
+        {/* Acciones de Cabecera: Botones de Envío / Prueba / Historial (cuando activo) + Botón Comprimir */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+          {isActivo && (
+            <>
+              {onOpenPreview && (
+                <button
+                  type="button"
+                  onClick={onOpenPreview}
+                  className="btn btn-secondary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '0.35rem 0.65rem'
+                  }}
+                  title="Vista Previa del Correo"
+                  aria-label="Vista Previa"
+                >
+                  <Eye size={14} />
+                  <span>Vista Previa</span>
+                </button>
+              )}
+
+              {onSendTest && (
+                <button
+                  type="button"
+                  onClick={onSendTest}
+                  disabled={sendingTest}
+                  className="btn btn-secondary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '0.35rem 0.65rem'
+                  }}
+                  title="Enviar Correo de Prueba"
+                  aria-label="Enviar Prueba"
+                >
+                  <Send size={14} />
+                  <span>{sendingTest ? 'Enviando...' : 'Enviar Prueba'}</span>
+                </button>
+              )}
+
+              {onOpenHistorial && (
+                <button
+                  type="button"
+                  onClick={onOpenHistorial}
+                  className="btn btn-secondary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '0.35rem 0.65rem'
+                  }}
+                  title="Historial de Envíos"
+                  aria-label="Historial"
+                >
+                  <History size={14} />
+                  <span>Historial</span>
+                </button>
+              )}
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setDesplegado(false)}
+            className="btn btn-secondary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '34px',
+              height: '34px',
+              padding: 0,
+              borderRadius: '8px'
+            }}
+            title="Comprimir panel de configuración"
+            aria-label="Comprimir"
+          >
+            <ChevronUp size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* 1. ACTIVAR O DESACTIVAR CORREO AUTOMÁTICO (PRIMER BLOQUE DESTACADO) */}
+      <div
+        style={{
+          background: isActivo ? '#f0fdf4' : '#f8fafc',
+          border: `1.5px solid ${isActivo ? '#86efac' : '#cbd5e1'}`,
+          borderRadius: '10px',
+          padding: '0.85rem 1.15rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          transition: 'all 0.2s ease'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
+              background: isActivo ? '#dcfce7' : '#e2e8f0',
+              color: isActivo ? '#16a34a' : '#64748b',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Power size={18} />
+          </div>
+          <div>
+            <div className="t-name" style={{ color: isActivo ? '#166534' : '#334155', margin: 0 }}>
+              {isActivo ? 'Envío Automático Activado' : 'Envío Automático Desactivado'}
+            </div>
+            <span className="t-meta" style={{ color: isActivo ? '#15803d' : '#64748b' }}>
+              {isActivo
+                ? `El reporte se enviará de forma automática a las ${horaActualDisplay} hrs.`
+                : 'El envío automático está pausado. No se despacharán correos.'}
+            </span>
+          </div>
+        </div>
+
         <button
           type="button"
           onClick={handleToggleActivo}
           className="t-badge"
           style={{
-            padding: '0.4rem 0.85rem',
+            padding: '0.45rem 1.15rem',
             borderRadius: '20px',
-            border: '1.5px solid #cbd5e1',
-            background: '#ffffff',
-            color: '#64748b',
-            fontWeight: 'var(--fw-semibold)',
+            border: `1.5px solid ${isActivo ? '#16a34a' : '#94a3b8'}`,
+            background: isActivo ? '#16a34a' : '#ffffff',
+            color: isActivo ? '#ffffff' : '#475569',
+            fontWeight: 'var(--fw-bold)',
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '6px',
-            transition: 'all 0.15s ease'
+            gap: '8px',
+            boxShadow: isActivo ? '0 2px 6px rgba(22, 163, 74, 0.25)' : 'none',
+            transition: 'all 0.18s ease'
           }}
-          title="Hacer clic para pausar el envío automático"
+          title={isActivo ? 'Hacer clic para pausar el envío automático' : 'Hacer clic para activar el envío automático'}
         >
-          <Power size={13} color="#dc2626" />
-          <span>Pausar Envío</span>
+          <Power size={14} />
+          <span>{isActivo ? 'DESACTIVAR ENVÍO' : 'ACTIVAR ENVÍO'}</span>
         </button>
       </div>
 
-      {/* SELECTOR DE HORA DEL DÍA (LAS 24 HORAS COMPLETAS + MINUTOS) */}
+      {/* 2. CONFIGURACIÓN DE HORA DE DESPACHO (MANUAL + LISTA DESPLEGABLE + ATAJOS) */}
       <div
         style={{
           background: '#f8fafc',
@@ -330,7 +507,7 @@ export default function CardAutomatizacionCorreo({
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
           <label className="t-badge" style={{ color: '#003060', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'var(--fw-bold)' }}>
-            <Clock size={15} color="#003060" /> Hora de Despacho del Reporte (Las 24 Horas del Día · Hora Perú UTC-5):
+            <Clock size={15} color="#003060" /> Hora de Despacho del Reporte (Hora Perú UTC-5):
           </label>
           <div
             className="t-badge"
@@ -343,104 +520,87 @@ export default function CardAutomatizacionCorreo({
               fontWeight: 'var(--fw-bold)'
             }}
           >
-            Hora fijada: {horaActualDisplay} hrs ({hora12Num}:{minutoParte} {ampmDisplay})
+            Hora fijada: {horaActualDisplay} hrs ({h12Num}:{minutoParte} {ampmDisplay})
           </div>
         </div>
 
-        {/* Fila con los 2 selectores principales: Hora (24h) y Minutos */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) minmax(140px, 180px) auto', gap: '0.75rem', alignItems: 'center' }}>
-          {/* Selector de las 24 horas del día */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <span className="t-meta" style={{ color: '#475569', fontWeight: 'var(--fw-semibold)' }}>
-              1. Seleccionar Hora del Día (00:00 a 23:00):
+        {/* Fila con Ingreso Manual y Selector de Lista */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 220px) 1fr', gap: '0.75rem', alignItems: 'flex-end' }}>
+          {/* Ingreso Manual de Hora */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            <span className="t-meta" style={{ color: '#003060', fontWeight: 'var(--fw-semibold)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              ✍️ Ingresar Hora Manualmente:
             </span>
-            <select
-              value={horaParte}
-              onChange={e => handleSelectHora24(e.target.value)}
+            <input
+              type="time"
+              value={horaActualDisplay}
+              onChange={e => handleManualTimeChange(e.target.value)}
               className="t-body"
               style={{
-                padding: '0.5rem 0.75rem',
-                border: '1.5px solid #cbd5e1',
+                padding: '0.55rem 0.85rem',
+                border: '1.5px solid #0284c7',
                 borderRadius: '8px',
                 background: '#ffffff',
                 color: '#003060',
-                fontWeight: 'var(--fw-semibold)',
+                fontWeight: 'var(--fw-bold)',
+                fontVariantNumeric: 'tabular-nums',
                 outline: 'none',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                boxShadow: '0 0 0 2px rgba(2, 132, 199, 0.08)'
+              }}
+              title="Escribe o selecciona manualmente la hora y minutos deseados"
+            />
+          </div>
+
+          {/* Selector de Lista de Opciones */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            <span className="t-meta" style={{ color: '#64748b' }}>
+              O seleccionar de la lista:
+            </span>
+            <select
+              value={horaActualVal}
+              onChange={e => onChangeConfig({ ...config, hora_envio: e.target.value })}
+              className="t-body"
+              style={{
+                padding: '0.55rem 0.85rem',
+                border: '1.5px solid #cbd5e1',
+                borderRadius: '8px',
+                background: '#ffffff',
+                color: '#334155',
+                fontWeight: 'var(--fw-medium)',
+                outline: 'none',
+                cursor: 'pointer',
+                width: '100%'
               }}
             >
-              {OPCIONES_24_HORAS.map(opt => (
-                <option key={opt.value} value={opt.value}>
+              {opcionesHoras.map(opt => (
+                <option key={opt.key} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
             </select>
           </div>
-
-          {/* Selector de Minutos */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <span className="t-meta" style={{ color: '#475569', fontWeight: 'var(--fw-semibold)' }}>
-              2. Minutos:
-            </span>
-            <select
-              value={minutoParte}
-              onChange={e => handleSelectMinuto(e.target.value)}
-              className="t-body"
-              style={{
-                padding: '0.5rem 0.75rem',
-                border: '1.5px solid #cbd5e1',
-                borderRadius: '8px',
-                background: '#ffffff',
-                color: '#003060',
-                fontWeight: 'var(--fw-semibold)',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              {OPCIONES_MINUTOS.map(m => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Input Time libre alternativo */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <span className="t-meta" style={{ color: '#64748b' }}>
-              O escribir exacta:
-            </span>
-            <input
-              type="time"
-              value={horaActualDisplay}
-              onChange={e => onChangeConfig({ ...config, hora_envio: `${e.target.value}:00` })}
-              className="t-body"
-              style={{
-                padding: '0.45rem 0.65rem',
-                border: '1px solid #cbd5e1',
-                borderRadius: '8px',
-                outline: 'none',
-                color: '#003060',
-                fontWeight: 'var(--fw-semibold)',
-                background: '#ffffff'
-              }}
-            />
-          </div>
         </div>
 
-        {/* Atajos de acceso rápido a horas frecuentes */}
+        {/* Atajos de acceso rápido */}
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem', borderTop: '1px dashed #e2e8f0', paddingTop: '0.5rem' }}>
           <span className="t-meta" style={{ color: '#64748b' }}>Atajos frecuentes:</span>
-          {HORARIOS_RAPIDOS.map(h => {
+          {[
+            { label: '1:00 PM', value: '13:00:00' },
+            { label: '7:00 PM', value: '19:00:00' },
+            { label: '9:00 PM', value: '21:00:00' },
+            { label: '9:30 PM', value: '21:30:00' },
+            { label: '10:00 PM', value: '22:00:00' }
+          ].map(h => {
             const isSelected = (config.hora_envio || '').startsWith(h.value.slice(0, 5))
             return (
               <button
                 key={h.value}
                 type="button"
-                onClick={() => handleSelectRapido(h.value)}
+                onClick={() => onChangeConfig({ ...config, hora_envio: h.value })}
                 className="t-badge"
                 style={{
-                  padding: '0.25rem 0.55rem',
+                  padding: '0.25rem 0.6rem',
                   borderRadius: '6px',
                   border: isSelected ? '1.5px solid #003060' : '1px solid #cbd5e1',
                   background: isSelected ? '#003060' : '#ffffff',
@@ -457,26 +617,7 @@ export default function CardAutomatizacionCorreo({
         </div>
       </div>
 
-      {/* Asunto del Correo */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-        <label className="t-badge" style={{ color: '#003060', fontWeight: 'var(--fw-semibold)' }}>
-          Asunto del Correo (soporta etiqueta {'{fecha}'}):
-        </label>
-        <input
-          type="text"
-          value={config.asunto || ''}
-          onChange={e => onChangeConfig({ ...config, asunto: e.target.value })}
-          className="t-body"
-          placeholder="Ej: Reporte Diario de Levantamiento de Observaciones - {fecha}"
-          style={{
-            padding: '0.5rem 0.75rem',
-            border: '1px solid #cbd5e1',
-            borderRadius: '8px',
-            outline: 'none',
-            color: '#0f172a'
-          }}
-        />
-      </div>
+
 
       {/* Recuadro de Destinatarios (Para y CC) */}
       <div
@@ -661,46 +802,7 @@ export default function CardAutomatizacionCorreo({
       </div>
 
       {/* Botonera de Acciones Integradas */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.65rem', borderTop: '1px solid #edf4fb', paddingTop: '0.85rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {onOpenPreview && (
-            <button
-              type="button"
-              onClick={onOpenPreview}
-              className="btn btn-secondary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '0.45rem 0.85rem' }}
-            >
-              <Eye size={14} />
-              <span>Vista Previa Correo</span>
-            </button>
-          )}
-
-          {onSendTest && (
-            <button
-              type="button"
-              onClick={onSendTest}
-              disabled={sendingTest}
-              className="btn btn-secondary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '0.45rem 0.85rem' }}
-            >
-              <Send size={14} />
-              <span>{sendingTest ? 'Despachando...' : 'Enviar Prueba'}</span>
-            </button>
-          )}
-
-          {onOpenHistorial && (
-            <button
-              type="button"
-              onClick={onOpenHistorial}
-              className="btn btn-secondary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '0.45rem 0.85rem' }}
-            >
-              <History size={14} />
-              <span>Historial de Envíos</span>
-            </button>
-          )}
-        </div>
-
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', borderTop: '1px solid #edf4fb', paddingTop: '0.85rem' }}>
         <button
           type="button"
           onClick={onSave}

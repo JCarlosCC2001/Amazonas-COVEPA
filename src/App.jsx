@@ -72,8 +72,8 @@ export default function App() {
                   <Route path="observaciones" element={<Suspense fallback={<PageLoader />}><Observaciones /></Suspense>} />
                   <Route path="programacion"  element={<Suspense fallback={<PageLoader />}><Programacion /></Suspense>} />
                   <Route path="tecnicos"      element={<Suspense fallback={<PageLoader />}><Tecnicos /></Suspense>} />
-                  <Route path="kmz"           element={<ProtectedRoute requiredRoute="/kmz"><Suspense fallback={<PageLoader />}><KMZ /></Suspense></ProtectedRoute>} />
-                  <Route path="reportes"      element={<Navigate to="/kmz" replace />} />
+                  <Route path="reportes"      element={<ProtectedRoute requiredRoute="/reportes"><Suspense fallback={<PageLoader />}><KMZ /></Suspense></ProtectedRoute>} />
+                  <Route path="kmz"           element={<Navigate to="/reportes" replace />} />
                 </Route>
 
                 {/* Fallback */}

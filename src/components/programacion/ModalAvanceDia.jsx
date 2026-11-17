@@ -1,29 +1,26 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
-  TrendingUp, X, Search, Download, MapPin, User,
+  TrendingUp, X, Search, MapPin, User,
   Clock, ShieldCheck, RefreshCw, AlertCircle, Eye, FileText,
-  Copy, Image, Check, ChevronDown, ChevronUp, Globe
+  Copy, Image, Check, ChevronDown, ChevronUp
 } from 'lucide-react'
-// M3: ExcelJS importado dinamicamente en handleExportXLSX
 import { getAvancePorFecha } from '../../services/dashboardService'
 import { ASIGNACIONES_BASE } from '../../services/sitiosService'
 import { DEFAULT_CUADRILLAS_CONFIG } from '../../services/personalService'
 import { supabase } from '../../lib/supabase'
 import CuadrillasMatrixTable from '../shared/CuadrillasMatrixTable'
 import { formatNombrePersona, getPeruDateStr } from '../../utils/helpers'
-// M3: imageExportService importado dinamicamente en handleCopyPNG / handleDownloadPNG
 import { usePresentationMode } from '../../context/PresentationContext'
 
-export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto = 'ALL', onClose }) {
+export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
   const { presentationMode } = usePresentationMode()
+  const modalCardRef = useRef(null)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [avanceData, setAvanceData] = useState({ rows: [], stats: {}, programacionesDelDia: 0 })
   const [searchTable, setSearchTable] = useState('')
   const [filterEstado, setFilterEstado] = useState('TODOS')
-  const [proyectoModal, setProyectoModal] = useState(initialProyecto || 'ALL') // 'ALL' | 'ORIGINAL' | 'AMPLIACION'
   const [selectedRowDetail, setSelectedRowDetail] = useState(null)
-  const [exportingXlsx, setExportingXlsx] = useState(false)
   const [exportingPng, setExportingPng] = useState(false)
   const [copiedPng, setCopiedPng] = useState(false)
   const [showDetailedList, setShowDetailedList] = useState(false)
@@ -118,19 +115,25 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
 
   // Helper para resolver la cuadrilla oficial asignada a una observación
   const resolveCuadrillaForObs = useCallback((obs) => {
+    // 0. Si el sitio o código es de Ampliación (AMEX), pertenece a CUADRILLA 7
+    const siteId = (obs.id_sitio || '').trim().toUpperCase()
+    const obsId = (obs.id_obs || '').trim().toUpperCase()
+    if (siteId.startsWith('AMEX') || obsId.startsWith('AMEX')) {
+      return 'CUADRILLA 7'
+    }
+
     // 1. Prioridad por sitio oficial en el catálogo maestro
-    const siteId = obs.id_sitio
     const asig = ASIGNACIONES_BASE.find(s => s.id_site === siteId) || sitiosMap[siteId]
     if (asig?.grupo) {
       const gClean = String(asig.grupo).toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
-      const match = gClean.match(/CUADRILLA\s*([1-6])/)
+      const match = gClean.match(/CUADRILLA\s*([1-7])/)
       if (match) return `CUADRILLA ${match[1]}`
     }
 
     // 2. Prioridad por cuadrilla explícita en la observación
     if (obs.cuadrilla) {
       const cClean = String(obs.cuadrilla).toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
-      const match = cClean.match(/CUADRILLA\s*([1-6])/)
+      const match = cClean.match(/CUADRILLA\s*([1-7])/)
       if (match) return `CUADRILLA ${match[1]}`
     }
 
@@ -153,12 +156,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
   }, [sitiosMap, cuadrillaStaffMap])
 
   const stats = useMemo(() => {
-    const rawRows = (avanceData.rows || []).filter(r => {
-      const isAmex = String(r.id_sitio || '').toUpperCase().startsWith('AMEX')
-      if (proyectoModal === 'ORIGINAL' && isAmex) return false
-      if (proyectoModal === 'AMPLIACION' && !isAmex) return false
-      return true
-    })
+    const rawRows = avanceData.rows || []
 
     const st = {
       total: rawRows.length,
@@ -182,22 +180,36 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
       else if (raw === 'crítico' || raw === 'critico') st.criticas++
       else if (raw === 'descartado' || raw === 'descartada') st.descartadas++
     })
+    // Total es la suma exacta de los medidores presentes en la pantalla
+    st.total = (st.solicitando + st.enRevision) + st.descartadas + st.criticas + st.documentacion + st.rechazadas + st.validadas
     return st
-  }, [avanceData.rows, proyectoModal])
+  }, [avanceData.rows])
 
   // Columnas semánticas para la Matriz de Cuadrillas
   const statusColumns = useMemo(() => [
     {
-      key: 'solicitando',
-      label: 'Solicitando Revisión',
-      badgeVariant: 'amber',
-      title: 'Observaciones solicitando revisión técnica'
-    },
-    {
       key: 'enRevision',
       label: 'En Revisión',
       badgeVariant: 'sky',
-      title: 'Observaciones en proceso de revisión'
+      title: 'Observaciones en proceso o esperando revisión técnica'
+    },
+    {
+      key: 'descartados',
+      label: 'Descartados',
+      badgeVariant: 'slate',
+      title: 'Observaciones descartadas en campo'
+    },
+    {
+      key: 'criticos',
+      label: 'Críticos',
+      badgeVariant: 'rose',
+      title: 'Observaciones críticas que no se ejecutarán'
+    },
+    {
+      key: 'documentacion',
+      label: 'Documentación',
+      badgeVariant: 'purple',
+      title: 'Observaciones en recopilación técnica de documentación'
     },
     {
       key: 'rechazados',
@@ -210,35 +222,12 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
       label: 'Validados',
       badgeVariant: 'emerald',
       title: 'Observaciones validadas conformes'
-    },
-    {
-      key: 'prevalidados',
-      label: 'Pre-validados',
-      badgeVariant: 'sky',
-      title: 'Observaciones pre-validadas que requieren fotos'
-    },
-    {
-      key: 'documentacion',
-      label: 'Documentación',
-      badgeVariant: 'purple',
-      title: 'Observaciones en recopilación técnica de documentación'
-    },
-    {
-      key: 'criticos',
-      label: 'Críticos',
-      badgeVariant: 'rose',
-      title: 'Observaciones críticas que no se ejecutarán'
     }
   ], [])
 
-  // Consolidación de datos matriciales agrupados por Equipos
-  const matrixData = useMemo(() => {
-    const rows = (avanceData.rows || []).filter(r => {
-      const isAmex = String(r.id_sitio || '').toUpperCase().startsWith('AMEX')
-      if (proyectoModal === 'ORIGINAL' && isAmex) return false
-      if (proyectoModal === 'AMPLIACION' && !isAmex) return false
-      return true
-    })
+  // Consolidación de datos matriciales agrupados por Equipos (Original: Equipos 1, 2, 3; Ampliación: Equipo 4)
+  const { matrixOriginal, matrixAmpliacion, matrixData } = useMemo(() => {
+    const rows = avanceData.rows || []
 
     const getCuadrillaTecnico = (cName) => {
       return cuadrillaStaffMap[cName] ||
@@ -254,111 +243,134 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
     const tecC6 = getCuadrillaTecnico('CUADRILLA 6')
     const tecC7 = getCuadrillaTecnico('CUADRILLA 7')
 
-    const equiposMap = {}
-
-    if (proyectoModal !== 'AMPLIACION') {
-      equiposMap['EQUIPO 1'] = {
+    // Equipos de Amazonas Original
+    const equiposOriginalMap = {
+      'EQUIPO 1': {
         id: 'EQUIPO 1',
         cuadrilla: 'EQUIPO 1',
         subtitulo: 'Cuadrilla 1 y 2',
         tecnico: [tecC1, tecC2].filter(Boolean).join(' · ') || 'Técnicos Equipo 1',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+        values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
         total: 0
-      }
-      equiposMap['EQUIPO 2'] = {
+      },
+      'EQUIPO 2': {
         id: 'EQUIPO 2',
         cuadrilla: 'EQUIPO 2',
         subtitulo: 'Cuadrilla 3 y 6',
         tecnico: [tecC3, tecC6].filter(Boolean).join(' · ') || 'Técnicos Equipo 2',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+        values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
         total: 0
-      }
-      equiposMap['EQUIPO 3'] = {
+      },
+      'EQUIPO 3': {
         id: 'EQUIPO 3',
         cuadrilla: 'EQUIPO 3',
         subtitulo: 'Cuadrilla 4 y 5',
         tecnico: [tecC4, tecC5].filter(Boolean).join(' · ') || 'Técnicos Equipo 3',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+        values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
         total: 0
       }
     }
 
-    if (proyectoModal !== 'ORIGINAL') {
-      equiposMap['EQUIPO 4'] = {
+    // Equipos de Amazonas Ampliación
+    const equiposAmpliacionMap = {
+      'EQUIPO 4': {
         id: 'EQUIPO 4',
         cuadrilla: 'EQUIPO 4',
         subtitulo: 'Cuadrilla 7',
         tecnico: tecC7 || 'Por Asignar',
-        values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+        values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
         total: 0
       }
     }
 
     rows.forEach(r => {
+      const siteId = String(r.id_sitio || '').toUpperCase().trim()
+      const obsId = String(r.id_obs || '').toUpperCase().trim()
+      const isAmex = siteId.startsWith('AMEX') || obsId.startsWith('AMEX')
+
       const targetCuadrilla = resolveCuadrillaForObs(r)
       let targetEquipoKey = 'EQUIPO 1'
-      if (targetCuadrilla === 'CUADRILLA 1' || targetCuadrilla === 'CUADRILLA 2') {
+      if (isAmex || targetCuadrilla === 'CUADRILLA 7') {
+        targetEquipoKey = 'EQUIPO 4'
+      } else if (targetCuadrilla === 'CUADRILLA 1' || targetCuadrilla === 'CUADRILLA 2') {
         targetEquipoKey = 'EQUIPO 1'
       } else if (targetCuadrilla === 'CUADRILLA 3' || targetCuadrilla === 'CUADRILLA 6') {
         targetEquipoKey = 'EQUIPO 2'
       } else if (targetCuadrilla === 'CUADRILLA 4' || targetCuadrilla === 'CUADRILLA 5') {
         targetEquipoKey = 'EQUIPO 3'
-      } else if (targetCuadrilla === 'CUADRILLA 7') {
-        targetEquipoKey = 'EQUIPO 4'
       }
 
-      const targetObj = equiposMap[targetEquipoKey]
+      const targetObj = equiposOriginalMap[targetEquipoKey] || equiposAmpliacionMap[targetEquipoKey]
       if (targetObj) {
         const rawSt = (r.estado || '').trim().toLowerCase()
-        if (rawSt === 'solicitando revisión' || rawSt === 'solicitando revision') {
-          targetObj.values.solicitando++
-        } else if (rawSt === 'en revisión' || rawSt === 'en revision') {
+        if (rawSt === 'solicitando revisión' || rawSt === 'solicitando revision' || rawSt === 'en revisión' || rawSt === 'en revision') {
           targetObj.values.enRevision++
+        } else if (rawSt === 'descartado' || rawSt === 'descartada') {
+          targetObj.values.descartados++
+        } else if (rawSt === 'crítico' || rawSt === 'critico') {
+          targetObj.values.criticos++
+        } else if (rawSt === 'documentación' || rawSt === 'documentacion') {
+          targetObj.values.documentacion++
         } else if (rawSt === 'rechazado' || rawSt === 'rechazada' || rawSt === 'rechazados') {
           targetObj.values.rechazados++
         } else if (rawSt === 'validado' || rawSt === 'validada' || rawSt === 'enviado' || rawSt === 'enviada') {
           targetObj.values.validados++
-        } else if (rawSt === 'pre-validado' || rawSt === 'pre-validada' || rawSt === 'prevalidado') {
-          targetObj.values.prevalidados++
-        } else if (rawSt === 'documentación' || rawSt === 'documentacion') {
-          targetObj.values.documentacion++
-        } else if (rawSt === 'crítico' || rawSt === 'critico') {
-          targetObj.values.criticos++
         }
       }
     })
 
-    const matrixRowsList = Object.values(equiposMap).map(row => ({
-      ...row,
-      total: row.values.solicitando + row.values.enRevision + row.values.rechazados + row.values.validados + (row.values.prevalidados || 0) + row.values.documentacion + (row.values.criticos || 0)
-    }))
+    const buildMatrixResult = (map) => {
+      const rowsList = Object.values(map).map(row => ({
+        ...row,
+        total: row.values.enRevision + row.values.descartados + row.values.criticos + row.values.documentacion + row.values.rechazados + row.values.validados
+      }))
 
-    const totalsObj = {
-      solicitando: matrixRowsList.reduce((acc, r) => acc + r.values.solicitando, 0),
-      enRevision: matrixRowsList.reduce((acc, r) => acc + r.values.enRevision, 0),
-      rechazados: matrixRowsList.reduce((acc, r) => acc + r.values.rechazados, 0),
-      validados: matrixRowsList.reduce((acc, r) => acc + r.values.validados, 0),
-      prevalidados: matrixRowsList.reduce((acc, r) => acc + (r.values.prevalidados || 0), 0),
-      documentacion: matrixRowsList.reduce((acc, r) => acc + r.values.documentacion, 0),
-      criticos: matrixRowsList.reduce((acc, r) => acc + (r.values.criticos || 0), 0)
+      const totalsObj = {
+        enRevision: rowsList.reduce((acc, r) => acc + r.values.enRevision, 0),
+        descartados: rowsList.reduce((acc, r) => acc + r.values.descartados, 0),
+        criticos: rowsList.reduce((acc, r) => acc + r.values.criticos, 0),
+        documentacion: rowsList.reduce((acc, r) => acc + r.values.documentacion, 0),
+        rechazados: rowsList.reduce((acc, r) => acc + r.values.rechazados, 0),
+        validados: rowsList.reduce((acc, r) => acc + r.values.validados, 0)
+      }
+
+      const grandTotalNum = totalsObj.enRevision + totalsObj.descartados + totalsObj.criticos + totalsObj.documentacion + totalsObj.rechazados + totalsObj.validados
+
+      return {
+        matrixRows: rowsList,
+        matrixTotals: totalsObj,
+        matrixGrandTotal: grandTotalNum
+      }
     }
 
-    const grandTotalNum = totalsObj.solicitando + totalsObj.enRevision + totalsObj.rechazados + totalsObj.validados + totalsObj.prevalidados + totalsObj.documentacion + totalsObj.criticos
+    const orig = buildMatrixResult(equiposOriginalMap)
+    const ampl = buildMatrixResult(equiposAmpliacionMap)
+
+    const combRows = [...orig.matrixRows, ...ampl.matrixRows]
+    const combTotals = {
+      enRevision: orig.matrixTotals.enRevision + ampl.matrixTotals.enRevision,
+      descartados: orig.matrixTotals.descartados + ampl.matrixTotals.descartados,
+      criticos: orig.matrixTotals.criticos + ampl.matrixTotals.criticos,
+      documentacion: orig.matrixTotals.documentacion + ampl.matrixTotals.documentacion,
+      rechazados: orig.matrixTotals.rechazados + ampl.matrixTotals.rechazados,
+      validados: orig.matrixTotals.validados + ampl.matrixTotals.validados
+    }
+    const combGrandTotal = orig.matrixGrandTotal + ampl.matrixGrandTotal
 
     return {
-      matrixRows: matrixRowsList,
-      matrixTotals: totalsObj,
-      matrixGrandTotal: grandTotalNum
+      matrixOriginal: orig,
+      matrixAmpliacion: ampl,
+      matrixData: {
+        matrixRows: combRows,
+        matrixTotals: combTotals,
+        matrixGrandTotal: combGrandTotal
+      }
     }
-  }, [avanceData.rows, resolveCuadrillaForObs, cuadrillaStaffMap, proyectoModal])
+  }, [avanceData.rows, resolveCuadrillaForObs, cuadrillaStaffMap])
 
   // Filtrado de filas detalladas
   const filteredRows = useMemo(() => {
     return (avanceData.rows || []).filter(r => {
-      const isAmex = String(r.id_sitio || '').toUpperCase().startsWith('AMEX')
-      if (proyectoModal === 'ORIGINAL' && isAmex) return false
-      if (proyectoModal === 'AMPLIACION' && !isAmex) return false
-
       const loc = getLocalidad(r.id_sitio)
       const q = searchTable.toLowerCase().trim()
       const matchSearch = !q ||
@@ -373,11 +385,8 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
 
       if (filterEstado === 'TODOS') return true
       const raw = (r.estado || '').trim().toLowerCase()
-      if (filterEstado === 'Solicitando Revisión') {
-        return raw === 'solicitando revisión' || raw === 'solicitando revision'
-      }
       if (filterEstado === 'En Revisión') {
-        return raw === 'en revisión' || raw === 'en revision'
+        return raw === 'en revisión' || raw === 'en revision' || raw === 'solicitando revisión' || raw === 'solicitando revision'
       }
       if (filterEstado === 'Validado') {
         return raw === 'validado' || raw === 'validada' || raw === 'enviado' || raw === 'enviada'
@@ -399,7 +408,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
       }
       return r.estado === filterEstado
     })
-  }, [avanceData.rows, searchTable, filterEstado, sitiosMap, proyectoModal])
+  }, [avanceData.rows, searchTable, filterEstado, sitiosMap])
 
   // Filas finales para el desglose (aplicando filtro de celda si está activo)
   const displayRows = useMemo(() => {
@@ -410,11 +419,17 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
       if (c !== selectedCellFilter.cuadrilla) return false
 
       const rawSt = (r.estado || '').trim().toLowerCase()
-      if (selectedCellFilter.colKey === 'solicitando') {
-        return rawSt === 'solicitando revisión' || rawSt === 'solicitando revision'
-      }
       if (selectedCellFilter.colKey === 'enRevision') {
-        return rawSt === 'en revisión' || rawSt === 'en revision'
+        return rawSt === 'en revisión' || rawSt === 'en revision' || rawSt === 'solicitando revisión' || rawSt === 'solicitando revision'
+      }
+      if (selectedCellFilter.colKey === 'descartados') {
+        return rawSt === 'descartado' || rawSt === 'descartada'
+      }
+      if (selectedCellFilter.colKey === 'criticos') {
+        return rawSt === 'crítico' || rawSt === 'critico'
+      }
+      if (selectedCellFilter.colKey === 'documentacion') {
+        return rawSt === 'documentación' || rawSt === 'documentacion'
       }
       if (selectedCellFilter.colKey === 'rechazados') {
         return rawSt === 'rechazado' || rawSt === 'rechazada' || rawSt === 'rechazados'
@@ -442,185 +457,50 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
     return fecha
   }, [fecha])
 
-  // Exportar reporte a Excel (.xlsx) con Hoja 1: Matriz de Cuadrillas y Hoja 2: Detalle (con LOCALIDAD al lado de CÓDIGO DE SITIO)
-  const handleExportXLSX = async () => {
-    if (matrixData.matrixRows.length === 0 && filteredRows.length === 0) return
-    setExportingXlsx(true)
-    try {
-      const { default: ExcelJS } = await import('exceljs')
-      const workbook = new ExcelJS.Workbook()
-      workbook.creator = 'COVEPA ERP'
-      workbook.created = new Date()
-
-      // Hoja 1: Matriz Ejecutiva por Equipos (Cuadrillas 1+2, 3+6, 4+5)
-      const wsMatriz = workbook.addWorksheet('Matriz_Equipos', {
-        views: [{ showGridLines: true }]
-      })
-
-      const matrixTableRows = matrixData.matrixRows.map(r => [
-        r.cuadrilla,
-        r.subtitulo || '',
-        r.tecnico,
-        r.values.solicitando || 0,
-        r.values.enRevision || 0,
-        r.values.rechazados || 0,
-        r.values.validados || 0,
-        r.values.documentacion || 0,
-        r.total || 0
-      ])
-
-      // Fila de Total Diario
-      matrixTableRows.push([
-        'TOTAL DIARIO',
-        '',
-        '',
-        matrixData.matrixTotals.solicitando || 0,
-        matrixData.matrixTotals.enRevision || 0,
-        matrixData.matrixTotals.rechazados || 0,
-        matrixData.matrixTotals.validados || 0,
-        matrixData.matrixTotals.documentacion || 0,
-        matrixData.matrixGrandTotal || 0
-      ])
-
-      wsMatriz.addTable({
-        name: `Matriz_Equipos_${fecha.replace(/-/g, '_')}`,
-        ref: 'A1',
-        headerRow: true,
-        totalsRow: false,
-        style: {
-          theme: 'TableStyleMedium9',
-          showRowStripes: true,
-          showColumnStripes: false
-        },
-        columns: [
-          { name: 'EQUIPO', filterButton: true },
-          { name: 'INTEGRANTES', filterButton: true },
-          { name: 'TÉCNICOS RESPONSABLES', filterButton: true },
-          { name: 'SOLICITANDO REVISIÓN', filterButton: true },
-          { name: 'EN REVISIÓN', filterButton: true },
-          { name: 'RECHAZADOS', filterButton: true },
-          { name: 'VALIDADOS', filterButton: true },
-          { name: 'DOCUMENTACIÓN', filterButton: true },
-          { name: 'TOTAL DIARIO', filterButton: true }
-        ],
-        rows: matrixTableRows
-      })
-
-      const matrixColWidths = [16, 20, 32, 24, 18, 16, 16, 18, 18]
-      matrixColWidths.forEach((w, i) => {
-        wsMatriz.getColumn(i + 1).width = w
-      })
-
-      wsMatriz.eachRow((row, rowNumber) => {
-        row.height = rowNumber === 1 ? 26 : 22
-        const isFoot = rowNumber === matrixTableRows.length + 1
-        row.eachCell((cell, colNumber) => {
-          if (isFoot) {
-            cell.font = { bold: true }
-          }
-          cell.alignment = {
-            vertical: 'middle',
-            horizontal: colNumber <= 3 ? 'left' : 'center'
-          }
-        })
-      })
-
-      // Hoja 2: Detalle Unitario de Observaciones
-      const wsDetalle = workbook.addWorksheet('Detalle_Observaciones', {
-        views: [{ showGridLines: true }]
-      })
-
-      const tableRows = filteredRows.map(r => [
-        r.id_obs || '',
-        r.tecnico || 'No asignado',
-        resolveCuadrillaForObs(r) || r.cuadrilla || 'Sin cuadrilla',
-        r.id_sitio || '',
-        getLocalidad(r.id_sitio) || '',
-        getZona(r.id_sitio) || '',
-        r.estado || '',
-        r.revisor || 'Sin revisor',
-        r.fecha_subsanacion ? getPeruDateStr(r.fecha_subsanacion) : '',
-        r.detalle || ''
-      ])
-
-      wsDetalle.addTable({
-        name: `Detalle_${fecha.replace(/-/g, '_')}`,
-        ref: 'A1',
-        headerRow: true,
-        totalsRow: false,
-        style: {
-          theme: 'TableStyleMedium9',
-          showRowStripes: true,
-          showColumnStripes: false
-        },
-        columns: [
-          { name: 'CÓD. OBSERVACIÓN', filterButton: true },
-          { name: 'NOMBRE DE TÉCNICO', filterButton: true },
-          { name: 'CUADRILLA', filterButton: true },
-          { name: 'CÓDIGO DE SITIO', filterButton: true },
-          { name: 'LOCALIDAD', filterButton: true },
-          { name: 'ZONA', filterButton: true },
-          { name: 'ESTADO COVEPA', filterButton: true },
-          { name: 'REVISADO POR', filterButton: true },
-          { name: 'FECHA DE REVISIÓN', filterButton: true },
-          { name: 'DETALLE DE OBSERVACIÓN', filterButton: true }
-        ],
-        rows: tableRows
-      })
-
-      const colWidths = [20, 26, 16, 18, 24, 18, 22, 16, 40]
-      colWidths.forEach((w, i) => {
-        wsDetalle.getColumn(i + 1).width = w
-      })
-
-      wsDetalle.eachRow((row, rowNumber) => {
-        row.height = rowNumber === 1 ? 24 : 20
-        row.eachCell((cell, colNumber) => {
-          cell.alignment = {
-            vertical: 'middle',
-            horizontal: colNumber === 1 || colNumber === 4 || colNumber === 6 || colNumber === 8 ? 'center' : 'left'
-          }
-        })
-      })
-
-      const buffer = await workbook.xlsx.writeBuffer()
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `Avance_COVEPA_${fecha}.xlsx`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      console.error('Error al exportar Excel de avance:', err)
-      alert('Error generando Excel: ' + err.message)
-    } finally {
-      setExportingXlsx(false)
-    }
+  // Captura el contenido visual completo del modal (excluyendo botones de PNG y Cerrar)
+  const captureModalCanvas = async () => {
+    if (!modalCardRef.current) return null
+    const { default: html2canvas } = await import('html2canvas')
+    return await html2canvas(modalCardRef.current, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      ignoreElements: (el) => {
+        return (
+          el.classList.contains('no-export') ||
+          el.classList.contains('prog-details-modal-actions') ||
+          el.classList.contains('prog-modal-close-btn')
+        )
+      }
+    })
   }
 
-  // Copiar imagen PNG del cuadro de resumen por cuadrillas al portapapeles
+  // Copiar imagen PNG del cuadro de resumen completo al portapapeles
   const handleCopyPNG = async () => {
     if (exportingPng) return
     setExportingPng(true)
     try {
-      const { copyAvanceDiaPNG } = await import('../../services/imageExportService')
-      const res = await copyAvanceDiaPNG({
-        fecha,
-        formattedDate,
-        rows: avanceData.rows || [],
-        stats,
-        matrixData,
-        statusColumns,
-        presentationMode,
-        filterEstado
-      })
-      if (res.method === 'clipboard') {
+      const canvas = await captureModalCanvas()
+      if (!canvas) throw new Error('No se pudo capturar la vista del modal')
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+      if (!blob) throw new Error('No se pudo generar la imagen PNG')
+
+      if (navigator.clipboard && navigator.clipboard.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ])
         setCopiedPng(true)
         setTimeout(() => setCopiedPng(false), 3000)
       } else {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `Avance_COVEPA_${fecha}.png`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
         alert('Imagen descargada en tu dispositivo (el portapapeles del navegador requiere HTTPS o permiso para copiar directamente).')
       }
     } catch (err) {
@@ -631,22 +511,25 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
     }
   }
 
-  // Descargar imagen PNG del cuadro de resumen por cuadrillas
+  // Descargar imagen PNG del cuadro de resumen completo
   const handleDownloadPNG = async () => {
     if (exportingPng) return
     setExportingPng(true)
     try {
-      const { downloadAvanceDiaPNG } = await import('../../services/imageExportService')
-      await downloadAvanceDiaPNG({
-        fecha,
-        formattedDate,
-        rows: avanceData.rows || [],
-        stats,
-        matrixData,
-        statusColumns,
-        presentationMode,
-        filterEstado
-      })
+      const canvas = await captureModalCanvas()
+      if (!canvas) throw new Error('No se pudo capturar la vista del modal')
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+      if (!blob) throw new Error('No se pudo generar la imagen PNG')
+
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Avance_COVEPA_${fecha}.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
     } catch (err) {
       console.error('Error al descargar imagen PNG:', err)
       alert('Error al descargar la imagen: ' + err.message)
@@ -676,7 +559,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
 
   return (
     <div className="prog-details-modal-overlay">
-      <div className="prog-details-modal prog-avance-modal">
+      <div ref={modalCardRef} className="prog-details-modal prog-avance-modal">
         {/* Cabecera del Modal */}
         <div className="prog-details-modal-header">
           <div className="prog-details-header-main">
@@ -693,48 +576,35 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
                     · {formattedDate}
                   </span>
                 </div>
-                <div className="prog-details-site-meta-pills" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-                  <div className="prog-proyecto-toggle">
-                    <button
-                      type="button"
-                      className={`prog-proj-btn ${proyectoModal === 'ALL' ? 'active' : ''}`}
-                      onClick={() => setProyectoModal('ALL')}
-                      title="Ver consolidado (Original + Ampliación)"
-                    >
-                      <Globe size={11} />
-                      <span>Todos</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`prog-proj-btn ${proyectoModal === 'ORIGINAL' ? 'active' : ''}`}
-                      onClick={() => setProyectoModal('ORIGINAL')}
-                      title="Ver únicamente Amazonas Original"
-                    >
-                      <span>Original</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`prog-proj-btn ${proyectoModal === 'AMPLIACION' ? 'active' : ''}`}
-                      onClick={() => setProyectoModal('AMPLIACION')}
-                      title="Ver únicamente Amazonas Ampliación"
-                    >
-                      <span>Ampliación</span>
-                    </button>
-                  </div>
-                  <span className="meta-pill" style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd', fontWeight: 'var(--fw-bold)' }}>
-                    {filteredRows.length} observaciones registradas
-                  </span>
-                  {avanceData.programacionesDelDia > 0 && (
-                    <span className="meta-pill">
-                      {avanceData.programacionesDelDia} {avanceData.programacionesDelDia === 1 ? 'jornada programada' : 'jornadas programadas'}
-                    </span>
-                  )}
-                </div>
               </div>
             </div>
           </div>
 
-          <div className="prog-details-modal-actions">
+          <div className="prog-details-modal-actions no-export" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <button
+              type="button"
+              className={`prog-export-btn prog-export-copy-btn ${copiedPng ? 'copied' : ''}`}
+              onClick={handleCopyPNG}
+              disabled={exportingPng || (matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0))}
+              title="Copiar imagen del cuadro de resumen por equipos al portapapeles para WhatsApp o correo (Ctrl+V)"
+              style={{ height: '32px', padding: '0 0.65rem', fontSize: 'var(--text-2xs)' }}
+            >
+              {copiedPng ? <Check size={13} /> : <Copy size={13} />}
+              <span>{copiedPng ? '¡Copiado!' : (exportingPng ? 'Generando...' : 'Copiar PNG')}</span>
+            </button>
+
+            <button
+              type="button"
+              className="prog-export-btn prog-export-png-btn"
+              onClick={handleDownloadPNG}
+              disabled={exportingPng || (matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0))}
+              title="Descargar imagen PNG del cuadro de resumen por equipos de alta definición"
+              style={{ height: '32px', padding: '0 0.65rem', fontSize: 'var(--text-2xs)' }}
+            >
+              <Image size={13} />
+              <span>{exportingPng ? 'Generando...' : 'Descargar PNG'}</span>
+            </button>
+
             <button
               type="button"
               className="prog-modal-close-btn"
@@ -756,37 +626,17 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
             title="Ver todas las observaciones del día"
           >
             <span className="stat-btn-label">Total</span>
-            <span className="stat-btn-val">{avanceData.rows?.length || 0}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`prog-modal-stat-btn stat-solicitando ${filterEstado === 'Solicitando Revisión' ? 'active' : ''}`}
-            onClick={() => setFilterEstado(prev => prev === 'Solicitando Revisión' ? 'TODOS' : 'Solicitando Revisión')}
-            title="Observaciones solicitando revisión técnica"
-          >
-            <span className="stat-btn-label text-solicitando">⏳ Solicitando</span>
-            <span className="stat-btn-val text-solicitando">{stats.solicitando || 0}</span>
+            <span className="stat-btn-val">{stats.total || 0}</span>
           </button>
 
           <button
             type="button"
             className={`prog-modal-stat-btn stat-revision ${filterEstado === 'En Revisión' ? 'active' : ''}`}
             onClick={() => setFilterEstado(prev => prev === 'En Revisión' ? 'TODOS' : 'En Revisión')}
-            title="Observaciones en proceso de revisión"
+            title="Observaciones en proceso o esperando revisión técnica"
           >
             <span className="stat-btn-label text-revision">🔍 En Revisión</span>
-            <span className="stat-btn-val text-revision">{stats.enRevision || 0}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`prog-modal-stat-btn stat-validado ${filterEstado === 'Validado' ? 'active' : ''}`}
-            onClick={() => setFilterEstado(prev => prev === 'Validado' ? 'TODOS' : 'Validado')}
-            title="Observaciones validadas conformes"
-          >
-            <span className="stat-btn-label text-validado">✓ Validadas</span>
-            <span className="stat-btn-val text-validado">{stats.validadas || 0}</span>
+            <span className="stat-btn-val text-revision">{(stats.solicitando || 0) + (stats.enRevision || 0)}</span>
           </button>
 
           <button
@@ -799,67 +649,45 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
             <span className="stat-btn-val text-descartado">{stats.descartadas || 0}</span>
           </button>
 
-          {(stats.rechazadas || 0) > 0 && (
-            <button
-              type="button"
-              className={`prog-modal-stat-btn stat-rechazado ${filterEstado === 'Rechazado' ? 'active' : ''}`}
-              onClick={() => setFilterEstado(prev => prev === 'Rechazado' ? 'TODOS' : 'Rechazado')}
-              title="Observaciones rechazadas por calidad"
-            >
-              <span className="stat-btn-label text-rechazado">✕ Rechazadas</span>
-              <span className="stat-btn-val text-rechazado">{stats.rechazadas || 0}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            className={`prog-modal-stat-btn stat-critico ${filterEstado === 'Crítico' ? 'active' : ''}`}
+            onClick={() => setFilterEstado(prev => prev === 'Crítico' ? 'TODOS' : 'Crítico')}
+            title="Observaciones críticas que no se ejecutarán"
+          >
+            <span className="stat-btn-label text-critico">⚠️ Críticos</span>
+            <span className="stat-btn-val text-critico">{stats.criticas || 0}</span>
+          </button>
 
-          {(stats.documentacion || 0) > 0 && (
-            <button
-              type="button"
-              className={`prog-modal-stat-btn stat-documentacion ${filterEstado === 'Documentación' ? 'active' : ''}`}
-              onClick={() => setFilterEstado(prev => prev === 'Documentación' ? 'TODOS' : 'Documentación')}
-              title="Observaciones en recopilación técnica de documentación"
-            >
-              <span className="stat-btn-label text-documentacion">📑 Documentación</span>
-              <span className="stat-btn-val text-documentacion">{stats.documentacion || 0}</span>
-            </button>
-          )}
-        </div>
+          <button
+            type="button"
+            className={`prog-modal-stat-btn stat-documentacion ${filterEstado === 'Documentación' ? 'active' : ''}`}
+            onClick={() => setFilterEstado(prev => prev === 'Documentación' ? 'TODOS' : 'Documentación')}
+            title="Observaciones en recopilación técnica de documentación"
+          >
+            <span className="stat-btn-label text-documentacion">📁 Documentación</span>
+            <span className="stat-btn-val text-documentacion">{stats.documentacion || 0}</span>
+          </button>
 
-        {/* Barra de Acciones y Exportación */}
-        <div className="prog-modal-search-bar" style={{ justifyContent: 'flex-end', borderBottom: 'none', padding: '0.5rem 0' }}>
-          <div className="prog-modal-export-cluster">
-            <button
-              type="button"
-              className={`prog-export-btn prog-export-copy-btn ${copiedPng ? 'copied' : ''}`}
-              onClick={handleCopyPNG}
-              disabled={exportingPng || (matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0))}
-              title="Copiar imagen del cuadro de resumen por equipos al portapapeles para WhatsApp o correo (Ctrl+V)"
-            >
-              {copiedPng ? <Check size={14} /> : <Copy size={14} />}
-              <span>{copiedPng ? '¡Copiado!' : (exportingPng ? 'Generando...' : 'Copiar PNG')}</span>
-            </button>
+          <button
+            type="button"
+            className={`prog-modal-stat-btn stat-rechazado ${filterEstado === 'Rechazado' ? 'active' : ''}`}
+            onClick={() => setFilterEstado(prev => prev === 'Rechazado' ? 'TODOS' : 'Rechazado')}
+            title="Observaciones rechazadas por calidad"
+          >
+            <span className="stat-btn-label text-rechazado">✕ Rechazadas</span>
+            <span className="stat-btn-val text-rechazado">{stats.rechazadas || 0}</span>
+          </button>
 
-            <button
-              type="button"
-              className="prog-export-btn prog-export-png-btn"
-              onClick={handleDownloadPNG}
-              disabled={exportingPng || (matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0))}
-              title="Descargar imagen PNG del cuadro de resumen por equipos de alta definición"
-            >
-              <Image size={14} />
-              <span>{exportingPng ? 'Generando...' : 'Descargar PNG'}</span>
-            </button>
-
-            <button
-              type="button"
-              className="prog-export-btn prog-export-xlsx-btn"
-              onClick={handleExportXLSX}
-              disabled={exportingXlsx || (matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0))}
-              title="Descargar reporte oficial en Excel (.xlsx)"
-            >
-              <Download size={14} />
-              <span>{exportingXlsx ? 'Excel...' : 'Excel (.xlsx)'}</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            className={`prog-modal-stat-btn stat-validado ${filterEstado === 'Validado' ? 'active' : ''}`}
+            onClick={() => setFilterEstado(prev => prev === 'Validado' ? 'TODOS' : 'Validado')}
+            title="Observaciones validadas conformes"
+          >
+            <span className="stat-btn-label text-validado">✓ Validadas</span>
+            <span className="stat-btn-val text-validado">{stats.validadas || 0}</span>
+          </button>
         </div>
 
         {/* Cuerpo de la Ventana: Cuadro de Avance Operativo por Equipos */}
@@ -876,19 +704,31 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, initialProyecto 
               <p>No hay observaciones registradas para el <strong>{fecha}</strong>.</p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {/* Matriz Principal Ejecutiva por Equipos (Equipo 1: C1+C2, Equipo 2: C3+C6, Equipo 3: C4+C5) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {/* Matriz 1: Amazonas Original (Equipo 1, Equipo 2 y Equipo 3) */}
               <CuadrillasMatrixTable
                 icon={<TrendingUp size={18} color="#003060" />}
-                title="Resumen Operativo por Equipos"
-                subtitle={`Distribución consolidada por equipos para la jornada ${formattedDate || fecha}`}
-                badgeText={`${matrixData.matrixGrandTotal} Obs. Totales`}
+                title="Amazonas Original"
                 groupColumnLabel="Equipo"
                 techColumnLabel="Técnicos"
                 columns={statusColumns}
-                rows={matrixData.matrixRows}
-                totals={matrixData.matrixTotals}
-                grandTotal={matrixData.matrixGrandTotal}
+                rows={matrixOriginal.matrixRows}
+                totals={matrixOriginal.matrixTotals}
+                grandTotal={matrixOriginal.matrixGrandTotal}
+                footLabel="TOTAL DIARIO"
+                presentationMode={presentationMode}
+              />
+
+              {/* Matriz 2: Amazonas Ampliación (Equipo 4) */}
+              <CuadrillasMatrixTable
+                icon={<TrendingUp size={18} color="#0284c7" />}
+                title="Amazonas Ampliación"
+                groupColumnLabel="Equipo"
+                techColumnLabel="Técnicos"
+                columns={statusColumns}
+                rows={matrixAmpliacion.matrixRows}
+                totals={matrixAmpliacion.matrixTotals}
+                grandTotal={matrixAmpliacion.matrixGrandTotal}
                 footLabel="TOTAL DIARIO"
                 presentationMode={presentationMode}
               />

@@ -61,22 +61,13 @@ const PORTAL_PAGES = [
     colorTheme: 'cyan'
   },
   {
-    key: 'kmz',
-    title: 'Zona de Informes',
-    path: '/kmz',
-    icon: FileSpreadsheet,
-    badge: 'Informes Excel',
-    description: 'Reportes ejecutivos de programación diaria, consolidados por cuadrilla y matriz general de observaciones.',
-    colorTheme: 'purple'
-  },
-  {
     key: 'reportes',
-    title: 'Reportes Automáticos',
+    title: 'Reportes',
     path: '/reportes',
-    icon: FileBarChart,
-    badge: 'Despacho por Correo',
-    description: 'Configuración y monitoreo de reportes diarios y semanales despachados por correo electrónico.',
-    colorTheme: 'rose'
+    icon: FileSpreadsheet,
+    badge: 'Excel & Correo',
+    description: 'Gestión ejecutiva de reportes en Excel (.xlsx), programación diaria, matrices por equipos y automatización por correo.',
+    colorTheme: 'purple'
   }
 ]
 

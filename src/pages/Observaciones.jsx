@@ -1633,108 +1633,116 @@ export default function Observaciones() {
     <div className="obs-container">
       {/* ── ZONA FIJA SUPERIOR: MEDIDORES + TOOLBAR + ERROR (PÁGINA ESTÁTICA) ── */}
       <div className="obs-fixed-top">
-        <MetricGrid columns={8}>
-        <MetricCard
-          icon={<ClipboardList size={22} />}
-          label="Total Observaciones"
-          value={loadingKpis ? '—' : kpis.total.toLocaleString()}
-          subtitle="de 4,116 registros"
-          variant="navy"
-          onClick={() => setEstadoCovepa('')}
-          active={!estadoCovepa}
-          title="Ver todas las observaciones registradas"
-        />
-        <MetricCard
-          icon={<AlertCircle size={22} />}
-          label="Pendientes"
-          value={loadingKpis ? '—' : kpis.pendientes.toLocaleString()}
-          subtitle="Por subsanar en campo"
-          variant="amber"
-          onClick={() => setEstadoCovepa(prev => prev === 'Pendiente' ? '' : 'Pendiente')}
-          active={estadoCovepa === 'Pendiente'}
-          title="Filtrar por observaciones pendientes de subsanar"
-        />
-        <MetricCard
-          icon={<Clock size={22} />}
-          label="Solicitando Revisión"
-          value={loadingKpis ? '—' : (kpis.solicitando || 0).toLocaleString()}
-          subtitle="En espera de revisión"
-          variant="orange"
-          onClick={() => setEstadoCovepa(prev => (prev === 'Solicitando Revisión' || prev === 'Solicitando Revision') ? '' : 'Solicitando Revisión')}
-          active={estadoCovepa === 'Solicitando Revisión' || estadoCovepa === 'Solicitando Revision'}
-          title="Filtrar por observaciones que solicitan revisión"
-        />
-        <MetricCard
-          icon={<UploadCloud size={22} />}
-          label="En Revisión"
-          value={loadingKpis ? '—' : (kpis.enRevision || 0).toLocaleString()}
-          subtitle="Auditoría en proceso"
-          variant="sky"
-          onClick={() => setEstadoCovepa(prev => (prev === 'En Revision' || prev === 'En Revisión') ? '' : 'En Revisión')}
-          active={estadoCovepa === 'En Revision' || estadoCovepa === 'En Revisión'}
-          title="Filtrar por observaciones en proceso de auditoría"
-        />
-        <MetricCard
-          icon={<FileText size={22} />}
-          label="Documentación"
-          value={loadingKpis ? '—' : (kpis.documentacion || 0).toLocaleString()}
-          subtitle="En proceso de informe"
-          variant="indigo"
-          onClick={() => setEstadoCovepa(prev => (prev === 'Documentación' || prev === 'Documentacion') ? '' : 'Documentación')}
-          active={estadoCovepa === 'Documentación' || estadoCovepa === 'Documentacion'}
-          title="Filtrar por observaciones en proceso de documentación"
-        />
-        <MetricCard
-          icon={<Camera size={22} />}
-          label="Pre-validadas"
-          value={loadingKpis ? '—' : (kpis.prevalidadas || 0).toLocaleString()}
-          subtitle="Fotos pendientes"
-          variant="teal"
-          onClick={() => setEstadoCovepa(prev => (prev === 'Pre-validado' || prev === 'Prevalidado') ? '' : 'Pre-validado')}
-          active={estadoCovepa === 'Pre-validado' || estadoCovepa === 'Prevalidado'}
-          title="Filtrar por observaciones pre-validadas que requieren registro fotográfico"
-        />
-        <MetricCard
-          icon={<CheckCircle2 size={22} />}
-          label="Validadas"
-          value={loadingKpis ? '—' : (kpis.validadas || 0).toLocaleString()}
-          subtitle="Subsanación conforme"
-          variant="emerald"
-          onClick={() => setEstadoCovepa(prev => prev === 'Validado' ? '' : 'Validado')}
-          active={estadoCovepa === 'Validado'}
-          title="Filtrar por observaciones validadas formalmente"
-        />
-        <MetricCard
-          icon={<AlertOctagon size={22} />}
-          label="Críticas"
-          value={loadingKpis ? '—' : (kpis.criticas || 0).toLocaleString()}
-          subtitle="Inviable recursos"
-          variant="rose"
-          onClick={() => setEstadoCovepa(prev => (prev === 'Crítico' || prev === 'Critico') ? '' : 'Crítico')}
-          active={estadoCovepa === 'Crítico' || estadoCovepa === 'Critico'}
-          title="Filtrar por observaciones críticas que no se ejecutarán por exceder recursos"
-        />
-        <MetricCard
-          icon={<AlertTriangle size={22} />}
-          label="Rechazadas"
-          value={loadingKpis ? '—' : (kpis.rechazadas || 0).toLocaleString()}
-          subtitle="Observadas por calidad"
-          variant="rose"
-          onClick={() => setEstadoCovepa(prev => prev === 'Rechazado' ? '' : 'Rechazado')}
-          active={estadoCovepa === 'Rechazado'}
-          title="Filtrar por observaciones rechazadas que requieren corrección"
-        />
-        <MetricCard
-          icon={<Ban size={22} />}
-          label="Descartadas"
-          value={loadingKpis ? '—' : (kpis.descartadas || 0).toLocaleString()}
-          subtitle="Cerradas / no procede"
-          variant="purple"
-          onClick={() => setEstadoCovepa(prev => prev === 'Descartado' ? '' : 'Descartado')}
-          active={estadoCovepa === 'Descartado'}
-          title="Filtrar por observaciones descartadas"
-        />
-      </MetricGrid>
+        <MetricGrid columns={5} className="obs-metric-grid-5x2">
+          {/* Fila 1: Total y Flujo de Gestión Operativa */}
+          <MetricCard
+            icon={<ClipboardList size={20} />}
+            label="Total Observaciones"
+            value={loadingKpis ? '—' : kpis.total.toLocaleString()}
+            subtitle={
+              loadingKpis ? 'Cargando...' :
+              proyecto === 'ampliacion' ? 'de 1,236 registros' :
+              proyecto === 'original' ? 'de 4,116 registros' :
+              'de 5,352 registros'
+            }
+            variant="navy"
+            onClick={() => setEstadoCovepa('')}
+            active={!estadoCovepa}
+            title="Ver todas las observaciones registradas"
+          />
+          <MetricCard
+            icon={<AlertCircle size={20} />}
+            label="Pendientes"
+            value={loadingKpis ? '—' : kpis.pendientes.toLocaleString()}
+            subtitle="Por subsanar en campo"
+            variant="amber"
+            onClick={() => setEstadoCovepa(prev => prev === 'Pendiente' ? '' : 'Pendiente')}
+            active={estadoCovepa === 'Pendiente'}
+            title="Filtrar por observaciones pendientes de subsanar"
+          />
+          <MetricCard
+            icon={<Clock size={20} />}
+            label="Solicitando Revisión"
+            value={loadingKpis ? '—' : (kpis.solicitando || 0).toLocaleString()}
+            subtitle="En espera de revisión"
+            variant="orange"
+            onClick={() => setEstadoCovepa(prev => (prev === 'Solicitando Revisión' || prev === 'Solicitando Revision') ? '' : 'Solicitando Revisión')}
+            active={estadoCovepa === 'Solicitando Revisión' || estadoCovepa === 'Solicitando Revision'}
+            title="Filtrar por observaciones que solicitan revisión"
+          />
+          <MetricCard
+            icon={<UploadCloud size={20} />}
+            label="En Revisión"
+            value={loadingKpis ? '—' : (kpis.enRevision || 0).toLocaleString()}
+            subtitle="Auditoría en proceso"
+            variant="sky"
+            onClick={() => setEstadoCovepa(prev => (prev === 'En Revision' || prev === 'En Revisión') ? '' : 'En Revisión')}
+            active={estadoCovepa === 'En Revision' || estadoCovepa === 'En Revisión'}
+            title="Filtrar por observaciones en proceso de auditoría"
+          />
+          <MetricCard
+            icon={<FileText size={20} />}
+            label="Documentación"
+            value={loadingKpis ? '—' : (kpis.documentacion || 0).toLocaleString()}
+            subtitle="En proceso de informe"
+            variant="indigo"
+            onClick={() => setEstadoCovepa(prev => (prev === 'Documentación' || prev === 'Documentacion') ? '' : 'Documentación')}
+            active={estadoCovepa === 'Documentación' || estadoCovepa === 'Documentacion'}
+            title="Filtrar por observaciones en proceso de documentación"
+          />
+
+          {/* Fila 2: Pre-validación, Dictámenes y Cierres */}
+          <MetricCard
+            icon={<Camera size={20} />}
+            label="Pre-validadas"
+            value={loadingKpis ? '—' : (kpis.prevalidadas || 0).toLocaleString()}
+            subtitle="Fotos pendientes"
+            variant="teal"
+            onClick={() => setEstadoCovepa(prev => (prev === 'Pre-validado' || prev === 'Prevalidado') ? '' : 'Pre-validado')}
+            active={estadoCovepa === 'Pre-validado' || estadoCovepa === 'Prevalidado'}
+            title="Filtrar por observaciones pre-validadas que requieren registro fotográfico"
+          />
+          <MetricCard
+            icon={<CheckCircle2 size={20} />}
+            label="Validadas"
+            value={loadingKpis ? '—' : (kpis.validadas || 0).toLocaleString()}
+            subtitle="Subsanación conforme"
+            variant="emerald"
+            onClick={() => setEstadoCovepa(prev => prev === 'Validado' ? '' : 'Validado')}
+            active={estadoCovepa === 'Validado'}
+            title="Filtrar por observaciones validadas formalmente"
+          />
+          <MetricCard
+            icon={<AlertTriangle size={20} />}
+            label="Rechazadas"
+            value={loadingKpis ? '—' : (kpis.rechazadas || 0).toLocaleString()}
+            subtitle="Observadas por calidad"
+            variant="rose"
+            onClick={() => setEstadoCovepa(prev => prev === 'Rechazado' ? '' : 'Rechazado')}
+            active={estadoCovepa === 'Rechazado'}
+            title="Filtrar por observaciones rechazadas que requieren corrección"
+          />
+          <MetricCard
+            icon={<AlertOctagon size={20} />}
+            label="Críticas"
+            value={loadingKpis ? '—' : (kpis.criticas || 0).toLocaleString()}
+            subtitle="Inviable recursos"
+            variant="rose"
+            onClick={() => setEstadoCovepa(prev => (prev === 'Crítico' || prev === 'Critico') ? '' : 'Crítico')}
+            active={estadoCovepa === 'Crítico' || estadoCovepa === 'Critico'}
+            title="Filtrar por observaciones críticas que no se ejecutarán por exceder recursos"
+          />
+          <MetricCard
+            icon={<Ban size={20} />}
+            label="Descartadas"
+            value={loadingKpis ? '—' : (kpis.descartadas || 0).toLocaleString()}
+            subtitle="Cerradas / no procede"
+            variant="purple"
+            onClick={() => setEstadoCovepa(prev => prev === 'Descartado' ? '' : 'Descartado')}
+            active={estadoCovepa === 'Descartado'}
+            title="Filtrar por observaciones descartadas"
+          />
+        </MetricGrid>
 
       {/* ── Toolbar Filtros — Fila 1: Buscador + Filtros | Fila 2: Acciones + Switch ── */}
       <div className="obs-toolbar">

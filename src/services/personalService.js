@@ -208,7 +208,7 @@ export async function fetchPersonal(forceRefresh = false) {
         .then(res => res, err => ({ data: null, error: err })),
       supabase
         .from('personal_cuadrillas')
-        .select('id_personal, nombre_completo, cuadrilla, cargo, activo')
+        .select('id_personal, cuadrilla, cargo, activo')
         .eq('activo', true)
         .then(res => res, err => ({ data: null, error: err }))
     ])
@@ -234,20 +234,15 @@ export async function fetchPersonal(forceRefresh = false) {
       })
     }
 
-    // 3. Mapear la tabla oficial 'personal_cuadrillas' en la base de datos local
+    // 3. Mapear la tabla oficial 'personal_cuadrillas' vinculada por id_personal
     const memberCuadrillaMap = {}
     let hasDbCuadrillas = false
-    let localDbCuadrillas = []
 
     if (!cuadrillasRes?.error && cuadrillasRes?.data && cuadrillasRes.data.length > 0) {
       hasDbCuadrillas = true
-      localDbCuadrillas = cuadrillasRes.data
       cuadrillasRes.data.forEach(row => {
         if (row.id_personal) {
           memberCuadrillaMap[row.id_personal] = { cuadrilla: row.cuadrilla, cargo: row.cargo }
-        }
-        if (row.nombre_completo) {
-          memberCuadrillaMap[row.nombre_completo.toUpperCase().trim()] = { cuadrilla: row.cuadrilla, cargo: row.cargo }
         }
       })
     }
@@ -261,40 +256,10 @@ export async function fetchPersonal(forceRefresh = false) {
       })
     }
 
-    // 4. Mapear todo el personal externo
+    // 4. Mapear todo el personal externo vinculando su cuadrilla por id_personal
     const list = extPersonal.map(p =>
       mapExternalPerson(p, memberCuadrillaMap, profileMap, profileByEmailMap)
     )
-
-    // 5. Si la base de datos local tiene personal_cuadrillas, incorporar integrantes de la BD que no estén en la base externa
-    if (hasDbCuadrillas && localDbCuadrillas.length > 0) {
-      localDbCuadrillas.forEach(cRow => {
-        const exists = list.some(p => p.id === cRow.id_personal || (p.nombre_completo || '').toUpperCase() === (cRow.nombre_completo || '').toUpperCase())
-        if (!exists) {
-          list.push({
-            id: cRow.id_personal,
-            id_personal: cRow.id_personal,
-            nombre_completo: cRow.nombre_completo,
-            cargo: cRow.cargo || 'CONDUCTOR',
-            cuadrilla: cRow.cuadrilla,
-            empresa: 'COVEPA',
-            activo: cRow.activo !== false,
-            estado: 'Activo'
-          })
-        }
-      })
-    } else {
-      // Fallback si aún no se ejecutó el script SQL
-      CONDUCTORES_OFICIALES.forEach(cDef => {
-        const exists = list.some(p => {
-          const full = (p.nombre_completo || '').toUpperCase()
-          return full.includes(cDef.nombre) && full.includes(cDef.apellido)
-        })
-        if (!exists) {
-          list.push(mapExternalPerson(cDef, memberCuadrillaMap, profileMap, profileByEmailMap))
-        }
-      })
-    }
 
     _cachedPersonal = list
     _cachedPersonalAt = Date.now()
@@ -632,14 +597,13 @@ export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idC
       }
     }
 
-    // B. Asignar al Técnico seleccionado
+    // B. Asignar al Técnico seleccionado (relación por id_personal con la tabla externa)
     if (idTecnico) {
       const tec = (allStaff || []).find(p => p.id === idTecnico || p.id_personal === idTecnico)
       await supabase
         .from('personal_cuadrillas')
         .upsert({
           id_personal: idTecnico,
-          nombre_completo: tec?.nombre_completo || 'Técnico',
           cargo: tec?.cargo || 'TÉCNICO',
           cuadrilla: cName,
           activo: true,
@@ -647,14 +611,13 @@ export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idC
         }, { onConflict: 'id_personal' })
     }
 
-    // C. Asignar al Conductor seleccionado
+    // C. Asignar al Conductor seleccionado (relación por id_personal con la tabla externa)
     if (idConductor) {
       const cond = (allStaff || []).find(p => p.id === idConductor || p.id_personal === idConductor)
       await supabase
         .from('personal_cuadrillas')
         .upsert({
           id_personal: idConductor,
-          nombre_completo: cond?.nombre_completo || 'Conductor',
           cargo: cond?.cargo || 'CONDUCTOR',
           cuadrilla: cName,
           activo: true,
@@ -673,14 +636,13 @@ export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idC
 // ────────────────────────────────────────────────────────────
 // 8. Actualizar cuadrilla de un integrante en la tabla local `personal_cuadrillas`
 // ────────────────────────────────────────────────────────────
-export async function updatePersonalCuadrilla(idPersonal, nuevaCuadrilla, nombreCompleto = '', cargo = 'TÉCNICO') {
+export async function updatePersonalCuadrilla(idPersonal, nuevaCuadrilla, cargo = 'TÉCNICO') {
   if (!idPersonal) return { error: 'ID de personal requerido' }
   try {
     const { data, error } = await supabase
       .from('personal_cuadrillas')
       .upsert({
         id_personal: idPersonal,
-        nombre_completo: nombreCompleto,
         cargo,
         cuadrilla: nuevaCuadrilla,
         activo: true,

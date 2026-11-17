@@ -37,6 +37,10 @@ export default function CuadrillasMatrixTable({
         return 'has-val val-rose'
       case 'emerald':
         return 'has-val val-emerald'
+      case 'purple':
+        return 'has-val val-purple'
+      case 'slate':
+        return 'has-val val-slate'
       default:
         return 'has-val'
     }
@@ -50,6 +54,8 @@ export default function CuadrillasMatrixTable({
     if (col.badgeVariant === 'sky') classes.push('th-sky')
     if (col.badgeVariant === 'rose') classes.push('th-rose')
     if (col.badgeVariant === 'emerald') classes.push('th-emerald')
+    if (col.badgeVariant === 'purple') classes.push('th-purple')
+    if (col.badgeVariant === 'slate') classes.push('th-slate')
     return classes.join(' ')
   }
 
@@ -87,7 +93,7 @@ export default function CuadrillasMatrixTable({
           <thead>
             <tr>
               <th className="th-left">{groupColumnLabel}</th>
-              <th className="th-left">{techColumnLabel}</th>
+              <th className="th-left th-tech">{techColumnLabel}</th>
               {columns.map(col => (
                 <th
                   key={col.key}
@@ -132,7 +138,7 @@ export default function CuadrillasMatrixTable({
                         </div>
                       )}
                     </td>
-                    <td className="td-left" style={{ color: 'var(--text-secondary)' }}>
+                    <td className="td-left td-tech" style={{ color: 'var(--text-secondary)' }} title={techName}>
                       {techName}
                     </td>
                     {columns.map(col => {

@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { getAvancePorFecha } from './dashboardService'
 import { getCachedSitiosAsignados, getZonaBySiteId } from './sitiosService'
-import { toLocalDateString, getPeruDateStr, getAyerPeruStr } from '../utils/helpers'
+import { toLocalDateString, getPeruDateStr, getAyerPeruStr, formatNombrePersona } from '../utils/helpers'
 import { esRevisorGilat, esRegistroSoloComentario } from './auditoriaSyncService'
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService'
 
@@ -28,8 +28,8 @@ export const DEFAULT_CONFIG_DIARIO_AMPLIACION = {
   hora_envio: '21:00:00',
   destinatarios: ['ccondor@covepa.pe'],
   destinatarios_cc: [],
-  asunto: '[COVEPA] Reporte Diario de Observaciones (Amazonas Ampliación) - {fecha}',
-  notas_jornada: 'Cierre operativo de observaciones de la jornada - Amazonas Ampliación.',
+  asunto: 'Reporte Diario de Levantamiento de Observaciones Amazonas Ampliación - Zona 2 y Zona 7 - {fecha}',
+  notas_jornada: '',
   periodo_reporte: 'dia_actual',
   destinatario_prueba: ''
 }
@@ -40,7 +40,7 @@ export const DEFAULT_CONFIG_DIARIO_INTERNO = {
   hora_envio: '21:30:00',
   destinatarios: ['ccondor@covepa.pe'],
   destinatarios_cc: [],
-  asunto: '[COVEPA INTERNO] Resumen Operativo de Jornada - {fecha}',
+  asunto: 'Reporte Interno Diario - {fecha}',
   notas_jornada: 'Reporte interno de cuadrillas y avance de observaciones trabajadas en el día.',
   periodo_reporte: 'dia_actual', // 'dia_actual' | 'dia_anterior'
   destinatario_prueba: ''
@@ -101,7 +101,7 @@ export async function fetchConfiguracionReporte(tipo = 'diario') {
   try {
     const raw = localStorage.getItem(storageKey)
     if (raw) localPrev = JSON.parse(raw)
-  } catch (_) {}
+  } catch (_) { }
 
   try {
     const { data, error } = await supabase
@@ -134,7 +134,7 @@ export async function fetchConfiguracionReporte(tipo = 'diario') {
             .from('configuracion_reportes_correo')
             .update({ notas_jornada: '' })
             .eq('id', configId)
-            .then(() => {})
+            .then(() => { })
         }
       }
 
@@ -169,7 +169,7 @@ export async function fetchConfiguracionReporte(tipo = 'diario') {
         hora_envio: (parsed.hora_envio || defaults.hora_envio).slice(0, 5)
       }
     }
-  } catch (_) {}
+  } catch (_) { }
 
   return { ...defaults, hora_envio: defaults.hora_envio.slice(0, 5) }
 }
@@ -222,7 +222,7 @@ export async function saveConfiguracionReporte(config, userEmail = null, tipo = 
   }
   try {
     localStorage.setItem(storageKey, JSON.stringify(fullLocal))
-  } catch (_) {}
+  } catch (_) { }
 
   // Enviar a Supabase solo las columnas que la base de datos admite actualmente
   if (dbColumnsSupport.periodo_reporte !== false && config.periodo_reporte) {
@@ -310,12 +310,12 @@ function calcularTiemposRevision(events = [], obs = {}) {
   // 2. Revisado: evento donde se validó, rechazó o descartó
   const finalEvent = revEvent
     ? validEvents.find(e =>
-        (e.estado_nuevo === 'Validado' || e.estado_nuevo === 'Rechazado' || e.estado_nuevo === 'Descartado') &&
-        new Date(e.created_at) >= new Date(revEvent.created_at)
-      )
+      (e.estado_nuevo === 'Validado' || e.estado_nuevo === 'Rechazado' || e.estado_nuevo === 'Descartado') &&
+      new Date(e.created_at) >= new Date(revEvent.created_at)
+    )
     : validEvents.slice().reverse().find(e =>
-        e.estado_nuevo === 'Validado' || e.estado_nuevo === 'Rechazado' || e.estado_nuevo === 'Descartado'
-      )
+      e.estado_nuevo === 'Validado' || e.estado_nuevo === 'Rechazado' || e.estado_nuevo === 'Descartado'
+    )
 
   const estadoActual = (obs.estado || obs.estado_covepa || '').trim()
   const isEnEspera = estadoActual === 'En Revisión' || estadoActual === 'En Revision' ||
@@ -394,11 +394,11 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
   const isOriginal = tramo === 'original'
 
   const rawRows = (avance?.rows || []).filter(r => {
-    const st = (r.estado || r.estado_covepa || '').trim()
-    if (st === 'Documentación' || st === 'Documentacion') return false
-    const sId = String(r.id_sitio || '').toUpperCase()
-    if (isAmpliacion) return sId.startsWith('AMEX-')
-    if (isOriginal) return !sId.startsWith('AMEX-')
+    const sId = String(r.id_sitio || r.codigo_lugar || '').toUpperCase().trim()
+    const oId = String(r.id_obs || '').toUpperCase().trim()
+    const esDeAmpliacion = sId.startsWith('AMEX') || oId.startsWith('AMEX')
+    if (isAmpliacion) return esDeAmpliacion
+    if (isOriginal) return !esDeAmpliacion
     return true
   })
   const baseRows = rawRows.map(r => {
@@ -478,6 +478,10 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
   const rechazadas = rows.filter(r => r.estado === 'Rechazado')
   const descartadas = rows.filter(r => r.estado === 'Descartado')
   const enEspera = rows.filter(r => r.estado === 'Solicitando Revisión' || r.estado === 'En Revisión')
+  const documentacion = rows.filter(r => r.estado === 'Documentación' || r.estado === 'Documentacion')
+
+  // Total de observaciones trabajadas en la jornada = suma de los medidores inferiores
+  const totalMedidores = validadas.length + rechazadas.length + enEspera.length + descartadas.length + documentacion.length
 
   let fechaFormateada = targetDate
   try {
@@ -490,19 +494,20 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
       day: 'numeric'
     })
     fechaFormateada = fechaFormateada.charAt(0).toUpperCase() + fechaFormateada.slice(1)
-  } catch (_) {}
+  } catch (_) { }
 
   return {
     fechaStr: targetDate,
     fechaFormateada,
     stats: {
-      validadas: statsAvance.validadas ?? validadas.length,
-      prevalidadas: statsAvance.prevalidadas ?? prevalidadas.length,
-      criticas: statsAvance.criticas ?? criticas.length,
-      rechazadas: statsAvance.rechazadas ?? rechazadas.length,
-      descartadas: statsAvance.descartadas ?? descartadas.length,
-      enEspera: ((statsAvance.solicitando || 0) + (statsAvance.enRevision || 0)) || enEspera.length,
-      total: rows.length,
+      validadas: validadas.length,
+      prevalidadas: prevalidadas.length,
+      criticas: criticas.length,
+      rechazadas: rechazadas.length,
+      descartadas: descartadas.length,
+      enEspera: enEspera.length,
+      documentacion: documentacion.length,
+      total: totalMedidores,
       tiempoPromedioRevision: tiempoPromedioHoras,
       tiempoPromedioRevisionTexto: tiempoPromedioTexto,
       totalConTiempo: countConTiempo
@@ -512,7 +517,8 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
     criticas,
     rechazadas,
     descartadas,
-    enEspera
+    enEspera,
+    documentacion
   }
 }
 
@@ -542,7 +548,7 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
       day: 'numeric'
     })
     fechaFormateada = fechaFormateada.charAt(0).toUpperCase() + fechaFormateada.slice(1)
-  } catch (_) {}
+  } catch (_) { }
 
   const [avance, sitios, personal] = await Promise.all([
     getAvancePorFecha(targetDate),
@@ -571,7 +577,7 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
       const cargo = (p.cargo || '').trim().toUpperCase()
       if (cAsig && cAsig.startsWith('CUADRILLA') && (cargo.includes('TÉCNICO') || cargo.includes('TECNICO') || cargo.includes('SUPERVISOR'))) {
         const nom = (p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim()
-        if (nom) cuadrillaStaffMap[cAsig] = nom
+        if (nom) cuadrillaStaffMap[cAsig] = formatNombrePersona(nom)
       }
     })
   }
@@ -590,14 +596,14 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
   const tecC6 = getCuadrillaTecnico('CUADRILLA 6')
   const tecC7 = getCuadrillaTecnico('CUADRILLA 7')
 
-  // Regla de Negocio: Equipo 1 = C1+C2, Equipo 2 = C3+C6, Equipo 3 = C4+C5, Equipo 4 = C7
-  const equiposMap = {
+  // Regla de Negocio: Amazonas Original (Equipos 1, 2, 3) y Amazonas Ampliación (Equipo 4)
+  const equiposOriginalMap = {
     'EQUIPO 1': {
       id: 'EQUIPO 1',
       cuadrilla: 'EQUIPO 1',
       subtitulo: 'Cuadrilla 1 y 2',
       tecnico: [tecC1, tecC2].filter(Boolean).join(' · ') || 'Técnicos Equipo 1',
-      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
       total: 0
     },
     'EQUIPO 2': {
@@ -605,7 +611,7 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
       cuadrilla: 'EQUIPO 2',
       subtitulo: 'Cuadrilla 3 y 6',
       tecnico: [tecC3, tecC6].filter(Boolean).join(' · ') || 'Técnicos Equipo 2',
-      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
       total: 0
     },
     'EQUIPO 3': {
@@ -613,15 +619,18 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
       cuadrilla: 'EQUIPO 3',
       subtitulo: 'Cuadrilla 4 y 5',
       tecnico: [tecC4, tecC5].filter(Boolean).join(' · ') || 'Técnicos Equipo 3',
-      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
       total: 0
-    },
+    }
+  }
+
+  const equiposAmpliacionMap = {
     'EQUIPO 4': {
       id: 'EQUIPO 4',
       cuadrilla: 'EQUIPO 4',
       subtitulo: 'Cuadrilla 7',
       tecnico: tecC7 || 'Por Asignar',
-      values: { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 },
+      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
       total: 0
     }
   }
@@ -669,23 +678,21 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
     const zonaFinal = (r.zona && r.zona !== '-') ? r.zona : (sInfo.zona || getZonaBySiteId(r.id_sitio))
 
     // Computar conteos por equipo
-    const targetObj = equiposMap[targetEquipoKey]
+    const targetObj = equiposOriginalMap[targetEquipoKey] || equiposAmpliacionMap[targetEquipoKey]
     if (targetObj) {
       const rawSt = (r.estado || r.estado_covepa || '').trim().toLowerCase()
-      if (rawSt === 'solicitando revisión' || rawSt === 'solicitando revision') {
-        targetObj.values.solicitando++
-      } else if (rawSt === 'en revisión' || rawSt === 'en revision') {
+      if (rawSt === 'solicitando revisión' || rawSt === 'solicitando revision' || rawSt === 'en revisión' || rawSt === 'en revision') {
         targetObj.values.enRevision++
+      } else if (rawSt === 'descartado' || rawSt === 'descartada') {
+        targetObj.values.descartados++
+      } else if (rawSt === 'crítico' || rawSt === 'critico' || rawSt === 'crítica' || rawSt === 'critica') {
+        targetObj.values.criticos++
+      } else if (rawSt === 'documentación' || rawSt === 'documentacion') {
+        targetObj.values.documentacion++
       } else if (rawSt === 'rechazado' || rawSt === 'rechazada' || rawSt === 'rechazados') {
         targetObj.values.rechazados++
       } else if (rawSt === 'validado' || rawSt === 'validada' || rawSt === 'enviado' || rawSt === 'enviada') {
         targetObj.values.validados++
-      } else if (rawSt === 'pre-validado' || rawSt === 'prevalidado' || rawSt === 'pre-validada') {
-        targetObj.values.prevalidados++
-      } else if (rawSt === 'documentación' || rawSt === 'documentacion') {
-        targetObj.values.documentacion++
-      } else if (rawSt === 'crítico' || rawSt === 'critico' || rawSt === 'crítica' || rawSt === 'critica') {
-        targetObj.values.criticos++
       }
     }
 
@@ -699,38 +706,61 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
     }
   })
 
-  const matrixRowsList = Object.values(equiposMap).map(row => ({
-    ...row,
-    total: row.values.solicitando + row.values.enRevision + row.values.rechazados + row.values.validados + row.values.prevalidados + row.values.documentacion + row.values.criticos
-  }))
+  const buildMatrix = (map) => {
+    const rowsList = Object.values(map).map(row => ({
+      ...row,
+      total: row.values.enRevision + row.values.descartados + row.values.criticos + row.values.documentacion + row.values.rechazados + row.values.validados
+    }))
 
-  const totalsObj = {
-    solicitando: matrixRowsList.reduce((acc, r) => acc + r.values.solicitando, 0),
-    enRevision: matrixRowsList.reduce((acc, r) => acc + r.values.enRevision, 0),
-    rechazados: matrixRowsList.reduce((acc, r) => acc + r.values.rechazados, 0),
-    validados: matrixRowsList.reduce((acc, r) => acc + r.values.validados, 0),
-    prevalidados: matrixRowsList.reduce((acc, r) => acc + r.values.prevalidados, 0),
-    documentacion: matrixRowsList.reduce((acc, r) => acc + r.values.documentacion, 0),
-    criticos: matrixRowsList.reduce((acc, r) => acc + r.values.criticos, 0)
+    const totalsObj = {
+      enRevision: rowsList.reduce((acc, r) => acc + r.values.enRevision, 0),
+      descartados: rowsList.reduce((acc, r) => acc + r.values.descartados, 0),
+      criticos: rowsList.reduce((acc, r) => acc + r.values.criticos, 0),
+      documentacion: rowsList.reduce((acc, r) => acc + r.values.documentacion, 0),
+      rechazados: rowsList.reduce((acc, r) => acc + r.values.rechazados, 0),
+      validados: rowsList.reduce((acc, r) => acc + r.values.validados, 0)
+    }
+
+    const grandTotal = totalsObj.enRevision + totalsObj.descartados + totalsObj.criticos + totalsObj.documentacion + totalsObj.rechazados + totalsObj.validados
+
+    return {
+      matrixRows: rowsList,
+      matrixTotals: totalsObj,
+      matrixGrandTotal: grandTotal
+    }
   }
 
-  const grandTotalNum = totalsObj.solicitando + totalsObj.enRevision + totalsObj.rechazados + totalsObj.validados + totalsObj.prevalidados + totalsObj.documentacion + totalsObj.criticos
+  const orig = buildMatrix(equiposOriginalMap)
+  const ampl = buildMatrix(equiposAmpliacionMap)
+
+  const combRows = [...orig.matrixRows, ...ampl.matrixRows]
+  const combTotals = {
+    enRevision: orig.matrixTotals.enRevision + ampl.matrixTotals.enRevision,
+    descartados: orig.matrixTotals.descartados + ampl.matrixTotals.descartados,
+    criticos: orig.matrixTotals.criticos + ampl.matrixTotals.criticos,
+    documentacion: orig.matrixTotals.documentacion + ampl.matrixTotals.documentacion,
+    rechazados: orig.matrixTotals.rechazados + ampl.matrixTotals.rechazados,
+    validados: orig.matrixTotals.validados + ampl.matrixTotals.validados
+  }
+  const combGrandTotal = orig.matrixGrandTotal + ampl.matrixGrandTotal
 
   return {
     fechaStr: targetDate,
     fechaFormateada,
-    matrixRows: matrixRowsList,
-    matrixTotals: totalsObj,
-    matrixGrandTotal: grandTotalNum,
+    matrixOriginal: orig,
+    matrixAmpliacion: ampl,
+    matrixRows: combRows,
+    matrixTotals: combTotals,
+    matrixGrandTotal: combGrandTotal,
     rows: rowsEnriquecidas,
     stats: {
-      total: grandTotalNum,
-      validadas: totalsObj.validados,
-      prevalidadas: totalsObj.prevalidados,
-      criticas: totalsObj.criticos,
-      rechazadas: totalsObj.rechazados,
-      enEspera: totalsObj.solicitando + totalsObj.enRevision,
-      documentacion: totalsObj.documentacion
+      total: combGrandTotal,
+      enRevision: combTotals.enRevision,
+      descartadas: combTotals.descartados,
+      criticas: combTotals.criticos,
+      documentacion: combTotals.documentacion,
+      rechazadas: combTotals.rechazados,
+      validadas: combTotals.validados
     }
   }
 }
@@ -879,17 +909,15 @@ export async function exportarExcelReporteDiario(datos, customFileName = null) {
     { width: 20 }, // Código de lugar
     { width: 28 }, // Nombre de localidad
     { width: 24 }, // Persona que validó
-    { width: 22 }, // Estado observación
-    { width: 20 }, // Solicitó Revisión
-    { width: 20 }, // Revisado
-    { width: 20 }  // Tiempo de Revisión
+    { width: 22 }  // Estado observación
   ]
 
   const allRows = [
     ...(datos.validadas || []),
     ...(datos.rechazadas || []),
     ...(datos.enEspera || []),
-    ...(datos.descartadas || [])
+    ...(datos.descartadas || []),
+    ...(datos.documentacion || [])
   ]
 
   const tableRows = allRows.map(r => {
@@ -900,20 +928,13 @@ export async function exportarExcelReporteDiario(datos, customFileName = null) {
     const isGilat = !isEnRev && esRevisorGilat(revRaw)
     const revisorFinal = isGilat ? revRaw : '-'
 
-    const solicitoRevision = isEnRev ? '-' : (r.fecha_solicito_revision || '-')
-    const revisado = isEnRev ? '-' : (r.fecha_revisado || '-')
-    const tiempoRevision = isEnRev ? '-' : (r.tiempo_revision || '-')
-
     return [
       r.id_obs || '',
       r.zona && r.zona !== '-' ? r.zona : getZonaBySiteId(r.id_sitio),
       r.id_sitio || r.codigo_lugar || '',
       r.localidad || '',
       revisorFinal,
-      estadoDisplay,
-      solicitoRevision,
-      revisado,
-      tiempoRevision
+      estadoDisplay
     ]
   })
 
@@ -934,12 +955,9 @@ export async function exportarExcelReporteDiario(datos, customFileName = null) {
       { name: 'Código de lugar', filterButton: true },
       { name: 'Nombre de localidad', filterButton: true },
       { name: 'Persona que validó', filterButton: true },
-      { name: 'Estado observación', filterButton: true },
-      { name: 'Solicitó Revisión', filterButton: true },
-      { name: 'Revisado', filterButton: true },
-      { name: 'Tiempo de Revisión', filterButton: true }
+      { name: 'Estado observación', filterButton: true }
     ],
-    rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-', '-', '-', '-', '-']]
+    rows: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-', '-']]
   })
 
   const headerRow = ws.getRow(1)
@@ -968,7 +986,7 @@ export async function exportarExcelReporteDiario(datos, customFileName = null) {
       cell.font = { name: 'Arial', size: 10 }
       cell.alignment = {
         vertical: 'middle',
-        horizontal: (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 6 || colNum === 7 || colNum === 8 || colNum === 9 || cell.value === '-') ? 'center' : 'left'
+        horizontal: (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 6 || cell.value === '-') ? 'center' : 'left'
       }
     })
   }
@@ -996,9 +1014,9 @@ export async function exportarExcelReporteDiarioInterno(datos) {
   const wb = new ExcelJS.Workbook()
   wb.creator = 'Amazonas-COVEPA'
 
-  // ==========================================
-  // PESTAÑA 1: MATRIZ EJECUTIVA POR EQUIPOS
-  // ==========================================
+  // ========================================================
+  // PESTAÑA 1: MATRIZ EJECUTIVA POR EQUIPOS (ORIGINAL Y AMPLIACIÓN)
+  // ========================================================
   const wsMatriz = wb.addWorksheet('Matriz_Equipos', {
     views: [{ showGridLines: true }]
   })
@@ -1006,18 +1024,17 @@ export async function exportarExcelReporteDiarioInterno(datos) {
     { width: 16 }, // Equipo
     { width: 22 }, // Cuadrillas
     { width: 34 }, // Técnicos Asignados
-    { width: 20 }, // Solicitando Revisión
     { width: 16 }, // En Revisión
-    { width: 16 }, // Rechazados
-    { width: 16 }, // Validados
-    { width: 16 }, // Pre-validados
-    { width: 18 }, // Documentación
-    { width: 16 }, // Críticos
-    { width: 16 }  // Total
+    { width: 16 }, // Descartados
+    { width: 14 }, // Críticos
+    { width: 16 }, // Documentación
+    { width: 14 }, // Rechazados
+    { width: 14 }, // Validados
+    { width: 14 }  // Total Diario
   ]
 
   // Título Institucional
-  wsMatriz.mergeCells('A1:K1')
+  wsMatriz.mergeCells('A1:J1')
   const titleCell = wsMatriz.getCell('A1')
   titleCell.value = 'COVEPA — REPORTE DIARIO INTERNO (MATRIZ DE EQUIPOS)'
   titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF003060' } }
@@ -1025,120 +1042,171 @@ export async function exportarExcelReporteDiarioInterno(datos) {
   wsMatriz.getRow(1).height = 30
 
   // Subtítulo con fecha
-  wsMatriz.mergeCells('A2:K2')
+  wsMatriz.mergeCells('A2:J2')
   const subtitleCell = wsMatriz.getCell('A2')
   subtitleCell.value = `Jornada Operativa: ${datos.fechaFormateada || datos.fechaStr} | Total Observaciones Tocadas: ${datos.matrixGrandTotal || 0}`
   subtitleCell.font = { name: 'Arial', size: 10, italic: true, color: { argb: 'FF64748B' } }
   subtitleCell.alignment = { vertical: 'middle', horizontal: 'center' }
   wsMatriz.getRow(2).height = 20
 
-  // Encabezados de tabla
   const headersMatriz = [
     'Equipo', 'Cuadrillas', 'Técnicos Asignados',
-    'Solicitando Revisión', 'En Revisión', 'Rechazados',
-    'Validados', 'Pre-validados', 'Documentación', 'Críticos', 'Total'
+    'En Revisión', 'Descartados', 'Críticos',
+    'Documentación', 'Rechazados', 'Validados', 'Total Diario'
   ]
-  const headerRowMatriz = wsMatriz.getRow(4)
-  headerRowMatriz.height = 26
-  headersMatriz.forEach((h, idx) => {
-    const c = headerRowMatriz.getCell(idx + 1)
-    c.value = h
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
-    c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
-    c.alignment = { vertical: 'middle', horizontal: 'center' }
-    c.border = {
-      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
-    }
-  })
 
-  // Filas por Equipo
-  const matrixRows = datos.matrixRows || []
-  matrixRows.forEach((row, i) => {
-    const rNum = 5 + i
-    const r = wsMatriz.getRow(rNum)
-    r.height = 22
-    const vals = [
-      row.id,
-      row.subtitulo,
-      row.tecnico,
-      row.values.solicitando,
-      row.values.enRevision,
-      row.values.rechazados,
-      row.values.validados,
-      row.values.prevalidados || 0,
-      row.values.documentacion,
-      row.values.criticos || 0,
-      row.total
+  const origMatrix = datos.matrixOriginal || {
+    matrixRows: (datos.matrixRows || []).filter(r => r.id !== 'EQUIPO 4'),
+    matrixTotals: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
+    matrixGrandTotal: 0
+  }
+  const amplMatrix = datos.matrixAmpliacion || {
+    matrixRows: (datos.matrixRows || []).filter(r => r.id === 'EQUIPO 4'),
+    matrixTotals: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
+    matrixGrandTotal: 0
+  }
+
+  let currentRowIdx = 4
+
+  const renderMatrizSection = (tituloSeccion, rows, totals, grand) => {
+    // Título de la sección
+    wsMatriz.mergeCells(`A${currentRowIdx}:J${currentRowIdx}`)
+    const secCell = wsMatriz.getCell(`A${currentRowIdx}`)
+    secCell.value = `📈 ${tituloSeccion.toUpperCase()}`
+    secCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
+    secCell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
+    secCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 }
+    wsMatriz.getRow(currentRowIdx).height = 24
+    currentRowIdx++
+
+    // Encabezados
+    const hr = wsMatriz.getRow(currentRowIdx)
+    hr.height = 24
+    headersMatriz.forEach((h, idx) => {
+      const c = hr.getCell(idx + 1)
+      c.value = h
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } }
+      c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+      c.alignment = { vertical: 'middle', horizontal: 'center' }
+    })
+    currentRowIdx++
+
+    // Filas de datos
+    rows.forEach(row => {
+      const r = wsMatriz.getRow(currentRowIdx)
+      r.height = 22
+      const vals = [
+        row.id,
+        row.subtitulo,
+        row.tecnico,
+        row.values.enRevision,
+        row.values.descartados || 0,
+        row.values.criticos || 0,
+        row.values.documentacion,
+        row.values.rechazados,
+        row.values.validados,
+        row.total
+      ]
+      vals.forEach((v, idx) => {
+        const c = r.getCell(idx + 1)
+        c.value = v
+        c.font = { name: 'Arial', size: 10, bold: idx === 0 || idx === 9 }
+        c.alignment = {
+          vertical: 'middle',
+          horizontal: (idx <= 2) ? (idx === 2 ? 'left' : 'center') : 'center'
+        }
+        if (idx === 0) {
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F7FF' } }
+        }
+        if (idx === 9) {
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } }
+          c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF0284C7' } }
+        }
+        c.border = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+        }
+      })
+      currentRowIdx++
+    })
+
+    // Fila Total de la Sección
+    const totRow = wsMatriz.getRow(currentRowIdx)
+    totRow.height = 24
+    const totVals = [
+      `TOTAL ${tituloSeccion.toUpperCase()}`,
+      '-',
+      '-',
+      totals.enRevision || 0,
+      totals.descartados || 0,
+      totals.criticos || 0,
+      totals.documentacion || 0,
+      totals.rechazados || 0,
+      totals.validados || 0,
+      grand || 0
     ]
-    vals.forEach((v, idx) => {
-      const c = r.getCell(idx + 1)
+    totVals.forEach((v, idx) => {
+      const c = totRow.getCell(idx + 1)
       c.value = v
-      c.font = { name: 'Arial', size: 10, bold: idx === 0 || idx === 10 }
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
+      c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
       c.alignment = {
         vertical: 'middle',
         horizontal: (idx <= 2) ? (idx === 2 ? 'left' : 'center') : 'center'
       }
-      if (idx === 0) {
-        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F7FF' } }
-      }
-      if (idx === 10) {
-        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } }
-        c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF0284C7' } }
-      }
-      c.border = {
-        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
-      }
     })
-  })
+    currentRowIdx += 2
+  }
 
-  // Fila de Totales
-  const totRowIndex = 5 + matrixRows.length
-  const totRow = wsMatriz.getRow(totRowIndex)
-  totRow.height = 24
-  const tObj = datos.matrixTotals || { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, prevalidados: 0, documentacion: 0, criticos: 0 }
-  const totVals = [
-    'TOTAL GENERAL',
+  // Renderizar Tabla 1: Amazonas Original
+  renderMatrizSection('Amazonas Original', origMatrix.matrixRows || [], origMatrix.matrixTotals || {}, origMatrix.matrixGrandTotal || 0)
+
+  // Renderizar Tabla 2: Amazonas Ampliación
+  renderMatrizSection('Amazonas Ampliación', amplMatrix.matrixRows || [], amplMatrix.matrixTotals || {}, amplMatrix.matrixGrandTotal || 0)
+
+  // Fila Total Consolidado General de la Jornada
+  const grandTotRow = wsMatriz.getRow(currentRowIdx)
+  grandTotRow.height = 26
+  const tObj = datos.matrixTotals || { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 }
+  const grandTotVals = [
+    'TOTAL GENERAL DE JORNADA',
     'Todas las cuadrillas',
     '-',
-    tObj.solicitando,
     tObj.enRevision,
+    tObj.descartados || 0,
+    tObj.criticos || 0,
+    tObj.documentacion,
     tObj.rechazados,
     tObj.validados,
-    tObj.prevalidados || 0,
-    tObj.documentacion,
-    tObj.criticos || 0,
     datos.matrixGrandTotal || 0
   ]
-  totVals.forEach((v, idx) => {
-    const c = totRow.getCell(idx + 1)
+  grandTotVals.forEach((v, idx) => {
+    const c = grandTotRow.getCell(idx + 1)
     c.value = v
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
-    c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF002244' } }
+    c.font = { name: 'Arial', size: 10.5, bold: true, color: { argb: 'FFFFFFFF' } }
     c.alignment = {
       vertical: 'middle',
       horizontal: (idx <= 2) ? (idx === 2 ? 'left' : 'center') : 'center'
     }
   })
 
-  // ==========================================
-  // PESTAÑA 2: DETALLE DE CÓDIGOS TOCADOS
-  // ==========================================
-  const wsDetalle = wb.addWorksheet('Detalle_Codigos', {
-    views: [{ showGridLines: true }]
-  })
-  wsDetalle.columns = [
+  // ========================================================
+  // PESTAÑAS 2 Y 3: DETALLE ORIGINAL Y DETALLE AMPLIACIÓN
+  // ========================================================
+  const rawRows = datos.rows || []
+  const detailRowsOriginal = rawRows.filter(r => r.equipo !== 'EQUIPO 4')
+  const detailRowsAmpliacion = rawRows.filter(r => r.equipo === 'EQUIPO 4')
+
+  const detailColsConfig = [
     { width: 22 }, // ID Obs
     { width: 14 }, // Equipo
     { width: 16 }, // Cuadrilla
     { width: 24 }, // Técnico
     { width: 18 }, // Código Sitio
-    { width: 28 }, // Localidad
+    { width: 28 }, // Localidad (Regla 2.1)
     { width: 12 }, // Zona
     { width: 20 }, // Estado COVEPA
     { width: 22 }, // Revisor
@@ -1146,10 +1214,25 @@ export async function exportarExcelReporteDiarioInterno(datos) {
     { width: 36 }, // Detalle Observación
     { width: 36 }  // Comentario / Justificación
   ]
+  const detailTableColsDef = [
+    { name: 'ID Obs', filterButton: true },
+    { name: 'Equipo', filterButton: true },
+    { name: 'Cuadrilla', filterButton: true },
+    { name: 'Técnico', filterButton: true },
+    { name: 'Código de Sitio', filterButton: true },
+    { name: 'Localidad', filterButton: true },
+    { name: 'Zona', filterButton: true },
+    { name: 'Estado COVEPA', filterButton: true },
+    { name: 'Revisor', filterButton: true },
+    { name: 'Fecha/Hora Subsanación', filterButton: true },
+    { name: 'Detalle', filterButton: true },
+    { name: 'Comentario', filterButton: true }
+  ]
 
-  const rawRows = datos.rows || []
-  const detailTableRows = rawRows.map(r => {
-    return [
+  const buildDetailWorksheet = (sheetName, tableName, rows) => {
+    const ws = wb.addWorksheet(sheetName, { views: [{ showGridLines: true }] })
+    ws.columns = detailColsConfig
+    const mappedRows = rows.map(r => [
       r.id_obs || '',
       r.equipo || '',
       r.cuadrilla || '',
@@ -1162,58 +1245,60 @@ export async function exportarExcelReporteDiarioInterno(datos) {
       r.fecha_subsanacion || r.fecha_hora || '-',
       r.detalle || r.descripcion || '',
       r.comentario || r.justificacion_demora || '-'
-    ]
-  })
+    ])
 
-  const tableName = `Interno_${(datos.fechaStr || 'jornada').replace(/-/g, '_')}`
-  wsDetalle.addTable({
-    name: tableName,
-    ref: 'A1',
-    headerRow: true,
-    totalsRow: false,
-    style: {
-      theme: 'TableStyleMedium9',
-      showRowStripes: true,
-      showColumnStripes: false
-    },
-    columns: [
-      { name: 'ID Obs', filterButton: true },
-      { name: 'Equipo', filterButton: true },
-      { name: 'Cuadrilla', filterButton: true },
-      { name: 'Técnico', filterButton: true },
-      { name: 'Código de Sitio', filterButton: true },
-      { name: 'Localidad', filterButton: true },
-      { name: 'Zona', filterButton: true },
-      { name: 'Estado COVEPA', filterButton: true },
-      { name: 'Revisor', filterButton: true },
-      { name: 'Fecha/Hora Subsanación', filterButton: true },
-      { name: 'Detalle', filterButton: true },
-      { name: 'Comentario', filterButton: true }
-    ],
-    rows: detailTableRows.length > 0 ? detailTableRows : [['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']]
-  })
-
-  const headerDetalle = wsDetalle.getRow(1)
-  headerDetalle.height = 26
-  headerDetalle.eachCell((cell) => {
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
-    cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
-    cell.alignment = { vertical: 'middle', horizontal: 'center' }
-  })
-
-  const totalFilasDetalle = detailTableRows.length > 0 ? detailTableRows.length : 1
-  for (let i = 0; i < totalFilasDetalle; i++) {
-    const rowNum = i + 2
-    const row = wsDetalle.getRow(rowNum)
-    row.height = 20
-    row.eachCell((cell, colNum) => {
-      cell.font = { name: 'Arial', size: 9.5 }
-      cell.alignment = {
-        vertical: 'middle',
-        horizontal: (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 5 || colNum === 7 || colNum === 8 || colNum === 10 || cell.value === '-') ? 'center' : 'left'
-      }
+    ws.addTable({
+      name: tableName,
+      ref: 'A1',
+      headerRow: true,
+      totalsRow: false,
+      style: {
+        theme: 'TableStyleMedium9',
+        showRowStripes: true,
+        showColumnStripes: false
+      },
+      columns: detailTableColsDef,
+      rows: mappedRows.length > 0 ? mappedRows : [['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']]
     })
+
+    const headerDetalle = ws.getRow(1)
+    headerDetalle.height = 26
+    headerDetalle.eachCell((cell) => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003060' } }
+      cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+      cell.alignment = { vertical: 'middle', horizontal: 'center' }
+    })
+
+    const totalFilas = mappedRows.length > 0 ? mappedRows.length : 1
+    for (let i = 0; i < totalFilas; i++) {
+      const rowNum = i + 2
+      const row = ws.getRow(rowNum)
+      row.height = 20
+      row.eachCell((cell, colNum) => {
+        cell.font = { name: 'Arial', size: 9.5 }
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 5 || colNum === 7 || colNum === 8 || colNum === 10 || cell.value === '-') ? 'center' : 'left'
+        }
+      })
+    }
+
+    return ws
   }
+
+  // Hoja 2: Detalle_Original
+  buildDetailWorksheet(
+    'Detalle_Original',
+    `Interno_Orig_${(datos.fechaStr || 'jornada').replace(/-/g, '_')}`,
+    detailRowsOriginal
+  )
+
+  // Hoja 3: Detalle_Ampliacion
+  buildDetailWorksheet(
+    'Detalle_Ampliacion',
+    `Interno_Ampl_${(datos.fechaStr || 'jornada').replace(/-/g, '_')}`,
+    detailRowsAmpliacion
+  )
 
   const buffer = await wb.xlsx.writeBuffer()
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
@@ -1254,7 +1339,8 @@ export async function exportarExcelReporteSemanal(datos) {
     ...(datos.validadas || []),
     ...(datos.rechazadas || []),
     ...(datos.enEspera || []),
-    ...(datos.descartadas || [])
+    ...(datos.descartadas || []),
+    ...(datos.documentacion || [])
   ]
 
   const tableRows = allRows.map(r => {
@@ -1397,10 +1483,10 @@ export async function exportarExcelReporteSemanal(datos) {
  * Genera el cuerpo de correo para el REPORTE DIARIO en formato HTML estricto.
  */
 export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
-  const { fechaFormateada, stats, validadas, rechazadas, descartadas, enEspera } = datos
+  const { fechaFormateada, stats, validadas, rechazadas, descartadas, enEspera, documentacion = [] } = datos
   const notas = (config.notas_jornada || '').trim()
   const logoSrc = isWebPreview ? '/covepa.png' : 'cid:covepa-logo'
-  const totalListados = validadas.length + rechazadas.length + enEspera.length + descartadas.length
+  const totalListados = validadas.length + rechazadas.length + enEspera.length + descartadas.length + documentacion.length
 
   // Helper para renderizar observaciones agrupadas en lista vertical (de arriba a abajo)
   const renderCodeList = (items, colorText, colorBorder, bgLight = '#f8fafc') => {
@@ -1444,10 +1530,10 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
                 AMAZONAS · COVEPA
               </div>
               <h1 style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;line-height:1.25;">
-                Reporte Diario de Levantamiento de Observaciones
+                ${escapeHtml((config?.asunto || 'Reporte Diario de Levantamiento de Observaciones').replace(/ - \{fecha\}/g, '').replace(/\{fecha\}/g, '').trim())}
               </h1>
               <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#93c5fd;margin-top:3px;font-weight:500;">
-                Amazonas — Zona 2 y Zona 7
+                Zona 2 y Zona 7
               </div>
               <div style="margin-top:10px;">
                 <span style="display:inline-block;background-color:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:16px;padding:5px 14px;color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;white-space:nowrap;">
@@ -1463,7 +1549,7 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
                 <!-- Total General Trabajado (Centrado como los medidores de abajo, conservando su posición) -->
                 <tr>
-                  <td colspan="4" style="padding-bottom:10px;">
+                  <td colspan="5" style="padding-bottom:10px;">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #cbd5e1;border-top:3px solid #003060;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:12px 16px;text-align:center;">
@@ -1471,17 +1557,17 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
                             ${stats.total}
                           </div>
                           <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">
-                            Total de Observaciones Trabajadas en la Jornada
+                            ${config?.id === 'config_diario_ampliacion' ? 'Total de Observaciones de Ampliación Trabajadas en la Jornada' : 'Total de Observaciones Trabajadas en la Jornada'}
                           </div>
                         </td>
                       </tr>
                     </table>
                   </td>
                 </tr>
-                <!-- Fila de los 4 Medidores -->
+                <!-- Fila de los 5 Medidores -->
                 <tr>
                   <!-- Validadas -->
-                  <td width="25%" style="padding:0 3px 0 0;" valign="top">
+                  <td width="20%" style="padding:0 2px 0 0;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bbf7d0;border-top:3px solid #16a34a;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:10px 4px;">
@@ -1492,7 +1578,7 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
                     </table>
                   </td>
                   <!-- Rechazadas -->
-                  <td width="25%" style="padding:0 3px;" valign="top">
+                  <td width="20%" style="padding:0 2px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fecdd3;border-top:3px solid #e11d48;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:10px 4px;">
@@ -1503,7 +1589,7 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
                     </table>
                   </td>
                   <!-- En Espera -->
-                  <td width="25%" style="padding:0 3px;" valign="top">
+                  <td width="20%" style="padding:0 2px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bfdbfe;border-top:3px solid #0284c7;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:10px 4px;">
@@ -1513,33 +1599,24 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
                       </tr>
                     </table>
                   </td>
+                  <!-- En Documentación -->
+                  <td width="20%" style="padding:0 2px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #c7d2fe;border-top:3px solid #6366f1;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:10px 4px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#4f46e5;line-height:1;">${stats.documentacion ?? 0}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#4338ca;text-transform:uppercase;margin-top:4px;">📁 Documentación</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
                   <!-- No Aplica -->
-                  <td width="25%" style="padding:0 0 0 3px;" valign="top">
+                  <td width="20%" style="padding:0 0 0 2px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #e9d5ff;border-top:3px solid #9333ea;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:10px 4px;">
                           <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#9333ea;line-height:1;">${stats.descartadas}</div>
                           <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#7e22ce;text-transform:uppercase;margin-top:4px;">🚫 No Aplica</div>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-                <!-- Tiempo Promedio de Revisión -->
-                <tr>
-                  <td colspan="4" style="padding-top:10px;">
-                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fed7aa;border-top:3px solid #f97316;border-radius:6px;text-align:center;">
-                      <tr>
-                        <td style="padding:11px 16px;text-align:center;">
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:22px;font-weight:bold;color:#c2410c;line-height:1;">
-                            ⏱️ ${escapeHtml(stats.tiempoPromedioRevisionTexto || '—')}
-                          </div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#9a3412;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">
-                            Tiempo Promedio de Revisión
-                          </div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;color:#7c2d12;margin-top:2px;">
-                            Promedio de atención transcurrido desde que se solicitó revisión hasta el dictamen de Gilat
-                          </div>
                         </td>
                       </tr>
                     </table>
@@ -1585,7 +1662,19 @@ export function generarHTMLReporte({ config, datos, isWebPreview = true }) {
           </tr>
           ` : ''}
 
-          <!-- 4. Agrupación: Observaciones No Aplica -->
+          <!-- 4. Agrupación: Observaciones en Documentación -->
+          ${documentacion && documentacion.length > 0 ? `
+          <tr>
+            <td style="padding:10px 28px 10px 28px;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:bold;color:#003060;margin-bottom:8px;">
+                <span style="color:#6366f1;margin-right:6px;">📁</span> Observaciones en Documentación (${documentacion.length})
+              </div>
+              ${renderCodeList(documentacion, '#4338ca', '#c7d2fe', '#eef2ff')}
+            </td>
+          </tr>
+          ` : ''}
+
+          <!-- 5. Agrupación: Observaciones No Aplica -->
           ${descartadas.length > 0 ? `
           <tr>
             <td style="padding:10px 28px 10px 28px;">
@@ -1745,10 +1834,10 @@ export function generarHTMLReporteSemanal({ config, datos, isWebPreview = true }
                     </table>
                   </td>
                 </tr>
-                <!-- Fila de los 4 Medidores -->
+                <!-- Fila de los 5 Medidores -->
                 <tr>
                   <!-- Validadas -->
-                  <td width="25%" style="padding:0 3px 0 0;" valign="top">
+                  <td width="20%" style="padding:0 2px 0 0;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bbf7d0;border-top:3px solid #16a34a;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:10px 4px;">
@@ -1759,7 +1848,7 @@ export function generarHTMLReporteSemanal({ config, datos, isWebPreview = true }
                     </table>
                   </td>
                   <!-- Rechazadas -->
-                  <td width="25%" style="padding:0 3px;" valign="top">
+                  <td width="20%" style="padding:0 2px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fecdd3;border-top:3px solid #e11d48;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:10px 4px;">
@@ -1770,7 +1859,7 @@ export function generarHTMLReporteSemanal({ config, datos, isWebPreview = true }
                     </table>
                   </td>
                   <!-- En Espera -->
-                  <td width="25%" style="padding:0 3px;" valign="top">
+                  <td width="20%" style="padding:0 2px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bfdbfe;border-top:3px solid #0284c7;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:10px 4px;">
@@ -1780,8 +1869,19 @@ export function generarHTMLReporteSemanal({ config, datos, isWebPreview = true }
                       </tr>
                     </table>
                   </td>
+                  <!-- En Documentación -->
+                  <td width="20%" style="padding:0 2px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #c7d2fe;border-top:3px solid #6366f1;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:10px 4px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#4f46e5;line-height:1;">${stats.documentacion ?? 0}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#4338ca;text-transform:uppercase;margin-top:4px;">📁 Documentación</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
                   <!-- No Aplica -->
-                  <td width="25%" style="padding:0 0 0 3px;" valign="top">
+                  <td width="20%" style="padding:0 0 0 2px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #e9d5ff;border-top:3px solid #9333ea;border-radius:6px;text-align:center;">
                       <tr>
                         <td style="padding:10px 4px;">
@@ -1951,21 +2051,108 @@ export function generarHTMLReporteInterno({ config, datos, isWebPreview = true }
   if (!datos) return '<p>No hay datos disponibles para el reporte diario interno.</p>'
 
   const fechaHeader = datos.fechaFormateada || datos.fechaStr || 'Jornada Operativa'
+  const fechaReporteIso = datos.fechaStr || 'jornada'
+
+  const logoSrc = isWebPreview
+    ? 'https://byywikicdvmmmndhkooe.supabase.co/storage/v1/object/public/covepa.png'
+    : 'cid:covepa-logo'
+
+  const matrixOriginal = datos.matrixOriginal || {
+    matrixRows: (datos.matrixRows || []).filter(r => r.id !== 'EQUIPO 4'),
+    matrixTotals: datos.matrixTotals || {},
+    matrixGrandTotal: 0
+  }
+  const matrixAmpliacion = datos.matrixAmpliacion || {
+    matrixRows: (datos.matrixRows || []).filter(r => r.id === 'EQUIPO 4'),
+    matrixTotals: datos.matrixTotals || {},
+    matrixGrandTotal: 0
+  }
+
   const stats = datos.stats || {
     total: datos.matrixGrandTotal || 0,
-    validadas: datos.matrixTotals?.validados || 0,
+    enRevision: (datos.matrixTotals?.enRevision || 0) + (datos.matrixTotals?.solicitando || 0),
+    descartadas: datos.matrixTotals?.descartados || 0,
+    criticas: datos.matrixTotals?.criticos || 0,
+    documentacion: datos.matrixTotals?.documentacion || 0,
     rechazadas: datos.matrixTotals?.rechazados || 0,
-    enEspera: (datos.matrixTotals?.solicitando || 0) + (datos.matrixTotals?.enRevision || 0),
-    documentacion: datos.matrixTotals?.documentacion || 0
+    validadas: datos.matrixTotals?.validados || 0
   }
 
   const notas = (config?.notas_jornada || '').trim()
-  const logoSrc = isWebPreview
-    ? '/covepa_logo.png'
-    : 'https://raw.githubusercontent.com/JCarlosCC2001/Amazonas-COVEPA/main/public/covepa_logo.png'
 
-  const matrixRows = datos.matrixRows || []
-  const matrixTotals = datos.matrixTotals || { solicitando: 0, enRevision: 0, rechazados: 0, validados: 0, documentacion: 0 }
+  const renderTablaMatricialHTML = (titulo, matrix) => {
+    const rows = matrix?.matrixRows || []
+    const totals = matrix?.matrixTotals || { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 }
+    const grandTotal = matrix?.matrixGrandTotal || 0
+
+    return `
+      <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#003060;margin:14px 0 6px 0;letter-spacing:0.3px;">
+        📈 ${escapeHtml(titulo)}
+      </div>
+      <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;border-collapse:collapse;width:100%;table-layout:fixed;margin-bottom:8px;">
+        <thead>
+          <tr style="background-color:#003060;color:#ffffff;">
+            <th style="padding:10px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;text-align:left;letter-spacing:0.4px;width:14%;overflow:hidden;white-space:nowrap;">EQUIPO</th>
+            <th style="padding:10px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;text-align:left;letter-spacing:0.4px;width:20%;overflow:hidden;white-space:nowrap;">TÉCNICOS</th>
+            <th style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#bae6fd;text-align:center;width:11%;">EN REVISIÓN</th>
+            <th style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#cbd5e1;text-align:center;width:11%;">DESCARTADOS</th>
+            <th style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#fecdd3;text-align:center;width:9%;">CRÍTICOS</th>
+            <th style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#e9d5ff;text-align:center;width:12%;">DOCUMENTACIÓN</th>
+            <th style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#fecdd3;text-align:center;width:9%;">RECHAZADOS</th>
+            <th style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#bbf7d0;text-align:center;width:9%;">VALIDADOS</th>
+            <th style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;color:#ffffff;text-align:center;width:5%;">TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r, i) => `
+          <tr style="background-color:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};border-bottom:1px solid #e2e8f0;">
+            <td style="padding:9px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#003060;border-right:1px solid #e2e8f0;overflow:hidden;white-space:nowrap;">
+              ${escapeHtml(r.id)}
+              <div style="font-size:9.5px;font-weight:normal;color:#64748b;margin-top:1px;">${escapeHtml(r.subtitulo)}</div>
+            </td>
+            <td style="padding:9px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;color:#334155;border-right:1px solid #e2e8f0;overflow:hidden;white-space:nowrap;">
+              ${escapeHtml(r.tecnico)}
+            </td>
+            <td style="padding:9px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:${r.values.enRevision > 0 ? '#0284c7' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${r.values.enRevision > 0 ? '#f0f9ff' : 'transparent'};">
+              ${r.values.enRevision}
+            </td>
+            <td style="padding:9px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:${(r.values.descartados || 0) > 0 ? '#475569' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${(r.values.descartados || 0) > 0 ? '#f1f5f9' : 'transparent'};">
+              ${r.values.descartados || 0}
+            </td>
+            <td style="padding:9px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:${(r.values.criticos || 0) > 0 ? '#b91c1c' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${(r.values.criticos || 0) > 0 ? '#fef2f2' : 'transparent'};">
+              ${r.values.criticos || 0}
+            </td>
+            <td style="padding:9px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:${r.values.documentacion > 0 ? '#7e22ce' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${r.values.documentacion > 0 ? '#faf5ff' : 'transparent'};">
+              ${r.values.documentacion}
+            </td>
+            <td style="padding:9px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:${r.values.rechazados > 0 ? '#e11d48' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${r.values.rechazados > 0 ? '#fff1f2' : 'transparent'};">
+              ${r.values.rechazados}
+            </td>
+            <td style="padding:9px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:${r.values.validados > 0 ? '#16a34a' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${r.values.validados > 0 ? '#f0fdf4' : 'transparent'};">
+              ${r.values.validados}
+            </td>
+            <td style="padding:9px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.total > 0 ? '#003060' : '#94a3b8'};text-align:center;background-color:${r.total > 0 ? '#eff6ff' : 'transparent'};">
+              ${r.total}
+            </td>
+          </tr>
+          `).join('')}
+          <!-- Fila de Total Tabla -->
+          <tr style="background-color:#0f172a;color:#ffffff;border-top:2px solid #003060;">
+            <td colspan="2" style="padding:10px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;text-transform:uppercase;letter-spacing:0.6px;">
+              TOTAL DIARIO
+            </td>
+            <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#bae6fd;text-align:center;">${totals.enRevision}</td>
+            <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#cbd5e1;text-align:center;">${totals.descartados || 0}</td>
+            <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#fecdd3;text-align:center;">${totals.criticos || 0}</td>
+            <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#e9d5ff;text-align:center;">${totals.documentacion}</td>
+            <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#fecdd3;text-align:center;">${totals.rechazados}</td>
+            <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#bbf7d0;text-align:center;">${totals.validados}</td>
+            <td style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#38bdf8;text-align:center;background-color:#1e293b;">${grandTotal}</td>
+          </tr>
+        </tbody>
+      </table>
+    `
+  }
 
   return `
 <!DOCTYPE html>
@@ -1985,96 +2172,104 @@ export function generarHTMLReporteInterno({ config, datos, isWebPreview = true }
         <![endif]-->
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:760px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.06);border:1px solid #e2e8f0;">
           
-          <!-- Encabezado Institucional Azul Marino -->
-          <!-- Cabecera Institucional COVEPA (Estilizada en HTML puro, nunca se bloquea) -->
+          <!-- Cabecera Institucional COVEPA (Homologada con los demás reportes) -->
           <tr>
             <td style="background-color:#003060;padding:24px 30px;text-align:left;">
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td valign="middle">
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:4px;">
-                      AMAZONAS · COVEPA S.A.C.
-                    </div>
-                    <h1 style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;line-height:1.25;">
-                      Reporte Diario Interno — Productividad por Equipos
-                    </h1>
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#bfdbfe;margin-top:3px;">
-                      Matriz ejecutiva de cuadrillas integradas y observaciones de la jornada
-                    </div>
-                  </td>
-                  <td align="right" valign="top" style="padding-left:15px;">
-                    <span style="display:inline-block;background-color:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:16px;padding:6px 14px;color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;white-space:nowrap;">
-                      📅 ${escapeHtml(fechaHeader)}
-                    </span>
-                  </td>
-                </tr>
-              </table>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:4px;">
+                AMAZONAS · COVEPA
+              </div>
+              <h1 style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;line-height:1.25;">
+                Reporte Diario Interno — Productividad por Equipos
+              </h1>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#93c5fd;margin-top:3px;font-weight:500;">
+                Matriz ejecutiva de cuadrillas integradas y observaciones de la jornada
+              </div>
+              <div style="margin-top:10px;">
+                <span style="display:inline-block;background-color:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:16px;padding:5px 14px;color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:600;white-space:nowrap;">
+                  📅 ${escapeHtml(fechaHeader)}
+                </span>
+              </div>
             </td>
           </tr>
 
-          <!-- Panel de Control de Métricas (Dashboard KPI) -->
+          <!-- Panel de Control de Métricas (Dashboard KPI: 7 Medidores en Fila Homologada) -->
           <tr>
-            <td style="background-color:#f8fafc;border-bottom:1px solid #e2e8f0;padding:18px 24px;">
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-                <!-- Total General Trabajado -->
+            <td style="background-color:#f8fafc;border-bottom:1px solid #e2e8f0;padding:14px 16px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="table-layout:fixed;width:100%;">
                 <tr>
-                  <td colspan="4" style="padding-bottom:10px;">
+                  <!-- 1. Total -->
+                  <td style="padding:0 3px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #cbd5e1;border-top:3px solid #003060;border-radius:6px;text-align:center;">
                       <tr>
-                        <td style="padding:12px 16px;text-align:center;">
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:28px;font-weight:bold;color:#003060;line-height:1;">
-                            ${stats.total}
-                          </div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">
-                            Total de Observaciones Tocadas en la Jornada
-                          </div>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#003060;line-height:1;">${stats.total}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#003060;text-transform:uppercase;margin-top:4px;">TOTAL</div>
                         </td>
                       </tr>
                     </table>
                   </td>
-                </tr>
-                <!-- Fila de los 4 Medidores de Estado -->
-                <tr>
-                  <!-- Validadas -->
-                  <td width="25%" style="padding:0 3px 0 0;" valign="top">
-                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bbf7d0;border-top:3px solid #16a34a;border-radius:6px;text-align:center;">
-                      <tr>
-                        <td style="padding:10px 4px;">
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#16a34a;line-height:1;">${stats.validadas}</div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#15803d;text-transform:uppercase;margin-top:4px;">✓ Validadas</div>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                  <!-- Rechazadas -->
-                  <td width="25%" style="padding:0 3px;" valign="top">
-                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fecdd3;border-top:3px solid #e11d48;border-radius:6px;text-align:center;">
-                      <tr>
-                        <td style="padding:10px 4px;">
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#e11d48;line-height:1;">${stats.rechazadas}</div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#be123c;text-transform:uppercase;margin-top:4px;">✕ Rechazadas</div>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                  <!-- En Espera -->
-                  <td width="25%" style="padding:0 3px;" valign="top">
+                  <!-- 2. En Revisión -->
+                  <td style="padding:0 3px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bfdbfe;border-top:3px solid #0284c7;border-radius:6px;text-align:center;">
                       <tr>
-                        <td style="padding:10px 4px;">
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#0284c7;line-height:1;">${stats.enEspera}</div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#0369a1;text-transform:uppercase;margin-top:4px;">⏳ En Espera</div>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#0284c7;line-height:1;">${stats.enRevision}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#0369a1;text-transform:uppercase;margin-top:4px;">🔍 EN REV.</div>
                         </td>
                       </tr>
                     </table>
                   </td>
-                  <!-- Documentación -->
-                  <td width="25%" style="padding:0 0 0 3px;" valign="top">
+                  <!-- 3. Descartadas -->
+                  <td style="padding:0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #cbd5e1;border-top:3px solid #64748b;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#475569;line-height:1;">${stats.descartadas}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#334155;text-transform:uppercase;margin-top:4px;">🚫 DESCART.</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <!-- 4. Críticos -->
+                  <td style="padding:0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fecdd3;border-top:3px solid #e11d48;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#e11d48;line-height:1;">${stats.criticas}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#be123c;text-transform:uppercase;margin-top:4px;">⚠️ CRÍTICOS</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <!-- 5. Documentación -->
+                  <td style="padding:0 3px;" valign="top">
                     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #e9d5ff;border-top:3px solid #9333ea;border-radius:6px;text-align:center;">
                       <tr>
-                        <td style="padding:10px 4px;">
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:bold;color:#9333ea;line-height:1;">${stats.documentacion}</div>
-                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#7e22ce;text-transform:uppercase;margin-top:4px;">📄 Documentación</div>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#9333ea;line-height:1;">${stats.documentacion}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#7e22ce;text-transform:uppercase;margin-top:4px;">📁 DOCUM.</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <!-- 6. Rechazadas -->
+                  <td style="padding:0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #fecdd3;border-top:3px solid #e11d48;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#e11d48;line-height:1;">${stats.rechazadas}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#be123c;text-transform:uppercase;margin-top:4px;">✕ RECHAZ.</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <!-- 7. Validadas -->
+                  <td style="padding:0 3px;" valign="top">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #bbf7d0;border-top:3px solid #16a34a;border-radius:6px;text-align:center;">
+                      <tr>
+                        <td style="padding:8px 2px;">
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:bold;color:#16a34a;line-height:1;">${stats.validadas}</div>
+                          <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;font-weight:bold;color:#15803d;text-transform:uppercase;margin-top:4px;">✓ VALID.</div>
                         </td>
                       </tr>
                     </table>
@@ -2084,79 +2279,12 @@ export function generarHTMLReporteInterno({ config, datos, isWebPreview = true }
             </td>
           </tr>
 
-          <!-- TABLA MATRICIAL EJECUTIVA DE LOS 3 EQUIPOS -->
+          <!-- TABLAS MATRICIALES EJECUTIVAS: AMAZONAS ORIGINAL Y AMAZONAS AMPLIACIÓN -->
           <tr>
-            <td style="padding:20px 24px 12px 24px;">
-              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:#003060;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.6px;">
-                📊 Matriz Ejecutiva por Equipos y Cuadrillas Integradas
-              </div>
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;border-collapse:collapse;width:100%;">
-                <thead>
-                  <tr style="background-color:#003060;color:#ffffff;">
-                    <th style="padding:11px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;text-align:left;letter-spacing:0.5px;width:20%;">EQUIPO / CUADRILLAS</th>
-                    <th style="padding:11px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:10.5px;font-weight:bold;text-align:left;letter-spacing:0.5px;width:22%;">TÉCNICOS</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;width:7%;">SOLICIT.</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bae6fd;text-align:center;width:7%;">EN REV.</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#fecdd3;text-align:center;width:7%;">RECHAZ.</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#bbf7d0;text-align:center;width:7%;">VALID.</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#99f6e4;text-align:center;width:8%;">PRE-VAL.</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#e9d5ff;text-align:center;width:7%;">DOCUM.</th>
-                    <th style="padding:11px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:bold;color:#fecdd3;text-align:center;width:7%;">CRÍT.</th>
-                    <th style="padding:11px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#ffffff;text-align:center;width:8%;">TOTAL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${matrixRows.map((r, i) => `
-                  <tr style="background-color:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};border-bottom:1px solid #e2e8f0;">
-                    <td style="padding:10px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:#003060;border-right:1px solid #e2e8f0;">
-                      ${escapeHtml(r.id)}
-                      <div style="font-size:10px;font-weight:normal;color:#64748b;margin-top:2px;">${escapeHtml(r.subtitulo)}</div>
-                    </td>
-                    <td style="padding:10px 8px;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#334155;border-right:1px solid #e2e8f0;">
-                      ${escapeHtml(r.tecnico)}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.solicitando > 0 ? '#0284c7' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
-                      ${r.values.solicitando}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.enRevision > 0 ? '#0284c7' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
-                      ${r.values.enRevision}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.rechazados > 0 ? '#e11d48' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
-                      ${r.values.rechazados}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.validados > 0 ? '#16a34a' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
-                      ${r.values.validados}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${(r.values.prevalidados || 0) > 0 ? '#0d9488' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${(r.values.prevalidados || 0) > 0 ? '#f0fdfa' : 'transparent'};">
-                      ${r.values.prevalidados || 0}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${r.values.documentacion > 0 ? '#7e22ce' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;">
-                      ${r.values.documentacion}
-                    </td>
-                    <td style="padding:10px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;color:${(r.values.criticos || 0) > 0 ? '#b91c1c' : '#94a3b8'};text-align:center;border-right:1px solid #e2e8f0;background-color:${(r.values.criticos || 0) > 0 ? '#fef2f2' : 'transparent'};">
-                      ${r.values.criticos || 0}
-                    </td>
-                    <td style="padding:10px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;font-weight:bold;color:${r.total > 0 ? '#003060' : '#94a3b8'};text-align:center;background-color:${r.total > 0 ? '#eff6ff' : 'transparent'};">
-                      ${r.total}
-                    </td>
-                  </tr>
-                  `).join('')}
-                  <!-- Fila de Total General -->
-                  <tr style="background-color:#0f172a;color:#ffffff;border-top:2px solid #003060;">
-                    <td colspan="2" style="padding:12px 10px;font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;font-weight:bold;text-transform:uppercase;letter-spacing:0.8px;">
-                      TOTAL GENERAL DE JORNADA
-                    </td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.solicitando}</td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#bae6fd;text-align:center;">${matrixTotals.enRevision}</td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#fecdd3;text-align:center;">${matrixTotals.rechazados}</td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#bbf7d0;text-align:center;">${matrixTotals.validados}</td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#99f6e4;text-align:center;">${matrixTotals.prevalidados || 0}</td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#e9d5ff;text-align:center;">${matrixTotals.documentacion}</td>
-                    <td style="padding:12px 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:bold;color:#fecdd3;text-align:center;">${matrixTotals.criticos || 0}</td>
-                    <td style="padding:12px 6px;font-family:'Segoe UI',Arial,sans-serif;font-size:13.5px;font-weight:bold;color:#38bdf8;text-align:center;background-color:#1e293b;">${datos.matrixGrandTotal || 0}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <td style="padding:16px 24px 12px 24px;">
+              ${renderTablaMatricialHTML('Amazonas Original', matrixOriginal)}
+              <div style="height:10px;"></div>
+              ${renderTablaMatricialHTML('Amazonas Ampliación', matrixAmpliacion)}
             </td>
           </tr>
 
@@ -2174,46 +2302,32 @@ export function generarHTMLReporteInterno({ config, datos, isWebPreview = true }
           </tr>
           ` : ''}
 
-          <!-- Aviso de Archivo Adjunto -->
+          <!-- Firma Institucional COVEPA (Idéntica a los demás reportes) -->
           <tr>
-            <td style="padding:6px 24px 18px 24px;">
-              <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;">
-                <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-                  <tr>
-                    <td width="30" valign="top" style="font-size:18px;line-height:1;">📊</td>
-                    <td style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#166534;line-height:1.45;">
-                      <strong>Archivo Excel Adjunto:</strong> Se incluye el archivo oficial <strong>Reporte_Interno_Observaciones_${fechaReporteIso}.xlsx</strong> con la <strong>Matriz de Equipos</strong> (Hoja 1) y el <strong>Detalle de Códigos Tocados</strong> (Hoja 2, con Localidad contigua al Código de Sitio).
-                    </td>
-                  </tr>
-                </table>
+            <td style="background-color:#ffffff;border-top:1px solid #e2e8f0;padding:24px 28px;text-align:left;">
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#475569;margin-bottom:12px;">
+                Saludos cordiales,
+              </div>
+              <div style="margin-bottom:12px;">
+                <img src="${logoSrc}" alt="COVEPA" width="145" height="38" border="0" style="display:block;width:145px;max-width:145px;height:auto;border:0;outline:none;" />
+              </div>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:14px;font-weight:bold;color:#003060;line-height:1.3;">
+                Condor Callupe Carlos
+              </div>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#64748b;font-weight:600;margin-top:2px;">
+                Gestor de Calidad
+              </div>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#64748b;margin-top:6px;">
+                Cel: <a href="tel:+51958086874" style="color:#0284c7;text-decoration:none;font-weight:600;">+51 958 086 874</a>
+              </div>
+              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#64748b;margin-top:3px;">
+                Correo: <a href="mailto:ccondor@covepa.pe" style="color:#0284c7;text-decoration:none;font-weight:600;">ccondor@covepa.pe</a>
+              </div>
+              <div style="margin-top:14px;border-top:1px solid #f1f5f9;padding-top:10px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;color:#94a3b8;line-height:1.4;">
+                Este mensaje y los archivos adjuntos son para uso exclusivo del personal de COVEPA y contienen información operativa confidencial.
               </div>
             </td>
           </tr>
-
-          <!-- Firma Institucional COVEPA (Elegante y Blindada contra Bloqueos) -->
-          <tr>
-            <td style="background-color:#ffffff;border-top:1px solid #e2e8f0;padding:24px 28px;text-align:left;">
-              <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12.5px;color:#475569;margin-bottom:12px;">
-                Saludos cordiales,
-              </div>
-              <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="border-left:3px solid #003060;padding-left:14px;">
-                <tr>
-                  <td>
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:14.5px;font-weight:bold;color:#003060;line-height:1.2;">
-                      Carlos Condor Callupe
-                    </div>
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#475569;font-weight:600;margin-top:3px;">
-                      Gestión de Calidad & Operaciones · COVEPA S.A.C.
-                    </div>
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;color:#64748b;margin-top:2px;">
-                      Proyecto Red Dorsal & Regional Amazonas
-                    </div>
-                    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;color:#334155;margin-top:6px;">
-                      📱 Celular: <strong>+51 958 086 874</strong> &nbsp;·&nbsp; ✉️ Correo: <a href="mailto:ccondor@covepa.pe" style="color:#0284c7;text-decoration:none;font-weight:600;">ccondor@covepa.pe</a>
-                    </div>
-                  </td>
-                </tr>
-              </table>
               <div style="margin-top:14px;border-top:1px solid #f1f5f9;padding-top:10px;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;color:#94a3b8;line-height:1.4;">
                 Este mensaje y los archivos adjuntos son para uso exclusivo del personal de COVEPA y contienen información operativa confidencial.
               </div>
@@ -2474,7 +2588,7 @@ export async function despacharReporteInternoInmediato({ forzar = true, destinat
         origen: 'web',
         destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
         destinatarios_cc: [],
-        asunto: '[COVEPA INTERNO] Resumen Operativo de Jornada',
+        asunto: 'Reporte Interno Diario',
         estado: 'exitoso'
       })
       return { ok: true, message: data.message || '¡Reporte diario interno despachado exitosamente!' }
@@ -2525,7 +2639,7 @@ export async function despacharReporteInternoInmediato({ forzar = true, destinat
       origen: 'web_direct',
       destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
       destinatarios_cc: [],
-      asunto: '[COVEPA INTERNO] Resumen Operativo de Jornada',
+      asunto: 'Reporte Interno Diario',
       estado: 'exitoso'
     })
     return { ok: true, message: '¡Reporte diario interno despachado con éxito! El correo llegará en unos 20 segundos.' }
@@ -2571,7 +2685,7 @@ export async function despacharReporteSemanalInmediato({ forzar = true, destinat
       })
       return { ok: true, message: data.message }
     }
-  } catch (_) {}
+  } catch (_) { }
 
   registrarEnvioLocal({
     id: `local-${Date.now()}`,
@@ -2600,7 +2714,7 @@ export function registrarEnvioLocal(registro) {
     const list = raw ? JSON.parse(raw) : []
     const updated = [registro, ...list].slice(0, 30)
     localStorage.setItem(LOCAL_STORAGE_KEY_HISTORIAL, JSON.stringify(updated))
-  } catch (_) {}
+  } catch (_) { }
 }
 
 /**
@@ -2626,7 +2740,7 @@ export async function limpiarHistorialEnviosHoy() {
     localStorage.removeItem('covepa_historial_envios_correo')
     // Guardar marca de corte para que las corridas previas de GitHub de hoy no se muestren
     localStorage.setItem('covepa_historial_limpiado_hasta', new Date().toISOString())
-  } catch (_) {}
+  } catch (_) { }
 
   // 2. Limpiar ultimo_envio_at en Supabase (modificación de celda existente)
   try {
@@ -2648,7 +2762,7 @@ export async function limpiarHistorialEnviosHoy() {
         localStorage.setItem(k, JSON.stringify(parsed))
       }
     })
-  } catch (_) {}
+  } catch (_) { }
 
   return { ok: true, fecha: hoyPeru }
 }
@@ -2668,7 +2782,7 @@ export async function fetchHistorialEnvios(tipoReporte = null) {
     if (!error && Array.isArray(data)) {
       data.forEach(item => {
         if (item.github_run_id) seenRunIds.add(String(item.github_run_id))
-        const itemTipoReporte = item.tipo_reporte || 
+        const itemTipoReporte = item.tipo_reporte ||
           ((item.asunto || '').toLowerCase().includes('semanal') ? 'semanal' : 'diario')
 
         unified.push({
@@ -2768,7 +2882,7 @@ export async function fetchHistorialEnvios(tipoReporte = null) {
       if (Array.isArray(localItems)) {
         localItems.forEach(loc => {
           const yaExiste = unified.some(u => (
-            u.id === loc.id || 
+            u.id === loc.id ||
             (Math.abs(new Date(u.created_at) - new Date(loc.created_at)) < 30000)
           ))
           if (!yaExiste) {
@@ -2781,7 +2895,7 @@ export async function fetchHistorialEnvios(tipoReporte = null) {
         })
       }
     }
-  } catch (_) {}
+  } catch (_) { }
 
   // 4. Filtrar registros previos si el usuario solicitó limpiar el historial de hoy
   let listaFiltrada = unified
@@ -2799,7 +2913,7 @@ export async function fetchHistorialEnvios(tipoReporte = null) {
         return true
       })
     }
-  } catch (_) {}
+  } catch (_) { }
 
   // 5. Ordenar cronológicamente descendente (más reciente arriba)
   listaFiltrada.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))

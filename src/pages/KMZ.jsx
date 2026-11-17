@@ -261,8 +261,8 @@ export default function KMZ() {
     try {
       const userEmail = user?.email || 'coordinador'
       let configTarget = configDiario
-      if (tipo === 'diario_ampliacion') configTarget = configDiarioAmpliacion
-      if (tipo === 'diario_interno') configTarget = configInterno
+      if (tipo === 'diario_ampliacion' || tipo === 'ampliacion') configTarget = configDiarioAmpliacion
+      if (tipo === 'diario_interno' || tipo === 'interno') configTarget = configInterno
       if (tipo === 'semanal') configTarget = configSemanal
 
       await saveConfiguracionReporte(configTarget, userEmail, tipo)
@@ -367,17 +367,23 @@ export default function KMZ() {
   // ========================================================
   // TOGGLES DE PERSONAL PARA DESTINATARIOS
   // ========================================================
+  const getTargetConfigTuple = useCallback((target) => {
+    if (target === 'ampliacion' || target === 'diario_ampliacion') {
+      return [configDiarioAmpliacion, setConfigDiarioAmpliacion, 'Reporte Diario — Amazonas Ampliación']
+    }
+    if (target === 'interno' || target === 'diario_interno') {
+      return [configInterno, setConfigInterno, 'Reporte Diario Interno']
+    }
+    if (target === 'semanal') {
+      return [configSemanal, setConfigSemanal, 'Consolidado Semanal']
+    }
+    return [configDiario, setConfigDiario, 'Reporte Diario — Amazonas Original']
+  }, [configDiario, configDiarioAmpliacion, configInterno, configSemanal])
+
   const handleTogglePersonalPara = (email) => {
     const emailNorm = email.toLowerCase().trim()
-    const isInterno = targetConfigForPersonal === 'interno'
-    const isSemanal = targetConfigForPersonal === 'semanal'
-    const isAmpliacion = targetConfigForPersonal === 'ampliacion' || targetConfigForPersonal === 'diario_ampliacion'
-
-    let cfg = configDiario
-    let setCfg = setConfigDiario
-    if (isInterno) { cfg = configInterno; setCfg = setConfigInterno }
-    else if (isSemanal) { cfg = configSemanal; setCfg = setConfigSemanal }
-    else if (isAmpliacion) { cfg = configDiarioAmpliacion; setCfg = setConfigDiarioAmpliacion }
+    const [cfg, setCfg] = getTargetConfigTuple(targetConfigForPersonal)
+    if (!cfg || !setCfg) return
 
     const curPara = cfg.destinatarios || []
     const curCC = cfg.destinatarios_cc || []
@@ -395,15 +401,8 @@ export default function KMZ() {
 
   const handleTogglePersonalCC = (email) => {
     const emailNorm = email.toLowerCase().trim()
-    const isInterno = targetConfigForPersonal === 'interno'
-    const isSemanal = targetConfigForPersonal === 'semanal'
-    const isAmpliacion = targetConfigForPersonal === 'ampliacion' || targetConfigForPersonal === 'diario_ampliacion'
-
-    let cfg = configDiario
-    let setCfg = setConfigDiario
-    if (isInterno) { cfg = configInterno; setCfg = setConfigInterno }
-    else if (isSemanal) { cfg = configSemanal; setCfg = setConfigSemanal }
-    else if (isAmpliacion) { cfg = configDiarioAmpliacion; setCfg = setConfigDiarioAmpliacion }
+    const [cfg, setCfg] = getTargetConfigTuple(targetConfigForPersonal)
+    if (!cfg || !setCfg) return
 
     const curPara = cfg.destinatarios || []
     const curCC = cfg.destinatarios_cc || []
@@ -520,33 +519,37 @@ export default function KMZ() {
   const reportCards = useMemo(() => [
     {
       id: 'diario-gilat',
-      title: 'Reporte Diario — Amazonas Original',
-      badge: 'Automático · 21:00 hrs',
-      badgeColor: '#0284c7',
+      title: (configDiario?.asunto || 'Reporte Diario — Amazonas Original').replace(/ - \{fecha\}/g, '').trim(),
+      asuntoDefault: configDiario?.asunto || 'Reporte Diario de Levantamiento de Observaciones Amazonas Original - Zona 2 y Zona 7',
+      badge: configDiario?.activo ? `Automático · ${(configDiario?.hora_envio || '21:00').slice(0, 5)} hrs` : 'Envío Desactivado',
+      badgeColor: configDiario?.activo ? '#0284c7' : '#94a3b8',
       icon: TrendingUp,
       description: 'Consolidado nocturno oficial de observaciones de Amazonas Original con tiempo de revisión y Excel adjunto.'
     },
     {
       id: 'diario-ampliacion',
-      title: 'Reporte Diario — Amazonas Ampliación',
-      badge: 'Automático · 21:00 hrs',
-      badgeColor: '#0ea5e9',
+      title: (configDiarioAmpliacion?.asunto || 'Reporte Diario — Amazonas Ampliación').replace(/ - \{fecha\}/g, '').trim(),
+      asuntoDefault: configDiarioAmpliacion?.asunto || '[COVEPA] Reporte Diario de Observaciones — Amazonas Ampliación - Zona 2 y Zona 7',
+      badge: configDiarioAmpliacion?.activo ? `Automático · ${(configDiarioAmpliacion?.hora_envio || '21:00').slice(0, 5)} hrs` : 'Envío Desactivado',
+      badgeColor: configDiarioAmpliacion?.activo ? '#0ea5e9' : '#94a3b8',
       icon: Layers,
       description: 'Consolidado nocturno de levantamiento de observaciones para los 27 sitios de Ampliación (AMEX).'
     },
     {
       id: 'diario-interno',
-      title: 'Reporte Diario Interno (4 Equipos)',
-      badge: 'Automático · 21:30 hrs',
-      badgeColor: '#10b981',
+      title: (configInterno?.asunto?.replace('[COVEPA INTERNO] Resumen Operativo de Jornada', 'Reporte Interno Diario') || 'Reporte Interno Diario').replace(/ - \{fecha\}/g, '').trim(),
+      asuntoDefault: configInterno?.asunto?.replace('[COVEPA INTERNO] Resumen Operativo de Jornada', 'Reporte Interno Diario') || 'Reporte Interno Diario - {fecha}',
+      badge: configInterno?.activo ? `Automático · ${(configInterno?.hora_envio || '21:30').slice(0, 5)} hrs` : 'Envío Desactivado',
+      badgeColor: configInterno?.activo ? '#10b981' : '#94a3b8',
       icon: Layers3,
       description: 'Cifras integradas (Original + Ampliación) y Cuadro Matricial de 4 Equipos (C1+C2, C3+C6, C4+C5, C7).'
     },
     {
       id: 'semanal',
-      title: 'Consolidado Semanal de Subsanación',
-      badge: 'Automático · Vie 20:00',
-      badgeColor: '#8b5cf6',
+      title: (configSemanal?.asunto || 'Consolidado Semanal de Subsanación').replace(/ - Semana \{semana\}/g, '').trim(),
+      asuntoDefault: configSemanal?.asunto || '[COVEPA] Reporte Semanal de Levantamiento de Observaciones Amazonas - Semana {semana}',
+      badge: configSemanal?.activo ? `Automático · Vie ${(configSemanal?.hora_envio || '20:00').slice(0, 5)}` : 'Envío Desactivado',
+      badgeColor: configSemanal?.activo ? '#8b5cf6' : '#94a3b8',
       icon: FileSpreadsheet,
       description: 'Resumen consolidado Lunes a Domingo con métricas de productividad y cumplimiento de Hito 1.'
     },
@@ -574,7 +577,7 @@ export default function KMZ() {
       icon: Users,
       description: 'Observaciones filtradas individualmente por Cuadrilla (Pedro Ruiz y Bagua Grande).'
     }
-  ], [])
+  ], [configDiario, configDiarioAmpliacion, configInterno, configSemanal])
 
   // ========================================================
   // PREPARACIÓN DE COLUMNAS Y FILAS PARA LA CARA TRASERA
@@ -587,10 +590,7 @@ export default function KMZ() {
     { key: 'id_sitio', title: 'Código de Sitio' },
     { key: 'localidad', title: 'Localidad' },
     { key: 'revisor', title: 'Persona que Validó' },
-    { key: 'estado', title: 'Estado Observación' },
-    { key: 'fecha_solicito_revision', title: 'Solicitó Revisión' },
-    { key: 'fecha_revisado', title: 'Revisado' },
-    { key: 'tiempo_revision', title: 'Tiempo de Revisión' }
+    { key: 'estado', title: 'Estado Observación' }
   ], [])
 
   const rowsDiarioGilat = useMemo(() => {
@@ -599,7 +599,8 @@ export default function KMZ() {
       ...(datosDiario.validadas || []),
       ...(datosDiario.rechazadas || []),
       ...(datosDiario.enEspera || []),
-      ...(datosDiario.descartadas || [])
+      ...(datosDiario.descartadas || []),
+      ...(datosDiario.documentacion || [])
     ]
     return all.map(r => ({
       id: r.id_obs,
@@ -608,10 +609,7 @@ export default function KMZ() {
       id_sitio: r.id_sitio || r.codigo_lugar || '',
       localidad: r.localidad || getLocalidadBySiteId(r.id_sitio) || '',
       revisor: r.revisor || '-',
-      estado: r.estado || 'Validado',
-      fecha_solicito_revision: r.fecha_solicito_revision || '-',
-      fecha_revisado: r.fecha_revisado || '-',
-      tiempo_revision: r.tiempo_revision || '-'
+      estado: r.estado || 'Validado'
     }))
   }, [datosDiario])
 
@@ -622,7 +620,8 @@ export default function KMZ() {
       ...(datosDiarioAmpliacion.validadas || []),
       ...(datosDiarioAmpliacion.rechazadas || []),
       ...(datosDiarioAmpliacion.enEspera || []),
-      ...(datosDiarioAmpliacion.descartadas || [])
+      ...(datosDiarioAmpliacion.descartadas || []),
+      ...(datosDiarioAmpliacion.documentacion || [])
     ]
     return all.map(r => ({
       id: r.id_obs,
@@ -631,10 +630,7 @@ export default function KMZ() {
       id_sitio: r.id_sitio || r.codigo_lugar || '',
       localidad: r.localidad || getLocalidadBySiteId(r.id_sitio) || '',
       revisor: r.revisor || '-',
-      estado: r.estado || 'Validado',
-      fecha_solicito_revision: r.fecha_solicito_revision || '-',
-      fecha_revisado: r.fecha_revisado || '-',
-      tiempo_revision: r.tiempo_revision || '-'
+      estado: r.estado || 'Validado'
     }))
   }, [datosDiarioAmpliacion])
 
@@ -643,51 +639,91 @@ export default function KMZ() {
     { key: 'id', title: 'Equipo' },
     { key: 'subtitulo', title: 'Cuadrillas' },
     { key: 'tecnico', title: 'Técnicos Asignados', wrap: true },
-    { key: 'solicitando', title: 'Solicitando', align: 'center' },
     { key: 'enRevision', title: 'En Revisión', align: 'center' },
+    { key: 'descartados', title: 'Descartados', align: 'center' },
+    { key: 'criticos', title: 'Críticos', align: 'center' },
+    { key: 'documentacion', title: 'Documentación', align: 'center' },
     { key: 'rechazados', title: 'Rechazados', align: 'center' },
     { key: 'validados', title: 'Validados', align: 'center' },
-    { key: 'prevalidados', title: 'Pre-val.', align: 'center' },
-    { key: 'documentacion', title: 'Documentación', align: 'center' },
-    { key: 'criticos', title: 'Crítico', align: 'center' },
     { key: 'total', title: 'Total', align: 'center' }
   ], [])
 
   const rowsInternoMatriz = useMemo(() => {
-    if (!datosInterno?.matrixRows) return []
-    const rows = datosInterno.matrixRows.map(r => ({
+    if (!datosInterno) return []
+    const origRows = (datosInterno.matrixOriginal?.matrixRows || (datosInterno.matrixRows || []).filter(r => r.id !== 'EQUIPO 4')).map(r => ({
       id: r.id,
       subtitulo: r.subtitulo,
       tecnico: r.tecnico,
-      solicitando: r.values.solicitando,
       enRevision: r.values.enRevision,
+      descartados: r.values.descartados || 0,
+      criticos: r.values.criticos || 0,
+      documentacion: r.values.documentacion,
       rechazados: r.values.rechazados,
       validados: r.values.validados,
-      prevalidados: r.values.prevalidados || 0,
-      documentacion: r.values.documentacion,
-      criticos: r.values.criticos || 0,
       total: r.total
     }))
 
+    const origTotals = datosInterno.matrixOriginal?.matrixTotals || {}
+    const origGrand = datosInterno.matrixOriginal?.matrixGrandTotal || origRows.reduce((a, b) => a + b.total, 0)
+    const rowTotOriginal = {
+      id: 'TOTAL AMAZONAS ORIGINAL',
+      subtitulo: 'Cuadrillas 1 a 6',
+      tecnico: '-',
+      enRevision: origTotals.enRevision || 0,
+      descartados: origTotals.descartados || 0,
+      criticos: origTotals.criticos || 0,
+      documentacion: origTotals.documentacion || 0,
+      rechazados: origTotals.rechazados || 0,
+      validados: origTotals.validados || 0,
+      total: origGrand
+    }
+
+    const amplRows = (datosInterno.matrixAmpliacion?.matrixRows || (datosInterno.matrixRows || []).filter(r => r.id === 'EQUIPO 4')).map(r => ({
+      id: r.id,
+      subtitulo: r.subtitulo,
+      tecnico: r.tecnico,
+      enRevision: r.values.enRevision,
+      descartados: r.values.descartados || 0,
+      criticos: r.values.criticos || 0,
+      documentacion: r.values.documentacion,
+      rechazados: r.values.rechazados,
+      validados: r.values.validados,
+      total: r.total
+    }))
+
+    const amplTotals = datosInterno.matrixAmpliacion?.matrixTotals || {}
+    const amplGrand = datosInterno.matrixAmpliacion?.matrixGrandTotal || amplRows.reduce((a, b) => a + b.total, 0)
+    const rowTotAmpliacion = {
+      id: 'TOTAL AMAZONAS AMPLIACIÓN',
+      subtitulo: 'Cuadrilla 7',
+      tecnico: '-',
+      enRevision: amplTotals.enRevision || 0,
+      descartados: amplTotals.descartados || 0,
+      criticos: amplTotals.criticos || 0,
+      documentacion: amplTotals.documentacion || 0,
+      rechazados: amplTotals.rechazados || 0,
+      validados: amplTotals.validados || 0,
+      total: amplGrand
+    }
+
     // Fila de Total General
     const t = datosInterno.matrixTotals || {}
-    rows.push({
-      id: 'TOTAL GENERAL',
+    const rowTotGeneral = {
+      id: 'TOTAL GENERAL DE JORNADA',
       subtitulo: 'Todas las cuadrillas',
       tecnico: '-',
-      solicitando: t.solicitando || 0,
       enRevision: t.enRevision || 0,
+      descartados: t.descartados || 0,
+      criticos: t.criticos || 0,
+      documentacion: t.documentacion || 0,
       rechazados: t.rechazados || 0,
       validados: t.validados || 0,
-      prevalidados: t.prevalidados || 0,
-      documentacion: t.documentacion || 0,
-      criticos: t.criticos || 0,
       total: datosInterno.matrixGrandTotal || 0
-    })
-    return rows
+    }
+    return [...origRows, rowTotOriginal, ...amplRows, rowTotAmpliacion, rowTotGeneral]
   }, [datosInterno])
 
-  // 2. Columnas y Filas: Diario Interno - Hoja 2: Detalle Códigos
+  // 2. Columnas y Filas: Diario Interno - Detalle Códigos (Original y Ampliación)
   const columnsInternoDetalle = useMemo(() => [
     { key: 'id_obs', title: 'ID Obs' },
     { key: 'equipo', title: 'Equipo' },
@@ -721,6 +757,14 @@ export default function KMZ() {
       comentario: r.comentario || r.justificacion_demora || '-'
     }))
   }, [datosInterno])
+
+  const rowsInternoOriginal = useMemo(() => {
+    return rowsInternoDetalle.filter(r => r.equipo !== 'EQUIPO 4')
+  }, [rowsInternoDetalle])
+
+  const rowsInternoAmpliacion = useMemo(() => {
+    return rowsInternoDetalle.filter(r => r.equipo === 'EQUIPO 4')
+  }, [rowsInternoDetalle])
 
   // 3. Columnas y Filas: Semanal
   const columnsSemanal = useMemo(() => [
@@ -801,55 +845,7 @@ export default function KMZ() {
         </div>
       )}
 
-      {/* ENCABEZADO PRINCIPAL DE INFORMES Y REPORTES */}
-      <div style={{
-        background: '#ffffff',
-        border: '1px solid #d8e5f1',
-        borderRadius: '12px',
-        padding: '1rem 1.35rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '1rem',
-        boxShadow: 'var(--shadow-sm)'
-      }}>
-        <div>
-          <h2 className="t-title-page" style={{ color: '#003060', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <FileSpreadsheet size={22} color="#003060" />
-            Informes y Reportes
-          </h2>
-          <p className="t-body" style={{ margin: '0.2rem 0 0 0', color: '#64748b' }}>
-            Gestión ejecutiva de informes, matrices por equipos, descarga de Excel (.xlsx) y automatización de envíos por correo
-          </p>
-        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button
-            type="button"
-            onClick={() => handleOpenHistorial()}
-            className="btn btn-secondary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '0.45rem 0.85rem' }}
-          >
-            <History size={14} />
-            <span>Auditoría de Envíos</span>
-          </button>
-
-          <span className="t-badge" style={{
-            background: '#eff6ff',
-            border: '1px solid #bfdbfe',
-            color: '#1d4ed8',
-            padding: '0.35rem 0.75rem',
-            borderRadius: '6px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}>
-            <Sparkles size={13} color="#1d4ed8" />
-            Excel Oficial COVEPA
-          </span>
-        </div>
-      </div>
 
       {/* ARQUITECTURA DE 2 PANELES: CATÁLOGO A LA IZQUIERDA Y REPORTE A LA DERECHA */}
       <div style={{
@@ -892,44 +888,30 @@ export default function KMZ() {
                     background: isSelected ? '#f0f7ff' : '#ffffff',
                     border: `1.5px solid ${isSelected ? '#0284c7' : '#e2e8f0'}`,
                     borderRadius: '10px',
-                    padding: '0.85rem 1rem',
+                    padding: '0.75rem 1rem',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
-                    boxShadow: isSelected ? '0 2px 8px rgba(2, 132, 199, 0.12)' : 'none'
+                    boxShadow: isSelected ? '0 2px 8px rgba(2, 132, 199, 0.12)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '6px',
-                        background: isSelected ? '#e0f2fe' : '#f1f5f9',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <IconComp size={16} color={isSelected ? '#0284c7' : '#475569'} />
-                      </div>
-                      <span className="t-name" style={{ color: isSelected ? '#003060' : '#1e293b' }}>
-                        {item.title}
-                      </span>
-                    </div>
-
-                    <span className="t-badge" style={{
-                      background: isSelected ? '#e0f2fe' : '#f8fafc',
-                      border: `1px solid ${isSelected ? '#bae6fd' : '#e2e8f0'}`,
-                      color: item.badgeColor,
-                      padding: '2px 6px',
-                      borderRadius: '4px'
-                    }}>
-                      {item.badge}
-                    </span>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: isSelected ? '#e0f2fe' : '#f1f5f9',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    <IconComp size={16} color={isSelected ? '#0284c7' : '#475569'} />
                   </div>
-
-                  <p className="t-meta" style={{ margin: 0, color: '#64748b', lineHeight: '1.35' }}>
-                    {item.description}
-                  </p>
+                  <span className="t-name" style={{ color: isSelected ? '#003060' : '#1e293b' }}>
+                    {item.title}
+                  </span>
                 </div>
               )
             })}
@@ -943,12 +925,12 @@ export default function KMZ() {
           gap: '1.25rem'
         }}>
           
-          {/* BARRA SUPERIOR DE CABECERA Y SELECTOR DE CARAS (FRENTE / DETRÁS) */}
+          {/* BARRA SUPERIOR DE CABECERA Y SELECTOR (RESUMEN / LISTA) */}
           <div style={{
             background: '#ffffff',
             border: '1px solid #d8e5f1',
             borderRadius: '12px',
-            padding: '1rem 1.25rem',
+            padding: '0.85rem 1.25rem',
             boxShadow: 'var(--shadow-sm)',
             display: 'flex',
             alignItems: 'center',
@@ -956,18 +938,13 @@ export default function KMZ() {
             flexWrap: 'wrap',
             gap: '1rem'
           }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="t-title-section" style={{ color: '#003060', margin: 0 }}>
-                  {reportCards.find(r => r.id === activeReport)?.title}
-                </span>
-              </div>
-              <span className="t-meta" style={{ color: '#64748b' }}>
-                Alterna entre el Resumen Ejecutivo de despacho y la Estructura Tabular de Excel
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="t-title-section" style={{ color: '#003060', margin: 0 }}>
+                {reportCards.find(r => r.id === activeReport)?.title}
               </span>
             </div>
 
-            {/* CONMUTADOR TIPO PÍLDORA DE LAS 2 CARAS */}
+            {/* CONMUTADOR TIPO PÍLDORA: RESUMEN / LISTA */}
             <div style={{
               display: 'flex',
               background: '#f1f5f9',
@@ -980,7 +957,7 @@ export default function KMZ() {
                 onClick={() => setVistaCara('frente')}
                 className="t-badge"
                 style={{
-                  padding: '0.4rem 0.85rem',
+                  padding: '0.4rem 0.95rem',
                   borderRadius: '6px',
                   border: 'none',
                   background: vistaCara === 'frente' ? '#ffffff' : 'transparent',
@@ -993,7 +970,7 @@ export default function KMZ() {
                   gap: '5px'
                 }}
               >
-                <span>📊 Cara Frontal: Resumen y Despacho</span>
+                <span>Resumen</span>
               </button>
 
               <button
@@ -1001,7 +978,7 @@ export default function KMZ() {
                 onClick={() => setVistaCara('detras')}
                 className="t-badge"
                 style={{
-                  padding: '0.4rem 0.85rem',
+                  padding: '0.4rem 0.95rem',
                   borderRadius: '6px',
                   border: 'none',
                   background: vistaCara === 'detras' ? '#ffffff' : 'transparent',
@@ -1014,7 +991,7 @@ export default function KMZ() {
                   gap: '5px'
                 }}
               >
-                <span>📑 Cara Trasera: Estructura Excel</span>
+                <span>Lista</span>
               </button>
             </div>
           </div>
@@ -1029,10 +1006,7 @@ export default function KMZ() {
                 <div style={{ background: '#ffffff', border: '1px solid #d8e5f1', borderRadius: '12px', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                     <div>
-                      <h4 className="t-name" style={{ margin: 0, color: '#003060' }}>
-                        Cifras Resumidas de la Jornada
-                      </h4>
-                      <span className="t-meta" style={{ color: '#64748b' }}>
+                      <span className="t-name" style={{ color: '#003060', fontWeight: 'var(--fw-semibold)' }}>
                         {datosDiario?.fechaFormateada || fechaReporteDiario}
                       </span>
                     </div>
@@ -1061,81 +1035,54 @@ export default function KMZ() {
                     </div>
                   </div>
 
-                  {/* Tarjeta Principal de Total */}
-                  <div style={{ background: '#f8fafc', border: '1.5px solid #003060', borderRadius: '10px', padding: '1.1rem', textAlign: 'center', marginBottom: '0.85rem' }}>
-                    <div className="t-metric-kpi" style={{ color: '#003060' }}>
-                      {datosDiario?.stats?.total ?? (loadingDiario ? '...' : 0)}
-                    </div>
-                    <div className="t-badge" style={{ color: '#475569', textTransform: 'uppercase', letterSpacing: '0.8px', marginTop: '4px' }}>
-                      Total de Observaciones Trabajadas en la Jornada
-                    </div>
-                  </div>
-
-                  {/* 4 KPIs Secundarios */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-                    <div style={{ background: '#f0fdf4', border: '1.5px solid #22c55e', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#15803d', margin: 0 }}>
-                        {datosDiario?.stats?.validadas ?? 0}
+                  {/* Panel de Medidores Oficiales Estilo Correo */}
+                  <div className="reporte-email-metrics-panel">
+                    {/* Tarjeta Principal de Total */}
+                    <div className="reporte-kpi-total-card">
+                      <div className="reporte-kpi-total-val">
+                        {datosDiario?.stats?.total ?? (loadingDiario ? '...' : 0)}
                       </div>
-                      <div className="t-badge" style={{ color: '#166534', marginTop: '2px' }}>✓ Validadas</div>
-                    </div>
-
-                    <div style={{ background: '#fff1f2', border: '1.5px solid #f43f5e', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#be123c', margin: 0 }}>
-                        {datosDiario?.stats?.rechazadas ?? 0}
+                      <div className="reporte-kpi-total-label">
+                        Total de Observaciones Trabajadas en la Jornada
                       </div>
-                      <div className="t-badge" style={{ color: '#9f1239', marginTop: '2px' }}>✕ Rechazadas</div>
                     </div>
 
-                    <div style={{ background: '#f0f9ff', border: '1.5px solid #0284c7', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#0369a1', margin: 0 }}>
-                        {datosDiario?.stats?.enEspera ?? 0}
-                      </div>
-                      <div className="t-badge" style={{ color: '#075985', marginTop: '2px' }}>⏳ En Espera</div>
-                    </div>
-
-                    <div style={{ background: '#faf5ff', border: '1.5px solid #a855f7', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#7e22ce', margin: 0 }}>
-                        {datosDiario?.stats?.descartadas ?? 0}
-                      </div>
-                      <div className="t-badge" style={{ color: '#6b21a8', marginTop: '2px' }}>⊘ No Aplica</div>
-                    </div>
-                  </div>
-
-                  {/* Tarjeta Destacada de Tiempo Promedio de Revisión */}
-                  <div style={{
-                    background: '#fffbeb',
-                    border: '1.5px solid #f59e0b',
-                    borderRadius: '10px',
-                    padding: '0.9rem 1.25rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '0.75rem'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Clock size={26} color="#d97706" />
-                      <div>
-                        <div className="t-name" style={{ color: '#92400e', margin: 0 }}>
-                          Tiempo Promedio de Revisión
+                    {/* 5 Medidores Secundarios */}
+                    <div className="reporte-kpi-grid-5">
+                      <div className="reporte-kpi-card kpi-validadas">
+                        <div className="reporte-kpi-card-val">
+                          {datosDiario?.stats?.validadas ?? 0}
                         </div>
-                        <span className="t-meta" style={{ color: '#b45309' }}>
-                          Promedio de atención transcurrido desde que se solicitó revisión hasta el dictamen de Gilat
-                        </span>
+                        <div className="reporte-kpi-card-label">✓ Validadas</div>
                       </div>
-                    </div>
 
-                    <div style={{
-                      background: '#ffffff',
-                      border: '1px solid #fde68a',
-                      borderRadius: '8px',
-                      padding: '0.35rem 0.85rem',
-                      textAlign: 'center'
-                    }}>
-                      <span className="t-title-section" style={{ color: '#b45309', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
-                        {datosDiario?.stats?.tiempoPromedioRevisionTexto || '—'}
-                      </span>
+                      <div className="reporte-kpi-card kpi-rechazadas">
+                        <div className="reporte-kpi-card-val">
+                          {datosDiario?.stats?.rechazadas ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">✕ Rechazadas</div>
+                      </div>
+
+                      <div className="reporte-kpi-card kpi-espera">
+                        <div className="reporte-kpi-card-val">
+                          {datosDiario?.stats?.enEspera ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">⏳ En Espera</div>
+                      </div>
+
+                      <div className="reporte-kpi-card kpi-documentacion">
+                        <div className="reporte-kpi-card-val">
+                          {datosDiario?.stats?.documentacion ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">📁 En Documentación</div>
+                      </div>
+
+                      <div className="reporte-kpi-card kpi-descartadas">
+                        <div className="reporte-kpi-card-val">
+                          {datosDiario?.stats?.descartadas ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">🚫 No Aplica</div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1154,8 +1101,8 @@ export default function KMZ() {
                     setTargetConfigForPersonal('diario')
                     setModalPersonalOpen(true)
                   }}
-                  titulo="Envío Automático del Reporte Diario (Amazonas Original)"
-                  subtitulo="Despacho oficial de las 21:00 hrs con archivo Excel adjunto y tiempo de revisión para Amazonas Original"
+                  titulo="Configuración de Correo Automático"
+                  subtitulo=""
                 />
               </div>
             ) : (
@@ -1180,10 +1127,7 @@ export default function KMZ() {
                 <div style={{ background: '#ffffff', border: '1px solid #d8e5f1', borderRadius: '12px', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                     <div>
-                      <h4 className="t-name" style={{ margin: 0, color: '#003060' }}>
-                        Cifras Resumidas — Amazonas Ampliación (Sitios AMEX)
-                      </h4>
-                      <span className="t-meta" style={{ color: '#64748b' }}>
+                      <span className="t-name" style={{ color: '#003060', fontWeight: 'var(--fw-semibold)' }}>
                         {datosDiarioAmpliacion?.fechaFormateada || fechaReporteDiarioAmpliacion}
                       </span>
                     </div>
@@ -1212,81 +1156,54 @@ export default function KMZ() {
                     </div>
                   </div>
 
-                  {/* Tarjeta Principal de Total */}
-                  <div style={{ background: '#f8fafc', border: '1.5px solid #003060', borderRadius: '10px', padding: '1.1rem', textAlign: 'center', marginBottom: '0.85rem' }}>
-                    <div className="t-metric-kpi" style={{ color: '#003060' }}>
-                      {datosDiarioAmpliacion?.stats?.total ?? (loadingDiarioAmpliacion ? '...' : 0)}
-                    </div>
-                    <div className="t-badge" style={{ color: '#475569', textTransform: 'uppercase', letterSpacing: '0.8px', marginTop: '4px' }}>
-                      Total de Observaciones de Ampliación Trabajadas en la Jornada
-                    </div>
-                  </div>
-
-                  {/* 4 KPIs Secundarios */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-                    <div style={{ background: '#f0fdf4', border: '1.5px solid #22c55e', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#15803d', margin: 0 }}>
-                        {datosDiarioAmpliacion?.stats?.validadas ?? 0}
+                  {/* Panel de Medidores Oficiales Estilo Correo */}
+                  <div className="reporte-email-metrics-panel">
+                    {/* Tarjeta Principal de Total */}
+                    <div className="reporte-kpi-total-card">
+                      <div className="reporte-kpi-total-val">
+                        {datosDiarioAmpliacion?.stats?.total ?? (loadingDiarioAmpliacion ? '...' : 0)}
                       </div>
-                      <div className="t-badge" style={{ color: '#166534', marginTop: '2px' }}>✓ Validadas</div>
-                    </div>
-
-                    <div style={{ background: '#fff1f2', border: '1.5px solid #f43f5e', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#be123c', margin: 0 }}>
-                        {datosDiarioAmpliacion?.stats?.rechazadas ?? 0}
+                      <div className="reporte-kpi-total-label">
+                        Total de Observaciones de Ampliación Trabajadas en la Jornada
                       </div>
-                      <div className="t-badge" style={{ color: '#9f1239', marginTop: '2px' }}>✕ Rechazadas</div>
                     </div>
 
-                    <div style={{ background: '#f0f9ff', border: '1.5px solid #0284c7', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#0369a1', margin: 0 }}>
-                        {datosDiarioAmpliacion?.stats?.enEspera ?? 0}
-                      </div>
-                      <div className="t-badge" style={{ color: '#075985', marginTop: '2px' }}>⏳ En Espera</div>
-                    </div>
-
-                    <div style={{ background: '#faf5ff', border: '1.5px solid #a855f7', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#7e22ce', margin: 0 }}>
-                        {datosDiarioAmpliacion?.stats?.descartadas ?? 0}
-                      </div>
-                      <div className="t-badge" style={{ color: '#6b21a8', marginTop: '2px' }}>⊘ No Aplica</div>
-                    </div>
-                  </div>
-
-                  {/* Tarjeta Destacada de Tiempo Promedio de Revisión */}
-                  <div style={{
-                    background: '#fffbeb',
-                    border: '1.5px solid #f59e0b',
-                    borderRadius: '10px',
-                    padding: '0.9rem 1.25rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '0.75rem'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Clock size={26} color="#d97706" />
-                      <div>
-                        <div className="t-name" style={{ color: '#92400e', margin: 0 }}>
-                          Tiempo Promedio de Revisión
+                    {/* 5 Medidores Secundarios */}
+                    <div className="reporte-kpi-grid-5">
+                      <div className="reporte-kpi-card kpi-validadas">
+                        <div className="reporte-kpi-card-val">
+                          {datosDiarioAmpliacion?.stats?.validadas ?? 0}
                         </div>
-                        <span className="t-meta" style={{ color: '#b45309' }}>
-                          Promedio de atención transcurrido desde que se solicitó revisión hasta el dictamen
-                        </span>
+                        <div className="reporte-kpi-card-label">✓ Validadas</div>
                       </div>
-                    </div>
 
-                    <div style={{
-                      background: '#ffffff',
-                      border: '1px solid #fde68a',
-                      borderRadius: '8px',
-                      padding: '0.35rem 0.85rem',
-                      textAlign: 'center'
-                    }}>
-                      <span className="t-title-section" style={{ color: '#b45309', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
-                        {datosDiarioAmpliacion?.stats?.tiempoPromedioRevisionTexto || '—'}
-                      </span>
+                      <div className="reporte-kpi-card kpi-rechazadas">
+                        <div className="reporte-kpi-card-val">
+                          {datosDiarioAmpliacion?.stats?.rechazadas ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">✕ Rechazadas</div>
+                      </div>
+
+                      <div className="reporte-kpi-card kpi-espera">
+                        <div className="reporte-kpi-card-val">
+                          {datosDiarioAmpliacion?.stats?.enEspera ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">⏳ En Espera</div>
+                      </div>
+
+                      <div className="reporte-kpi-card kpi-documentacion">
+                        <div className="reporte-kpi-card-val">
+                          {datosDiarioAmpliacion?.stats?.documentacion ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">📁 En Documentación</div>
+                      </div>
+
+                      <div className="reporte-kpi-card kpi-descartadas">
+                        <div className="reporte-kpi-card-val">
+                          {datosDiarioAmpliacion?.stats?.descartadas ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">🚫 No Aplica</div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1305,8 +1222,8 @@ export default function KMZ() {
                     setTargetConfigForPersonal('ampliacion')
                     setModalPersonalOpen(true)
                   }}
-                  titulo="Envío Automático del Reporte Diario (Amazonas Ampliación)"
-                  subtitulo="Despacho oficial de las 21:00 hrs con archivo Excel adjunto para los 27 sitios de Ampliación (AMEX)"
+                  titulo="Configuración de Correo Automático"
+                  subtitulo=""
                 />
               </div>
             ) : (
@@ -1331,10 +1248,7 @@ export default function KMZ() {
                 <div style={{ background: '#ffffff', border: '1px solid #d8e5f1', borderRadius: '12px', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                     <div>
-                      <h4 className="t-name" style={{ margin: 0, color: '#003060' }}>
-                        Resumen Operativo Interno de Jornada
-                      </h4>
-                      <span className="t-meta" style={{ color: '#64748b' }}>
+                      <span className="t-name" style={{ color: '#003060', fontWeight: 'var(--fw-semibold)' }}>
                         {datosInterno?.fechaFormateada || fechaReporteInterno} · Cuadro por Equipos y Cuadrillas
                       </span>
                     </div>
@@ -1363,132 +1277,173 @@ export default function KMZ() {
                     </div>
                   </div>
 
-                  {/* 4 Métricas de Cabecera */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1.15rem' }}>
-                    <div style={{ background: '#f8fafc', border: '1.5px solid #003060', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#003060', margin: 0 }}>
-                        {datosInterno?.matrixGrandTotal ?? (loadingInterno ? '...' : 0)}
+                  {/* Panel de Medidores Oficiales Estilo Correo */}
+                  <div className="reporte-email-metrics-panel">
+                    {/* Tarjeta Principal de Total */}
+                    <div className="reporte-kpi-total-card">
+                      <div className="reporte-kpi-total-val">
+                        {datosInterno?.stats?.total ?? (loadingInterno ? '...' : 0)}
                       </div>
-                      <div className="t-badge" style={{ color: '#475569', marginTop: '2px' }}>Total Tocadas</div>
+                      <div className="reporte-kpi-total-label">
+                        Total de Observaciones Trabajadas en la Jornada
+                      </div>
                     </div>
 
-                    <div style={{ background: '#f0fdf4', border: '1.5px solid #22c55e', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#15803d', margin: 0 }}>
-                        {datosInterno?.matrixTotals?.validados ?? 0}
+                    {/* 6 Medidores Secundarios en el orden semántico homologado */}
+                    <div className="reporte-kpi-grid-6">
+                      <div className="reporte-kpi-card kpi-espera">
+                        <div className="reporte-kpi-card-val">
+                          {datosInterno?.stats?.enRevision ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">🔍 En Revisión</div>
                       </div>
-                      <div className="t-badge" style={{ color: '#166534', marginTop: '2px' }}>✓ Validadas</div>
-                    </div>
 
-                    <div style={{ background: '#fff1f2', border: '1.5px solid #f43f5e', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#be123c', margin: 0 }}>
-                        {datosInterno?.matrixTotals?.rechazados ?? 0}
+                      <div className="reporte-kpi-card kpi-descartadas-gray">
+                        <div className="reporte-kpi-card-val">
+                          {datosInterno?.stats?.descartadas ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">🚫 Descartadas</div>
                       </div>
-                      <div className="t-badge" style={{ color: '#9f1239', marginTop: '2px' }}>✕ Rechazadas</div>
-                    </div>
 
-                    <div style={{ background: '#faf5ff', border: '1.5px solid #a855f7', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#7e22ce', margin: 0 }}>
-                        {datosInterno?.matrixTotals?.documentacion ?? 0}
+                      <div className="reporte-kpi-card kpi-criticas">
+                        <div className="reporte-kpi-card-val">
+                          {datosInterno?.stats?.criticas ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">⚠️ Críticos</div>
                       </div>
-                      <div className="t-badge" style={{ color: '#6b21a8', marginTop: '2px' }}>📄 Documentación</div>
+
+                      <div className="reporte-kpi-card kpi-documentacion">
+                        <div className="reporte-kpi-card-val">
+                          {datosInterno?.stats?.documentacion ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">📁 Documentación</div>
+                      </div>
+
+                      <div className="reporte-kpi-card kpi-rechazadas">
+                        <div className="reporte-kpi-card-val">
+                          {datosInterno?.stats?.rechazadas ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">✕ Rechazadas</div>
+                      </div>
+
+                      <div className="reporte-kpi-card kpi-validadas">
+                        <div className="reporte-kpi-card-val">
+                          {datosInterno?.stats?.validadas ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">✓ Validadas</div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* CUADRO MATRICIAL EJECUTIVO POR EQUIPOS (Equipo 1: C1+C2, Equipo 2: C3+C6, Equipo 3: C4+C5) */}
-                  <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
-                    <div style={{ background: '#003060', padding: '0.65rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span className="t-badge" style={{ color: '#ffffff', fontWeight: 'var(--fw-bold)', letterSpacing: '0.5px' }}>
-                        MATRIZ EJECUTIVA POR EQUIPOS Y CUADRILLAS INTEGRADAS
-                      </span>
-                      <span className="t-badge" style={{ color: '#38bdf8' }}>
-                        Avance Oficial de Jornada
-                      </span>
-                    </div>
+                  {/* TABLAS MATRICIALES SEPARADAS: AMAZONAS ORIGINAL Y AMAZONAS AMPLIACIÓN */}
+                  {[
+                    { key: 'original', titulo: 'Amazonas Original', data: datosInterno?.matrixOriginal },
+                    { key: 'ampliacion', titulo: 'Amazonas Ampliación', data: datosInterno?.matrixAmpliacion }
+                  ].map(sec => {
+                    const rows = sec.data?.matrixRows || []
+                    const totals = sec.data?.matrixTotals || { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 }
+                    const gTotal = sec.data?.matrixGrandTotal || 0
 
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                      <thead>
-                        <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
-                          <th style={{ padding: '0.6rem 0.85rem', color: '#003060' }} className="t-badge">Equipo / Cuadrillas</th>
-                          <th style={{ padding: '0.6rem 0.85rem', color: '#003060' }} className="t-badge">Técnicos</th>
-                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Solicitando</th>
-                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">En Rev.</th>
-                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Rechaz.</th>
-                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Valid.</th>
-                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Pre-val.</th>
-                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Docum.</th>
-                          <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Crítico</th>
-                          <th style={{ padding: '0.6rem 0.75rem', color: '#003060', textAlign: 'center' }} className="t-badge">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(datosInterno?.matrixRows || []).map((row, idx) => (
-                          <tr key={row.id} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                            <td style={{ padding: '0.65rem 0.85rem' }}>
-                              <div className="t-name" style={{ color: '#003060' }}>{row.id}</div>
-                              <span className="t-meta" style={{ color: '#64748b' }}>{row.subtitulo}</span>
-                            </td>
-                            <td style={{ padding: '0.65rem 0.85rem' }}>
-                              <span className="t-meta" style={{ color: '#334155' }}>{row.tecnico}</span>
-                            </td>
-                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center' }}>
-                              <span className="t-name" style={{ color: '#0284c7', fontVariantNumeric: 'tabular-nums' }}>{row.values.solicitando}</span>
-                            </td>
-                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center' }}>
-                              <span className="t-name" style={{ color: '#0284c7', fontVariantNumeric: 'tabular-nums' }}>{row.values.enRevision}</span>
-                            </td>
-                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center' }}>
-                              <span className="t-name" style={{ color: '#e11d48', fontVariantNumeric: 'tabular-nums' }}>{row.values.rechazados}</span>
-                            </td>
-                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center' }}>
-                              <span className="t-name" style={{ color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{row.values.validados}</span>
-                            </td>
-                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center', background: (row.values.prevalidados || 0) > 0 ? '#f0fdfa' : 'transparent' }}>
-                              <span className="t-name" style={{ color: (row.values.prevalidados || 0) > 0 ? '#0d9488' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{row.values.prevalidados || 0}</span>
-                            </td>
-                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center' }}>
-                              <span className="t-name" style={{ color: '#7e22ce', fontVariantNumeric: 'tabular-nums' }}>{row.values.documentacion}</span>
-                            </td>
-                            <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center', background: (row.values.criticos || 0) > 0 ? '#fef2f2' : 'transparent' }}>
-                              <span className="t-name" style={{ color: (row.values.criticos || 0) > 0 ? '#b91c1c' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{row.values.criticos || 0}</span>
-                            </td>
-                            <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', background: '#eff6ff' }}>
-                              <span className="t-title-section" style={{ color: '#003060', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{row.total}</span>
-                            </td>
-                          </tr>
-                        ))}
-                        {/* Fila Total General */}
-                        <tr style={{ background: '#0f172a', color: '#ffffff', borderTop: '2px solid #003060' }}>
-                          <td colSpan={2} style={{ padding: '0.75rem 0.85rem' }}>
-                            <span className="t-name" style={{ color: '#ffffff', letterSpacing: '0.5px' }}>TOTAL GENERAL</span>
-                          </td>
-                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
-                            <span className="t-name" style={{ color: '#bae6fd', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.solicitando || 0}</span>
-                          </td>
-                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
-                            <span className="t-name" style={{ color: '#bae6fd', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.enRevision || 0}</span>
-                          </td>
-                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
-                            <span className="t-name" style={{ color: '#fecdd3', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.rechazados || 0}</span>
-                          </td>
-                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
-                            <span className="t-name" style={{ color: '#bbf7d0', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.validados || 0}</span>
-                          </td>
-                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
-                            <span className="t-name" style={{ color: '#99f6e4', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.prevalidados || 0}</span>
-                          </td>
-                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
-                            <span className="t-name" style={{ color: '#e9d5ff', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.documentacion || 0}</span>
-                          </td>
-                          <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center' }}>
-                            <span className="t-name" style={{ color: '#fecdd3', fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixTotals?.criticos || 0}</span>
-                          </td>
-                          <td style={{ padding: '0.75rem 0.75rem', textAlign: 'center', background: '#1e293b' }}>
-                            <span className="t-title-section" style={{ color: '#38bdf8', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{datosInterno?.matrixGrandTotal || 0}</span>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                    return (
+                      <div key={sec.key} style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', marginBottom: '0.85rem' }}>
+                        <div style={{ background: '#003060', padding: '0.65rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span className="t-badge" style={{ color: '#ffffff', fontWeight: 'var(--fw-bold)', letterSpacing: '0.5px' }}>
+                            {sec.titulo.toUpperCase()}
+                          </span>
+                        </div>
+
+                        <div style={{ overflowX: 'auto', width: '100%' }}>
+                          <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', textAlign: 'left' }}>
+                            <colgroup>
+                              <col style={{ width: '14%' }} />
+                              <col style={{ width: '20%' }} />
+                              <col style={{ width: '11%' }} />
+                              <col style={{ width: '11%' }} />
+                              <col style={{ width: '9%' }} />
+                              <col style={{ width: '12%' }} />
+                              <col style={{ width: '9%' }} />
+                              <col style={{ width: '9%' }} />
+                              <col style={{ width: '5%' }} />
+                            </colgroup>
+                            <thead>
+                              <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                                <th style={{ padding: '0.6rem 0.5rem', color: '#003060' }} className="t-badge">Equipo</th>
+                                <th style={{ padding: '0.6rem 0.5rem', color: '#003060' }} className="t-badge">Técnicos</th>
+                                <th style={{ padding: '0.6rem 0.35rem', color: '#0284c7', textAlign: 'center' }} className="t-badge">En Rev.</th>
+                                <th style={{ padding: '0.6rem 0.35rem', color: '#475569', textAlign: 'center' }} className="t-badge">Descart.</th>
+                                <th style={{ padding: '0.6rem 0.35rem', color: '#b91c1c', textAlign: 'center' }} className="t-badge">Crít.</th>
+                                <th style={{ padding: '0.6rem 0.35rem', color: '#7e22ce', textAlign: 'center' }} className="t-badge">Docum.</th>
+                                <th style={{ padding: '0.6rem 0.35rem', color: '#e11d48', textAlign: 'center' }} className="t-badge">Rechaz.</th>
+                                <th style={{ padding: '0.6rem 0.35rem', color: '#16a34a', textAlign: 'center' }} className="t-badge">Valid.</th>
+                                <th style={{ padding: '0.6rem 0.45rem', color: '#003060', textAlign: 'center' }} className="t-badge">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((row, idx) => (
+                                <tr key={row.id} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                                  <td style={{ padding: '0.65rem 0.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <div className="t-name" style={{ color: '#003060' }}>{row.id}</div>
+                                    <span className="t-meta" style={{ color: '#64748b' }}>{row.subtitulo}</span>
+                                  </td>
+                                  <td style={{ padding: '0.65rem 0.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <span className="t-meta" style={{ color: '#334155' }}>{row.tecnico}</span>
+                                  </td>
+                                  <td style={{ padding: '0.65rem 0.35rem', textAlign: 'center', background: row.values.enRevision > 0 ? '#f0f9ff' : 'transparent' }}>
+                                    <span className="t-name" style={{ color: row.values.enRevision > 0 ? '#0284c7' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{row.values.enRevision}</span>
+                                  </td>
+                                  <td style={{ padding: '0.65rem 0.35rem', textAlign: 'center', background: row.values.descartados > 0 ? '#f1f5f9' : 'transparent' }}>
+                                    <span className="t-name" style={{ color: row.values.descartados > 0 ? '#475569' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{row.values.descartados || 0}</span>
+                                  </td>
+                                  <td style={{ padding: '0.65rem 0.35rem', textAlign: 'center', background: (row.values.criticos || 0) > 0 ? '#fef2f2' : 'transparent' }}>
+                                    <span className="t-name" style={{ color: (row.values.criticos || 0) > 0 ? '#b91c1c' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{row.values.criticos || 0}</span>
+                                  </td>
+                                  <td style={{ padding: '0.65rem 0.35rem', textAlign: 'center', background: row.values.documentacion > 0 ? '#faf5ff' : 'transparent' }}>
+                                    <span className="t-name" style={{ color: row.values.documentacion > 0 ? '#7e22ce' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{row.values.documentacion}</span>
+                                  </td>
+                                  <td style={{ padding: '0.65rem 0.35rem', textAlign: 'center', background: row.values.rechazados > 0 ? '#fff1f2' : 'transparent' }}>
+                                    <span className="t-name" style={{ color: row.values.rechazados > 0 ? '#e11d48' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{row.values.rechazados}</span>
+                                  </td>
+                                  <td style={{ padding: '0.65rem 0.35rem', textAlign: 'center', background: row.values.validados > 0 ? '#f0fdf4' : 'transparent' }}>
+                                    <span className="t-name" style={{ color: row.values.validados > 0 ? '#16a34a' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{row.values.validados}</span>
+                                  </td>
+                                  <td style={{ padding: '0.65rem 0.45rem', textAlign: 'center', background: row.total > 0 ? '#eff6ff' : 'transparent' }}>
+                                    <span className="t-title-section" style={{ color: row.total > 0 ? '#003060' : '#94a3b8', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{row.total}</span>
+                                  </td>
+                                </tr>
+                              ))}
+                              {/* Fila Total Tabla */}
+                              <tr style={{ background: '#0f172a', color: '#ffffff', borderTop: '2px solid #003060' }}>
+                                <td colSpan={2} style={{ padding: '0.75rem 0.5rem' }}>
+                                  <span className="t-name" style={{ color: '#ffffff', letterSpacing: '0.5px' }}>TOTAL DIARIO</span>
+                                </td>
+                                <td style={{ padding: '0.75rem 0.35rem', textAlign: 'center' }}>
+                                  <span className="t-name" style={{ color: '#bae6fd', fontVariantNumeric: 'tabular-nums' }}>{totals.enRevision || 0}</span>
+                                </td>
+                                <td style={{ padding: '0.75rem 0.35rem', textAlign: 'center' }}>
+                                  <span className="t-name" style={{ color: '#cbd5e1', fontVariantNumeric: 'tabular-nums' }}>{totals.descartados || 0}</span>
+                                </td>
+                                <td style={{ padding: '0.75rem 0.35rem', textAlign: 'center' }}>
+                                  <span className="t-name" style={{ color: '#fecdd3', fontVariantNumeric: 'tabular-nums' }}>{totals.criticos || 0}</span>
+                                </td>
+                                <td style={{ padding: '0.75rem 0.35rem', textAlign: 'center' }}>
+                                  <span className="t-name" style={{ color: '#e9d5ff', fontVariantNumeric: 'tabular-nums' }}>{totals.documentacion || 0}</span>
+                                </td>
+                                <td style={{ padding: '0.75rem 0.35rem', textAlign: 'center' }}>
+                                  <span className="t-name" style={{ color: '#fecdd3', fontVariantNumeric: 'tabular-nums' }}>{totals.rechazados || 0}</span>
+                                </td>
+                                <td style={{ padding: '0.75rem 0.35rem', textAlign: 'center' }}>
+                                  <span className="t-name" style={{ color: '#bbf7d0', fontVariantNumeric: 'tabular-nums' }}>{totals.validados || 0}</span>
+                                </td>
+                                <td style={{ padding: '0.75rem 0.45rem', textAlign: 'center', background: '#1e293b' }}>
+                                  <span className="t-title-section" style={{ color: '#38bdf8', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{gTotal}</span>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
 
                 {/* Card de Automatización y Envío de Correo */}
@@ -1505,20 +1460,25 @@ export default function KMZ() {
                     setTargetConfigForPersonal('interno')
                     setModalPersonalOpen(true)
                   }}
-                  titulo="Envío Automático del Reporte Diario Interno"
-                  subtitulo="Despacho nocturno (21:30 hrs) con el cuadro por equipos y el Excel con los códigos tocados"
+                  titulo="Configuración de Correo Automático"
+                  subtitulo=""
                 />
               </div>
             ) : (
               <TablaExcelDetalle
                 columns={subtabInternoExcel === 'matriz' ? columnsInternoMatriz : columnsInternoDetalle}
-                data={subtabInternoExcel === 'matriz' ? rowsInternoMatriz : rowsInternoDetalle}
+                data={
+                  subtabInternoExcel === 'matriz'
+                    ? rowsInternoMatriz
+                    : (subtabInternoExcel === 'ampliacion' ? rowsInternoAmpliacion : rowsInternoOriginal)
+                }
                 fileName={`Reporte_Interno_Observaciones_${fechaReporteInterno}.xlsx`}
                 onDownload={handleDownloadInterno}
                 downloading={downloadingReport === 'diario-interno'}
                 subtabs={[
                   { id: 'matriz', label: 'Hoja 1: Matriz_Equipos' },
-                  { id: 'detalle', label: 'Hoja 2: Detalle_Codigos' }
+                  { id: 'original', label: 'Hoja 2: Detalle_Original' },
+                  { id: 'ampliacion', label: 'Hoja 3: Detalle_Ampliacion' }
                 ]}
                 activeSubtab={subtabInternoExcel}
                 onSubtabChange={setSubtabInternoExcel}
@@ -1536,10 +1496,7 @@ export default function KMZ() {
                 <div style={{ background: '#ffffff', border: '1px solid #d8e5f1', borderRadius: '12px', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                     <div>
-                      <h4 className="t-name" style={{ margin: 0, color: '#003060' }}>
-                        Consolidado Semanal de Subsanación
-                      </h4>
-                      <span className="t-meta" style={{ color: '#64748b' }}>
+                      <span className="t-name" style={{ color: '#003060', fontWeight: 'var(--fw-semibold)' }}>
                         {datosSemanal?.rangoSemanaStr ? `Semana ${datosSemanal.numeroSemana} · ${datosSemanal.rangoSemanaStr}` : 'Lunes a Domingo'}
                       </span>
                     </div>
@@ -1556,34 +1513,36 @@ export default function KMZ() {
                     </button>
                   </div>
 
-                  {/* KPIs Semanales */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem' }}>
-                    <div style={{ background: '#f8fafc', border: '1.5px solid #003060', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#003060', margin: 0 }}>
-                        {datosSemanal?.stats?.total ?? (loadingSemanal ? '...' : 0)}
+                  {/* KPIs Semanales Estilo Correo */}
+                  <div className="reporte-email-metrics-panel">
+                    <div className="reporte-kpi-grid-4">
+                      <div className="reporte-kpi-card kpi-total-tocadas">
+                        <div className="reporte-kpi-card-val">
+                          {datosSemanal?.stats?.total ?? (loadingSemanal ? '...' : 0)}
+                        </div>
+                        <div className="reporte-kpi-card-label">Total Semana</div>
                       </div>
-                      <div className="t-badge" style={{ color: '#475569', marginTop: '2px' }}>Total Semana</div>
-                    </div>
 
-                    <div style={{ background: '#f0fdf4', border: '1.5px solid #22c55e', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#15803d', margin: 0 }}>
-                        {datosSemanal?.stats?.validadas ?? 0}
+                      <div className="reporte-kpi-card kpi-validadas">
+                        <div className="reporte-kpi-card-val">
+                          {datosSemanal?.stats?.validadas ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">✓ Validadas</div>
                       </div>
-                      <div className="t-badge" style={{ color: '#166534', marginTop: '2px' }}>✓ Validadas</div>
-                    </div>
 
-                    <div style={{ background: '#fff1f2', border: '1.5px solid #f43f5e', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#be123c', margin: 0 }}>
-                        {datosSemanal?.stats?.rechazadas ?? 0}
+                      <div className="reporte-kpi-card kpi-rechazadas">
+                        <div className="reporte-kpi-card-val">
+                          {datosSemanal?.stats?.rechazadas ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">✕ Rechazadas</div>
                       </div>
-                      <div className="t-badge" style={{ color: '#9f1239', marginTop: '2px' }}>✕ Rechazadas</div>
-                    </div>
 
-                    <div style={{ background: '#f0f9ff', border: '1.5px solid #0284c7', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                      <div className="t-title-section" style={{ color: '#0369a1', margin: 0 }}>
-                        {datosSemanal?.stats?.enEspera ?? 0}
+                      <div className="reporte-kpi-card kpi-espera">
+                        <div className="reporte-kpi-card-val">
+                          {datosSemanal?.stats?.enEspera ?? 0}
+                        </div>
+                        <div className="reporte-kpi-card-label">⏳ En Espera</div>
                       </div>
-                      <div className="t-badge" style={{ color: '#075985', marginTop: '2px' }}>⏳ En Espera</div>
                     </div>
                   </div>
                 </div>
@@ -1601,8 +1560,8 @@ export default function KMZ() {
                     setTargetConfigForPersonal('semanal')
                     setModalPersonalOpen(true)
                   }}
-                  titulo="Envío Automático del Reporte Semanal"
-                  subtitulo="Despacho consolidado los días viernes a las 20:00 hrs con el resumen de la semana"
+                  titulo="Configuración de Correo Automático"
+                  subtitulo=""
                 />
               </div>
             ) : (
@@ -1846,23 +1805,21 @@ export default function KMZ() {
       />
 
       {/* Modal Selección de Personal */}
-      <ModalSelectorPersonal
-        isOpen={modalPersonalOpen}
-        onClose={() => setModalPersonalOpen(false)}
-        personalList={personalList}
-        destinatariosPara={
-          targetConfigForPersonal === 'interno'
-            ? configInterno.destinatarios
-            : (targetConfigForPersonal === 'semanal' ? configSemanal.destinatarios : configDiario.destinatarios)
-        }
-        destinatariosCC={
-          targetConfigForPersonal === 'interno'
-            ? configInterno.destinatarios_cc
-            : (targetConfigForPersonal === 'semanal' ? configSemanal.destinatarios_cc : configDiario.destinatarios_cc)
-        }
-        onTogglePara={handleTogglePersonalPara}
-        onToggleCC={handleTogglePersonalCC}
-      />
+      {(() => {
+        const [activePersonalCfg, , reporteTitulo] = getTargetConfigTuple(targetConfigForPersonal)
+        return (
+          <ModalSelectorPersonal
+            isOpen={modalPersonalOpen}
+            onClose={() => setModalPersonalOpen(false)}
+            personalList={personalList}
+            reporteTitulo={reporteTitulo}
+            destinatariosPara={activePersonalCfg?.destinatarios || []}
+            destinatariosCC={activePersonalCfg?.destinatarios_cc || []}
+            onTogglePara={handleTogglePersonalPara}
+            onToggleCC={handleTogglePersonalCC}
+          />
+        )
+      })()}
 
       {/* Modal Historial de Envíos */}
       <ModalHistorialEnvios

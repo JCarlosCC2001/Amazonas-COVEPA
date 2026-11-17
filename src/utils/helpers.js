@@ -88,20 +88,21 @@ export function estadoCovepaBadge(estado) {
   return 'badge-muted'
 }
 
-/** Formatea nombres de personas a Title Case si vienen completamente en MAYÚSCULAS */
+/** Formatea nombres de personas a Title Case si vienen completamente o parcialmente en MAYÚSCULAS */
 export function formatNombrePersona(str) {
   if (!str) return ''
   const trimmed = String(str).trim()
   if (!trimmed) return ''
-  // Si está 100% en mayúsculas (ej: "CRISTIAN ISLA"), convertir a Title Case ("Cristian Isla")
-  if (trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed)) {
-    return trimmed
-      .toLowerCase()
-      .split(/\s+/)
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ')
-  }
   return trimmed
+    .split(/\s+/)
+    .map(w => {
+      // Normalizar palabras que vengan 100% en mayúsculas sostenidas
+      if (w.length > 1 && w === w.toUpperCase() && /[A-Z]/.test(w)) {
+        return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+      }
+      return w
+    })
+    .join(' ')
 }
 
 /**

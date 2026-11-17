@@ -8,7 +8,8 @@ export default function ModalSelectorPersonal({
   destinatariosPara = [],
   destinatariosCC = [],
   onTogglePara,
-  onToggleCC
+  onToggleCC,
+  reporteTitulo = ''
 }) {
   const [busqueda, setBusqueda] = useState('')
   const [filtroCargo, setFiltroCargo] = useState('TODOS')
@@ -78,9 +79,16 @@ export default function ModalSelectorPersonal({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Users size={18} color="#003060" />
-            <h3 className="t-name" style={{ margin: 0, color: '#003060' }}>
-              Seleccionar Destinatarios desde Personal
-            </h3>
+            <div>
+              <h3 className="t-name" style={{ margin: 0, color: '#003060' }}>
+                Seleccionar Destinatarios desde Personal
+              </h3>
+              {reporteTitulo && (
+                <div className="t-meta" style={{ color: '#0284c7', fontWeight: 'var(--fw-semibold)' }}>
+                  Configurando: {reporteTitulo}
+                </div>
+              )}
+            </div>
           </div>
           <button
             type="button"

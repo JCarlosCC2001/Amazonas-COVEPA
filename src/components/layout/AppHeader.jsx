@@ -36,12 +36,12 @@ const PAGE_META = {
     subtitle: 'Catálogo georreferenciado de 156 sitios del proyecto'
   },
   '/kmz': {
-    title: 'Zona de Informes',
+    title: 'Reportes',
     subtitle: 'Informes ejecutivos en Excel (.xlsx), programación diaria y consolidados'
   },
   '/reportes': {
-    title: 'Reportes Operativos',
-    subtitle: 'Métricas de avance y desempeño técnico'
+    title: 'Reportes',
+    subtitle: 'Informes ejecutivos en Excel (.xlsx), programación diaria y consolidados'
   }
 }
 

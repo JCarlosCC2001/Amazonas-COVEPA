@@ -943,5 +943,257 @@
   line-height: 1.2;
 }
 
+/* ══════════════════════════════════════════════════════════
+   MEDIDORES OFICIALES ESTILO CORREO (PÁGINA REPORTES)
+   Inspirados 100% en el diseño de los reportes por correo de COVEPA
+   ══════════════════════════════════════════════════════════ */
+
+.reporte-email-metrics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
+}
+
+/* Tarjeta Principal de Total (Centrada) */
+.reporte-kpi-total-card {
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-top: 3px solid #003060;
+  border-radius: 6px;
+  padding: 12px 16px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 48, 96, 0.04);
+}
+
+.reporte-kpi-total-val {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-metric-kpi);
+  font-weight: var(--fw-bold);
+  color: #003060;
+  line-height: 1;
+}
+
+.reporte-kpi-total-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-badge);
+  font-weight: var(--fw-bold);
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-top: 4px;
+}
+
+/* Grilla de los 4 Medidores */
+.reporte-kpi-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .reporte-kpi-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Grilla de los 5 Medidores */
+.reporte-kpi-grid-5 {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+}
+
+@media (max-width: 900px) {
+  .reporte-kpi-grid-5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .reporte-kpi-grid-5 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Grilla de los 6 Medidores */
+.reporte-kpi-grid-6 {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.5rem;
+}
+
+@media (max-width: 992px) {
+  .reporte-kpi-grid-6 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .reporte-kpi-grid-6 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Tarjeta individual de medidor */
+.reporte-kpi-card {
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 10px 6px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.reporte-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+.reporte-kpi-card-val {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.35rem;
+  font-weight: var(--fw-bold);
+  line-height: 1;
+}
+
+.reporte-kpi-card-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-badge);
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  margin-top: 4px;
+  letter-spacing: 0.02em;
+}
+
+/* Variantes de color de medidores estilo correo */
+.reporte-kpi-card.kpi-validadas {
+  border-color: #bbf7d0;
+  border-top: 3px solid #16a34a;
+}
+.reporte-kpi-card.kpi-validadas .reporte-kpi-card-val {
+  color: #16a34a;
+}
+.reporte-kpi-card.kpi-validadas .reporte-kpi-card-label {
+  color: #15803d;
+}
+
+.reporte-kpi-card.kpi-rechazadas {
+  border-color: #fecdd3;
+  border-top: 3px solid #e11d48;
+}
+.reporte-kpi-card.kpi-rechazadas .reporte-kpi-card-val {
+  color: #e11d48;
+}
+.reporte-kpi-card.kpi-rechazadas .reporte-kpi-card-label {
+  color: #be123c;
+}
+
+.reporte-kpi-card.kpi-espera {
+  border-color: #bfdbfe;
+  border-top: 3px solid #0284c7;
+}
+.reporte-kpi-card.kpi-espera .reporte-kpi-card-val {
+  color: #0284c7;
+}
+.reporte-kpi-card.kpi-espera .reporte-kpi-card-label {
+  color: #0369a1;
+}
+
+.reporte-kpi-card.kpi-descartadas {
+  border-color: #e9d5ff;
+  border-top: 3px solid #9333ea;
+}
+.reporte-kpi-card.kpi-descartadas .reporte-kpi-card-val {
+  color: #9333ea;
+}
+.reporte-kpi-card.kpi-descartadas .reporte-kpi-card-label {
+  color: #7e22ce;
+}
+
+.reporte-kpi-card.kpi-documentacion {
+  border-color: #c7d2fe;
+  border-top: 3px solid #6366f1;
+}
+.reporte-kpi-card.kpi-documentacion .reporte-kpi-card-val {
+  color: #4f46e5;
+}
+.reporte-kpi-card.kpi-documentacion .reporte-kpi-card-label {
+  color: #4338ca;
+}
+
+.reporte-kpi-card.kpi-total-tocadas {
+  border-color: #cbd5e1;
+  border-top: 3px solid #003060;
+}
+.reporte-kpi-card.kpi-total-tocadas .reporte-kpi-card-val {
+  color: #003060;
+}
+.reporte-kpi-card.kpi-total-tocadas .reporte-kpi-card-label {
+  color: #475569;
+}
+
+.reporte-kpi-card.kpi-criticas {
+  border-color: #fecdd3;
+  border-top: 3px solid #e11d48;
+}
+.reporte-kpi-card.kpi-criticas .reporte-kpi-card-val {
+  color: #b91c1c;
+}
+.reporte-kpi-card.kpi-criticas .reporte-kpi-card-label {
+  color: #991b1b;
+}
+
+.reporte-kpi-card.kpi-descartadas-gray {
+  border-color: #cbd5e1;
+  border-top: 3px solid #64748b;
+}
+.reporte-kpi-card.kpi-descartadas-gray .reporte-kpi-card-val {
+  color: #475569;
+}
+.reporte-kpi-card.kpi-descartadas-gray .reporte-kpi-card-label {
+  color: #334155;
+}
+
+/* Tarjeta Tiempo Promedio de Revisión (Estilo Correo) */
+.reporte-kpi-tiempo-card {
+  background-color: #ffffff;
+  border: 1px solid #fed7aa;
+  border-top: 3px solid #f97316;
+  border-radius: 6px;
+  padding: 11px 16px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(249, 115, 22, 0.04);
+}
+
+.reporte-kpi-tiempo-val {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.4rem;
+  font-weight: var(--fw-bold);
+  color: #c2410c;
+  line-height: 1;
+}
+
+.reporte-kpi-tiempo-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-badge);
+  font-weight: var(--fw-bold);
+  color: #9a3412;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-top: 4px;
+}
+
+.reporte-kpi-tiempo-desc {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  color: #7c2d12;
+  margin-top: 2px;
+}
+
 
 

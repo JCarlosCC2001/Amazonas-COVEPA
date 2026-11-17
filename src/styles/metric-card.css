@@ -29,6 +29,64 @@
   grid-template-columns: repeat(2, 1fr);
 }
 
+/* ── Cuadrícula Simétrica 5x2 de Medidores en Observaciones ── */
+.covepa-metric-grid.obs-metric-grid-5x2 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem 0.65rem;
+  margin-bottom: 0.25rem;
+}
+
+.covepa-metric-grid.obs-metric-grid-5x2 .metric-card-inner {
+  padding: 0.55rem 0.8rem;
+  gap: 0.6rem;
+}
+
+.covepa-metric-grid.obs-metric-grid-5x2 .metric-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+}
+
+.covepa-metric-grid.obs-metric-grid-5x2 .metric-icon-box svg {
+  width: 18px;
+  height: 18px;
+}
+
+.covepa-metric-grid.obs-metric-grid-5x2 .metric-value {
+  font-size: 1.35rem;
+  line-height: 1.15;
+}
+
+.covepa-metric-grid.obs-metric-grid-5x2 .metric-label {
+  font-size: var(--text-badge);
+  letter-spacing: 0.02em;
+}
+
+.covepa-metric-grid.obs-metric-grid-5x2 .metric-sub-pill {
+  font-size: var(--text-2xs);
+  padding: 0.12rem 0.42rem;
+}
+
+@media (max-width: 1100px) {
+  .covepa-metric-grid.obs-metric-grid-5x2 {
+    gap: 0.45rem 0.5rem;
+  }
+  .covepa-metric-grid.obs-metric-grid-5x2 .metric-card-inner {
+    padding: 0.5rem 0.65rem;
+    gap: 0.45rem;
+  }
+}
+
+@media (max-width: 860px) {
+  .covepa-metric-grid.obs-metric-grid-5x2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem;
+  }
+  .covepa-metric-grid.obs-metric-grid-5x2 > :first-child {
+    grid-column: auto !important;
+  }
+}
+
 
 .covepa-metric-card {
   position: relative;
@@ -202,10 +260,13 @@
 .variant-navy {
   --card-gradient: linear-gradient(90deg, #003060 0%, #0284c7 100%);
   --card-accent: #003060;
+  --card-border-color: #cbd5e1;
   --card-icon-bg: #e0f2fe;
   --card-icon-border: #bae6fd;
   --card-icon-color: #003060;
   --card-val-color: #003060;
+  --card-label-color: #003060;
+  --card-sub-color: #64748b;
   --card-pill-bg: #f0f6fc;
   --card-pill-color: #003060;
   --card-pill-border: #d8e5f1;
@@ -218,10 +279,13 @@
 .variant-sky {
   --card-gradient: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
   --card-accent: #0284c7;
+  --card-border-color: #bfdbfe;
   --card-icon-bg: #e0f9fe;
   --card-icon-border: #7dd3fc;
   --card-icon-color: #0284c7;
   --card-val-color: #0284c7;
+  --card-label-color: #0369a1;
+  --card-sub-color: #0284c7;
   --card-pill-bg: #f0f9ff;
   --card-pill-color: #0369a1;
   --card-pill-border: #bae6fd;
@@ -232,28 +296,34 @@
 }
 
 .variant-emerald {
-  --card-gradient: linear-gradient(90deg, #059669 0%, #34d399 100%);
-  --card-accent: #059669;
+  --card-gradient: linear-gradient(90deg, #16a34a 0%, #34d399 100%);
+  --card-accent: #16a34a;
+  --card-border-color: #bbf7d0;
   --card-icon-bg: #dcfce7;
   --card-icon-border: #86efac;
-  --card-icon-color: #059669;
-  --card-val-color: #059669;
+  --card-icon-color: #16a34a;
+  --card-val-color: #16a34a;
+  --card-label-color: #15803d;
+  --card-sub-color: #166534;
   --card-pill-bg: #ecfdf5;
   --card-pill-color: #166534;
   --card-pill-border: #a7f3d0;
-  --card-watermark-color: #059669;
+  --card-watermark-color: #16a34a;
 }
 .variant-emerald:hover {
-  border-color: #059669;
+  border-color: #16a34a;
 }
 
 .variant-amber {
   --card-gradient: linear-gradient(90deg, #d97706 0%, #fbbf24 100%);
   --card-accent: #d97706;
+  --card-border-color: #fde68a;
   --card-icon-bg: #fef3c7;
   --card-icon-border: #fcd34d;
   --card-icon-color: #d97706;
   --card-val-color: #d97706;
+  --card-label-color: #b45309;
+  --card-sub-color: #92400e;
   --card-pill-bg: #fffbeb;
   --card-pill-color: #92400e;
   --card-pill-border: #fde68a;
@@ -266,10 +336,13 @@
 .variant-orange {
   --card-gradient: linear-gradient(90deg, #ea580c 0%, #fb923c 100%);
   --card-accent: #ea580c;
+  --card-border-color: #fed7aa;
   --card-icon-bg: #ffedd5;
   --card-icon-border: #fed7aa;
   --card-icon-color: #ea580c;
   --card-val-color: #ea580c;
+  --card-label-color: #c2410c;
+  --card-sub-color: #9a3412;
   --card-pill-bg: #fff7ed;
   --card-pill-color: #9a3412;
   --card-pill-border: #ffedd5;
@@ -280,28 +353,34 @@
 }
 
 .variant-purple {
-  --card-gradient: linear-gradient(90deg, #7c3aed 0%, #c084fc 100%);
-  --card-accent: #7c3aed;
+  --card-gradient: linear-gradient(90deg, #9333ea 0%, #c084fc 100%);
+  --card-accent: #9333ea;
+  --card-border-color: #e9d5ff;
   --card-icon-bg: #f3e8ff;
   --card-icon-border: #d8b4fe;
-  --card-icon-color: #7c3aed;
-  --card-val-color: #7c3aed;
+  --card-icon-color: #9333ea;
+  --card-val-color: #9333ea;
+  --card-label-color: #7e22ce;
+  --card-sub-color: #6b21a8;
   --card-pill-bg: #faf5ff;
   --card-pill-color: #6b21a8;
   --card-pill-border: #e9d5ff;
-  --card-watermark-color: #7c3aed;
+  --card-watermark-color: #9333ea;
 }
 .variant-purple:hover {
-  border-color: #7c3aed;
+  border-color: #9333ea;
 }
 
 .variant-rose {
   --card-gradient: linear-gradient(90deg, #e11d48 0%, #fb7185 100%);
   --card-accent: #e11d48;
+  --card-border-color: #fecdd3;
   --card-icon-bg: #ffe4e6;
   --card-icon-border: #fda4af;
   --card-icon-color: #e11d48;
   --card-val-color: #e11d48;
+  --card-label-color: #be123c;
+  --card-sub-color: #9f1239;
   --card-pill-bg: #fff1f2;
   --card-pill-color: #9f1239;
   --card-pill-border: #fecdd3;
@@ -311,13 +390,35 @@
   border-color: #e11d48;
 }
 
+.variant-red {
+  --card-gradient: linear-gradient(90deg, #dc2626 0%, #ef4444 100%);
+  --card-accent: #dc2626;
+  --card-border-color: #fecaca;
+  --card-icon-bg: #fee2e2;
+  --card-icon-border: #fca5a5;
+  --card-icon-color: #dc2626;
+  --card-val-color: #dc2626;
+  --card-label-color: #b91c1c;
+  --card-sub-color: #991b1b;
+  --card-pill-bg: #fef2f2;
+  --card-pill-color: #991b1b;
+  --card-pill-border: #fecaca;
+  --card-watermark-color: #dc2626;
+}
+.variant-red:hover {
+  border-color: #dc2626;
+}
+
 .variant-indigo {
   --card-gradient: linear-gradient(90deg, #4f46e5 0%, #818cf8 100%);
   --card-accent: #4f46e5;
+  --card-border-color: #c7d2fe;
   --card-icon-bg: #e0e7ff;
   --card-icon-border: #c7d2fe;
   --card-icon-color: #4f46e5;
   --card-val-color: #4f46e5;
+  --card-label-color: #4338ca;
+  --card-sub-color: #3730a3;
   --card-pill-bg: #eef2ff;
   --card-pill-color: #3730a3;
   --card-pill-border: #c7d2fe;
@@ -330,10 +431,13 @@
 .variant-teal {
   --card-gradient: linear-gradient(90deg, #0d9488 0%, #2dd4bf 100%);
   --card-accent: #0d9488;
+  --card-border-color: #99f6e4;
   --card-icon-bg: #ccfbf1;
   --card-icon-border: #99f6e4;
   --card-icon-color: #0f766e;
-  --card-val-color: #0f766e;
+  --card-val-color: #0d9488;
+  --card-label-color: #0f766e;
+  --card-sub-color: #115e59;
   --card-pill-bg: #f0fdfa;
   --card-pill-color: #115e59;
   --card-pill-border: #99f6e4;

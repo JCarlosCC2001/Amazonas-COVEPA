@@ -100,16 +100,38 @@ function getTodayDateStr() {
   return `${year}-${month}-${day}`
 }
 
+// Caché inteligente en memoria para avances diarios
+const _cachedAvanceMap = new Map()
+const AVANCE_HOY_TTL_MS = 45 * 1000 // 45 segundos para la jornada viva de hoy
+const AVANCE_HISTORICO_TTL_MS = 15 * 60 * 1000 // 15 minutos para jornadas anteriores
+
+export function invalidateAvanceFechaCache(fechaStr = null) {
+  if (fechaStr) {
+    _cachedAvanceMap.delete(fechaStr)
+  } else {
+    _cachedAvanceMap.clear()
+  }
+}
+
 /**
  * Obtiene todo lo avanzado en una fecha específica (por defecto hoy)
  * Cruza con técnicos asignados a la jornada, observaciones en revisión y catálogo de sitios
+ * Optimizado con caché inteligente por jornada (45s para hoy, 15m para histórico)
  */
-export async function getAvancePorFecha(fechaStr) {
+export async function getAvancePorFecha(fechaStr, forceRefresh = false) {
+  const now = Date.now()
+  const isToday = fechaStr === getTodayDateStr()
+  const ttl = isToday ? AVANCE_HOY_TTL_MS : AVANCE_HISTORICO_TTL_MS
+  const cached = _cachedAvanceMap.get(fechaStr)
+
+  if (!forceRefresh && cached && (now - cached.timestamp < ttl)) {
+    return cached.data
+  }
+
   try {
     // Delimitar jornada exacta en zona horaria de Perú (UTC-5) convertida a ISO UTC
     const startIsoUtc = new Date(`${fechaStr}T00:00:00-05:00`).toISOString()
     const endIsoUtc = new Date(`${fechaStr}T23:59:59.999-05:00`).toISOString()
-    const isToday = fechaStr === getTodayDateStr()
 
     // Cargar catálogo de personal desde la BD externa para resolución en memoria
     let staffMap = {}
@@ -399,15 +421,28 @@ export async function getAvancePorFecha(fechaStr) {
       tecnicosUnicos: new Set(rows.map(r => r.tecnico).filter(t => t && t !== 'Técnico de Cuadrilla')).size
     }
 
-    return {
+    const result = {
       rows,
       stats: statsDia,
       programacionesDelDia: (rawProgs || []).length
     }
+
+    _cachedAvanceMap.set(fechaStr, { data: result, timestamp: now })
+    return result
   } catch (err) {
     console.error('Error en getAvancePorFecha:', err)
     throw err
   }
+}
+
+// Caché en memoria del consolidado general del proyecto
+let _cachedDashboardOverview = null
+let _cachedDashboardOverviewAt = 0
+const DASHBOARD_OVERVIEW_TTL_MS = 3 * 60 * 1000 // 3 minutos
+
+export function invalidateDashboardCache() {
+  _cachedDashboardOverview = null
+  _cachedDashboardOverviewAt = 0
 }
 
 /**
@@ -415,8 +450,14 @@ export async function getAvancePorFecha(fechaStr) {
  * 1. Métricas exactas de observaciones (Total, Subsanadas, En Revisión, Descartadas, Rechazadas, Pendientes).
  * 2. Avance por cada uno de los 6 Grupos Territoriales.
  * 3. Consolidado por cada uno de los 156 Sitios asignados.
+ * Optimizado con caché en memoria (3 minutos)
  */
-export async function getDashboardProjectOverview() {
+export async function getDashboardProjectOverview(forceRefresh = false) {
+  const now = Date.now()
+  if (!forceRefresh && _cachedDashboardOverview && (now - _cachedDashboardOverviewAt < DASHBOARD_OVERVIEW_TTL_MS)) {
+    return _cachedDashboardOverview
+  }
+
   try {
     // 1. Obtener catálogo externo y asignaciones locales de cuadrillas
     const [sitiosCatalog, { data: dbCuadSites }] = await Promise.all([
@@ -625,7 +666,7 @@ export async function getDashboardProjectOverview() {
 
     sitiosList.sort((a, b) => b.total - a.total)
 
-    return {
+    const result = {
       kpis: {
         total,
         pendientes,
@@ -644,6 +685,10 @@ export async function getDashboardProjectOverview() {
       sitios: sitiosList,
       semanaActual: semanaInfo
     }
+
+    _cachedDashboardOverview = result
+    _cachedDashboardOverviewAt = now
+    return result
   } catch (err) {
     console.error('Error en getDashboardProjectOverview:', err)
     throw err

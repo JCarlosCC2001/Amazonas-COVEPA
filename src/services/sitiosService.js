@@ -16,11 +16,30 @@ export const ASIGNACIONES_BASE = Object.entries(baseSitiosJson).map(([id_site, i
 })
 
 
+// Cache en memoria para catálogo de sitios
+let cachedSitiosAsignados = null
+const _cachedFetchSitios = new Map()
+const SITIOS_CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutos de caché
+
+export function invalidateSitiosCache() {
+  cachedSitiosAsignados = null
+  _cachedFetchSitios.clear()
+}
+
 /**
  * Obtiene los sitios completos cruzando la asignación local con los datos geográficos de la BD externa
+ * Optimizado con caché inteligente de 10 minutos
  * @param {boolean} soloAsignados - Si es true, solo trae los 183 sitios asignados (156 Original + 27 Ampliación). Si es false, trae todo el catálogo.
+ * @param {boolean} forceRefresh - Forzar recarga ignorando el caché
  */
-export async function fetchSitios({ soloAsignados = true } = {}) {
+export async function fetchSitios({ soloAsignados = true, forceRefresh = false } = {}) {
+  const cacheKey = Boolean(soloAsignados)
+  const cached = _cachedFetchSitios.get(cacheKey)
+  const now = Date.now()
+  if (!forceRefresh && cached && (now - cached.timestamp < SITIOS_CACHE_TTL_MS)) {
+    return cached.data
+  }
+
   try {
     // 1. Inicializar mapa base con los 183 sitios oficiales y superponer cambios desde sitios_cuadrillas en Supabase
     const mapaAsignaciones = new Map()
@@ -112,23 +131,19 @@ export async function fetchSitios({ soloAsignados = true } = {}) {
     })
 
     // Ordenar por Cuadrilla y luego por id_site
-    return combinados.sort((a, b) => {
+    const result = combinados.sort((a, b) => {
       const cA = a.cuadrilla || a.grupo || ''
       const cB = b.cuadrilla || b.grupo || ''
       if (cA !== cB) return cA.localeCompare(cB, undefined, { numeric: true })
       return a.id_site.localeCompare(b.id_site)
     })
+
+    _cachedFetchSitios.set(cacheKey, { data: result, timestamp: now })
+    return result
   } catch (error) {
     console.error('Error general en fetchSitios:', error)
     throw error
   }
-}
-
-// Cache en memoria para catálogo de sitios de programación
-let cachedSitiosAsignados = null
-
-export function invalidateSitiosCache() {
-  cachedSitiosAsignados = null
 }
 
 /**

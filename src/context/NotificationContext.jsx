@@ -638,29 +638,29 @@ export function NotificationProvider({ children }) {
     }
   }, [dispararToast])
 
-  // Consultar observaciones en Solicitando Revisión y En Revisión desde Supabase
-  const fetchSolicitudes = useCallback(async (isRealtimeAlert = false) => {
+  // Consultar observaciones en Solicitando Revisión y En Revisión desde Supabase (consulta unificada)
+  const fetchSolicitudes = useCallback(async (isRealtimeAlert = false, includeReportes = false) => {
     if (!userId) return
     try {
-      // 1. Solicitudes de Técnicos (Solicitando Revisión) - solo columnas esenciales
-      const { data: solData, error: solErr } = await supabase
+      // 1 y 2. Consulta UNIFICADA para Solicitando Revisión y En Revisión (50% menos peticiones a la BD)
+      const { data: activeObsData, error: obsErr } = await supabase
         .from('observaciones')
         .select('id_obs, id_sitio, estado_covepa, revisor, fecha_subsanacion, subsistema')
-        .in('estado_covepa', ['Solicitando Revisión', 'Solicitando Revision'])
+        .in('estado_covepa', ['Solicitando Revisión', 'Solicitando Revision', 'En Revisión', 'En Revision'])
         .order('fecha_subsanacion', { ascending: true }) // De más antigua a más reciente
 
-      // 2. Observaciones en Auditoría (En Revisión) - solo columnas esenciales
-      const { data: revData, error: revErr } = await supabase
-        .from('observaciones')
-        .select('id_obs, id_sitio, estado_covepa, revisor, fecha_subsanacion, subsistema')
-        .in('estado_covepa', ['En Revisión', 'En Revision'])
-        .order('fecha_subsanacion', { ascending: true }) // De más antigua a más reciente
+      if (obsErr) console.warn('[NOTIF-FETCH] Error consultando observaciones activas:', obsErr.message)
 
-      if (solErr) console.warn('[NOTIF-FETCH] Error consultando solicitudes:', solErr.message)
-      if (revErr) console.warn('[NOTIF-FETCH] Error consultando en revisión:', revErr.message)
-
-      const solRows = solData || []
-      const revRows = revData || []
+      const solRows = []
+      const revRows = []
+      ;(activeObsData || []).forEach(row => {
+        const st = row.estado_covepa || ''
+        if (st === 'Solicitando Revisión' || st === 'Solicitando Revision') {
+          solRows.push(row)
+        } else {
+          revRows.push(row)
+        }
+      })
 
       // ── ENRIQUECER SOLICITUDES CON EL NOMBRE DEL TÉCNICO / SOLICITANTE ──
       if (solRows.length > 0) {
@@ -721,134 +721,139 @@ export function NotificationProvider({ children }) {
       setEnRevision(revRows)
 
       // 3. Consultar últimos reportes automáticos despachados (Diario y Semanal)
-      const repItems = []
-      try {
-        // A. Consultar configuracion_reportes_correo para saber último envío oficial
-        const { data: cfgData } = await supabase
-          .from('configuracion_reportes_correo')
-          .select('id, activo, hora_envio, asunto, destinatarios, destinatarios_cc, ultimo_envio_at')
+      // Optimización: Solo consultar al inicio o cuando el evento Realtime sea específico de reportes
+      const shouldFetchReportes = includeReportes || isFirstLoadRef.current
+      if (shouldFetchReportes) {
+        const repItems = []
+        try {
+          // A. Consultar configuracion_reportes_correo para saber último envío oficial
+          const { data: cfgData } = await supabase
+            .from('configuracion_reportes_correo')
+            .select('id, activo, hora_envio, asunto, destinatarios, destinatarios_cc, ultimo_envio_at')
 
-        // B. Consultar historial_reportes_correo para auditoría detallada (columnas mínimas)
-        const { data: histData } = await supabase
-          .from('historial_reportes_correo')
-          .select('id, tipo, asunto, destinatarios, destinatarios_cc, total_obs, validadas, rechazadas, en_espera, created_at')
-          .eq('estado', 'exitoso')
-          .order('created_at', { ascending: false })
-          .limit(4)
+          // B. Consultar historial_reportes_correo para auditoría detallada (columnas mínimas)
+          const { data: histData } = await supabase
+            .from('historial_reportes_correo')
+            .select('id, tipo, asunto, destinatarios, destinatarios_cc, total_obs, validadas, rechazadas, en_espera, created_at')
+            .eq('estado', 'exitoso')
+            .order('created_at', { ascending: false })
+            .limit(4)
 
-        const tiposCapturados = new Set()
+          const tiposCapturados = new Set()
 
-        // Procesar historial si existe
-        if (Array.isArray(histData) && histData.length > 0) {
-          for (const h of histData) {
-            const fechaEnvio = h.created_at
-            if (!fechaEnvio) continue
-            const diffHoras = (Date.now() - new Date(fechaEnvio).getTime()) / (1000 * 60 * 60)
-            if (diffHoras > 48) continue
+          // Procesar historial si existe
+          if (Array.isArray(histData) && histData.length > 0) {
+            for (const h of histData) {
+              const fechaEnvio = h.created_at
+              if (!fechaEnvio) continue
+              const diffHoras = (Date.now() - new Date(fechaEnvio).getTime()) / (1000 * 60 * 60)
+              if (diffHoras > 48) continue
 
-            const tipoRep = (h.tipo === 'semanal' || (h.asunto || '').toLowerCase().includes('semanal')) ? 'semanal' : 'diario'
-            tiposCapturados.add(tipoRep)
+              const tipoRep = (h.tipo === 'semanal' || (h.asunto || '').toLowerCase().includes('semanal')) ? 'semanal' : 'diario'
+              tiposCapturados.add(tipoRep)
 
-            let horaStr = 'recientemente'
-            try {
-              horaStr = new Date(fechaEnvio).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
-            } catch (_) {}
+              let horaStr = 'recientemente'
+              try {
+                horaStr = new Date(fechaEnvio).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+              } catch (_) {}
 
-            const destList = Array.isArray(h.destinatarios) ? h.destinatarios : []
-            const destCCList = Array.isArray(h.destinatarios_cc) ? h.destinatarios_cc : []
+              const destList = Array.isArray(h.destinatarios) ? h.destinatarios : []
+              const destCCList = Array.isArray(h.destinatarios_cc) ? h.destinatarios_cc : []
 
-            repItems.push({
-              id_obs: `REPORTE-HIST-${h.id}`,
-              isReporteNotif: true,
-              isReporteEnviado: true,
-              tipo_reporte: tipoRep,
-              tipo_envio: h.tipo || 'oficial',
-              titulo: tipoRep === 'semanal' ? '📬 Reporte Semanal Despachado' : '📬 Reporte Diario Despachado',
-              detalle: `El reporte consolidado de observaciones fue despachado exitosamente por correo a las ${horaStr}.`,
-              asunto: h.asunto || (tipoRep === 'semanal' ? '[COVEPA] Reporte Semanal de Observaciones' : '[COVEPA] Reporte Diario de Observaciones'),
-              destinatariosCount: destList.length,
-              destinatariosCCCount: destCCList.length,
-              destinatarios: destList,
-              destinatarios_cc: destCCList,
-              total_obs: h.total_obs,
-              validadas: h.validadas,
-              rechazadas: h.rechazadas,
-              en_espera: h.en_espera,
-              fecha_subsanacion: fechaEnvio,
-              id_sitio: 'COVEPA',
-              localidad: 'Despacho por Correo'
-            })
+              repItems.push({
+                id_obs: `REPORTE-HIST-${h.id}`,
+                isReporteNotif: true,
+                isReporteEnviado: true,
+                tipo_reporte: tipoRep,
+                tipo_envio: h.tipo || 'oficial',
+                titulo: tipoRep === 'semanal' ? '📬 Reporte Semanal Despachado' : '📬 Reporte Diario Despachado',
+                detalle: `El reporte consolidado de observaciones fue despachado exitosamente por correo a las ${horaStr}.`,
+                asunto: h.asunto || (tipoRep === 'semanal' ? '[COVEPA] Reporte Semanal de Observaciones' : '[COVEPA] Reporte Diario de Observaciones'),
+                destinatariosCount: destList.length,
+                destinatariosCCCount: destCCList.length,
+                destinatarios: destList,
+                destinatarios_cc: destCCList,
+                total_obs: h.total_obs,
+                validadas: h.validadas,
+                rechazadas: h.rechazadas,
+                en_espera: h.en_espera,
+                fecha_subsanacion: fechaEnvio,
+                id_sitio: 'COVEPA',
+                localidad: 'Despacho por Correo'
+              })
+            }
           }
-        }
 
-        // Si configuracion_reportes_correo tiene ultimo_envio_at y no fue capturado por historial
-        if (Array.isArray(cfgData)) {
-          for (const cfg of cfgData) {
-            const fechaEnvio = cfg.ultimo_envio_at
-            if (!fechaEnvio) continue
-            const diffHoras = (Date.now() - new Date(fechaEnvio).getTime()) / (1000 * 60 * 60)
-            if (diffHoras > 48) continue
+          // Si configuracion_reportes_correo tiene ultimo_envio_at y no fue capturado por historial
+          if (Array.isArray(cfgData)) {
+            for (const cfg of cfgData) {
+              const fechaEnvio = cfg.ultimo_envio_at
+              if (!fechaEnvio) continue
+              const diffHoras = (Date.now() - new Date(fechaEnvio).getTime()) / (1000 * 60 * 60)
+              if (diffHoras > 48) continue
 
-            const tipoRep = cfg.id === 'config_semanal' ? 'semanal' : 'diario'
-            if (tiposCapturados.has(tipoRep)) continue
+              const tipoRep = cfg.id === 'config_semanal' ? 'semanal' : 'diario'
+              if (tiposCapturados.has(tipoRep)) continue
 
-            let horaStr = 'recientemente'
-            try {
-              horaStr = new Date(fechaEnvio).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
-            } catch (_) {}
+              let horaStr = 'recientemente'
+              try {
+                horaStr = new Date(fechaEnvio).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+              } catch (_) {}
 
-            const destList = Array.isArray(cfg.destinatarios) ? cfg.destinatarios : []
-            const destCCList = Array.isArray(cfg.destinatarios_cc) ? cfg.destinatarios_cc : []
+              const destList = Array.isArray(cfg.destinatarios) ? cfg.destinatarios : []
+              const destCCList = Array.isArray(cfg.destinatarios_cc) ? cfg.destinatarios_cc : []
 
-            repItems.push({
-              id_obs: `REPORTE-${cfg.id}-${new Date(fechaEnvio).getTime()}`,
-              isReporteNotif: true,
-              isReporteEnviado: true,
-              tipo_reporte: tipoRep,
-              tipo_envio: 'oficial',
-              titulo: tipoRep === 'semanal' ? '📬 Reporte Semanal Despachado' : '📬 Reporte Diario Despachado',
-              detalle: `El reporte consolidado de observaciones fue despachado exitosamente por correo a las ${horaStr}.`,
-              asunto: cfg.asunto || (tipoRep === 'semanal' ? '[COVEPA] Reporte Semanal de Observaciones' : '[COVEPA] Reporte Diario de Observaciones'),
-              destinatariosCount: destList.length,
-              destinatariosCCCount: destCCList.length,
-              destinatarios: destList,
-              destinatarios_cc: destCCList,
-              fecha_subsanacion: fechaEnvio,
-              id_sitio: 'COVEPA',
-              localidad: 'Despacho por Correo'
-            })
+              repItems.push({
+                id_obs: `REPORTE-${cfg.id}-${new Date(fechaEnvio).getTime()}`,
+                isReporteNotif: true,
+                isReporteEnviado: true,
+                tipo_reporte: tipoRep,
+                tipo_envio: 'oficial',
+                titulo: tipoRep === 'semanal' ? '📬 Reporte Semanal Despachado' : '📬 Reporte Diario Despachado',
+                detalle: `El reporte consolidado de observaciones fue despachado exitosamente por correo a las ${horaStr}.`,
+                asunto: cfg.asunto || (tipoRep === 'semanal' ? '[COVEPA] Reporte Semanal de Observaciones' : '[COVEPA] Reporte Diario de Observaciones'),
+                destinatariosCount: destList.length,
+                destinatariosCCCount: destCCList.length,
+                destinatarios: destList,
+                destinatarios_cc: destCCList,
+                fecha_subsanacion: fechaEnvio,
+                id_sitio: 'COVEPA',
+                localidad: 'Despacho por Correo'
+              })
+            }
           }
-        }
-      } catch (repErr) {
-        console.warn('[NOTIF-FETCH-REPORTES] Error consultando estado de reportes:', repErr)
-      }
 
-      // Detección de nuevo despacho de reporte en tiempo real
-      if (!isFirstLoadRef.current && isRealtimeAlert && repItems.length > 0) {
-        for (const rep of repItems) {
-          const prevTime = lastReporteEnvioRef.current[rep.tipo_reporte]
-          if (rep.fecha_subsanacion && rep.fecha_subsanacion !== prevTime) {
-            dispararToast(rep, 'Despacho por Correo')
-            despacharNotificacionSistema(rep.titulo, {
-              body: `${rep.detalle}\nAsunto: ${rep.asunto}`,
-              tag: `covepa-reporte-${rep.tipo_reporte}`,
-              renotify: true,
-              data: {
-                url: '/reportes'
+          // Detección de nuevo despacho de reporte en tiempo real
+          if (!isFirstLoadRef.current && isRealtimeAlert && repItems.length > 0) {
+            for (const rep of repItems) {
+              const prevTime = lastReporteEnvioRef.current[rep.tipo_reporte]
+              if (rep.fecha_subsanacion && rep.fecha_subsanacion !== prevTime) {
+                dispararToast(rep, 'Despacho por Correo')
+                despacharNotificacionSistema(rep.titulo, {
+                  body: `${rep.detalle}\nAsunto: ${rep.asunto}`,
+                  tag: `covepa-reporte-${rep.tipo_reporte}`,
+                  renotify: true,
+                  data: {
+                    url: '/reportes'
+                  }
+                })
+                break
               }
-            })
-            break
+            }
           }
+
+          const newTimestamps = {}
+          for (const rep of repItems) {
+            newTimestamps[rep.tipo_reporte] = rep.fecha_subsanacion
+          }
+          lastReporteEnvioRef.current = newTimestamps
+
+          setReportesNotif(repItems)
+        } catch (repErr) {
+          console.warn('[NOTIF-FETCH-REPORTES] Error consultando estado de reportes:', repErr)
         }
       }
 
-      const newTimestamps = {}
-      for (const rep of repItems) {
-        newTimestamps[rep.tipo_reporte] = rep.fecha_subsanacion
-      }
-      lastReporteEnvioRef.current = newTimestamps
-
-      setReportesNotif(repItems)
       lastFetchTimeRef.current = Date.now()
     } catch (err) {
       console.warn('[NOTIF-FETCH] Error de red:', err)
@@ -856,10 +861,10 @@ export function NotificationProvider({ children }) {
   }, [userId, dispararToast, dispararNotificacionEscritorio, evaluarAlertasAcumulacion])
 
   // Despacho con debounce de fetchSolicitudes ante ráfagas de eventos Realtime
-  const triggerDebouncedFetch = useCallback((silencioso = false) => {
+  const triggerDebouncedFetch = useCallback((silencioso = false, includeReportes = false) => {
     if (debouncedFetchTimerRef.current) clearTimeout(debouncedFetchTimerRef.current)
     debouncedFetchTimerRef.current = setTimeout(() => {
-      fetchSolicitudes(silencioso)
+      fetchSolicitudes(silencioso, includeReportes)
     }, 1500)
   }, [fetchSolicitudes])
 
@@ -867,10 +872,10 @@ export function NotificationProvider({ children }) {
   useEffect(() => {
     if (!userId) return
 
-    fetchSolicitudes(false)
+    fetchSolicitudes(false, true)
 
     // Reconsultar únicamente si la conexión de red se restablece
-    const handleOnline = () => fetchSolicitudes(true)
+    const handleOnline = () => fetchSolicitudes(true, true)
     window.addEventListener('online', handleOnline)
 
     return () => {
@@ -935,7 +940,13 @@ export function NotificationProvider({ children }) {
               }
               return prev
             })
-            triggerDebouncedFetch(false)
+
+            // Actualización reactiva instantánea en memoria (0 consultas HTTP a Supabase)
+            setSolicitudes(prev => {
+              const filtered = prev.filter(r => r.id_obs !== newRow.id_obs)
+              return [enrichedRow, ...filtered]
+            })
+            setEnRevision(prev => prev.filter(r => r.id_obs !== newRow.id_obs))
 
             // ── TRAZABILIDAD AUTOMÁTICA DEL TÉCNICO AL SOLICITAR REVISIÓN ──
             // Solo administradores/coordinadores realizan la sincronización a BD y con deduplicación
@@ -965,9 +976,26 @@ export function NotificationProvider({ children }) {
                   .catch(err => console.warn('[NOTIF-SYNC] Error limpiando revisor no-Gilat:', err))
               }
             }
-          } else if (oldRow && (oldRow.estado_covepa === 'Solicitando Revisión' || oldRow.estado_covepa === 'Solicitando Revision')) {
-            // Ya no está en solicitando revisión (se validó, rechazó, etc.)
-            triggerDebouncedFetch(false)
+          } else if (newRow && (newRow.estado_covepa === 'En Revisión' || newRow.estado_covepa === 'En Revision')) {
+            // Pasó a En Revisión: actualizar estado en memoria (0 consultas HTTP a Supabase)
+            const loc = sitiosMapRef.current[newRow.id_sitio] || ''
+            const solicitanteNombre = newRow.revisor || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
+            const enrichedRow = {
+              ...newRow,
+              solicitante: solicitanteNombre,
+              usuario_nombre: solicitanteNombre,
+              revisor: solicitanteNombre
+            }
+            setSolicitudes(prev => prev.filter(r => r.id_obs !== newRow.id_obs))
+            setEnRevision(prev => {
+              const filtered = prev.filter(r => r.id_obs !== newRow.id_obs)
+              return [enrichedRow, ...filtered]
+            })
+          } else if (oldRow && (oldRow.estado_covepa === 'Solicitando Revisión' || oldRow.estado_covepa === 'Solicitando Revision' || oldRow.estado_covepa === 'En Revisión' || oldRow.estado_covepa === 'En Revision')) {
+            // Ya no está en solicitando revisión ni en revisión (se validó, rechazó, pre-validó, etc.) - actualizar en memoria
+            const idTarget = newRow?.id_obs || oldRow?.id_obs
+            setSolicitudes(prev => prev.filter(r => r.id_obs !== idTarget))
+            setEnRevision(prev => prev.filter(r => r.id_obs !== idTarget))
           }
 
           // Regla: Detectar registro o modificación de demoras y tiempos desde la App de Fotos / Control COVEPA (solo admin/coord)
@@ -1047,7 +1075,11 @@ export function NotificationProvider({ children }) {
               }
               return prev
             })
-            triggerDebouncedFetch(false)
+            // Actualización reactiva instantánea en memoria (0 consultas HTTP a Supabase)
+            setSolicitudes(prev => {
+              const filtered = prev.filter(r => r.id_obs !== row.id_obs)
+              return [obsLike, ...filtered]
+            })
           }
         }
       )
@@ -1058,7 +1090,7 @@ export function NotificationProvider({ children }) {
           const newRow = payload.new
           const oldRow = payload.old
           if (newRow?.ultimo_envio_at && newRow.ultimo_envio_at !== oldRow?.ultimo_envio_at) {
-            triggerDebouncedFetch(true)
+            triggerDebouncedFetch(true, true)
           }
         }
       )
@@ -1067,7 +1099,7 @@ export function NotificationProvider({ children }) {
         { event: 'INSERT', schema: 'public', table: 'historial_reportes_correo' },
         (payload) => {
           if (payload.new?.estado === 'exitoso') {
-            triggerDebouncedFetch(true)
+            triggerDebouncedFetch(true, true)
           }
         }
       )

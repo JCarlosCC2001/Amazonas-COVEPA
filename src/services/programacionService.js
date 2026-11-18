@@ -51,8 +51,23 @@ export const KNOWN_LEGACY_NAMES = {
   '11': 'Cristian Isla'
 }
 
+// Caché de corta duración para evitar peticiones idénticas concurrentes en vistas de programación
+const _cachedProgsMap = new Map()
+const PROGS_CACHE_TTL_MS = 25 * 1000 // 25 segundos
+
+export function invalidateProgramacionesCache() {
+  _cachedProgsMap.clear()
+}
+
 // ────────────────────────────────────────────────────────────
-export async function getProgramaciones(fechaInicio, fechaFin) {
+export async function getProgramaciones(fechaInicio, fechaFin, forceRefresh = false) {
+  const cacheKey = `${fechaInicio || ''}_${fechaFin || ''}`
+  const now = Date.now()
+  const cached = _cachedProgsMap.get(cacheKey)
+  if (!forceRefresh && cached && (now - cached.timestamp < PROGS_CACHE_TTL_MS)) {
+    return cached.data
+  }
+
   // 1. Preparar consulta de programaciones
   let query = supabase
     .from('programaciones')
@@ -146,12 +161,16 @@ export async function getProgramaciones(fechaInicio, fechaFin) {
       equipo
     }
   })
+
+  _cachedProgsMap.set(cacheKey, { data: result, timestamp: now })
+  return result
 }
 
 // ────────────────────────────────────────────────────────────
 // 3. Crear una nueva jornada / programación con sus sitios y personal asignado
 // ────────────────────────────────────────────────────────────
 export async function createProgramacion({ personal_ids = [], id_tecnico, fecha, notas = '', sitios = [] }) {
+  invalidateProgramacionesCache()
   // Asegurar que tengamos al menos un integrante de personal
   const ids = Array.isArray(personal_ids) && personal_ids.length > 0
     ? personal_ids
@@ -229,6 +248,7 @@ export async function createProgramacion({ personal_ids = [], id_tecnico, fecha,
 // 4. Actualizar una programación existente (fecha, personal, sitios, notas)
 // ────────────────────────────────────────────────────────────
 export async function updateProgramacion(idProgramacion, { personal_ids = [], fecha, notas = '', sitios = [] }) {
+  invalidateProgramacionesCache()
   const ids = Array.isArray(personal_ids) && personal_ids.length > 0 ? personal_ids : []
   if (ids.length === 0) {
     throw new Error('Debes seleccionar al menos un integrante de personal para la programación.')
@@ -310,6 +330,7 @@ export async function updateProgramacion(idProgramacion, { personal_ids = [], fe
 // 4. Eliminar una programación completa
 // ────────────────────────────────────────────────────────────
 export async function deleteProgramacion(idProgramacion) {
+  invalidateProgramacionesCache()
   const { error } = await supabase
     .from('programaciones')
     .delete()
@@ -600,6 +621,7 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
       }
 
       console.log(`[AUTO-PROG] ✅ Sitio ${siteId} agregado a jornada de ${cuadrillaName} para ${fechaYmd}.`)
+      invalidateProgramacionesCache()
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('covepa-programacion-actualizada', {

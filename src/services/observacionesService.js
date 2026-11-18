@@ -14,6 +14,7 @@ import {
   esRevisorGilat
 } from './auditoriaSyncService'
 import { asegurarProgramacionSitio } from './programacionService'
+import { ASIGNACIONES_BASE } from './sitiosService'
 import { getPeruDateStr, getPeruISOString } from '../utils/helpers'
 
 export {
@@ -191,9 +192,22 @@ export async function fetchObservaciones({
 // ────────────────────────────────────────────────────────────
 // 2. Obtiene los KPIs globales de COVEPA (Medidores / Indicadores)
 // Siempre calcula los totales del ámbito seleccionado ('todos' | 'original' | 'ampliacion')
-// Utiliza head: true en paralelo -> exacto, instantáneo y sin límite de 1,000
+// Utiliza head: true en paralelo con caché TTL inteligente en memoria
 // ────────────────────────────────────────────────────────────
-export async function fetchObservacionesKPIs(proyecto = 'todos') {
+const _cachedKpis = new Map()
+const KPIS_CACHE_TTL_MS = 45 * 1000 // 45 segundos de caché
+
+export function invalidateObservacionesKPIsCache() {
+  _cachedKpis.clear()
+}
+
+export async function fetchObservacionesKPIs(proyecto = 'todos', forceRefresh = false) {
+  const now = Date.now()
+  const cached = _cachedKpis.get(proyecto)
+  if (!forceRefresh && cached && (now - cached.timestamp < KPIS_CACHE_TTL_MS)) {
+    return cached.data
+  }
+
   try {
     // Helper para aplicar filtro de proyecto a consultas head
     const applyProj = (q) => {
@@ -216,7 +230,7 @@ export async function fetchObservacionesKPIs(proyecto = 'todos') {
       applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Descartado')),
     ])
 
-    return {
+    const result = {
       total: qTotal.count ?? 0,
       pendientes: qPend.count ?? 0,
       solicitando: qSol.count ?? 0,
@@ -228,6 +242,9 @@ export async function fetchObservacionesKPIs(proyecto = 'todos') {
       rechazadas: qRech.count ?? 0,
       descartadas: qDesc.count ?? 0,
     }
+
+    _cachedKpis.set(proyecto, { data: result, timestamp: now })
+    return result
   } catch (err) {
     console.error('Error al calcular KPIs globales:', err)
     return { total: 0, pendientes: 0, solicitando: 0, enRevision: 0, documentacion: 0, prevalidadas: 0, validadas: 0, criticas: 0, rechazadas: 0, descartadas: 0 }
@@ -237,7 +254,7 @@ export async function fetchObservacionesKPIs(proyecto = 'todos') {
 // Caché en memoria para opciones de filtros
 let _cachedFiltros = null
 let _cachedFiltrosAt = 0
-const FILTROS_CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutos de caché
+const FILTROS_CACHE_TTL_MS = 15 * 60 * 1000 // 15 minutos de caché
 
 export function invalidateFiltrosCache() {
   _cachedFiltros = null
@@ -246,6 +263,7 @@ export function invalidateFiltrosCache() {
 
 // ────────────────────────────────────────────────────────────
 // 3. Obtiene los valores únicos para los filtros de la toolbar
+// Optimizado: Utiliza el catálogo oficial en memoria para 0 descargas de filas masivas
 // ────────────────────────────────────────────────────────────
 export async function fetchFiltrosObservaciones(forceRefresh = false) {
   const now = Date.now()
@@ -254,16 +272,33 @@ export async function fetchFiltrosObservaciones(forceRefresh = false) {
   }
 
   try {
-    const data = await fetchAllRowsInBatches(
-      'observaciones',
-      'protocolo, estado_covepa, id_sitio'
-    )
+    const baseSites = (ASIGNACIONES_BASE || []).map(s => s.id_site).filter(Boolean)
+    const uniqueSitios = [...new Set(baseSites)].sort()
 
-    const unique = (field) => [...new Set(data.map(d => d[field]).filter(Boolean))].sort()
+    const protocolosOficiales = [
+      'Cableado Estructurado',
+      'CAMARAS Y SENSORES',
+      'Climatización',
+      'COBERTURA',
+      'Energia'
+    ]
+
+    const estadosOficiales = [
+      'Pendiente',
+      'Solicitando Revisión',
+      'En Revisión',
+      'Documentación',
+      'Pre-validado',
+      'Validado',
+      'Crítico',
+      'Rechazado',
+      'Descartado'
+    ]
+
     const result = {
-      protocolos: unique('protocolo'),
-      estadosCovepa: [...new Set(['Pendiente', 'Solicitando Revisión', 'En Revisión', 'Documentación', 'Pre-validado', 'Validado', 'Crítico', 'Rechazado', 'Descartado', ...unique('estado_covepa')])],
-      sitios: unique('id_sitio'),
+      protocolos: protocolosOficiales,
+      estadosCovepa: estadosOficiales,
+      sitios: uniqueSitios
     }
     _cachedFiltros = result
     _cachedFiltrosAt = now
@@ -284,6 +319,7 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
 
   // Si se actualiza el estado de la observación, delegar al puente oficial de auditoría
   if (estado_covepa !== undefined) {
+    invalidateObservacionesKPIsCache()
     const res = await sincronizarAuditoriaObservacion(idObs, {
       nuevoEstado: estado_covepa,
       revisor: rev,
@@ -340,6 +376,7 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
     }
     throw new Error(error.message)
   }
+  invalidateObservacionesKPIsCache()
   return data
 }
 

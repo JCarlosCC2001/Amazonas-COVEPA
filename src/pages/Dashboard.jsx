@@ -101,11 +101,11 @@ export default function Dashboard() {
   const [filterZona, setFilterZona] = useState('TODAS')
 
   // Carga reactiva de métricas consolidadas
-  const loadOverview = useCallback(async () => {
+  const loadOverview = useCallback(async (force = false) => {
     setLoading(true)
     setErrorMsg('')
     try {
-      const res = await getDashboardProjectOverview()
+      const res = await getDashboardProjectOverview(force)
       setData(res)
       lastLoadedTimeRef.current = Date.now()
     } catch (err) {
@@ -144,7 +144,7 @@ export default function Dashboard() {
     const debouncedReload = () => {
       clearTimeout(debounceTimer)
       debounceTimer = setTimeout(() => {
-        loadOverview()
+        loadOverview(true)
         if (tab === 'gilat') {
           loadGilat(true)
         }

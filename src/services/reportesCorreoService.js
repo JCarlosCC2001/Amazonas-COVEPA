@@ -4,6 +4,7 @@ import { getCachedSitiosAsignados, getZonaBySiteId } from './sitiosService'
 import { toLocalDateString, getPeruDateStr, getAyerPeruStr, formatNombrePersona } from '../utils/helpers'
 import { esRevisorGilat, esRegistroSoloComentario } from './auditoriaSyncService'
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService'
+import { resolveCuadrillaOficial, resolveEquipoPorCuadrilla, construirMatricesEjecutivas, esAmpliacionObs } from '../shared/reportesCore'
 
 const LOCAL_STORAGE_KEY_DIARIO = 'covepa_config_reporte_correo'
 const LOCAL_STORAGE_KEY_DIARIO_AMPLIACION = 'covepa_config_reporte_diario_ampliacion'
@@ -394,9 +395,7 @@ export async function fetchDatosReporteDiario(fechaFiltro = null, periodoReporte
   const isOriginal = tramo === 'original'
 
   const rawRows = (avance?.rows || []).filter(r => {
-    const sId = String(r.id_sitio || r.codigo_lugar || '').toUpperCase().trim()
-    const oId = String(r.id_obs || '').toUpperCase().trim()
-    const esDeAmpliacion = sId.startsWith('AMEX') || oId.startsWith('AMEX')
+    const esDeAmpliacion = esAmpliacionObs(r)
     if (isAmpliacion) return esDeAmpliacion
     if (isOriginal) return !esDeAmpliacion
     return true
@@ -588,161 +587,38 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
       ''
   }
 
-  const tecC1 = getCuadrillaTecnico('CUADRILLA 1')
-  const tecC2 = getCuadrillaTecnico('CUADRILLA 2')
-  const tecC3 = getCuadrillaTecnico('CUADRILLA 3')
-  const tecC4 = getCuadrillaTecnico('CUADRILLA 4')
-  const tecC5 = getCuadrillaTecnico('CUADRILLA 5')
-  const tecC6 = getCuadrillaTecnico('CUADRILLA 6')
-  const tecC7 = getCuadrillaTecnico('CUADRILLA 7')
-
-  // Regla de Negocio: Amazonas Original (Equipos 1, 2, 3) y Amazonas Ampliación (Equipo 4)
-  const equiposOriginalMap = {
-    'EQUIPO 1': {
-      id: 'EQUIPO 1',
-      cuadrilla: 'EQUIPO 1',
-      subtitulo: 'Cuadrilla 1 y 2',
-      tecnico: [tecC1, tecC2].filter(Boolean).join(' · ') || 'Técnicos Equipo 1',
-      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
-      total: 0
-    },
-    'EQUIPO 2': {
-      id: 'EQUIPO 2',
-      cuadrilla: 'EQUIPO 2',
-      subtitulo: 'Cuadrilla 3 y 6',
-      tecnico: [tecC3, tecC6].filter(Boolean).join(' · ') || 'Técnicos Equipo 2',
-      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
-      total: 0
-    },
-    'EQUIPO 3': {
-      id: 'EQUIPO 3',
-      cuadrilla: 'EQUIPO 3',
-      subtitulo: 'Cuadrilla 4 y 5',
-      tecnico: [tecC4, tecC5].filter(Boolean).join(' · ') || 'Técnicos Equipo 3',
-      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
-      total: 0
-    }
-  }
-
-  const equiposAmpliacionMap = {
-    'EQUIPO 4': {
-      id: 'EQUIPO 4',
-      cuadrilla: 'EQUIPO 4',
-      subtitulo: 'Cuadrilla 7',
-      tecnico: tecC7 || 'Por Asignar',
-      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
-      total: 0
-    }
-  }
-
   const rawRows = avance?.rows || []
+  const {
+    matrixOriginal: orig,
+    matrixAmpliacion: ampl,
+    matrixRows: combRows,
+    matrixTotals: combTotals,
+    matrixGrandTotal: combGrandTotal
+  } = construirMatricesEjecutivas(rawRows, sitiosMap, getCuadrillaTecnico)
 
-  const resolveCuadrillaForObs = (r) => {
-    const sId = String(r.id_sitio || '').toUpperCase()
-    if (sId.startsWith('AMEX-')) return 'CUADRILLA 7'
+  const rowsEnriquecidas = []
+  rawRows.forEach(r => {
+    const rawSt = (r.estado || r.estado_covepa || '').trim().toLowerCase()
+    // Excluir Pre-validado y Pendiente para coincidir 100% con las 6 columnas de la Matriz Ejecutiva
+    if (rawSt === 'pre-validado' || rawSt === 'pre-validada' || rawSt === 'prevalidado' || rawSt === 'pendiente') {
+      return
+    }
 
-    let c = (r.cuadrilla || '').trim().toUpperCase()
-    if (c.startsWith('CUADRILLA')) return c
     const sInfo = sitiosMap[r.id_sitio] || {}
-    if (sInfo.grupo && sInfo.grupo.toUpperCase().startsWith('CUADRILLA')) {
-      return sInfo.grupo.toUpperCase()
-    }
-    if (sInfo.cuadrilla && sInfo.cuadrilla.toUpperCase().startsWith('CUADRILLA')) {
-      return sInfo.cuadrilla.toUpperCase()
-    }
-    const tecUpper = (r.tecnico || '').toUpperCase()
-    if (tecUpper.includes('FLORES') || tecUpper.includes('JHONATAN')) return 'CUADRILLA 1'
-    if (tecUpper.includes('CHAMBA') || tecUpper.includes('MARCO')) return 'CUADRILLA 2'
-    if (tecUpper.includes('DANIEL') || tecUpper.includes('JAVIER') || tecUpper.includes('PERCY') || tecUpper.includes('ROJAS')) return 'CUADRILLA 3'
-    if (tecUpper.includes('ALFONSO') || tecUpper.includes('CURI')) return 'CUADRILLA 4'
-    if (tecUpper.includes('WILL') || tecUpper.includes('AVILA')) return 'CUADRILLA 5'
-    if (tecUpper.includes('CASTRO') || tecUpper.includes('JUAN')) return 'CUADRILLA 6'
-    return 'CUADRILLA 1'
-  }
-
-  const rowsEnriquecidas = rawRows.map(r => {
-    const sInfo = sitiosMap[r.id_sitio] || {}
-    const targetCuadrilla = resolveCuadrillaForObs(r)
-    let targetEquipoKey = 'EQUIPO 1'
-    if (targetCuadrilla === 'CUADRILLA 1' || targetCuadrilla === 'CUADRILLA 2') {
-      targetEquipoKey = 'EQUIPO 1'
-    } else if (targetCuadrilla === 'CUADRILLA 3' || targetCuadrilla === 'CUADRILLA 6') {
-      targetEquipoKey = 'EQUIPO 2'
-    } else if (targetCuadrilla === 'CUADRILLA 4' || targetCuadrilla === 'CUADRILLA 5') {
-      targetEquipoKey = 'EQUIPO 3'
-    } else if (targetCuadrilla === 'CUADRILLA 7') {
-      targetEquipoKey = 'EQUIPO 4'
-    }
-
+    const targetCuadrilla = resolveCuadrillaOficial(r, sitiosMap)
+    const targetEquipoKey = resolveEquipoPorCuadrilla(targetCuadrilla)
     const localidad = r.localidad || sInfo.localidad || ''
     const zonaFinal = (r.zona && r.zona !== '-') ? r.zona : (sInfo.zona || getZonaBySiteId(r.id_sitio))
 
-    // Computar conteos por equipo
-    const targetObj = equiposOriginalMap[targetEquipoKey] || equiposAmpliacionMap[targetEquipoKey]
-    if (targetObj) {
-      const rawSt = (r.estado || r.estado_covepa || '').trim().toLowerCase()
-      if (rawSt === 'solicitando revisión' || rawSt === 'solicitando revision' || rawSt === 'en revisión' || rawSt === 'en revision') {
-        targetObj.values.enRevision++
-      } else if (rawSt === 'descartado' || rawSt === 'descartada') {
-        targetObj.values.descartados++
-      } else if (rawSt === 'crítico' || rawSt === 'critico' || rawSt === 'crítica' || rawSt === 'critica') {
-        targetObj.values.criticos++
-      } else if (rawSt === 'documentación' || rawSt === 'documentacion') {
-        targetObj.values.documentacion++
-      } else if (rawSt === 'rechazado' || rawSt === 'rechazada' || rawSt === 'rechazados') {
-        targetObj.values.rechazados++
-      } else if (rawSt === 'validado' || rawSt === 'validada' || rawSt === 'enviado' || rawSt === 'enviada') {
-        targetObj.values.validados++
-      }
-    }
-
-    return {
+    rowsEnriquecidas.push({
       ...r,
       localidad,
       zona: zonaFinal,
       cuadrilla: targetCuadrilla,
       equipo: targetEquipoKey,
-      tecnico: r.tecnico || cuadrillaStaffMap[targetCuadrilla] || DEFAULT_CUADRILLAS_CONFIG[targetCuadrilla]?.tecnicoNombre || '-'
-    }
+      tecnico: formatNombrePersona(r.tecnico || cuadrillaStaffMap[targetCuadrilla] || DEFAULT_CUADRILLAS_CONFIG[targetCuadrilla]?.tecnicoNombre || '-')
+    })
   })
-
-  const buildMatrix = (map) => {
-    const rowsList = Object.values(map).map(row => ({
-      ...row,
-      total: row.values.enRevision + row.values.descartados + row.values.criticos + row.values.documentacion + row.values.rechazados + row.values.validados
-    }))
-
-    const totalsObj = {
-      enRevision: rowsList.reduce((acc, r) => acc + r.values.enRevision, 0),
-      descartados: rowsList.reduce((acc, r) => acc + r.values.descartados, 0),
-      criticos: rowsList.reduce((acc, r) => acc + r.values.criticos, 0),
-      documentacion: rowsList.reduce((acc, r) => acc + r.values.documentacion, 0),
-      rechazados: rowsList.reduce((acc, r) => acc + r.values.rechazados, 0),
-      validados: rowsList.reduce((acc, r) => acc + r.values.validados, 0)
-    }
-
-    const grandTotal = totalsObj.enRevision + totalsObj.descartados + totalsObj.criticos + totalsObj.documentacion + totalsObj.rechazados + totalsObj.validados
-
-    return {
-      matrixRows: rowsList,
-      matrixTotals: totalsObj,
-      matrixGrandTotal: grandTotal
-    }
-  }
-
-  const orig = buildMatrix(equiposOriginalMap)
-  const ampl = buildMatrix(equiposAmpliacionMap)
-
-  const combRows = [...orig.matrixRows, ...ampl.matrixRows]
-  const combTotals = {
-    enRevision: orig.matrixTotals.enRevision + ampl.matrixTotals.enRevision,
-    descartados: orig.matrixTotals.descartados + ampl.matrixTotals.descartados,
-    criticos: orig.matrixTotals.criticos + ampl.matrixTotals.criticos,
-    documentacion: orig.matrixTotals.documentacion + ampl.matrixTotals.documentacion,
-    rechazados: orig.matrixTotals.rechazados + ampl.matrixTotals.rechazados,
-    validados: orig.matrixTotals.validados + ampl.matrixTotals.validados
-  }
-  const combGrandTotal = orig.matrixGrandTotal + ampl.matrixGrandTotal
 
   return {
     fechaStr: targetDate,
@@ -2376,21 +2252,32 @@ function escapeHtml(str) {
  */
 export const DEFAULT_CRON_KEY = 'covepa_cron_7f8a9b2c3d4e5f'
 
-export async function despacharReporteInmediato({ forzar = true, destinatarioPrueba = '' } = {}) {
+function getDespachoEndpointUrl() {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'https://amazonas-covepa.vercel.app/api/despachar-reporte'
+    }
+  }
+  return '/api/despachar-reporte'
+}
+
+async function ejecutarDespachoReporte({ tipoReporte, asuntoFallback, mensajeExito, forzar = true, destinatarioPrueba = '' }) {
   const cronKey = (import.meta.env.VITE_CRON_SECRET || DEFAULT_CRON_KEY).trim()
+  const endpointUrl = getDespachoEndpointUrl()
   try {
-    const res = await fetch('/api/despachar-reporte', {
+    const res = await fetch(endpointUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-cron-key': cronKey,
         'x-forzar': forzar ? 'true' : 'false',
-        'x-tipo-reporte': 'diario',
+        'x-tipo-reporte': tipoReporte,
         'x-destinatario-prueba': destinatarioPrueba || ''
       },
       body: JSON.stringify({
         forzar,
-        tipo_reporte: 'diario',
+        tipo_reporte: tipoReporte,
         destinatario_prueba: destinatarioPrueba || ''
       })
     })
@@ -2399,15 +2286,15 @@ export async function despacharReporteInmediato({ forzar = true, destinatarioPru
       registrarEnvioLocal({
         id: `local-${Date.now()}`,
         created_at: new Date().toISOString(),
-        tipo_reporte: 'diario',
+        tipo_reporte: tipoReporte,
         tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
         origen: 'web',
         destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
         destinatarios_cc: [],
-        asunto: 'Reporte Diario de Levantamiento de Observaciones',
+        asunto: asuntoFallback,
         estado: 'exitoso'
       })
-      return { ok: true, message: data.message || '¡Reporte diario despachado exitosamente!' }
+      return { ok: true, message: data.message || mensajeExito }
     }
     if (res.status !== 404) {
       const errData = await res.json().catch(() => ({}))
@@ -2424,7 +2311,7 @@ export async function despacharReporteInmediato({ forzar = true, destinatarioPru
   // Fallback directo a la API de GitHub Actions
   const token = (import.meta.env.VITE_GITHUB_DISPATCH_TOKEN || '').trim()
   if (!token) {
-    throw new Error('Falta configurar GITHUB_DISPATCH_TOKEN en Vercel (o VITE_GITHUB_DISPATCH_TOKEN en local) para autorizar el despacho desde la web. Puedes ejecutarlo con 1 clic en la pestaña Actions de GitHub.')
+    throw new Error('Falta configurar GITHUB_DISPATCH_TOKEN en Vercel (o VITE_GITHUB_DISPATCH_TOKEN en local) para autorizar el despacho desde la web.')
   }
   const repo = 'JCarlosCC2001/Amazonas-COVEPA'
   const url = `https://api.github.com/repos/${repo}/actions/workflows/reporte-diario.yml/dispatches`
@@ -2441,7 +2328,7 @@ export async function despacharReporteInmediato({ forzar = true, destinatarioPru
       inputs: {
         forzar: forzar ? 'true' : 'false',
         destinatario_prueba: destinatarioPrueba || '',
-        tipo_reporte: 'diario'
+        tipo_reporte: tipoReporte
       }
     })
   })
@@ -2450,203 +2337,55 @@ export async function despacharReporteInmediato({ forzar = true, destinatarioPru
     registrarEnvioLocal({
       id: `local-${Date.now()}`,
       created_at: new Date().toISOString(),
-      tipo_reporte: 'diario',
+      tipo_reporte: tipoReporte,
       tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
       origen: 'web_direct',
       destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
       destinatarios_cc: [],
-      asunto: 'Reporte Diario de Levantamiento de Observaciones',
+      asunto: asuntoFallback,
       estado: 'exitoso'
     })
-    return { ok: true, message: '¡Reporte despachado exitosamente!' }
+    return { ok: true, message: mensajeExito }
   }
 
   const errData = await response.json().catch(() => ({}))
   throw new Error(errData.message || `Error del servidor GitHub (${response.status})`)
+}
+
+export async function despacharReporteInmediato({ forzar = true, destinatarioPrueba = '' } = {}) {
+  return ejecutarDespachoReporte({
+    tipoReporte: 'diario',
+    asuntoFallback: 'Reporte Diario de Levantamiento de Observaciones',
+    mensajeExito: '¡Reporte diario despachado exitosamente!',
+    forzar,
+    destinatarioPrueba
+  })
 }
 
 /**
  * Despacha el reporte diario de Amazonas Ampliación de inmediato (prueba de envío o disparo).
  */
 export async function despacharReporteAmpliacionInmediato({ forzar = true, destinatarioPrueba = '' } = {}) {
-  const cronKey = (import.meta.env.VITE_CRON_SECRET || DEFAULT_CRON_KEY).trim()
-  try {
-    const res = await fetch('/api/despachar-reporte', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-cron-key': cronKey,
-        'x-forzar': forzar ? 'true' : 'false',
-        'x-tipo-reporte': 'diario_ampliacion',
-        'x-destinatario-prueba': destinatarioPrueba || ''
-      },
-      body: JSON.stringify({
-        forzar,
-        tipo_reporte: 'diario_ampliacion',
-        destinatario_prueba: destinatarioPrueba || ''
-      })
-    })
-    if (res.ok) {
-      const data = await res.json().catch(() => ({}))
-      registrarEnvioLocal({
-        id: `local-${Date.now()}`,
-        created_at: new Date().toISOString(),
-        tipo_reporte: 'diario_ampliacion',
-        tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
-        origen: 'web',
-        destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
-        destinatarios_cc: [],
-        asunto: 'Reporte Diario de Levantamiento de Observaciones (Amazonas Ampliación)',
-        estado: 'exitoso'
-      })
-      return { ok: true, message: data.message || '¡Reporte de Ampliación despachado exitosamente!' }
-    }
-    if (res.status !== 404) {
-      const errData = await res.json().catch(() => ({}))
-      if (errData && errData.error) {
-        throw new Error(errData.error)
-      }
-    }
-  } catch (apiErr) {
-    if (apiErr.message && !apiErr.message.includes('fetch') && !apiErr.message.includes('Failed to fetch')) {
-      throw apiErr
-    }
-  }
-
-  // Fallback directo a la API de GitHub Actions
-  const token = (import.meta.env.VITE_GITHUB_DISPATCH_TOKEN || '').trim()
-  if (!token) {
-    throw new Error('Falta configurar GITHUB_DISPATCH_TOKEN en Vercel (o VITE_GITHUB_DISPATCH_TOKEN en local) para autorizar el despacho desde la web.')
-  }
-  const repo = 'JCarlosCC2001/Amazonas-COVEPA'
-  const url = `https://api.github.com/repos/${repo}/actions/workflows/reporte-diario.yml/dispatches`
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `token ${token}`,
-      'Accept': 'application/vnd.github.v3+json',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      ref: 'main',
-      inputs: {
-        forzar: forzar ? 'true' : 'false',
-        destinatario_prueba: destinatarioPrueba || '',
-        tipo_reporte: 'diario_ampliacion'
-      }
-    })
+  return ejecutarDespachoReporte({
+    tipoReporte: 'diario_ampliacion',
+    asuntoFallback: 'Reporte Diario de Levantamiento de Observaciones (Amazonas Ampliación)',
+    mensajeExito: '¡Reporte de Ampliación despachado exitosamente!',
+    forzar,
+    destinatarioPrueba
   })
-
-  if (response.status === 204 || response.ok) {
-    registrarEnvioLocal({
-      id: `local-${Date.now()}`,
-      created_at: new Date().toISOString(),
-      tipo_reporte: 'diario_ampliacion',
-      tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
-      origen: 'web_direct',
-      destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
-      destinatarios_cc: [],
-      asunto: 'Reporte Diario de Levantamiento de Observaciones (Amazonas Ampliación)',
-      estado: 'exitoso'
-    })
-    return { ok: true, message: '¡Reporte de Ampliación despachado exitosamente!' }
-  }
-
-  const errData = await response.json().catch(() => ({}))
-  throw new Error(errData.message || `Error del servidor GitHub (${response.status})`)
 }
 
 /**
  * Despacha el reporte diario interno de inmediato (prueba de envío manual o disparo).
  */
 export async function despacharReporteInternoInmediato({ forzar = true, destinatarioPrueba = '' } = {}) {
-  const cronKey = (import.meta.env.VITE_CRON_SECRET || DEFAULT_CRON_KEY).trim()
-  try {
-    const res = await fetch('/api/despachar-reporte', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-cron-key': cronKey,
-        'x-forzar': forzar ? 'true' : 'false',
-        'x-tipo-reporte': 'diario_interno',
-        'x-destinatario-prueba': destinatarioPrueba || ''
-      },
-      body: JSON.stringify({
-        forzar,
-        tipo_reporte: 'diario_interno',
-        destinatario_prueba: destinatarioPrueba || ''
-      })
-    })
-    if (res.ok) {
-      const data = await res.json().catch(() => ({}))
-      registrarEnvioLocal({
-        id: `local-${Date.now()}`,
-        created_at: new Date().toISOString(),
-        tipo_reporte: 'diario_interno',
-        tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
-        origen: 'web',
-        destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
-        destinatarios_cc: [],
-        asunto: 'Reporte Interno Diario',
-        estado: 'exitoso'
-      })
-      return { ok: true, message: data.message || '¡Reporte diario interno despachado exitosamente!' }
-    }
-    if (res.status !== 404) {
-      const errData = await res.json().catch(() => ({}))
-      if (errData && errData.error) {
-        throw new Error(errData.error)
-      }
-    }
-  } catch (apiErr) {
-    if (apiErr.message && !apiErr.message.includes('fetch') && !apiErr.message.includes('Failed to fetch')) {
-      throw apiErr
-    }
-  }
-
-  // Fallback directo a la API de GitHub Actions (para entorno local o disparo directo)
-  const token = (import.meta.env.VITE_GITHUB_DISPATCH_TOKEN || '').trim()
-  if (!token) {
-    throw new Error('Falta configurar GITHUB_DISPATCH_TOKEN en Vercel (o VITE_GITHUB_DISPATCH_TOKEN en local) para autorizar el despacho desde la web.')
-  }
-  const repo = 'JCarlosCC2001/Amazonas-COVEPA'
-  const url = `https://api.github.com/repos/${repo}/actions/workflows/reporte-diario.yml/dispatches`
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `token ${token}`,
-      'Accept': 'application/vnd.github.v3+json',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      ref: 'main',
-      inputs: {
-        forzar: forzar ? 'true' : 'false',
-        destinatario_prueba: destinatarioPrueba || '',
-        tipo_reporte: 'diario_interno'
-      }
-    })
+  return ejecutarDespachoReporte({
+    tipoReporte: 'diario_interno',
+    asuntoFallback: 'Reporte Interno Diario',
+    mensajeExito: '¡Reporte diario interno despachado exitosamente! El correo llegará en unos 20 segundos.',
+    forzar,
+    destinatarioPrueba
   })
-
-  if (response.status === 204 || response.ok) {
-    registrarEnvioLocal({
-      id: `local-${Date.now()}`,
-      created_at: new Date().toISOString(),
-      tipo_reporte: 'diario_interno',
-      tipo: destinatarioPrueba ? 'prueba' : (forzar ? 'manual' : 'oficial'),
-      origen: 'web_direct',
-      destinatarios: destinatarioPrueba ? [destinatarioPrueba] : [],
-      destinatarios_cc: [],
-      asunto: 'Reporte Interno Diario',
-      estado: 'exitoso'
-    })
-    return { ok: true, message: '¡Reporte diario interno despachado con éxito! El correo llegará en unos 20 segundos.' }
-  }
-
-  const errData = await response.json().catch(() => ({}))
-  throw new Error(errData.message || `Error del servidor GitHub (${response.status})`)
 }
 
 /**

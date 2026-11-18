@@ -12,13 +12,33 @@ import {
   X,
   Database,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Save
 } from 'lucide-react'
-import { fetchSitios } from '../services/sitiosService'
+import { fetchSitios, updateSitioAsignacion } from '../services/sitiosService'
+import { useAuth } from '../hooks/useAuth'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 import ErpTable from '../components/shared/ErpTable'
 
+const OPCIONES_CUADRILLAS = [
+  'CUADRILLA 1',
+  'CUADRILLA 2',
+  'CUADRILLA 3',
+  'CUADRILLA 4',
+  'CUADRILLA 5',
+  'CUADRILLA 6',
+  'CUADRILLA 7',
+  'Sin Cuadrilla'
+]
+
+const OPCIONES_ZONAS = [
+  'ZONA 2',
+  'ZONA 7',
+  'Sin Zona'
+]
+
 export default function Sitios() {
+  const { isReadOnly } = useAuth()
   const [sitios, setSitios] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -35,8 +55,64 @@ export default function Sitios() {
   const [sortField, setSortField] = useState('id_site')
   const [sortDirection, setSortDirection] = useState('asc')
 
-  // Modal de detalle
+  // Modal de detalle y edición de asignación (Cuadrilla / Zona)
   const [selectedSite, setSelectedSite] = useState(null)
+  const [editCuadrilla, setEditCuadrilla] = useState('')
+  const [editZona, setEditZona] = useState('')
+  const [savingAsignacion, setSavingAsignacion] = useState(false)
+  const [assignFeedback, setAssignFeedback] = useState(null) // { type: 'success' | 'error', text: string }
+
+  const handleOpenSiteDetail = (site) => {
+    setSelectedSite(site)
+    setEditCuadrilla(site?.grupo || site?.cuadrilla || 'Sin Cuadrilla')
+    setEditZona(site?.zona || 'Sin Zona')
+    setAssignFeedback(null)
+  }
+
+  const handleSaveAsignacion = async () => {
+    if (!selectedSite || isReadOnly) return
+    setSavingAsignacion(true)
+    setAssignFeedback(null)
+    try {
+      const updated = await updateSitioAsignacion(selectedSite.id_site, {
+        cuadrilla: editCuadrilla,
+        zona: editZona
+      })
+
+      setSitios(prev =>
+        prev.map(s =>
+          s.id_site === selectedSite.id_site
+            ? {
+                ...s,
+                grupo: updated.grupo,
+                cuadrilla: updated.cuadrilla,
+                zona: updated.zona,
+                es_asignado: updated.es_asignado
+              }
+            : s
+        )
+      )
+
+      setSelectedSite(prev =>
+        prev
+          ? {
+              ...prev,
+              grupo: updated.grupo,
+              cuadrilla: updated.cuadrilla,
+              zona: updated.zona,
+              es_asignado: updated.es_asignado
+            }
+          : null
+      )
+
+      setAssignFeedback({ type: 'success', text: 'Asignación guardada' })
+      setTimeout(() => setAssignFeedback(null), 3500)
+    } catch (err) {
+      setAssignFeedback({ type: 'error', text: err.message || 'Error al guardar asignación' })
+    } finally {
+      setSavingAsignacion(false)
+    }
+  }
 
   // Cerrar modal con tecla Escape
   useEffect(() => {
@@ -239,7 +315,7 @@ export default function Sitios() {
           icon={<Database size={22} />}
           label="Total Sitios"
           value={stats.total}
-          subtitle={soloAsignados ? '156 del proyecto' : 'Catálogo SELNET'}
+          subtitle={soloAsignados ? `${stats.total} del proyecto` : 'Catálogo SELNET'}
           variant="navy"
           onClick={() => setSelectedZona('TODAS')}
           active={selectedZona === 'TODAS'}
@@ -324,10 +400,10 @@ export default function Sitios() {
           <button
             className={`toggle-catalog-btn ${soloAsignados ? 'active' : ''}`}
             onClick={() => setSoloAsignados(!soloAsignados)}
-            title="Alternar entre los 156 sitios del proyecto o todo el catálogo"
+            title="Alternar entre los sitios asignados del proyecto o todo el catálogo"
           >
             <Database size={15} />
-            <span>{soloAsignados ? 'Ver 156 Asignados' : 'Ver Todos (1,021)'}</span>
+            <span>{soloAsignados ? `Ver Asignados (${stats.total})` : 'Ver Todos (1,021)'}</span>
           </button>
 
           {/* Botón Refrescar */}
@@ -365,7 +441,7 @@ export default function Sitios() {
         sortField={sortField}
         sortDirection={sortDirection}
         onSort={handleSort}
-        onRowClick={s => setSelectedSite(s)}
+        onRowClick={s => handleOpenSiteDetail(s)}
         rowClassName="sitio-row"
         page={page}
         pageSize={pageSize}
@@ -397,15 +473,75 @@ export default function Sitios() {
 
             <div className="modal-body">
               {/* Asignación en el ERP */}
-              <div className="modal-section-title">Asignación Operativa</div>
+              <div className="modal-assign-header">
+                <div className="modal-section-title">Asignación Operativa</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {assignFeedback && (
+                    <span className={`modal-assign-feedback ${assignFeedback.type}`}>
+                      {assignFeedback.type === 'success' ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+                      <span>{assignFeedback.text}</span>
+                    </span>
+                  )}
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      className="modal-assign-save-btn"
+                      onClick={handleSaveAsignacion}
+                      disabled={
+                        savingAsignacion ||
+                        (editCuadrilla === (selectedSite.grupo || selectedSite.cuadrilla || 'Sin Cuadrilla') &&
+                          editZona === (selectedSite.zona || 'Sin Zona'))
+                      }
+                    >
+                      {savingAsignacion ? (
+                        <>
+                          <RefreshCw size={13} className="spinning" />
+                          <span>Guardando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save size={13} />
+                          <span>Guardar Asignación</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
               <div className="modal-grid-2">
                 <div className="detail-item">
                   <span className="detail-key">Cuadrilla / Grupo Asignado:</span>
-                  <span className="detail-val highlight-val">{selectedSite.grupo}</span>
+                  {isReadOnly ? (
+                    <span className="detail-val highlight-val">{selectedSite.grupo}</span>
+                  ) : (
+                    <select
+                      className="modal-assign-select"
+                      value={editCuadrilla}
+                      onChange={e => setEditCuadrilla(e.target.value)}
+                      disabled={savingAsignacion}
+                    >
+                      {OPCIONES_CUADRILLAS.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div className="detail-item">
                   <span className="detail-key">Zona de Trabajo:</span>
-                  <span className="detail-val highlight-val">{selectedSite.zona}</span>
+                  {isReadOnly ? (
+                    <span className="detail-val highlight-val">{selectedSite.zona}</span>
+                  ) : (
+                    <select
+                      className="modal-assign-select"
+                      value={editZona}
+                      onChange={e => setEditZona(e.target.value)}
+                      disabled={savingAsignacion}
+                    >
+                      {OPCIONES_ZONAS.map(z => (
+                        <option key={z} value={z}>{z}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 

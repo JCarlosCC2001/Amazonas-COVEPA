@@ -6,8 +6,8 @@ import {
 } from 'lucide-react'
 import { getAvancePorFecha } from '../../services/dashboardService'
 import { ASIGNACIONES_BASE } from '../../services/sitiosService'
-import { DEFAULT_CUADRILLAS_CONFIG } from '../../services/personalService'
-import { supabase } from '../../lib/supabase'
+import { DEFAULT_CUADRILLAS_CONFIG, fetchPersonal } from '../../services/personalService'
+import { resolveCuadrillaOficial, construirMatricesEjecutivas } from '../../shared/reportesCore'
 import CuadrillasMatrixTable from '../shared/CuadrillasMatrixTable'
 import { formatNombrePersona, getPeruDateStr } from '../../utils/helpers'
 import { usePresentationMode } from '../../context/PresentationContext'
@@ -27,29 +27,21 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
   const [selectedCellFilter, setSelectedCellFilter] = useState(null)
   const [cuadrillaStaffMap, setCuadrillaStaffMap] = useState({})
 
-  // Cargar asignaciones oficiales actualizadas de personal_cuadrillas desde la base de datos
+  // Cargar asignaciones oficiales actualizadas desde personalService (relación por id_personal)
   useEffect(() => {
     let isMounted = true
     const loadCuadrillaStaff = async () => {
       try {
-        const { data, error } = await supabase
-          .from('personal_cuadrillas')
-          .select('cuadrilla, nombre_completo, cargo')
-          .eq('activo', true)
-
-        if (error) {
-          console.warn('Error cargando personal_cuadrillas en ModalAvanceDia:', error.message)
-          return
-        }
-
-        if (isMounted && data && data.length > 0) {
+        const staff = await fetchPersonal()
+        if (isMounted && Array.isArray(staff) && staff.length > 0) {
           const map = {}
-          data.forEach(row => {
-            const cClean = String(row.cuadrilla || '').toUpperCase().trim()
-            const cargo = (row.cargo || '').toUpperCase()
-            const isTec = cargo.includes('TECN') || cargo.includes('SUPERV') || !cargo.includes('CONDUCT')
-            if (isTec && row.nombre_completo) {
-              map[cClean] = formatNombrePersona(row.nombre_completo)
+          staff.forEach(p => {
+            const cClean = String(p.cuadrilla || '').toUpperCase().trim()
+            const cargo = (p.cargo || '').toUpperCase()
+            const isTec = cargo.includes('TECN') || cargo.includes('TÉCN') || cargo.includes('SUPERV') || !cargo.includes('CONDUCT')
+            const nom = (p.nombre_completo || p.nombre || '').trim()
+            if (cClean.startsWith('CUADRILLA') && isTec && nom) {
+              map[cClean] = formatNombrePersona(nom)
             }
           })
           setCuadrillaStaffMap(map)
@@ -113,47 +105,23 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       ''
   }
 
-  // Helper para resolver la cuadrilla oficial asignada a una observación
+  const asignacionesMap = useMemo(() => {
+    const m = {}
+    ASIGNACIONES_BASE.forEach(a => {
+      if (a.id_site) m[a.id_site.toUpperCase()] = a
+    })
+    return m
+  }, [])
+
+  // Helper para resolver la cuadrilla oficial asignada a una observación (núcleo compartido)
   const resolveCuadrillaForObs = useCallback((obs) => {
-    // 0. Si el sitio o código es de Ampliación (AMEX), pertenece a CUADRILLA 7
-    const siteId = (obs.id_sitio || '').trim().toUpperCase()
-    const obsId = (obs.id_obs || '').trim().toUpperCase()
-    if (siteId.startsWith('AMEX') || obsId.startsWith('AMEX')) {
-      return 'CUADRILLA 7'
-    }
-
-    // 1. Prioridad por sitio oficial en el catálogo maestro
-    const asig = ASIGNACIONES_BASE.find(s => s.id_site === siteId) || sitiosMap[siteId]
-    if (asig?.grupo) {
-      const gClean = String(asig.grupo).toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
-      const match = gClean.match(/CUADRILLA\s*([1-7])/)
-      if (match) return `CUADRILLA ${match[1]}`
-    }
-
-    // 2. Prioridad por cuadrilla explícita en la observación
-    if (obs.cuadrilla) {
-      const cClean = String(obs.cuadrilla).toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
-      const match = cClean.match(/CUADRILLA\s*([1-7])/)
-      if (match) return `CUADRILLA ${match[1]}`
-    }
-
-    // 3. Prioridad por nombre del técnico
-    if (obs.tecnico) {
-      const tClean = String(obs.tecnico).toUpperCase().trim()
-      for (const [cName, tecNom] of Object.entries(cuadrillaStaffMap)) {
-        if (tecNom && tClean.includes(tecNom.toUpperCase())) {
-          return cName
-        }
-      }
-      for (const [cName, cfg] of Object.entries(DEFAULT_CUADRILLAS_CONFIG)) {
-        if (cfg.tecnicoNombre && tClean.includes(cfg.tecnicoNombre.toUpperCase())) {
-          return cName
-        }
-      }
-    }
-
-    return 'CUADRILLA 1'
-  }, [sitiosMap, cuadrillaStaffMap])
+    return resolveCuadrillaOficial(obs, {
+      asignacionesMap,
+      sitiosMap,
+      cuadrillaStaffMap,
+      defaultCuadrillasConfig: DEFAULT_CUADRILLAS_CONFIG
+    })
+  }, [asignacionesMap, sitiosMap, cuadrillaStaffMap])
 
   const stats = useMemo(() => {
     const rawRows = avanceData.rows || []
@@ -225,147 +193,28 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     }
   ], [])
 
-  // Consolidación de datos matriciales agrupados por Equipos (Original: Equipos 1, 2, 3; Ampliación: Equipo 4)
+  // Consolidación de datos matriciales agrupados por Equipos desde el núcleo único compartido
   const { matrixOriginal, matrixAmpliacion, matrixData } = useMemo(() => {
-    const rows = avanceData.rows || []
-
     const getCuadrillaTecnico = (cName) => {
       return cuadrillaStaffMap[cName] ||
         DEFAULT_CUADRILLAS_CONFIG[cName]?.tecnicoNombre ||
         ''
     }
 
-    const tecC1 = getCuadrillaTecnico('CUADRILLA 1')
-    const tecC2 = getCuadrillaTecnico('CUADRILLA 2')
-    const tecC3 = getCuadrillaTecnico('CUADRILLA 3')
-    const tecC4 = getCuadrillaTecnico('CUADRILLA 4')
-    const tecC5 = getCuadrillaTecnico('CUADRILLA 5')
-    const tecC6 = getCuadrillaTecnico('CUADRILLA 6')
-    const tecC7 = getCuadrillaTecnico('CUADRILLA 7')
-
-    // Equipos de Amazonas Original
-    const equiposOriginalMap = {
-      'EQUIPO 1': {
-        id: 'EQUIPO 1',
-        cuadrilla: 'EQUIPO 1',
-        subtitulo: 'Cuadrilla 1 y 2',
-        tecnico: [tecC1, tecC2].filter(Boolean).join(' · ') || 'Técnicos Equipo 1',
-        values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
-        total: 0
-      },
-      'EQUIPO 2': {
-        id: 'EQUIPO 2',
-        cuadrilla: 'EQUIPO 2',
-        subtitulo: 'Cuadrilla 3 y 6',
-        tecnico: [tecC3, tecC6].filter(Boolean).join(' · ') || 'Técnicos Equipo 2',
-        values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
-        total: 0
-      },
-      'EQUIPO 3': {
-        id: 'EQUIPO 3',
-        cuadrilla: 'EQUIPO 3',
-        subtitulo: 'Cuadrilla 4 y 5',
-        tecnico: [tecC4, tecC5].filter(Boolean).join(' · ') || 'Técnicos Equipo 3',
-        values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
-        total: 0
-      }
+    const tecnicosPorCuadrilla = {
+      'CUADRILLA 1': getCuadrillaTecnico('CUADRILLA 1'),
+      'CUADRILLA 2': getCuadrillaTecnico('CUADRILLA 2'),
+      'CUADRILLA 3': getCuadrillaTecnico('CUADRILLA 3'),
+      'CUADRILLA 4': getCuadrillaTecnico('CUADRILLA 4'),
+      'CUADRILLA 5': getCuadrillaTecnico('CUADRILLA 5'),
+      'CUADRILLA 6': getCuadrillaTecnico('CUADRILLA 6'),
+      'CUADRILLA 7': getCuadrillaTecnico('CUADRILLA 7') || 'Por Asignar'
     }
 
-    // Equipos de Amazonas Ampliación
-    const equiposAmpliacionMap = {
-      'EQUIPO 4': {
-        id: 'EQUIPO 4',
-        cuadrilla: 'EQUIPO 4',
-        subtitulo: 'Cuadrilla 7',
-        tecnico: tecC7 || 'Por Asignar',
-        values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
-        total: 0
-      }
-    }
-
-    rows.forEach(r => {
-      const siteId = String(r.id_sitio || '').toUpperCase().trim()
-      const obsId = String(r.id_obs || '').toUpperCase().trim()
-      const isAmex = siteId.startsWith('AMEX') || obsId.startsWith('AMEX')
-
-      const targetCuadrilla = resolveCuadrillaForObs(r)
-      let targetEquipoKey = 'EQUIPO 1'
-      if (isAmex || targetCuadrilla === 'CUADRILLA 7') {
-        targetEquipoKey = 'EQUIPO 4'
-      } else if (targetCuadrilla === 'CUADRILLA 1' || targetCuadrilla === 'CUADRILLA 2') {
-        targetEquipoKey = 'EQUIPO 1'
-      } else if (targetCuadrilla === 'CUADRILLA 3' || targetCuadrilla === 'CUADRILLA 6') {
-        targetEquipoKey = 'EQUIPO 2'
-      } else if (targetCuadrilla === 'CUADRILLA 4' || targetCuadrilla === 'CUADRILLA 5') {
-        targetEquipoKey = 'EQUIPO 3'
-      }
-
-      const targetObj = equiposOriginalMap[targetEquipoKey] || equiposAmpliacionMap[targetEquipoKey]
-      if (targetObj) {
-        const rawSt = (r.estado || '').trim().toLowerCase()
-        if (rawSt === 'solicitando revisión' || rawSt === 'solicitando revision' || rawSt === 'en revisión' || rawSt === 'en revision') {
-          targetObj.values.enRevision++
-        } else if (rawSt === 'descartado' || rawSt === 'descartada') {
-          targetObj.values.descartados++
-        } else if (rawSt === 'crítico' || rawSt === 'critico') {
-          targetObj.values.criticos++
-        } else if (rawSt === 'documentación' || rawSt === 'documentacion') {
-          targetObj.values.documentacion++
-        } else if (rawSt === 'rechazado' || rawSt === 'rechazada' || rawSt === 'rechazados') {
-          targetObj.values.rechazados++
-        } else if (rawSt === 'validado' || rawSt === 'validada' || rawSt === 'enviado' || rawSt === 'enviada') {
-          targetObj.values.validados++
-        }
-      }
+    return construirMatricesEjecutivas(avanceData.rows || [], {
+      tecnicosPorCuadrilla,
+      resolveCuadrillaFn: resolveCuadrillaForObs
     })
-
-    const buildMatrixResult = (map) => {
-      const rowsList = Object.values(map).map(row => ({
-        ...row,
-        total: row.values.enRevision + row.values.descartados + row.values.criticos + row.values.documentacion + row.values.rechazados + row.values.validados
-      }))
-
-      const totalsObj = {
-        enRevision: rowsList.reduce((acc, r) => acc + r.values.enRevision, 0),
-        descartados: rowsList.reduce((acc, r) => acc + r.values.descartados, 0),
-        criticos: rowsList.reduce((acc, r) => acc + r.values.criticos, 0),
-        documentacion: rowsList.reduce((acc, r) => acc + r.values.documentacion, 0),
-        rechazados: rowsList.reduce((acc, r) => acc + r.values.rechazados, 0),
-        validados: rowsList.reduce((acc, r) => acc + r.values.validados, 0)
-      }
-
-      const grandTotalNum = totalsObj.enRevision + totalsObj.descartados + totalsObj.criticos + totalsObj.documentacion + totalsObj.rechazados + totalsObj.validados
-
-      return {
-        matrixRows: rowsList,
-        matrixTotals: totalsObj,
-        matrixGrandTotal: grandTotalNum
-      }
-    }
-
-    const orig = buildMatrixResult(equiposOriginalMap)
-    const ampl = buildMatrixResult(equiposAmpliacionMap)
-
-    const combRows = [...orig.matrixRows, ...ampl.matrixRows]
-    const combTotals = {
-      enRevision: orig.matrixTotals.enRevision + ampl.matrixTotals.enRevision,
-      descartados: orig.matrixTotals.descartados + ampl.matrixTotals.descartados,
-      criticos: orig.matrixTotals.criticos + ampl.matrixTotals.criticos,
-      documentacion: orig.matrixTotals.documentacion + ampl.matrixTotals.documentacion,
-      rechazados: orig.matrixTotals.rechazados + ampl.matrixTotals.rechazados,
-      validados: orig.matrixTotals.validados + ampl.matrixTotals.validados
-    }
-    const combGrandTotal = orig.matrixGrandTotal + ampl.matrixGrandTotal
-
-    return {
-      matrixOriginal: orig,
-      matrixAmpliacion: ampl,
-      matrixData: {
-        matrixRows: combRows,
-        matrixTotals: combTotals,
-        matrixGrandTotal: combGrandTotal
-      }
-    }
   }, [avanceData.rows, resolveCuadrillaForObs, cuadrillaStaffMap])
 
   // Filtrado de filas detalladas

@@ -149,44 +149,6 @@ export async function getProgramaciones(fechaInicio, fechaFin) {
 }
 
 // ────────────────────────────────────────────────────────────
-// Reasignar un ID de personal antiguo a un id_personal de la base externa
-// ────────────────────────────────────────────────────────────
-export async function reassignProgramacionStaff(oldId, newIdPersonal) {
-  if (!oldId || !newIdPersonal) return false
-
-  // 1. Actualizar programaciones donde id_tecnico = oldId
-  const { data: progs } = await supabase
-    .from('programaciones')
-    .select('id, notas, id_tecnico')
-
-  if (progs) {
-    for (const pr of progs) {
-      let needsUpdate = false
-      const updatePayload = {}
-      if (pr.id_tecnico === oldId) {
-        updatePayload.id_tecnico = newIdPersonal
-        needsUpdate = true
-      }
-      if (pr.notas && pr.notas.includes(oldId)) {
-        updatePayload.notas = pr.notas.replaceAll(oldId, newIdPersonal)
-        needsUpdate = true
-      }
-      if (needsUpdate) {
-        await supabase.from('programaciones').update(updatePayload).eq('id', pr.id)
-      }
-    }
-  }
-
-  // 2. Actualizar programacion_personal
-  await supabase
-    .from('programacion_personal')
-    .update({ id_personal: newIdPersonal })
-    .eq('id_personal', oldId)
-
-  return true
-}
-
-// ────────────────────────────────────────────────────────────
 // 3. Crear una nueva jornada / programación con sus sitios y personal asignado
 // ────────────────────────────────────────────────────────────
 export async function createProgramacion({ personal_ids = [], id_tecnico, fecha, notas = '', sitios = [] }) {
@@ -358,43 +320,7 @@ export async function deleteProgramacion(idProgramacion) {
 }
 
 // ────────────────────────────────────────────────────────────
-// 5. Agregar un sitio a una programación existente
-// ────────────────────────────────────────────────────────────
-export async function addSitioToProgramacion(idProgramacion, idSitio, orden = 1) {
-  const { data, error } = await supabase
-    .from('programacion_sitios')
-    .insert([{
-      id_programacion: idProgramacion,
-      id_sitio: idSitio,
-      orden
-    }])
-    .select()
-    .single()
-
-  if (error) {
-    if (error.code === '23505') {
-      throw new Error('El sitio ya está agregado a esta programación.')
-    }
-    throw new Error(error.message)
-  }
-  return data
-}
-
-// ────────────────────────────────────────────────────────────
-// 6. Eliminar un sitio de una programación
-// ────────────────────────────────────────────────────────────
-export async function removeSitioFromProgramacion(idProgramacionSitio) {
-  const { error } = await supabase
-    .from('programacion_sitios')
-    .delete()
-    .eq('id', idProgramacionSitio)
-
-  if (error) throw new Error(error.message)
-  return true
-}
-
-// ────────────────────────────────────────────────────────────
-// 7. Obtener resumen de observaciones para una lista de sitios
+// 5. Obtener resumen de observaciones para una lista de sitios
 // Devuelve un mapa: { [id_sitio]: { total, subsanadas, descartadas, pendientes } }
 // ────────────────────────────────────────────────────────────
 export async function getSitiosObservacionesResumen(sitiosIds = []) {

@@ -195,27 +195,6 @@ export async function fetchObservaciones({
 // ────────────────────────────────────────────────────────────
 export async function fetchObservacionesKPIs(proyecto = 'todos') {
   try {
-    // 1. Intentar llamar a la función RPC ultrarrápida solo para 'todos' si tiene prevalidadas/criticas
-    if (proyecto === 'todos') {
-      try {
-        const { data: rpcData, error: rpcErr } = await supabase.rpc('get_dashboard_kpis')
-        if (!rpcErr && rpcData && typeof rpcData.total === 'number' && typeof rpcData.prevalidadas === 'number') {
-          return {
-            total: rpcData.total,
-            pendientes: rpcData.pendientes,
-            solicitando: rpcData.solicitando,
-            enRevision: rpcData.enRevision,
-            documentacion: rpcData.documentacion ?? 0,
-            prevalidadas: rpcData.prevalidadas ?? 0,
-            validadas: rpcData.validadas,
-            criticas: rpcData.criticas ?? 0,
-            rechazadas: rpcData.rechazadas,
-            descartadas: rpcData.descartadas
-          }
-        }
-      } catch (_) {}
-    }
-
     // Helper para aplicar filtro de proyecto a consultas head
     const applyProj = (q) => {
       if (proyecto === 'ampliacion') return q.like('id_sitio', 'AMEX%')
@@ -223,7 +202,7 @@ export async function fetchObservacionesKPIs(proyecto = 'todos') {
       return q
     }
 
-    // 2. Consultas HEAD paralelas
+    // Consultas HEAD paralelas (exactas, sin descarga de filas y sin 404 de RPC)
     const [qTotal, qPend, qSol, qRev, qDoc, qPreVal, qValidadas, qCrit, qRech, qDesc] = await Promise.all([
       applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true })),
       applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Pendiente,estado_covepa.is.null')),
@@ -231,7 +210,7 @@ export async function fetchObservacionesKPIs(proyecto = 'todos') {
       applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['En Revisión', 'En Revision'])),
       applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['Documentación', 'Documentacion'])),
       applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['Pre-validado', 'Pre-Validado', 'Prevalidado'])),
-      applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.Crítico,estado_covepa.neq.Critico,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Solicitando Revision,estado_covepa.neq.Solicitando Revisión,estado_covepa.neq.Rechazado,estado_covepa.neq.Documentación,estado_covepa.neq.Documentacion,estado_covepa.neq.Pre-validado)')),
+      applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Pendiente,estado_covepa.neq.Descartado,estado_covepa.neq.Crítico,estado_covepa.neq.Critico,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Solicitando Revision,estado_covepa.neq.Solicitando Revisión,estado_covepa.neq.Rechazado,estado_covepa.neq.Documentación,estado_covepa.neq.Documentacion,estado_covepa.neq.Pre-validado,estado_covepa.neq.Pre-Validado,estado_covepa.neq.Prevalidado)')),
       applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).in('estado_covepa', ['Crítico', 'Critico'])),
       applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Rechazado')),
       applyProj(supabase.from('observaciones').select('*', { count: 'exact', head: true }).eq('estado_covepa', 'Descartado')),
@@ -594,41 +573,4 @@ export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
     codes: idObsList,
     programaciones: progResults
   }
-}
-
-/**
- * Asegura que todas las observaciones que estén hoy en 'En Revisión' cuenten con su programación en el día.
- */
-export async function sincronizarProgramacionesEnRevisionHoy() {
-  const hoyPeru = getPeruDateStr(new Date())
-  const { data: rows, error } = await supabase
-    .from('observaciones')
-    .select('id_obs, id_sitio, fecha_subsanacion, estado_covepa')
-    .eq('estado_covepa', 'En Revisión')
-    .gte('fecha_subsanacion', `${hoyPeru}T00:00:00`)
-
-  if (error || !rows || rows.length === 0) {
-    return { count: 0, sitios: [], results: [] }
-  }
-
-  const uniqueSites = Array.from(new Set(rows.map(r => (r.id_sitio || '').trim().toUpperCase()).filter(Boolean)))
-
-  // Ejecutar asegurarProgramacionSitio para cada sitio en paralelo
-  const results = await Promise.all(
-    uniqueSites.map(siteId =>
-      asegurarProgramacionSitio({ idSitio: siteId, fecha: hoyPeru })
-        .catch(err => {
-          console.warn(`[SYNC-HOY-WARN] Error asegurando programación para ${siteId}:`, err)
-          return null
-        })
-    )
-  )
-
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('covepa-programacion-actualizada', {
-      detail: { syncHoy: true, sitios: uniqueSites, results }
-    }))
-  }
-
-  return { count: uniqueSites.length, sitios: uniqueSites, results }
 }

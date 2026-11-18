@@ -360,164 +360,22 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
 
   console.log(`[CRON-REPORTE] 📬 Destinatarios: ${recipients.join(', ')} | CC: ${recipientsCC.join(', ') || 'Ninguno'}`)
 
-  // 6. Consultar mapa de localidades y asignaciones territoriales (Regla 2.1)
-  const ASIGNACIONES_BASE = [
-    { id_site: 'AM-0038-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0038-CS01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0038-CO01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0038-CO02', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0041-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0041-CS01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0041-IE01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0041-HS01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0034-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0034-CS01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0123-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0042-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0042-CS01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0042-CO01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0124-CS01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0125-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0235-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
-    { id_site: 'AM-0240-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
-    { id_site: 'AM-0237-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
-    { id_site: 'AM-0238-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
-    { id_site: 'AM-0234-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
-    { id_site: 'AM-0234-HS01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
-    { id_site: 'AM-0232-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
-    { id_site: 'AM-0232-HS01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
-    { id_site: 'AM-0220-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
-    { id_site: 'AM-0219-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
-    { id_site: 'AM-0231-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
-    { id_site: 'AM-0231-HS01', grupo: 'CUADRILLA 1', zona: 'ZONA 7' },
-    { id_site: 'AM-0233-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0233-IE01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0239-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0078-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0078-CS01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0078-CO01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0078-HS01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0286-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0230-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0275-IE01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0217-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0271-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0271-IE01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0271-CS01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0215-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0214-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0214-CS01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0214-HS01', grupo: 'CUADRILLA 2', zona: 'ZONA 7' },
-    { id_site: 'AM-0186-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0186-IE01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0189-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0189-CS01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0190-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0192-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0192-CS01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0192-HS01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0192-IE01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0193-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0241-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0241-HS01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0241-IE01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0242-IE02', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0243-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0245-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0246-IE01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0248-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0249-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0253-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0270-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0315-A01', grupo: 'CUADRILLA 3', zona: 'ZONA 7' },
-    { id_site: 'AM-0076-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0076-HS01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0079-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0079-CO01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0079-HS01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0080-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0080-HS01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0221-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0222-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0222-HS01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0223-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0224-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0228-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0250-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0250-HS01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0251-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0252-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0252-HS01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0254-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0268-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0284-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0304-A01', grupo: 'CUADRILLA 4', zona: 'ZONA 7' },
-    { id_site: 'AM-0180-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0183-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0183-CS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0185-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0185-IE02', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0191-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0177-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0177-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0178-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0178-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0179-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0229-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0229-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0227-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0227-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0225-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0226-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0226-CS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0225-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0077-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0077-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0075-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0075-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0201-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0200-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0256-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0256-HS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0256-IE01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0195-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0181-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0194-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0194-IE01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0272-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0272-HS01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0213-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0207-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0205-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0197-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0196-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0204-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0199-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0203-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0209-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0208-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0212-IE01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0216-A01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0216-HS01', grupo: 'CUADRILLA 6', zona: 'ZONA 7' },
-    { id_site: 'AM-0188-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0274-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0274-CS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0274-IE01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0273-A01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0273-IE01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0273-CS01', grupo: 'CUADRILLA 5', zona: 'ZONA 7' },
-    { id_site: 'AM-0040-A01', grupo: 'CUADRILLA 1', zona: 'ZONA 2' },
-    { id_site: 'AM-0036-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
-    { id_site: 'AM-0121-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
-    { id_site: 'AM-0121-IE01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
-    { id_site: 'AM-0122-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
-    { id_site: 'AM-0037-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
-    { id_site: 'AM-0037-CS01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
-    { id_site: 'AM-0037-CO01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
-    { id_site: 'AM-0037-CO02', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
-    { id_site: 'AM-0043-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' },
-    { id_site: 'AM-0126-A01', grupo: 'CUADRILLA 2', zona: 'ZONA 2' }
-  ]
+  // 6. Consultar mapa de localidades y asignaciones territoriales desde la fuente única de verdad (183 sitios)
+  let baseSitiosJson = {}
+  try {
+    baseSitiosJson = require('./base_sitios_asignados.json')
+  } catch (_) { }
+
+  const ASIGNACIONES_BASE = Object.entries(baseSitiosJson).map(([id_site, info]) => {
+    const cName = String(info.cuadrilla || info.grupo || 'CUADRILLA 1').replace(/GRUPO/gi, 'CUADRILLA').toUpperCase().trim()
+    return {
+      id_site,
+      grupo: cName,
+      cuadrilla: cName,
+      zona: info.zona || 'ZONA 7',
+      localidad: info.localidad || ''
+    }
+  })
 
   const asignacionesMap = {}
   ASIGNACIONES_BASE.forEach(a => { asignacionesMap[a.id_site.toUpperCase()] = a })
@@ -654,7 +512,7 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
     }
   }
 
-  // 7.2 Observaciones activas en revisión técnica para la jornada de hoy
+  // 7.2 Observaciones activas en revisión técnica (Consistente 100% con getAvancePorFecha en dashboardService.js)
   let rawObsRevision = []
   if (isToday) {
     const { data: revData, error: revErr } = await supabase
@@ -667,6 +525,29 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
     } else {
       rawObsRevision = revData || []
     }
+  } else {
+    try {
+      const { data: rawProgsData } = await supabase
+        .from('programaciones')
+        .select('id, fecha, programacion_sitios(id_sitio)')
+        .eq('fecha', targetFechaIso)
+      const programmedSiteIds = []
+      ;(rawProgsData || []).forEach(p => {
+        ;(p.programacion_sitios || []).forEach(s => {
+          if (s.id_sitio && !programmedSiteIds.includes(s.id_sitio)) {
+            programmedSiteIds.push(s.id_sitio)
+          }
+        })
+      })
+      if (programmedSiteIds.length > 0) {
+        const { data: revData } = await supabase
+          .from('observaciones')
+          .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+          .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión,estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión')
+          .in('id_sitio', programmedSiteIds)
+        rawObsRevision = revData || []
+      }
+    } catch (_) { }
   }
 
   // Consolidar observaciones de la fecha y de revisión activa sin duplicados
@@ -679,11 +560,14 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
       if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o })
     })
 
+  const {
+    normalizarEstadoObservacion,
+    esAmpliacionObs
+  } = await import('../src/shared/reportesCore.js')
+
   const rows = Array.from(obsMap.values())
     .filter(o => {
-      const sId = String(o.id_sitio || '').toUpperCase().trim()
-      const oId = String(o.id_obs || '').toUpperCase().trim()
-      const esDeAmpliacion = sId.startsWith('AMEX') || oId.startsWith('AMEX')
+      const esDeAmpliacion = esAmpliacionObs(o)
       return isAmpliacion ? esDeAmpliacion : !esDeAmpliacion
     })
     .map(o => {
@@ -691,16 +575,7 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
       // Para jornadas anteriores, si tuvo transición en esa fecha, se toma el estado que alcanzó en dicha fecha (hTransition.estado_nuevo).
       const hTransition = histMap.get(o.id_obs)
       const rawSt = (isToday ? (o.estado_covepa || hTransition?.estado_nuevo || '') : (hTransition ? hTransition.estado_nuevo : (o.estado_covepa || ''))).trim()
-
-      let estadoNormalizado = 'Validado'
-      if (rawSt === 'Documentación' || rawSt === 'Documentacion') estadoNormalizado = 'Documentación'
-      else if (rawSt === 'Descartado') estadoNormalizado = 'Descartado'
-      else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') estadoNormalizado = 'Solicitando Revisión'
-      else if (rawSt === 'En Revision' || rawSt === 'En Revisión') estadoNormalizado = 'En Revisión'
-      else if (rawSt === 'Rechazado') estadoNormalizado = 'Rechazado'
-      else if (rawSt === 'Pendiente') estadoNormalizado = 'Pendiente'
-      else if (rawSt === 'Validado' || rawSt === 'Enviado') estadoNormalizado = 'Validado'
-      else if (o.fecha_subsanacion) estadoNormalizado = 'Validado'
+      const estadoNormalizado = normalizarEstadoObservacion(rawSt, Boolean(o.fecha_subsanacion))
 
       const zonaCalculada = (sitiosMap[o.id_sitio]?.zona || getZonaForSite(o.id_sitio))
       return {
@@ -710,8 +585,6 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
         estado: estadoNormalizado
       }
     })
-    // Regla de Negocio: El estado "Documentación" se excluye de los reportes por correo
-    .filter(o => o.estado !== 'Documentación')
 
   // 7.3 Obtener historial cronológico para calcular tiempos de revisión exactos
   const obsIds = rows.map(r => r.id_obs).filter(Boolean)
@@ -1001,8 +874,6 @@ async function enviarReporteDiarioGilat(tramo = 'original') {
                           </div>
                           <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;margin-top:4px;">
                             ${isAmpliacion ? 'Total de Observaciones de Ampliación Trabajadas en la Jornada' : 'Total de Observaciones Trabajadas en la Jornada'}
-                          </div>
-                            Total de Observaciones Trabajadas en la Jornada
                           </div>
                         </td>
                       </tr>
@@ -1419,11 +1290,19 @@ async function enviarReporteDiarioInterno() {
   console.log(`[REPORTE-INTERNO] 📬 Destinatarios: ${recipients.join(', ')} | CC: ${recipientsCC.join(', ') || 'Ninguno'}`)
 
   // 3. Catálogo de Sitios y Personal
-  const [extSitios, localCuadrillas, personalRes] = await Promise.all([
+  const [extSitios, localCuadrillas, personalCuadRes, extPersonalRes] = await Promise.all([
     supabaseExt.from('sitios').select('id_site, localidad, nombre_nodo').then(r => r, () => ({ data: [] })),
     supabase.from('sitios_cuadrillas').select('id_site, cuadrilla, zona').eq('activo', true).then(r => r, () => ({ data: [] })),
-    supabase.from('personal_cuadrillas').select('nombre_completo, cargo, cuadrilla, activo').eq('activo', true).then(r => r, () => ({ data: [] }))
+    supabase.from('personal_cuadrillas').select('id_personal, cargo, cuadrilla, activo').eq('activo', true).then(r => r, () => ({ data: [] })),
+    supabaseExt.from('personal').select('id_personal, nombre, apellido, nombre_completo').then(r => r, () => ({ data: [] }))
   ])
+
+  const extPersonalById = {}
+  ;(extPersonalRes?.data || []).forEach(ep => {
+    if (ep.id_personal != null) {
+      extPersonalById[String(ep.id_personal)] = (ep.nombre_completo || [ep.nombre, ep.apellido].filter(Boolean).join(' ') || '').trim()
+    }
+  })
 
   let baseSitiosAsignados = {}
   try {
@@ -1433,16 +1312,34 @@ async function enviarReporteDiarioInterno() {
   const sitiosMap = {}
   const asignacionesMap = {}
   Object.entries(baseSitiosAsignados).forEach(([sId, info]) => {
-    asignacionesMap[sId.toUpperCase()] = info
+    const key = sId.toUpperCase()
+    asignacionesMap[key] = info
+    sitiosMap[key] = {
+      id_site: key,
+      grupo: info.cuadrilla || info.grupo || 'Sin Cuadrilla',
+      cuadrilla: info.cuadrilla || info.grupo || 'Sin Cuadrilla',
+      zona: info.zona || 'ZONA 7'
+    }
   })
     ; (localCuadrillas?.data || []).forEach(a => {
-      if (a.id_site) asignacionesMap[a.id_site.toUpperCase()] = a
+      if (a.id_site) {
+        const key = a.id_site.toUpperCase()
+        asignacionesMap[key] = a
+        sitiosMap[key] = {
+          ...(sitiosMap[key] || { id_site: a.id_site }),
+          grupo: a.cuadrilla || 'Sin Cuadrilla',
+          cuadrilla: a.cuadrilla || 'Sin Cuadrilla',
+          zona: a.zona || sitiosMap[key]?.zona || 'ZONA 7'
+        }
+      }
     })
     ; (extSitios?.data || []).forEach(s => {
-      const asig = asignacionesMap[s.id_site?.toUpperCase()] || {}
+      const key = s.id_site?.toUpperCase()
+      const asig = asignacionesMap[key] || {}
       sitiosMap[s.id_site] = {
         ...s,
         grupo: asig.cuadrilla || asig.grupo || 'Sin Cuadrilla',
+        cuadrilla: asig.cuadrilla || asig.grupo || 'Sin Cuadrilla',
         zona: asig.zona || 'ZONA 7'
       }
     })
@@ -1455,13 +1352,13 @@ async function enviarReporteDiarioInterno() {
     'CUADRILLA 4': 'Alfonso Curi',
     'CUADRILLA 5': 'William Avila',
     'CUADRILLA 6': 'Juan Castro',
-    'CUADRILLA 7': 'Por Asignar'
+    'CUADRILLA 7': 'Roger Valdivia'
   }
-    ; (personalRes?.data || []).forEach(p => {
+    ; (personalCuadRes?.data || []).forEach(p => {
       const c = (p.cuadrilla || p.cuadrilla_asignada || '').trim().toUpperCase()
       const cargo = (p.cargo || '').trim().toUpperCase()
       if (c && c.startsWith('CUADRILLA') && (cargo.includes('TÉCNICO') || cargo.includes('TECNICO') || cargo.includes('SUPERVISOR'))) {
-        const nom = (p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim()
+        const nom = (extPersonalById[String(p.id_personal)] || p.nombre_completo || '').trim()
         if (nom) cuadrillaTecnicos[c] = formatNombrePersona(nom)
       }
     })
@@ -1510,6 +1407,29 @@ async function enviarReporteDiarioInterno() {
         .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión,estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión')
       rawObsRevision = revData || []
     } catch (_) { }
+  } else {
+    try {
+      const { data: rawProgsData } = await supabase
+        .from('programaciones')
+        .select('id, fecha, programacion_sitios(id_sitio)')
+        .eq('fecha', targetFechaIso)
+      const programmedSiteIds = []
+      ;(rawProgsData || []).forEach(p => {
+        ;(p.programacion_sitios || []).forEach(s => {
+          if (s.id_sitio && !programmedSiteIds.includes(s.id_sitio)) {
+            programmedSiteIds.push(s.id_sitio)
+          }
+        })
+      })
+      if (programmedSiteIds.length > 0) {
+        const { data: revData } = await supabase
+          .from('observaciones')
+          .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+          .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión,estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión')
+          .in('id_sitio', programmedSiteIds)
+        rawObsRevision = revData || []
+      }
+    } catch (_) { }
   }
 
   const obsMap = new Map()
@@ -1517,109 +1437,56 @@ async function enviarReporteDiarioInterno() {
   additionalObs.forEach(o => { if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o }) })
     ; (rawObsRevision || []).forEach(o => { if (!obsMap.has(o.id_obs)) obsMap.set(o.id_obs, { ...o }) })
 
-  // 5. Agrupación por Equipos: Amazonas Original (Equipos 1, 2, 3) y Amazonas Ampliación (Equipo 4)
-  const equiposOriginalMap = {
-    'EQUIPO 1': {
-      id: 'EQUIPO 1',
-      cuadrilla: 'EQUIPO 1',
-      subtitulo: 'Cuadrilla 1 y 2',
-      tecnico: `${cuadrillaTecnicos['CUADRILLA 1']} · ${cuadrillaTecnicos['CUADRILLA 2']}`,
-      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
-      total: 0
-    },
-    'EQUIPO 2': {
-      id: 'EQUIPO 2',
-      cuadrilla: 'EQUIPO 2',
-      subtitulo: 'Cuadrilla 3 y 6',
-      tecnico: `${cuadrillaTecnicos['CUADRILLA 3']} · ${cuadrillaTecnicos['CUADRILLA 6']}`,
-      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
-      total: 0
-    },
-    'EQUIPO 3': {
-      id: 'EQUIPO 3',
-      cuadrilla: 'EQUIPO 3',
-      subtitulo: 'Cuadrilla 4 y 5',
-      tecnico: `${cuadrillaTecnicos['CUADRILLA 4']} · ${cuadrillaTecnicos['CUADRILLA 5']}`,
-      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
-      total: 0
+  // 5. Agrupación por Equipos usando el motor unificado reportesCore.js
+  const {
+    normalizarEstadoObservacion,
+    resolveCuadrillaOficial,
+    resolveEquipoPorCuadrilla,
+    construirMatricesEjecutivas
+  } = await import('../src/shared/reportesCore.js')
+
+  const normalizedObsRows = Array.from(obsMap.values()).map(o => {
+    const hTransition = histMap.get(o.id_obs)
+    const rawSt = (isToday ? (o.estado_covepa || hTransition?.estado_nuevo || '') : (hTransition ? hTransition.estado_nuevo : (o.estado_covepa || ''))).trim()
+    const estadoNormalizado = normalizarEstadoObservacion(rawSt, Boolean(o.fecha_subsanacion))
+    return {
+      ...o,
+      estado: estadoNormalizado
     }
-  }
+  })
 
-  const equiposAmpliacionMap = {
-    'EQUIPO 4': {
-      id: 'EQUIPO 4',
-      cuadrilla: 'EQUIPO 4',
-      subtitulo: 'Cuadrilla 7',
-      tecnico: `${cuadrillaTecnicos['CUADRILLA 7'] || 'Por Asignar'}`,
-      values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
-      total: 0
-    }
-  }
-
-  const resolveCuadrilla = (o) => {
-    const sId = (o.id_sitio || '').toUpperCase()
-    if (sId.startsWith('AMEX-')) return 'CUADRILLA 7'
-
-    const s = sitiosMap[o.id_sitio] || {}
-    let g = (s.grupo || '').toUpperCase()
-    if (g.startsWith('CUADRILLA')) return g
-
-    const asig = asignacionesMap[sId]
-    if (asig && (asig.cuadrilla || asig.grupo)) {
-      const cNom = (asig.cuadrilla || asig.grupo).replace(/GRUPO/gi, 'CUADRILLA').toUpperCase()
-      if (cNom.startsWith('CUADRILLA')) return cNom
-    }
-
-    const tecUpper = (o.tecnico || '').toUpperCase()
-    if (tecUpper.includes('FLORES') || tecUpper.includes('JHONATAN')) return 'CUADRILLA 1'
-    if (tecUpper.includes('CHAMBA') || tecUpper.includes('MARCO')) return 'CUADRILLA 2'
-    if (tecUpper.includes('DANIEL') || tecUpper.includes('JAVIER') || tecUpper.includes('PERCY') || tecUpper.includes('ROJAS')) return 'CUADRILLA 3'
-    if (tecUpper.includes('ALFONSO') || tecUpper.includes('CURI')) return 'CUADRILLA 4'
-    if (tecUpper.includes('WILL') || tecUpper.includes('AVILA')) return 'CUADRILLA 5'
-    if (tecUpper.includes('CASTRO') || tecUpper.includes('JUAN')) return 'CUADRILLA 6'
-    return 'CUADRILLA 1'
-  }
+  const {
+    matrixOriginal: origMatrix,
+    matrixAmpliacion: amplMatrix,
+    matrixRows,
+    matrixTotals,
+    matrixGrandTotal: grandTotal
+  } = construirMatricesEjecutivas(
+    normalizedObsRows,
+    sitiosMap,
+    (cName) => cuadrillaTecnicos[cName] || ''
+  )
 
   const allDetailRows = []
 
-  Array.from(obsMap.values()).forEach(o => {
-    const hTransition = histMap.get(o.id_obs)
-    const rawSt = (isToday ? (o.estado_covepa || hTransition?.estado_nuevo || '') : (hTransition ? hTransition.estado_nuevo : (o.estado_covepa || ''))).trim()
+  normalizedObsRows.forEach(o => {
+    // Excluir Pre-validado y Pendiente de la matriz de 6 columnas (coincidencia 100% con ModalAvanceDia y Previsualización)
+    if (o.estado === 'Pre-validado' || o.estado === 'Pendiente') return
 
-    let estadoFinal = 'Validado'
-    if (rawSt.toLowerCase().includes('documentaci')) estadoFinal = 'Documentación'
-    else if (rawSt.toLowerCase().includes('crític') || rawSt.toLowerCase().includes('critic')) estadoFinal = 'Crítico'
-    else if (rawSt.toLowerCase().includes('solicitando')) estadoFinal = 'En Revisión'
-    else if (rawSt.toLowerCase().includes('en revisi')) estadoFinal = 'En Revisión'
-    else if (rawSt.toLowerCase().includes('rechaz')) estadoFinal = 'Rechazado'
-    else if (rawSt.toLowerCase().includes('descart')) estadoFinal = 'Descartado'
+    const estadoFinal = (o.estado === 'Solicitando Revisión' || o.estado === 'En Revisión') ? 'En Revisión' : o.estado
+    const targetCuadrilla = resolveCuadrillaOficial(o, sitiosMap)
+    const equipoKey = resolveEquipoPorCuadrilla(targetCuadrilla)
 
-    const targetCuadrilla = resolveCuadrilla(o)
-    let equipoKey = 'EQUIPO 1'
-    if (targetCuadrilla === 'CUADRILLA 1' || targetCuadrilla === 'CUADRILLA 2') equipoKey = 'EQUIPO 1'
-    else if (targetCuadrilla === 'CUADRILLA 3' || targetCuadrilla === 'CUADRILLA 6') equipoKey = 'EQUIPO 2'
-    else if (targetCuadrilla === 'CUADRILLA 4' || targetCuadrilla === 'CUADRILLA 5') equipoKey = 'EQUIPO 3'
-    else if (targetCuadrilla === 'CUADRILLA 7') equipoKey = 'EQUIPO 4'
-
-    const targetEq = equiposOriginalMap[equipoKey] || equiposAmpliacionMap[equipoKey]
-    if (targetEq) {
-      if (estadoFinal === 'En Revisión') targetEq.values.enRevision++
-      else if (estadoFinal === 'Descartado') targetEq.values.descartados++
-      else if (estadoFinal === 'Crítico') targetEq.values.criticos++
-      else if (estadoFinal === 'Documentación') targetEq.values.documentacion++
-      else if (estadoFinal === 'Rechazado') targetEq.values.rechazados++
-      else if (estadoFinal === 'Validado') targetEq.values.validados++
-    }
-
-    const sInfo = sitiosMap[o.id_sitio] || {}
+    const sInfo = sitiosMap[o.id_sitio] || sitiosMap[String(o.id_sitio || '').toUpperCase().trim()] || {}
+    const asigInfo = asignacionesMap[String(o.id_sitio || '').toUpperCase().trim()] || {}
     allDetailRows.push({
       id_obs: o.id_obs,
       equipo: equipoKey,
       cuadrilla: targetCuadrilla,
       tecnico: cuadrillaTecnicos[targetCuadrilla] || '-',
       id_sitio: o.id_sitio,
-      localidad: sInfo.localidad || sInfo.nombre_nodo || '',
-      zona: sInfo.zona || 'ZONA 7',
+      localidad: sInfo.localidad || sInfo.nombre_nodo || asigInfo.localidad || '',
+      zona: sInfo.zona || asigInfo.zona || 'ZONA 7',
       estado: estadoFinal,
       revisor: o.revisor || '-',
       fecha_subsanacion: o.fecha_subsanacion || '-',
@@ -1627,45 +1494,6 @@ async function enviarReporteDiarioInterno() {
       comentario: o.justificacion_demora || o.acuerdo_subsanacion || '-'
     })
   })
-
-  // Totales de la matriz
-  const buildMatrix = (map) => {
-    const rowsList = Object.values(map).map(row => ({
-      ...row,
-      total: row.values.enRevision + (row.values.descartados || 0) + (row.values.criticos || 0) + row.values.documentacion + row.values.rechazados + row.values.validados
-    }))
-
-    const totalsObj = {
-      enRevision: rowsList.reduce((acc, r) => acc + r.values.enRevision, 0),
-      descartados: rowsList.reduce((acc, r) => acc + (r.values.descartados || 0), 0),
-      criticos: rowsList.reduce((acc, r) => acc + (r.values.criticos || 0), 0),
-      documentacion: rowsList.reduce((acc, r) => acc + r.values.documentacion, 0),
-      rechazados: rowsList.reduce((acc, r) => acc + r.values.rechazados, 0),
-      validados: rowsList.reduce((acc, r) => acc + r.values.validados, 0)
-    }
-
-    const totalCalculado = totalsObj.enRevision + totalsObj.descartados + totalsObj.criticos + totalsObj.documentacion + totalsObj.rechazados + totalsObj.validados
-
-    return {
-      matrixRows: rowsList,
-      matrixTotals: totalsObj,
-      matrixGrandTotal: totalCalculado
-    }
-  }
-
-  const origMatrix = buildMatrix(equiposOriginalMap)
-  const amplMatrix = buildMatrix(equiposAmpliacionMap)
-
-  const matrixRows = [...origMatrix.matrixRows, ...amplMatrix.matrixRows]
-  const matrixTotals = {
-    enRevision: origMatrix.matrixTotals.enRevision + amplMatrix.matrixTotals.enRevision,
-    descartados: origMatrix.matrixTotals.descartados + amplMatrix.matrixTotals.descartados,
-    criticos: origMatrix.matrixTotals.criticos + amplMatrix.matrixTotals.criticos,
-    documentacion: origMatrix.matrixTotals.documentacion + amplMatrix.matrixTotals.documentacion,
-    rechazados: origMatrix.matrixTotals.rechazados + amplMatrix.matrixTotals.rechazados,
-    validados: origMatrix.matrixTotals.validados + amplMatrix.matrixTotals.validados
-  }
-  const grandTotal = origMatrix.matrixGrandTotal + amplMatrix.matrixGrandTotal
 
   console.log(`[REPORTE-INTERNO] 📊 Estadísticas calculadas: Total=${grandTotal} | Validadas=${matrixTotals.validados} | Rechazadas=${matrixTotals.rechazados} | EnRevision=${matrixTotals.enRevision} | Doc=${matrixTotals.documentacion}`)
   matrixRows.forEach(r => {

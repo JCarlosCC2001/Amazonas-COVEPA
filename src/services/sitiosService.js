@@ -1,239 +1,66 @@
 // Servicio para gestionar sitios combinando la BD propia (asignaciones) y la BD externa (georreferenciación y catálogo)
 import { supabase } from '../lib/supabase'
 import { supabaseExt } from '../lib/supabase'
+import baseSitiosJson from '../../scripts/base_sitios_asignados.json'
 
-// Fallback de asignaciones iniciales mapeadas a Cuadrillas
-const _RAW_ASIGNACIONES = [
-  { id_site: 'AM-0038-A01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0038-CS01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0038-CO01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0038-CO02', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0041-A01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0041-CS01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0041-IE01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0041-HS01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0034-A01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0034-CS01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0123-A01', grupo: 'GRUPO 3', zona: 'ZONA 2' },
-  { id_site: 'AM-0042-A01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0042-CS01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0042-CO01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0124-CS01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0125-A01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0235-A01', grupo: 'GRUPO 1', zona: 'ZONA 7' },
-  { id_site: 'AM-0240-A01', grupo: 'GRUPO 1', zona: 'ZONA 7' },
-  { id_site: 'AM-0237-A01', grupo: 'GRUPO 1', zona: 'ZONA 7' },
-  { id_site: 'AM-0238-A01', grupo: 'GRUPO 1', zona: 'ZONA 7' },
-  { id_site: 'AM-0234-A01', grupo: 'GRUPO 1', zona: 'ZONA 7' },
-  { id_site: 'AM-0234-HS01', grupo: 'GRUPO 1', zona: 'ZONA 7' },
-  { id_site: 'AM-0232-A01', grupo: 'GRUPO 1', zona: 'ZONA 7' },
-  { id_site: 'AM-0232-HS01', grupo: 'GRUPO 1', zona: 'ZONA 7' },
-  { id_site: 'AM-0220-A01', grupo: 'GRUPO 1', zona: 'ZONA 7' },
-  { id_site: 'AM-0219-A01', grupo: 'GRUPO 1', zona: 'ZONA 7' },
-  { id_site: 'AM-0231-A01', grupo: 'GRUPO 1', zona: 'ZONA 7' },
-  { id_site: 'AM-0231-HS01', grupo: 'GRUPO 1', zona: 'ZONA 7' },
-  { id_site: 'AM-0233-A01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0233-IE01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0239-A01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0078-A01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0078-CS01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0078-CO01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0078-HS01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0286-A01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0230-A01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0275-IE01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0217-A01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0271-A01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0271-IE01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0271-CS01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0215-A01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0214-A01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0214-CS01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0214-HS01', grupo: 'GRUPO 2', zona: 'ZONA 7' },
-  { id_site: 'AM-0186-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0186-IE01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0189-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0189-CS01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0190-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0192-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0192-CS01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0192-HS01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0192-IE01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0193-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0241-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0241-HS01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0241-IE01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0242-IE02', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0243-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0245-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0246-IE01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0248-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0249-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0253-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0270-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0315-A01', grupo: 'GRUPO 3', zona: 'ZONA 7' },
-  { id_site: 'AM-0076-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0076-HS01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0079-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0079-CO01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0079-HS01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0080-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0080-HS01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0221-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0222-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0222-HS01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0223-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0224-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0228-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0250-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0250-HS01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0251-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0252-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0252-HS01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0254-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0268-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0284-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0304-A01', grupo: 'GRUPO 4', zona: 'ZONA 7' },
-  { id_site: 'AM-0180-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0183-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0183-CS01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0185-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0185-IE02', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0191-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0177-A01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0177-HS01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0178-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0178-HS01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0179-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0229-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0229-HS01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0227-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0227-HS01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0225-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0226-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0226-CS01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0225-HS01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0077-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0077-HS01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0075-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0075-HS01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0201-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0200-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0256-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0256-HS01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0256-IE01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0195-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0181-A01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0194-A01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0194-IE01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0272-A01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0272-HS01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0213-A01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0207-A01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0205-A01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0197-A01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0196-A01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0204-A01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0199-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0203-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0209-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0208-A01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0212-IE01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0216-A01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0216-HS01', grupo: 'GRUPO 6', zona: 'ZONA 7' },
-  { id_site: 'AM-0188-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0274-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0274-CS01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0274-IE01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0273-A01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0273-IE01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0273-CS01', grupo: 'GRUPO 5', zona: 'ZONA 7' },
-  { id_site: 'AM-0040-A01', grupo: 'GRUPO 1', zona: 'ZONA 2' },
-  { id_site: 'AM-0036-A01', grupo: 'GRUPO 2', zona: 'ZONA 2' },
-  { id_site: 'AM-0121-A01', grupo: 'GRUPO 2', zona: 'ZONA 2' },
-  { id_site: 'AM-0121-IE01', grupo: 'GRUPO 2', zona: 'ZONA 2' },
-  { id_site: 'AM-0122-A01', grupo: 'GRUPO 2', zona: 'ZONA 2' },
-  { id_site: 'AM-0037-A01', grupo: 'GRUPO 2', zona: 'ZONA 2' },
-  { id_site: 'AM-0037-CS01', grupo: 'GRUPO 2', zona: 'ZONA 2' },
-  { id_site: 'AM-0037-CO01', grupo: 'GRUPO 2', zona: 'ZONA 2' },
-  { id_site: 'AM-0037-CO02', grupo: 'GRUPO 2', zona: 'ZONA 2' },
-  { id_site: 'AM-0043-A01', grupo: 'GRUPO 2', zona: 'ZONA 2' },
-  { id_site: 'AM-0126-A01', grupo: 'GRUPO 2', zona: 'ZONA 2' },
-  // Sitios Amazonas Ampliación (GRUPO 7 / CUADRILLA 7)
-  { id_site: 'AMEX-0316-A01', grupo: 'GRUPO 7', zona: 'ZONA 2' },
-  { id_site: 'AMEX-0317-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0319-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0319-IE01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0322-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0322-IE01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0325-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0326-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0326-IE01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0327-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0328-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0328-IE01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0331-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0332-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0333-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0334-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0335-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0338-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0340-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0341-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0342-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0343-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0344-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0345-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0346-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0348-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-  { id_site: 'AMEX-0350-A01', grupo: 'GRUPO 7', zona: 'ZONA 7' },
-]
-
-export const ASIGNACIONES_BASE = _RAW_ASIGNACIONES.map(s => {
-  const cName = (s.grupo || 'CUADRILLA 1').replace(/GRUPO/gi, 'CUADRILLA')
-  return { ...s, grupo: cName, cuadrilla: cName }
+// Fuente única de verdad para los 183 sitios asignados (156 Original + 27 Ampliación)
+export const ASIGNACIONES_BASE = Object.entries(baseSitiosJson).map(([id_site, info]) => {
+  const cName = String(info.cuadrilla || info.grupo || 'CUADRILLA 1').replace(/GRUPO/gi, 'CUADRILLA').toUpperCase().trim()
+  return {
+    id_site,
+    grupo: cName,
+    cuadrilla: cName,
+    zona: info.zona || 'ZONA 7',
+    ...(info.localidad ? { localidad: info.localidad } : {})
+  }
 })
 
 
 /**
  * Obtiene los sitios completos cruzando la asignación local con los datos geográficos de la BD externa
- * @param {boolean} soloAsignados - Si es true, solo trae los 156 sitios asignados. Si es false, trae los 1021 sitios.
+ * @param {boolean} soloAsignados - Si es true, solo trae los 183 sitios asignados (156 Original + 27 Ampliación). Si es false, trae todo el catálogo.
  */
 export async function fetchSitios({ soloAsignados = true } = {}) {
   try {
-    // 1. Obtener asignaciones locales desde la base de datos
-    let asignaciones = []
+    // 1. Inicializar mapa base con los 183 sitios oficiales y superponer cambios desde sitios_cuadrillas en Supabase
+    const mapaAsignaciones = new Map()
+    ASIGNACIONES_BASE.forEach(a => {
+      mapaAsignaciones.set(a.id_site, {
+        ...a,
+        cuadrilla: (a.cuadrilla || a.grupo || 'CUADRILLA 1').replace(/GRUPO/gi, 'CUADRILLA'),
+        grupo: (a.cuadrilla || a.grupo || 'CUADRILLA 1').replace(/GRUPO/gi, 'CUADRILLA')
+      })
+    })
+
     try {
-      // Consultar tabla oficial sitios_cuadrillas en base de datos local
       const { data: dbAsig, error: errSc } = await supabase
         .from('sitios_cuadrillas')
-        .select('id_site, cuadrilla, zona')
-        .eq('activo', true)
+        .select('id_site, cuadrilla, zona, activo')
 
-      if (!errSc && dbAsig && dbAsig.length > 0) {
-        asignaciones = dbAsig
-      } else {
-        // Fallback secundario a sitios_asignados
-        const { data: altAsig } = await supabase
-          .from('sitios_asignados')
-          .select('id_site, grupo, zona')
-          .eq('activo', true)
-
-        if (altAsig && altAsig.length > 0) {
-          asignaciones = altAsig.map(a => ({
-            ...a,
-            cuadrilla: (a.grupo || '').replace(/GRUPO/gi, 'CUADRILLA')
-          }))
-        } else {
-          asignaciones = ASIGNACIONES_BASE
-        }
+      if (!errSc && Array.isArray(dbAsig) && dbAsig.length > 0) {
+        dbAsig.forEach(row => {
+          if (!row.id_site) return
+          if (row.activo === false) {
+            mapaAsignaciones.delete(row.id_site)
+            return
+          }
+          const cClean = String(row.cuadrilla || 'Sin Cuadrilla').replace(/GRUPO/gi, 'CUADRILLA').toUpperCase().trim()
+          const zClean = String(row.zona || 'Sin Zona').toUpperCase().trim()
+          const prev = mapaAsignaciones.get(row.id_site) || {}
+          mapaAsignaciones.set(row.id_site, {
+            ...prev,
+            id_site: row.id_site,
+            cuadrilla: cClean,
+            grupo: cClean,
+            zona: zClean
+          })
+        })
       }
     } catch {
-      asignaciones = ASIGNACIONES_BASE
+      // Mantiene ASIGNACIONES_BASE si hay error de red
     }
 
-    const mapaAsignaciones = new Map(asignaciones.map(a => [a.id_site, a]))
-    const assignedIds = asignaciones.map(a => a.id_site)
+    const assignedIds = Array.from(mapaAsignaciones.keys())
 
     // 2. Consultar la base de datos externa
     let query = supabaseExt.from('sitios').select(`
@@ -299,6 +126,84 @@ export async function fetchSitios({ soloAsignados = true } = {}) {
 
 // Cache en memoria para catálogo de sitios de programación
 let cachedSitiosAsignados = null
+
+export function invalidateSitiosCache() {
+  cachedSitiosAsignados = null
+}
+
+/**
+ * Actualiza la asignación de Cuadrilla y Zona de un sitio en `sitios_cuadrillas`
+ * y sincroniza el catálogo en memoria (`ASIGNACIONES_BASE` y `cachedSitiosAsignados`).
+ */
+export async function updateSitioAsignacion(idSite, { cuadrilla, zona }) {
+  if (!idSite) throw new Error('Se requiere el código de sitio (id_site).')
+  const siteKey = String(idSite).trim().toUpperCase()
+  const cuadrillaFinal = String(cuadrilla || 'Sin Cuadrilla').replace(/GRUPO/gi, 'CUADRILLA').trim()
+  const zonaFinal = String(zona || 'Sin Zona').trim()
+
+  const esAsignado = cuadrillaFinal !== 'Sin Cuadrilla' && cuadrillaFinal !== ''
+
+  // 1. Intentar UPDATE sobre fila existente en sitios_cuadrillas
+  const { data: updatedRows, error: updErr } = await supabase
+    .from('sitios_cuadrillas')
+    .update({
+      cuadrilla: cuadrillaFinal,
+      zona: zonaFinal,
+      activo: esAsignado,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id_site', siteKey)
+    .select()
+
+  if (updErr) {
+    throw new Error(`Error al actualizar asignación del sitio: ${updErr.message}`)
+  }
+
+  // 2. Si el sitio aún no tenía fila en sitios_cuadrillas, hacer upsert desde la acción del usuario
+  if (!updatedRows || updatedRows.length === 0) {
+    const { error: upsErr } = await supabase
+      .from('sitios_cuadrillas')
+      .upsert({
+        id_site: siteKey,
+        cuadrilla: cuadrillaFinal,
+        zona: zonaFinal,
+        activo: esAsignado,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id_site' })
+
+    if (upsErr) {
+      throw new Error(`Error al registrar asignación del sitio: ${upsErr.message}`)
+    }
+  }
+
+  // 3. Actualizar ASIGNACIONES_BASE en memoria e invalidar caché para propagación inmediata en toda la app
+  const existingIdx = ASIGNACIONES_BASE.findIndex(s => s.id_site.toUpperCase() === siteKey)
+  if (existingIdx >= 0) {
+    ASIGNACIONES_BASE[existingIdx] = {
+      ...ASIGNACIONES_BASE[existingIdx],
+      grupo: cuadrillaFinal,
+      cuadrilla: cuadrillaFinal,
+      zona: zonaFinal
+    }
+  } else if (esAsignado) {
+    ASIGNACIONES_BASE.push({
+      id_site: siteKey,
+      grupo: cuadrillaFinal,
+      cuadrilla: cuadrillaFinal,
+      zona: zonaFinal
+    })
+  }
+
+  invalidateSitiosCache()
+
+  return {
+    id_site: siteKey,
+    grupo: cuadrillaFinal,
+    cuadrilla: cuadrillaFinal,
+    zona: zonaFinal,
+    es_asignado: esAsignado
+  }
+}
 
 /**
  * Obtiene los 156 sitios asignados enriquecidos con código de lugar, localidad, nombre_nodo, zona y grupo.

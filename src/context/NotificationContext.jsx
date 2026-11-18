@@ -454,6 +454,7 @@ export function NotificationProvider({ children }) {
   })
 
   const { user, profile } = useAuth()
+  const userId = user?.id || null
   const lastFetchTimeRef = useRef(0)
   const handledRealtimeEventsRef = useRef(new Map())
   const debouncedFetchTimerRef = useRef(null)
@@ -639,7 +640,7 @@ export function NotificationProvider({ children }) {
 
   // Consultar observaciones en Solicitando Revisión y En Revisión desde Supabase
   const fetchSolicitudes = useCallback(async (isRealtimeAlert = false) => {
-    if (!user) return
+    if (!userId) return
     try {
       // 1. Solicitudes de Técnicos (Solicitando Revisión) - solo columnas esenciales
       const { data: solData, error: solErr } = await supabase
@@ -852,7 +853,7 @@ export function NotificationProvider({ children }) {
     } catch (err) {
       console.warn('[NOTIF-FETCH] Error de red:', err)
     }
-  }, [user, dispararToast, dispararNotificacionEscritorio, evaluarAlertasAcumulacion])
+  }, [userId, dispararToast, dispararNotificacionEscritorio, evaluarAlertasAcumulacion])
 
   // Despacho con debounce de fetchSolicitudes ante ráfagas de eventos Realtime
   const triggerDebouncedFetch = useCallback((silencioso = false) => {
@@ -864,7 +865,7 @@ export function NotificationProvider({ children }) {
 
   // Carga inicial y actualización a solicitud (sin intervalos automáticos en segundo plano)
   useEffect(() => {
-    if (!user) return
+    if (!userId) return
 
     fetchSolicitudes(false)
 
@@ -875,11 +876,11 @@ export function NotificationProvider({ children }) {
     return () => {
       window.removeEventListener('online', handleOnline)
     }
-  }, [user, fetchSolicitudes])
+  }, [userId, fetchSolicitudes])
 
   // Supabase Realtime: Escuchar cambios inmediatos en observaciones e historial
   useEffect(() => {
-    if (!user) return
+    if (!userId) return
 
     const esAdminOCoord = profile?.rol === 'administrador' || profile?.rol === 'coordinador'
 
@@ -1079,7 +1080,7 @@ export function NotificationProvider({ children }) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [user, profile?.rol, dispararToast, dispararNotificacionEscritorio, triggerDebouncedFetch])
+  }, [userId, profile?.rol, dispararToast, dispararNotificacionEscritorio, triggerDebouncedFetch])
 
   // Solicitar permiso de notificaciones de escritorio de Windows
   const requestDesktopPermission = async () => {

@@ -633,26 +633,3 @@ export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idC
   return true
 }
 
-// ────────────────────────────────────────────────────────────
-// 8. Actualizar cuadrilla de un integrante en la tabla local `personal_cuadrillas`
-// ────────────────────────────────────────────────────────────
-export async function updatePersonalCuadrilla(idPersonal, nuevaCuadrilla, cargo = 'TÉCNICO') {
-  if (!idPersonal) return { error: 'ID de personal requerido' }
-  try {
-    const { data, error } = await supabase
-      .from('personal_cuadrillas')
-      .upsert({
-        id_personal: idPersonal,
-        cargo,
-        cuadrilla: nuevaCuadrilla,
-        activo: true,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'id_personal' })
-      .select()
-    invalidatePersonalCache()
-    return { data, error }
-  } catch (err) {
-    return { error: err.message }
-  }
-}
-

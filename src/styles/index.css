@@ -25,11 +25,17 @@
 /* 7. Modal de Ficha Técnica */
 @import './modal-ficha.css';
 
-/* 8. Módulo Observaciones (más grande — 5965 líneas) */
+/* 8. Módulo Observaciones, Personal e Historial */
 @import './observaciones.css';
 
-/* 9. Módulo Reportes y Envíos Automáticos */
+/* 9. Módulo Programación de Visitas y Cuadrillas */
+@import './programacion.css';
+
+/* 10. Módulo Dashboard Ejecutivo y Auditoría Gilat */
+@import './dashboard.css';
+
+/* 11. Módulo Reportes y Envíos Automáticos */
 @import './reportes.css';
 
-/* 10. Portal de Inicio y Bienvenida (Home) */
+/* 12. Portal de Inicio y Bienvenida (Home) */
 @import './home.css';

@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase'
 import { supabaseExt } from '../lib/supabase'
 import { ASIGNACIONES_BASE, getZonaBySiteId } from './sitiosService'
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService.js'
+import { normalizarEstadoObservacion } from '../shared/reportesCore.js'
 
 // Cache en memoria de catálogo de sitios para no saturar la BD externa
 let cachedSitiosCatalog = null
@@ -89,91 +90,6 @@ export async function getSitiosCatalogMap() {
 
   cachedSitiosCatalog = map
   return map
-}
-
-/**
- * Obtiene el resumen global del proyecto (conteos exactos en paralelo o vía RPC)
- */
-export async function getGlobalMetrics() {
-  try {
-    // 1. Intentar llamar a la función RPC ultrarrápida (1 sola llamada atómica en Supabase, ~150 bytes)
-    try {
-      const { data: rpcData, error: rpcErr } = await supabase.rpc('get_dashboard_kpis')
-      if (!rpcErr && rpcData && typeof rpcData.total === 'number') {
-        return {
-          total: rpcData.total,
-          validadas: rpcData.validadas,
-          solicitando: rpcData.solicitando,
-          enRevision: rpcData.enRevision,
-          descartadas: rpcData.descartadas,
-          rechazadas: rpcData.rechazadas,
-          resueltas: rpcData.resueltas,
-          pendientes: rpcData.pendientes,
-          porcentajeGlobal: String(rpcData.porcentajeGlobal)
-        }
-      }
-    } catch (_) {}
-
-    // 2. Fallback en paralelo con HEAD request si aún no se ejecuta la función RPC en la BD
-    const [totalRes, valRes, solRes, revRes, descRes, rechRes] = await Promise.all([
-      supabase.from('observaciones').select('*', { count: 'exact', head: true }),
-      supabase
-        .from('observaciones')
-        .select('*', { count: 'exact', head: true })
-        .or('estado_covepa.eq.Validado,estado_covepa.eq.Enviado,and(fecha_subsanacion.not.is.null,estado_covepa.neq.Descartado,estado_covepa.neq.En Revision,estado_covepa.neq.En Revisión,estado_covepa.neq.Solicitando Revision,estado_covepa.neq.Solicitando Revisión,estado_covepa.neq.Rechazado)'),
-      supabase
-        .from('observaciones')
-        .select('*', { count: 'exact', head: true })
-        .or('estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión'),
-      supabase
-        .from('observaciones')
-        .select('*', { count: 'exact', head: true })
-        .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión'),
-      supabase
-        .from('observaciones')
-        .select('*', { count: 'exact', head: true })
-        .eq('estado_covepa', 'Descartado'),
-      supabase
-        .from('observaciones')
-        .select('*', { count: 'exact', head: true })
-        .eq('estado_covepa', 'Rechazado')
-    ])
-
-    const total = totalRes.count || 0
-    const validadas = valRes.count || 0
-    const solicitando = solRes.count || 0
-    const enRevision = revRes.count || 0
-    const descartadas = descRes.count || 0
-    const rechazadas = rechRes.count || 0
-    const resueltas = validadas + descartadas
-    const pendientes = Math.max(0, total - (resueltas + solicitando + enRevision + rechazadas))
-    const porcentajeGlobal = total > 0 ? ((resueltas / total) * 100).toFixed(1) : '0.0'
-
-    return {
-      total,
-      validadas,
-      solicitando,
-      enRevision,
-      descartadas,
-      rechazadas,
-      resueltas,
-      pendientes,
-      porcentajeGlobal: parseFloat(porcentajeGlobal)
-    }
-  } catch (err) {
-    console.error('Error obteniendo métricas globales:', err)
-    return {
-      total: 0,
-      validadas: 0,
-      enRevision: 0,
-      descartadas: 0,
-      enviadas: 0,
-      rechazadas: 0,
-      resueltas: 0,
-      pendientes: 0,
-      porcentajeGlobal: 0
-    }
-  }
 }
 
 function getTodayDateStr() {
@@ -429,18 +345,8 @@ export async function getAvancePorFecha(fechaStr) {
       const hTransition = histMap.get(o.id_obs)
       const rawSt = (isToday ? (o.estado_covepa || hTransition?.estado_nuevo || '') : (hTransition ? hTransition.estado_nuevo : (o.estado_covepa || ''))).trim()
 
-      // Normalizar estado
-      let estadoNormalizado = 'Validado'
-      if (rawSt === 'Documentación' || rawSt === 'Documentacion') estadoNormalizado = 'Documentación'
-      else if (rawSt === 'Descartado') estadoNormalizado = 'Descartado'
-      else if (rawSt === 'Crítico' || rawSt === 'Critico') estadoNormalizado = 'Crítico'
-      else if (rawSt === 'Pre-validado' || rawSt === 'Pre-Validado' || rawSt === 'Prevalidado') estadoNormalizado = 'Pre-validado'
-      else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') estadoNormalizado = 'Solicitando Revisión'
-      else if (rawSt === 'En Revision' || rawSt === 'En Revisión') estadoNormalizado = 'En Revisión'
-      else if (rawSt === 'Rechazado') estadoNormalizado = 'Rechazado'
-      else if (rawSt === 'Pendiente') estadoNormalizado = 'Pendiente'
-      else if (rawSt === 'Validado' || rawSt === 'Enviado') estadoNormalizado = 'Validado'
-      else if (o.fecha_subsanacion) estadoNormalizado = 'Validado'
+      // Normalizar estado desde el núcleo único compartido
+      const estadoNormalizado = normalizarEstadoObservacion(rawSt, Boolean(o.fecha_subsanacion))
 
       const isEnRevision = estadoNormalizado === 'En Revisión'
       const isSolicitando = estadoNormalizado === 'Solicitando Revisión'
@@ -512,18 +418,25 @@ export async function getAvancePorFecha(fechaStr) {
  */
 export async function getDashboardProjectOverview() {
   try {
-    // 1. Obtener catálogo externo y asignaciones
-    const [sitiosCatalog, { data: dbAsig }] = await Promise.all([
+    // 1. Obtener catálogo externo y asignaciones locales de cuadrillas
+    const [sitiosCatalog, { data: dbCuadSites }] = await Promise.all([
       getSitiosCatalogMap(),
-      supabase.from('sitios_asignados').select('id_site, grupo, zona').eq('activo', true)
+      supabase.from('sitios_cuadrillas').select('id_site, cuadrilla, zona').eq('activo', true)
     ])
 
-    const asignaciones = (dbAsig && dbAsig.length > 0) ? dbAsig : ASIGNACIONES_BASE
-    const siteMap = new Map(asignaciones.map(a => [a.id_site, a]))
+    const baseMap = new Map(ASIGNACIONES_BASE.map(a => [a.id_site, { ...a }]))
+    ;(dbCuadSites || []).forEach(a => {
+      if (a.id_site) {
+        const cName = String(a.cuadrilla || 'CUADRILLA 1').replace(/GRUPO/gi, 'CUADRILLA').toUpperCase().trim()
+        baseMap.set(a.id_site, { id_site: a.id_site, grupo: cName, cuadrilla: cName, zona: a.zona || 'ZONA 7' })
+      }
+    })
+    const asignaciones = Array.from(baseMap.values())
+    const siteMap = baseMap
 
-    // 2. Traer todas las observaciones (ligeras: id_sitio, estado_covepa, fecha_subsanacion)
+    // 2. Traer todas las observaciones (7 lotes en paralelo = capacidad hasta 7,000 registros para cubrir 5,352+)
     const promises = []
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 7; i++) {
       promises.push(
         supabase
           .from('observaciones')
@@ -546,7 +459,7 @@ export async function getDashboardProjectOverview() {
     let rechazadas = 0
     let pendientes = 0
 
-    // Diccionario de los 156 sitios
+    // Diccionario de los 183 sitios (156 Original + 27 Ampliación)
     const perSite = {}
     asignaciones.forEach(a => {
       const ext = sitiosCatalog[a.id_site] || {}
@@ -556,7 +469,7 @@ export async function getDashboardProjectOverview() {
         localidad: ext.localidad || ext.distrito || a.id_site,
         distrito: ext.distrito || '',
         provincia: ext.provincia || '',
-        grupo: a.grupo || 'GRUPO 1',
+        grupo: a.grupo || 'CUADRILLA 1',
         zona: a.zona || 'ZONA 2',
         total: 0,
         subsanadas: 0,
@@ -570,12 +483,12 @@ export async function getDashboardProjectOverview() {
       }
     })
 
-    // Diccionario de las 6 Cuadrillas Operativas con técnico asignado
+    // Diccionario de las 7 Cuadrillas Operativas con técnico asignado
     const semanaInfo = getDiasSemanaActual()
     const semanaFechasSet = new Set(semanaInfo.dias.map(d => d.dateStr))
 
     const perGroup = {}
-    for (let g = 1; g <= 6; g++) {
+    for (let g = 1; g <= 7; g++) {
       const gName = `CUADRILLA ${g}`
       const cfg = DEFAULT_CUADRILLAS_CONFIG[gName] || {}
       
@@ -589,7 +502,7 @@ export async function getDashboardProjectOverview() {
         cuadrilla: gName,
         numero: g,
         tecnico: cfg.tecnicoNombre || '',
-        zona: g <= 2 ? 'ZONA 2 y ZONA 7' : 'ZONA 7',
+        zona: (g <= 2 || g === 7) ? 'ZONA 2 y ZONA 7' : 'ZONA 7',
         sitiosCount: asignaciones.filter(a => (a.cuadrilla || a.grupo || '').replace(/GRUPO/gi, 'CUADRILLA') === gName).length,
         total: 0,
         subsanadas: 0,
@@ -634,17 +547,10 @@ export async function getDashboardProjectOverview() {
       // Mantener fallback de DEFAULT_CUADRILLAS_CONFIG
     }
 
-    // Procesar observaciones con normalización consistente
+    // Procesar observaciones con normalización canónica compartida
     allRows.forEach(row => {
       const rawSt = (row.estado_covepa || '').trim()
-      let st = 'Pendiente'
-      if (rawSt === 'Descartado') st = 'Descartado'
-      else if (rawSt === 'Solicitando Revision' || rawSt === 'Solicitando Revisión') st = 'Solicitando Revisión'
-      else if (rawSt === 'En Revision' || rawSt === 'En Revisión') st = 'En Revisión'
-      else if (rawSt === 'Rechazado') st = 'Rechazado'
-      else if (rawSt === 'Validado' || rawSt === 'Enviado') st = 'Validado'
-      else if (row.fecha_subsanacion) st = 'Validado'
-      else st = 'Pendiente'
+      const st = normalizarEstadoObservacion(rawSt, Boolean(row.fecha_subsanacion))
 
       if (st === 'Solicitando Revisión') {
         solicitando++

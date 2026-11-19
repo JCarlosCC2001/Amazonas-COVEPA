@@ -19,7 +19,7 @@ import {
 } from '../../services/auditoriaSyncService'
 import { getZonaBySiteId } from '../../services/sitiosService'
 import { useAuth } from '../../hooks/useAuth'
-import ModalConfirmacionEstado, { esEstadoProtegido } from '../shared/ModalConfirmacionEstado'
+import ModalConfirmacionEstado, { esEstadoProtegido, esEstadoRequiereConfirmacion } from '../shared/ModalConfirmacionEstado'
 import { hasMeaningfulText, getPeruDateStr, getPeruISOString, getInitials, getCargoClass } from '../../utils/helpers'
 import { supabase } from '../../lib/supabase'
 // SUBCOMPONENTE: Modal Detalle de Programación y Observaciones
@@ -138,12 +138,12 @@ export default function ModalDetallesProgramacion({
 
     // 2. Regla de seguridad estricta: solo Administrador puede asignar estados protegidos
     if (!isAdmin && esEstadoProtegido(targetValue)) {
-      alert('Solo el administrador tiene autorización para asignar los estados Pre-validado, Crítico o Rechazado.')
+      alert('Solo el administrador tiene autorización para asignar los estados Pre-validado, Crítico o Descartado.')
       return
     }
 
-    // 3. Ventanita emergente de confirmación si entra o sale de un estado protegido
-    if (esEstadoProtegido(currentEstado) || esEstadoProtegido(targetValue)) {
+    // 3. Ventanita emergente de confirmación: SOLO si tiene que ver con Crítico, Descartado o Pre-validado
+    if (esEstadoRequiereConfirmacion(currentEstado) || esEstadoRequiereConfirmacion(targetValue)) {
       setConfirmModalData({
         obs,
         targetValue,
@@ -161,7 +161,7 @@ export default function ModalDetallesProgramacion({
     const currentEstado = rawSt || (obs.fecha_subsanacion ? 'Validado' : 'Pendiente')
     // Validar autorización de administrador para estados protegidos (tanto de origen como de destino)
     if (!isAdmin && (esEstadoProtegido(currentEstado) || esEstadoProtegido(nuevoEstado))) {
-      alert('Solo el administrador tiene autorización para modificar observaciones en estados protegidos (Pre-validado, Crítico o Rechazado).')
+      alert('Solo el administrador tiene autorización para modificar observaciones en estados protegidos (Pre-validado, Crítico o Descartado).')
       return
     }
     setUpdatingId(obs.id_obs)
@@ -1048,7 +1048,7 @@ export default function ModalDetallesProgramacion({
                               alignItems: 'center',
                               gap: '4px'
                             }}
-                            title="Esta observación está en un estado protegido (Pre-validado, Crítico o Rechazado). Solo un Administrador puede modificarla."
+                            title="Esta observación está en un estado protegido (Pre-validado, Crítico o Descartado). Solo un Administrador puede modificarla."
                           >
                             🔒 Solo Admin
                           </span>
@@ -1075,10 +1075,10 @@ export default function ModalDetallesProgramacion({
                           {(isAdmin || currentEstado === 'Crítico' || currentEstado === 'Critico') && (
                             <option value="Crítico">⚠️ Crítico</option>
                           )}
-                          <option value="Descartado">🚫 Descartado</option>
-                          {(isAdmin || currentEstado === 'Rechazado') && (
-                            <option value="Rechazado">✕ Rechazado</option>
+                          {(isAdmin || currentEstado === 'Descartado') && (
+                            <option value="Descartado">🚫 Descartado</option>
                           )}
+                          <option value="Rechazado">✕ Rechazado</option>
                         </select>
                       </div>
                     </div>

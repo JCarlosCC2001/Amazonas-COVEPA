@@ -32,7 +32,7 @@ import { useNotifications } from '../context/NotificationContext'
 import { getCachedSitiosAsignados } from '../services/sitiosService'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 import ErpTable from '../components/shared/ErpTable'
-import ModalConfirmacionEstado, { esEstadoProtegido } from '../components/shared/ModalConfirmacionEstado'
+import ModalConfirmacionEstado, { esEstadoProtegido, esEstadoRequiereConfirmacion } from '../components/shared/ModalConfirmacionEstado'
 import { estadoCovepaBadge, hasMeaningfulText, getPeruDateStr, getPeruISOString } from '../utils/helpers'
 
 // ────────────────────────────────────────────────────────────
@@ -246,7 +246,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   }, [handleCloseWithAutoSave])
 
   // Interceptar solicitud de cambio de estado: restringe opciones protegidas a Administrador
-  // y despliega ventana emergente de confirmación ante estados protegidos (Pre-validado, Crítico, Rechazado)
+  // y despliega ventana emergente de confirmación ante estados protegidos (Pre-validado, Crítico, Descartado)
   const handleRequestEstadoChange = (targetValue) => {
     if (targetValue === currentEstado) return
 
@@ -258,12 +258,12 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
 
     // 2. Regla de seguridad estricta: solo Administrador puede asignar estados protegidos
     if (!isAdmin && esEstadoProtegido(targetValue)) {
-      alert('Solo el administrador tiene autorización para asignar los estados Pre-validado, Crítico o Rechazado.')
+      alert('Solo el administrador tiene autorización para asignar los estados Pre-validado, Crítico o Descartado.')
       return
     }
 
-    // 3. Ventanita emergente de confirmación si entra o sale de un estado protegido
-    if (esEstadoProtegido(currentEstado) || esEstadoProtegido(targetValue)) {
+    // 3. Ventanita emergente de confirmación: SOLO si tiene que ver con Crítico, Descartado o Pre-validado
+    if (esEstadoRequiereConfirmacion(currentEstado) || esEstadoRequiereConfirmacion(targetValue)) {
       setConfirmModalData({
         nuevoEstado: targetValue
       })
@@ -277,7 +277,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const handleSetEstado = async (nuevoEstado) => {
     // Validar autorización de administrador para estados protegidos (tanto de origen como de destino)
     if (!isAdmin && (esEstadoProtegido(currentEstado) || esEstadoProtegido(nuevoEstado))) {
-      alert('Solo el administrador tiene autorización para modificar observaciones en estados protegidos (Pre-validado, Crítico o Rechazado).')
+      alert('Solo el administrador tiene autorización para modificar observaciones en estados protegidos (Pre-validado, Crítico o Descartado).')
       return
     }
     setUpdating(true)
@@ -446,7 +446,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                           alignItems: 'center',
                           gap: '4px'
                         }}
-                        title="Esta observación está en un estado protegido (Pre-validado, Crítico o Rechazado). Solo un Administrador puede modificarla."
+                        title="Esta observación está en un estado protegido (Pre-validado, Crítico o Descartado). Solo un Administrador puede modificarla."
                       >
                         🔒 Solo Admin
                       </span>
@@ -474,10 +474,10 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                       {(isAdmin || currentEstado === 'Crítico' || currentEstado === 'Critico') && (
                         <option value="Crítico">⚠️ Crítico</option>
                       )}
-                      <option value="Descartado">🚫 Descartado</option>
-                      {(isAdmin || currentEstado === 'Rechazado') && (
-                        <option value="Rechazado">✕ Rechazado</option>
+                      {(isAdmin || currentEstado === 'Descartado') && (
+                        <option value="Descartado">🚫 Descartado</option>
                       )}
+                      <option value="Rechazado">✕ Rechazado</option>
                     </select>
                   </div>
                 </div>
@@ -1149,7 +1149,6 @@ export default function Observaciones() {
   const [error, setError] = useState(null)
   const [exporting, setExporting] = useState(false)
   const [selectedObs, setSelectedObs] = useState(null)
-  const [vista, setVista] = useState('agrupada') // 'agrupada' (por sitio) es la vista principal predeterminada
   const [gruposData, setGruposData] = useState({})
   const [sitiosMap, setSitiosMap] = useState({})
   const [tecnicos, setTecnicos] = useState([])
@@ -1166,10 +1165,14 @@ export default function Observaciones() {
   }, [tecnicos])
 
   // Filtros activos (COVEPA)
-  const [searchParams] = useSearchParams()
-  const [search, setSearch] = useState(() => searchParams.get('search') || '')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialSearch = searchParams.get('search') || ''
+  const initialEstado = searchParams.get('estado') || ''
+  const [search, setSearch] = useState(() => initialSearch)
+  const [searchInputVal, setSearchInputVal] = useState(() => initialSearch)
+  const [vista, setVista] = useState(() => (initialSearch || initialEstado) ? 'tabla' : 'agrupada')
   const [protocolo, setProtocolo] = useState('')
-  const [estadoCovepa, setEstadoCovepa] = useState(() => searchParams.get('estado') || '')
+  const [estadoCovepa, setEstadoCovepa] = useState(() => initialEstado)
   const [idSitio, setIdSitio] = useState('')
   const [cuadrilla, setCuadrilla] = useState('')
   const [filtroDemora, setFiltroDemora] = useState('')
@@ -1284,16 +1287,18 @@ export default function Observaciones() {
 
   const searchTimeout = useRef(null)
 
-  // Sincronizar parámetros de URL provenientes de notificaciones
+  // Sincronizar parámetros de URL provenientes de notificaciones o enlaces directos
   useEffect(() => {
     const q = searchParams.get('search')
     const est = searchParams.get('estado')
-    if (q !== null && q !== undefined) {
+    if (q !== null && q !== undefined && q !== '') {
       setSearch(q)
-      setVista('lista')
+      setSearchInputVal(q)
+      setVista('tabla')
     }
-    if (est !== null && est !== undefined) {
+    if (est !== null && est !== undefined && est !== '') {
       setEstadoCovepa(est)
+      setVista('tabla')
     }
   }, [searchParams])
 
@@ -1357,11 +1362,11 @@ export default function Observaciones() {
       setObservaciones(result.data)
       setTotalCount(result.count)
 
-      // Si viene una observación específica por URL (desde notificación), abrir su modal directamente
+      // Si viene una observación específica por URL (desde notificación o enlace directo), abrir su modal directamente
       const targetQuery = searchParams.get('search')
       if (targetQuery && result.data && result.data.length > 0) {
         const cleanTarget = targetQuery.trim().toLowerCase()
-        const match = result.data.find(o => o.id_obs.toLowerCase() === cleanTarget)
+        const match = result.data.find(o => (o.id_obs || '').toLowerCase() === cleanTarget) || (result.data.length === 1 ? result.data[0] : null)
         if (match) {
           setSelectedObs(match)
         }
@@ -1412,14 +1417,26 @@ export default function Observaciones() {
   useEffect(() => { loadAgrupada() }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla, filtroDemora])
 
   const handleSearchChange = (val) => {
+    setSearchInputVal(val)
     clearTimeout(searchTimeout.current)
-    searchTimeout.current = setTimeout(() => setSearch(val), 300)
+    searchTimeout.current = setTimeout(() => {
+      setSearch(val)
+      setPage(1)
+    }, 300)
   }
 
   const clearFilters = () => {
-    setSearch(''); setProtocolo(''); setEstadoCovepa(''); setIdSitio(''); setCuadrilla(''); setFiltroDemora(''); setPage(1)
-    const el = document.getElementById('obs-search-input')
-    if (el) el.value = ''
+    setSearch('')
+    setSearchInputVal('')
+    setProtocolo('')
+    setEstadoCovepa('')
+    setIdSitio('')
+    setCuadrilla('')
+    setFiltroDemora('')
+    setPage(1)
+    if (searchParams.get('search') || searchParams.get('estado')) {
+      setSearchParams({}, { replace: true })
+    }
   }
 
   const hasActiveFilters = Boolean(search || protocolo || estadoCovepa || idSitio || cuadrilla || filtroDemora)
@@ -1863,15 +1880,21 @@ export default function Observaciones() {
               type="text"
               placeholder="Buscar por código, sitio, detalle, subsistema, medidor..."
               className="obs-search-input"
+              value={searchInputVal}
               onChange={e => handleSearchChange(e.target.value)}
             />
-            {search && (
+            {searchInputVal && (
               <button
+                type="button"
                 className="clear-search-btn"
                 onClick={() => {
                   setSearch('')
-                  const el = document.getElementById('obs-search-input')
-                  if (el) el.value = ''
+                  setSearchInputVal('')
+                  if (searchParams.get('search')) {
+                    const newParams = new URLSearchParams(searchParams)
+                    newParams.delete('search')
+                    setSearchParams(newParams, { replace: true })
+                  }
                 }}
                 title="Borrar texto de búsqueda"
               >

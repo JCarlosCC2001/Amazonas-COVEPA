@@ -4328,6 +4328,12 @@
   color: #e11d48;
 }
 
+.modal-confirm-icon-box.descartado {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+}
+
 .modal-confirm-icon-box.warning {
   background: #fffbeb;
   border: 1px solid #fde68a;
@@ -4497,6 +4503,12 @@
   border-left: 4px solid #e11d48;
 }
 
+.modal-confirm-alert-box.descartado {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #64748b;
+}
+
 .modal-confirm-alert-box.warning {
   background: #fffbeb;
   border: 1px solid #fef3c7;
@@ -4627,6 +4639,19 @@
 .modal-confirm-btn-action.rechazado:hover:not(:disabled) {
   background: linear-gradient(135deg, #be123c 0%, #9f1239 100%);
   box-shadow: 0 4px 14px rgba(225, 29, 72, 0.45);
+  transform: translateY(-1px);
+}
+
+.modal-confirm-btn-action.descartado {
+  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+  box-shadow: 0 2px 8px rgba(71, 85, 105, 0.35);
+  border: 1px solid #1e293b;
+  color: #ffffff;
+}
+
+.modal-confirm-btn-action.descartado:hover:not(:disabled) {
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+  box-shadow: 0 4px 14px rgba(71, 85, 105, 0.45);
   transform: translateY(-1px);
 }
 

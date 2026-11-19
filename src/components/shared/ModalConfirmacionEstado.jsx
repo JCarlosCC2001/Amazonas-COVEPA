@@ -1,8 +1,17 @@
 import React, { useEffect } from 'react'
-import { AlertTriangle, Camera, XCircle, AlertCircle, X, Check, ArrowRight, MapPin } from 'lucide-react'
+import { AlertTriangle, Camera, XCircle, AlertCircle, X, Check, ArrowRight, MapPin, Ban } from 'lucide-react'
 import { estadoCovepaBadge } from '../../utils/helpers'
 
-const ESTADOS_PROTEGIDOS = new Set(['Pre-validado', 'Crítico', 'Critico', 'Rechazado'])
+// Estados que requieren confirmación obligatoria mediante ventana emergente
+const ESTADOS_CONFIRMACION = new Set(['Crítico', 'Critico', 'Descartado', 'Pre-validado'])
+
+export function esEstadoRequiereConfirmacion(estado) {
+  if (!estado) return false
+  return ESTADOS_CONFIRMACION.has(estado.trim())
+}
+
+// Estados protegidos exclusivos de Administrador
+const ESTADOS_PROTEGIDOS = new Set(['Pre-validado', 'Crítico', 'Critico', 'Descartado'])
 
 export function esEstadoProtegido(estado) {
   if (!estado) return false
@@ -45,17 +54,17 @@ export default function ModalConfirmacionEstado({
     icon = <AlertTriangle size={22} />
     title = 'Confirmar pase a Crítico'
     textoExplicativo = 'Esta observación será clasificada como CRÍTICA. No se ejecutará en campo y se limpiará cualquier fecha o revisor asociado.'
+  } else if (estNormal === 'Descartado') {
+    themeVariant = 'descartado'
+    icon = <Ban size={22} />
+    title = 'Confirmar pase a Descartado'
+    textoExplicativo = 'Esta observación será clasificada como DESCARTADA. Se considerará no aplicable o no subsanable según los acuerdos técnicos del proyecto.'
   } else if (estNormal === 'Pre-validado') {
     themeVariant = 'pre-validado'
     icon = <Camera size={22} />
     title = 'Confirmar pase a Pre-validado'
     textoExplicativo = 'Esta observación quedará marcada como PRE-VALIDADA. Indica que la subsanación técnica se realizó en campo y queda pendiente de sustento fotográfico.'
-  } else if (estNormal === 'Rechazado') {
-    themeVariant = 'rechazado'
-    icon = <XCircle size={22} />
-    title = 'Confirmar dictamen como Rechazado'
-    textoExplicativo = 'Esta observación será RECHAZADA. Se registrará la fecha y requerirá un nuevo levantamiento de subsanación por parte de la cuadrilla técnica.'
-  } else if (esEstadoProtegido(estadoAnterior)) {
+  } else if (esEstadoRequiereConfirmacion(estadoAnterior)) {
     themeVariant = 'warning'
     icon = <AlertCircle size={22} />
     title = `Cambiar desde estado ${estadoAnterior}`

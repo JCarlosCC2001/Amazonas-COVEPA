@@ -1,17 +1,36 @@
 // =========================================================================================
-// 🚀 SERVICIO DE MÉTRICAS Y AUDITORÍA DE RESPUESTA DE GILAT
+// 🚀 SERVICIO DE MÉTRICAS Y AUDITORÍA DE RESPUESTA DE GILAT Y REACCIÓN COVEPA
 // =========================================================================================
 // Archivo: src/services/gilatMetricsService.js
 //
 // PROPÓSITO:
 // Calcula y consolida en tiempo real los indicadores clave de desempeño (KPIs),
-// tiempos de respuesta (SLA Turnaround), velocidad diaria y productividad individual
-// de los auditores y revisores certificados de Gilat Networks.
+// tiempos de respuesta de Gilat (T2: último ciclo desde 'En Revisión' hasta dictamen
+// 'Validado', 'Rechazado' o 'Documentación') y tiempos de reacción interna de COVEPA
+// (T1: desde que el técnico solicita revisión en campo 'Solicitando Revisión' hasta que
+// pasa a 'En Revisión' o 'Documentación'), descontando horas muertas nocturnas según el
+// horario contractual (09:00 AM a 07:00 PM) con extensión dinámica si la jornada inicia
+// antes o termina después en el mismo día.
 // =========================================================================================
 
 import { supabase } from '../lib/supabase'
-import { esRevisorGilat, esRegistroSoloComentario } from './auditoriaSyncService'
+import {
+  esRevisorGilat,
+  normalizarNombreAuditorGilat,
+  esRegistroSoloComentario
+} from './auditoriaSyncService'
 import { getSitiosCatalogMap, getLimaDateStr } from './dashboardService'
+
+// Metas de referencia SLA
+export const SLA_CONFIG = Object.freeze({
+  HORA_INICIO_CONTRATO: 9,   // 09:00 AM (Hora Perú)
+  HORA_FIN_CONTRATO: 19,     // 07:00 PM (Hora Perú)
+  HORAS_JORNADA_CONTRATO: 10, // 10 horas diarias contractuales
+  META_REACCION_COVEPA_MINS: 30, // Meta de reacción COVEPA: <= 30 min
+  ALERTA_REACCION_COVEPA_MINS: 60,
+  META_REVISION_GILAT_HRS: 4,    // Meta de revisión Gilat: <= 4 horas efectivas
+  ALERTA_REVISION_GILAT_HRS: 10  // 1 jornada contractual (10h)
+})
 
 // Helper para normalizar y verificar si un estado corresponde a 'En Revisión'
 const isEnRevision = (st) => {
@@ -28,7 +47,7 @@ const isDictamenGilat = (st) => {
   return s.startsWith('validad') || s.startsWith('rechazad') || s.startsWith('documentaci')
 }
 
-// Helper para verificar si un estado corresponde a solicitud de revisión
+// Helper para verificar si un estado corresponde a solicitud de revisión de técnico en campo
 const isSolicitando = (st) => {
   if (!st) return false
   const s = String(st).trim().toLowerCase()
@@ -42,98 +61,132 @@ const isDocumentacion = (st) => {
   return s.includes('documentaci')
 }
 
-// Horario contractual (hora de Lima): 9:00 a 19:00. Se usa como referencia secundaria,
-// ya que técnicos y revisores suelen trabajar fuera de ese horario (la medición principal es tiempo real).
-const CONTRATO_HORA_INICIO = 9
-const CONTRATO_HORA_FIN = 19
-const LIMA_OFFSET_MS = -5 * 3600 * 1000 // Lima = UTC-5 (sin horario de verano)
+/**
+ * Calcula las horas efectivas transcurridas entre dos instantes ISO considerando:
+ * - Horario contractual base: 09:00 AM a 07:00 PM (19:00) Hora Perú (UTC-5).
+ * - Si el inicio y fin ocurren en el mismo día calendario en Perú (incluso si el técnico o
+ *   revisor comenzó horas antes de las 9:00 AM o terminó después de las 7:00 PM), se mide el
+ *   tiempo real exacto transcurrido en esa jornada activa.
+ * - Si cruza de un día a otro, se descuenta la ventana nocturna inactiva (19:00 PM a 09:00 AM),
+ *   pero si en el día inicial comenzó antes de las 09:00 AM o en el día final terminó después de
+ *   las 19:00 PM, se respeta esa extensión real de trabajo.
+ *
+ * @param {string|Date} startIso
+ * @param {string|Date} endIso
+ * @returns {number} Horas efectivas transcurridas
+ */
+export function calcularHorasEfectivas(startIso, endIso) {
+  const tStart = new Date(startIso).getTime()
+  const tEnd = new Date(endIso).getTime()
+  if (isNaN(tStart) || isNaN(tEnd) || tEnd <= tStart) return 0
 
-function horasEnHorarioContrato(inicio, fin) {
-  const a = inicio.getTime() + LIMA_OFFSET_MS
-  const b = fin.getTime() + LIMA_OFFSET_MS
-  if (!(b > a)) return 0
-  const dayMs = 86400000
-  let total = 0
-  for (let dayStart = Math.floor(a / dayMs) * dayMs; dayStart < b; dayStart += dayMs) {
-    const s = Math.max(a, dayStart + CONTRATO_HORA_INICIO * 3600000)
-    const e = Math.min(b, dayStart + CONTRATO_HORA_FIN * 3600000)
-    if (e > s) total += e - s
+  const rawHrs = (tEnd - tStart) / 3600000
+
+  // Desplazar a hora Perú (UTC-5) para operar sobre días calendario locales
+  const PERU_OFFSET_MS = -5 * 3600 * 1000
+  const pStart = new Date(tStart + PERU_OFFSET_MS)
+  const pEnd = new Date(tEnd + PERU_OFFSET_MS)
+
+  const startDayStr = pStart.toISOString().slice(0, 10)
+  const endDayStr = pEnd.toISOString().slice(0, 10)
+
+  // Mismo día en Perú: tiempo real exacto sin recortar madrugadas ni horas extra vespertinas
+  if (startDayStr === endDayStr) {
+    return rawHrs
   }
-  return total / 3600000
+
+  let totalMs = 0
+  const firstDayUtc = Date.UTC(pStart.getUTCFullYear(), pStart.getUTCMonth(), pStart.getUTCDate())
+  const lastDayUtc = Date.UTC(pEnd.getUTCFullYear(), pEnd.getUTCMonth(), pEnd.getUTCDate())
+  const curDay = new Date(firstDayUtc)
+
+  const pStartMs = pStart.getTime()
+  const pEndMs = pEnd.getTime()
+
+  while (curDay.getTime() <= lastDayUtc) {
+    const dayBaseMs = curDay.getTime()
+    const isFirstDay = dayBaseMs === firstDayUtc
+    const isLastDay = dayBaseMs === lastDayUtc
+
+    let winStart = dayBaseMs + SLA_CONFIG.HORA_INICIO_CONTRATO * 3600000 // 09:00
+    let winEnd = dayBaseMs + SLA_CONFIG.HORA_FIN_CONTRATO * 3600000     // 19:00
+
+    // Si el primer día la actividad comenzó antes de las 09:00 AM, incluir desde esa hora
+    if (isFirstDay && pStartMs < winStart) {
+      winStart = pStartMs
+    }
+    // Si el último día la actividad cerró después de las 19:00 PM, incluir hasta esa hora
+    if (isLastDay && pEndMs > winEnd) {
+      winEnd = pEndMs
+    }
+    // Si el último día la actividad cerró temprano antes de las 09:00 AM, contar ventana matutina desde 07:30 AM
+    if (isLastDay && pEndMs < winStart) {
+      winStart = Math.min(pEndMs, dayBaseMs + 7.5 * 3600000)
+    }
+
+    const segStart = Math.max(pStartMs, winStart)
+    const segEnd = Math.min(pEndMs, winEnd)
+    if (segEnd > segStart) {
+      totalMs += (segEnd - segStart)
+    }
+
+    curDay.setUTCDate(curDay.getUTCDate() + 1)
+  }
+
+  if (totalMs <= 0) {
+    return Math.min(rawHrs, 0.15)
+  }
+
+  return totalMs / 3600000
 }
 
-const promedio = (arr) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0
+/**
+ * Formatea una duración en horas a texto ejecutivo legible (ej: "28 min", "2h 15m", "1.4 días").
+ *
+ * @param {number|null} hrs
+ * @returns {string}
+ */
+export function formatDuracionHoras(hrs) {
+  if (hrs === null || hrs === undefined || isNaN(hrs)) return '—'
+  const totalMins = Math.round(hrs * 60)
+  if (totalMins < 1) return '< 1 min'
+  if (totalMins < 60) return `${totalMins} min`
+  const h = Math.floor(totalMins / 60)
+  const m = totalMins % 60
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
 
-function percentil(arr, p) {
-  if (!arr || arr.length === 0) return 0
-  const s = [...arr].sort((a, b) => a - b)
-  const idx = (s.length - 1) * p
-  const lo = Math.floor(idx)
-  const hi = Math.ceil(idx)
-  return s[lo] + (s[hi] - s[lo]) * (idx - lo)
+// Helper estadístico para calcular promedio, mediana y percentil 90
+function computeStats(values) {
+  if (!values || values.length === 0) {
+    return { count: 0, avg: 0, median: 0, p90: 0 }
+  }
+  const sorted = [...values].sort((a, b) => a - b)
+  const avg = sorted.reduce((acc, v) => acc + v, 0) / sorted.length
+  const mid = Math.floor(sorted.length / 2)
+  const median = (sorted.length % 2 !== 0)
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2
+  const p90Idx = Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9))
+  const p90 = sorted[p90Idx]
+  return {
+    count: sorted.length,
+    avg: Number(avg.toFixed(2)),
+    median: Number(median.toFixed(2)),
+    p90: Number(p90.toFixed(2))
+  }
 }
 
 // Cache en memoria para evitar consultas masivas repetidas
 let gilatMetricsCache = null
 let gilatMetricsCacheTime = 0
-const GILAT_CACHE_TTL = 3 * 60 * 1000 // 3 minutos
+const GILAT_CACHE_TTL = 2 * 60 * 1000 // 2 minutos
 
 /**
- * Obtiene el consolidado analítico de validaciones y respuesta de Gilat
+ * Obtiene el consolidado analítico de validaciones y respuesta de Gilat (T2)
+ * y tiempos de reacción de COVEPA ante solicitudes de técnicos en campo (T1).
  *
  * @param {boolean} [force=false] Forzar recarga ignorando el cache en memoria
- * @returns {Promise<{
- *   kpis: {
- *     totalDictaminadas: number,
- *     totalValidadas: number,
- *     totalRechazadas: number,
- *     tasaAprobacion: number,
- *     tiempoPromedioHoras: number,
- *     tiempoPromedioDias: number,
- *     colaEsperaActual: number,
- *     dictaminadasHoy: number,
- *     velocidadDiariaPromedio: number,
- *     descartadas: number,
- *     mayorEspera: { id_obs: string, id_sitio: string, localidad: string, waitHrs: number, waitDays: number, entryDate: string } | null
- *   },
- *   serieDiaria: Array<{
- *     dateStr: string,
- *     diaSemana: string,
- *     label: string,
- *     validadas: number,
- *     rechazadas: number,
- *     total: number,
- *     revisorLider: string,
- *     isToday: boolean
- *   }>,
- *   rankingAuditores: Array<{
- *     nombre: string,
- *     total: number,
- *     validadas: number,
- *     rechazadas: number,
- *     tasaAprobacion: number,
- *     cuotaPorcentaje: number,
- *     tiempoPromedioHoras: number | null,
- *     tiempoPromedioDias: number | null,
- *     diasActivos: number,
- *     ritmoDiario: string,
- *     ultimaFecha: string | null,
- *     activoHoy: boolean,
- *     activoEstaSemana: boolean
- *   }>,
- *   colaDetalle: Array<{
- *     id_obs: string,
- *     id_sitio: string,
- *     localidad: string,
- *     item: string,
- *     sub_item: string,
- *     subsistema: string,
- *     estado_covepa: string,
- *     waitHrs: number,
- *     waitDays: number,
- *     entryDate: string | null
- *   }>
- * }>}
  */
 export async function fetchGilatMetrics(force = false) {
   if (!force && gilatMetricsCache && (Date.now() - gilatMetricsCacheTime < GILAT_CACHE_TTL)) {
@@ -144,7 +197,7 @@ export async function fetchGilatMetrics(force = false) {
     getSitiosCatalogMap()
   ])
 
-  // 1. Paginación segura para cargar todas las observaciones relevantes
+  // 1. Paginación segura para cargar todas las observaciones no pendientes
   const allObs = []
   let fromObs = 0
   while (true) {
@@ -164,19 +217,18 @@ export async function fetchGilatMetrics(force = false) {
     fromObs += 1000
   }
 
-  // 2. Cargar historial de transiciones de estado para calcular turnaround de respuesta
-  // Optimización: Solo consultar los últimos 45 días para evitar descargar la tabla completa histórica
-  const cutoffDate = new Date()
-  cutoffDate.setDate(cutoffDate.getDate() - 45)
-  const cutoffIso = cutoffDate.toISOString()
+  const obsMap = {}
+  allObs.forEach(o => {
+    obsMap[o.id_obs] = o
+  })
 
+  // 2. Cargar el historial completo de transiciones de estado ordenado cronológicamente
   const allHist = []
   let fromHist = 0
   while (true) {
     const { data, error } = await supabase
       .from('historial_estados_observaciones')
-      .select('id, id_obs, id_sitio, estado_anterior, estado_nuevo, usuario_nombre, created_at, comentario')
-      .gte('created_at', cutoffIso)
+      .select('id, id_obs, id_sitio, estado_anterior, estado_nuevo, usuario_nombre, origen, created_at, comentario')
       .order('created_at', { ascending: true })
       .range(fromHist, fromHist + 999)
 
@@ -190,120 +242,201 @@ export async function fetchGilatMetrics(force = false) {
     fromHist += 1000
   }
 
-  // Mapear historial por id_obs, descartando eventos de solo comentario o sin cambio de estado
+  // Agrupar historial por id_obs, descartando registros de solo comentario o sin cambio real de estado
   const obsHistory = {}
   allHist.forEach(h => {
     if (esRegistroSoloComentario(h)) return
-
     if (!obsHistory[h.id_obs]) obsHistory[h.id_obs] = []
     obsHistory[h.id_obs].push(h)
   })
 
-  // 3. Medición de Tiempos de Respuesta mediante CICLOS (máquina de estados por observación)
-  // A) Tiempo Gilat (T2): desde la ÚLTIMA entrada a 'En Revisión' hasta el PRIMER cambio a
-  //    'Validado', 'Rechazado' o 'Documentación'. Cada ciclo se cierra una sola vez (se consume).
-  // B) Tiempo COVEPA (T1): desde 'Solicitando Revisión' (o 'Documentación' devuelta por Gilat)
-  //    hasta que COVEPA la pasa a 'En Revisión' (o a 'Documentación').
-  const obsById = new Map(allObs.map(o => [o.id_obs, o]))
-  const auditorTimes = {}
-  const allGilatTimes = []
-  const allGilatTimesContrato = []
-  const allCovepaTimes = []
-  const allCovepaTimesContrato = []
-  let ciclosGilatExcluidosCovepa = 0
+  // =========================================================================================
+  // 3. MÁQUINA DE ESTADOS POR OBSERVACIÓN (T1: REACCIÓN COVEPA | T2: REVISIÓN GILAT)
+  // =========================================================================================
+  // Regla de Negocio Confirmada:
+  // - T2 (Gilat): Mide siempre el ÚLTIMO ciclo de cambio de validación desde que la observación
+  //   entra a 'En Revisión' hasta que cambia por primera vez a 'Validado', 'Rechazado' o 'Documentación'.
+  //   Cada ciclo se consume al cerrarse (no hay doble conteo). Si vuelve a entrar a 'En Revisión'
+  //   después de un rechazo o documentación, inicia un nuevo ciclo y prevalece el último ciclo.
+  //   Se excluyen del tiempo de Gilat los dictámenes realizados directamente por usuarios COVEPA
+  //   sin revisor Gilat asignado.
+  // - T1 (COVEPA): Mide el tiempo de reacción interno desde que el técnico solicita revisión en campo
+  //   ('Solicitando Revisión') hasta que nuestro equipo la pasa a 'En Revisión' o 'Documentación'.
+  // =========================================================================================
+
+  const auditorTimesEff = {}
+  const auditorTimesRaw = {}
+  const lastGilatCyclesPerObs = []
+  const lastCovepaCyclesPerObs = []
+  const covepaUserReactions = {}
+  let dictaminadasDirectasCovepaCount = 0
+
+  // Mapa del último tiempo T1 por observación para vincularlo con su cierre T2 en la bitácora
+  const lastT1ByObs = {}
 
   Object.entries(obsHistory).forEach(([id_obs, events]) => {
-    const obsMatch = obsById.get(id_obs)
-    let gOpen = null // Ciclo Gilat abierto (entrada a En Revisión)
-    let cOpen = null // Ciclo COVEPA abierto (Solicitando / Documentación)
-    let lastGilatCycle = null
-    const gilatCycles = []
-
-    const cerrarCovepa = (ev) => {
-      if (!cOpen) return
-      const ini = new Date(cOpen.created_at)
-      const fin = new Date(ev.created_at)
-      const dtHrs = (fin - ini) / (1000 * 3600)
-      if (dtHrs >= 0) {
-        allCovepaTimes.push(dtHrs)
-        allCovepaTimesContrato.push(horasEnHorarioContrato(ini, fin))
-      }
-      cOpen = null
-    }
+    let openEnRev = null
+    let openSol = null
+    const obsGilatCycles = []
+    const obsCovepaCycles = []
+    const obsRow = obsMap[id_obs]
+    const sitioInfo = sitiosMap[obsRow?.id_sitio] || {}
+    const localidad = sitioInfo.localidad || sitioInfo.nombre_nodo || '—'
 
     for (let i = 0; i < events.length; i++) {
       const ev = events[i]
       const st = ev.estado_nuevo
+      const ant = ev.estado_anterior
 
-      if (isEnRevision(st)) {
-        // COVEPA cierra su ciclo al pasar la observación a En Revisión
-        cerrarCovepa(ev)
-        // Solo abre ciclo Gilat si no hay uno abierto (un registro repetido no reinicia el reloj)
-        if (!gOpen) gOpen = ev
-      } else if (isDictamenGilat(st)) {
-        if (gOpen) {
-          const ini = new Date(gOpen.created_at)
-          const fin = new Date(ev.created_at)
-          const dtHrs = (fin - ini) / (1000 * 3600)
-          if (dtHrs >= 0) {
-            const cycle = {
-              hrs: dtHrs,
-              hrsContrato: horasEnHorarioContrato(ini, fin),
-              usuario: ev.usuario_nombre,
-              estadoCierre: st,
-              auditor: esRevisorGilat(ev.usuario_nombre) ? ev.usuario_nombre : null
+      // ── B) T1: Tiempo de Reacción de COVEPA (Campo: Solicitando Revisión -> En Revisión / Documentación) ──
+      if (isSolicitando(st)) {
+        // Si ya hay un ciclo Solicitando abierto hace menos de 5 min y estado_anterior es null o Solicitando,
+        // es un evento duplicado de sincronización (app_fotos + realtime); conservar la hora inicial.
+        const isSyncDupe = openSol &&
+          (!ant || isSolicitando(ant)) &&
+          (new Date(ev.created_at) - new Date(openSol.created_at)) < 5 * 60 * 1000
+        if (!isSyncDupe) {
+          openSol = ev
+        }
+      } else if (isEnRevision(st) || isDocumentacion(st)) {
+        if (openSol) {
+          const rawHrs = (new Date(ev.created_at) - new Date(openSol.created_at)) / 3600000
+          const effHrs = calcularHorasEfectivas(openSol.created_at, ev.created_at)
+          if (rawHrs >= 0 && rawHrs < 720) {
+            const usuarioReaccion = ev.usuario_nombre || 'Auditor COVEPA'
+            const tecnicoSolicitante = openSol.usuario_nombre || 'Técnico de Campo'
+            const cycleT1 = {
+              id_obs,
+              id_sitio: obsRow?.id_sitio || ev.id_sitio || '—',
+              localidad,
+              subsistema: obsRow?.subsistema || 'GENERAL',
+              tecnicoSolicitante,
+              usuarioReaccion,
+              estadoDestino: st,
+              from: openSol.created_at,
+              to: ev.created_at,
+              rawHrs,
+              effHrs,
+              effMins: Math.round(effHrs * 60),
+              rawMins: Math.round(rawHrs * 60)
             }
-            gilatCycles.push(cycle)
-            lastGilatCycle = cycle
+            obsCovepaCycles.push(cycleT1)
           }
-          gOpen = null // El ciclo se consume: un dictamen posterior no vuelve a medirse
+          openSol = null // Consumir ciclo T1
         }
-        if (isDocumentacion(st)) {
-          // Solicitando -> Documentación cierra el ciclo COVEPA; Documentación abre uno nuevo
-          // (COVEPA debe responder y devolverla a En Revisión)
-          cerrarCovepa(ev)
-          cOpen = ev
-        } else {
-          cOpen = null
+      } else if (!isSolicitando(st)) {
+        openSol = null
+      }
+
+      // ── A) T2: Tiempo de Revisión de Gilat (En Revisión -> Validado / Rechazado / Documentación) ──
+      if (isEnRevision(st)) {
+        const isSyncDupe = openEnRev &&
+          (!ant || isEnRevision(ant)) &&
+          (new Date(ev.created_at) - new Date(openEnRev.created_at)) < 5 * 60 * 1000
+        if (!isSyncDupe) {
+          // Nuevo ingreso a 'En Revisión' (inicia o reinicia el reloj de este ciclo)
+          openEnRev = ev
         }
-      } else if (isSolicitando(st)) {
-        gOpen = null // Si regresa a solicitud, el ciclo de Gilat en curso queda descartado
-        if (!cOpen) cOpen = ev
+      } else if (isDictamenGilat(st)) {
+        if (openEnRev) {
+          const rawHrs = (new Date(ev.created_at) - new Date(openEnRev.created_at)) / 3600000
+          const effHrs = calcularHorasEfectivas(openEnRev.created_at, ev.created_at)
+
+          if (rawHrs >= 0 && rawHrs < 720) {
+            // Determinar si el dictamen corresponde a Gilat o fue un cambio interno de COVEPA
+            const revisorCanon = normalizarNombreAuditorGilat(obsRow?.revisor) ||
+              normalizarNombreAuditorGilat(ev.usuario_nombre)
+
+            // Nota: cuando pasa de En Revisión -> Documentación, el sistema limpia obs.revisor = null
+            // por regla de negocio; ese cierre de revisión sí pertenece al flujo de revisión.
+            const esDictamenDeGilat = Boolean(revisorCanon) || isDocumentacion(st)
+
+            if (esDictamenDeGilat) {
+              obsGilatCycles.push({
+                id_obs,
+                id_sitio: obsRow?.id_sitio || ev.id_sitio || '—',
+                localidad,
+                subsistema: obsRow?.subsistema || 'GENERAL',
+                item: obsRow?.item || '',
+                estadoFinal: st,
+                revisor: revisorCanon || 'Gilat Networks',
+                registradoPor: ev.usuario_nombre || 'Sistema',
+                from: openEnRev.created_at,
+                to: ev.created_at,
+                rawHrs,
+                effHrs
+              })
+            } else {
+              dictaminadasDirectasCovepaCount++
+            }
+          }
+          // Consumir estrictamente el ciclo para que cambios posteriores (ej. Documentación -> Validado)
+          // sin volver a pasar por 'En Revisión' NO se cuenten dos veces.
+          openEnRev = null
+        }
       } else {
-        // Cualquier otro estado (Pendiente, Descartado, Crítico, Pre-validado): descarta ciclos abiertos
-        gOpen = null
-        cOpen = null
+        // Salió de 'En Revisión' a otro estado no dictaminado (ej. Pendiente, Solicitando Revisión, Descartado, Crítico)
+        openEnRev = null
       }
     }
 
-    // Atribución del último ciclo con el revisor vigente de la observación (el historial guarda
-    // al usuario COVEPA de sesión, no siempre al auditor Gilat que dictaminó)
-    if (lastGilatCycle && !lastGilatCycle.auditor && obsMatch) {
-      const mismoEstado = String(obsMatch.estado_covepa || '').trim().toLowerCase() ===
-        String(lastGilatCycle.estadoCierre || '').trim().toLowerCase()
-      if (mismoEstado && esRevisorGilat(obsMatch.revisor)) {
-        lastGilatCycle.auditor = obsMatch.revisor
-      } else if (mismoEstado && obsMatch.revisor && !esRevisorGilat(obsMatch.revisor)) {
-        lastGilatCycle.esDictamenCovepa = true
+    // Regla confirmada: tomar siempre el ÚLTIMO ciclo de reacción y el ÚLTIMO ciclo de validación por observación
+    if (obsCovepaCycles.length > 0) {
+      const lastT1 = {
+        ...obsCovepaCycles[obsCovepaCycles.length - 1],
+        totalCiclosT1: obsCovepaCycles.length
+      }
+      lastCovepaCyclesPerObs.push(lastT1)
+      lastT1ByObs[id_obs] = lastT1
+
+      // Acumular por usuario COVEPA que atendió la solicitud de campo
+      const uName = lastT1.usuarioReaccion
+      if (!esRevisorGilat(uName)) {
+        if (!covepaUserReactions[uName]) {
+          covepaUserReactions[uName] = {
+            nombre: uName,
+            totalAtendidas: 0,
+            effMinsList: [],
+            rawMinsList: [],
+            dentroMeta: 0,
+            ultimaAtencion: null
+          }
+        }
+        const entry = covepaUserReactions[uName]
+        entry.totalAtendidas++
+        entry.effMinsList.push(lastT1.effMins)
+        entry.rawMinsList.push(lastT1.rawMins)
+        if (lastT1.effMins <= SLA_CONFIG.META_REACCION_COVEPA_MINS) {
+          entry.dentroMeta++
+        }
+        if (!entry.ultimaAtencion || new Date(lastT1.to) > new Date(entry.ultimaAtencion)) {
+          entry.ultimaAtencion = lastT1.to
+        }
       }
     }
 
-    gilatCycles.forEach(c => {
-      if (c.esDictamenCovepa) {
-        ciclosGilatExcluidosCovepa++
-        return
+    if (obsGilatCycles.length > 0) {
+      const lastT2 = {
+        ...obsGilatCycles[obsGilatCycles.length - 1],
+        totalCiclos: obsGilatCycles.length,
+        t1Asociado: lastT1ByObs[id_obs] || null
       }
-      allGilatTimes.push(c.hrs)
-      allGilatTimesContrato.push(c.hrsContrato)
-      if (c.auditor) {
-        if (!auditorTimes[c.auditor]) auditorTimes[c.auditor] = []
-        auditorTimes[c.auditor].push(c.hrs)
+      lastGilatCyclesPerObs.push(lastT2)
+
+      const revName = lastT2.revisor
+      if (revName && esRevisorGilat(revName)) {
+        const canon = normalizarNombreAuditorGilat(revName) || revName
+        if (!auditorTimesEff[canon]) auditorTimesEff[canon] = []
+        if (!auditorTimesRaw[canon]) auditorTimesRaw[canon] = []
+        auditorTimesEff[canon].push(lastT2.effHrs)
+        auditorTimesRaw[canon].push(lastT2.rawHrs)
       }
-    })
+    }
   })
 
-
-  // 4. Filtrar observaciones dictaminadas por revisores de Gilat
+  // =========================================================================================
+  // 4. CONSOLIDADO DE OBSERVACIONES DICTAMINADAS POR GILAT
+  // =========================================================================================
   const gilatDictaminadas = allObs.filter(o =>
     (o.estado_covepa === 'Validado' || o.estado_covepa === 'Rechazado' || o.estado_covepa === 'Documentación') &&
     esRevisorGilat(o.revisor)
@@ -321,49 +454,93 @@ export async function fetchGilatMetrics(force = false) {
     ? Number(((totalValidadas / totalDictaminadas) * 100).toFixed(1))
     : 0
 
-  // 5. Análisis de Colas de Espera Diferenciadas
-  // A) Cola Gilat: Observaciones actualmente en 'En Revisión' (esperando dictamen formal de Gilat)
+  // =========================================================================================
+  // 5. COLAS VIVAS DE ESPERA (CON HORA EXACTA DE ENTRADA DESDE EL HISTORIAL)
+  // =========================================================================================
+  // A) Cola Gilat: Observaciones actualmente en 'En Revisión'
   const enColaGilat = allObs.filter(o => isEnRevision(o.estado_covepa))
 
-  // B) Cola COVEPA: Observaciones en 'Solicitando Revisión' o 'Documentación' (en gestión interna de COVEPA)
+  // B) Cola COVEPA: Observaciones en 'Solicitando Revisión' o 'Documentación'
   const enColaCovepa = allObs.filter(o => isSolicitando(o.estado_covepa) || isDocumentacion(o.estado_covepa))
 
   const now = new Date()
+  const nowIso = now.toISOString()
   const hoyLima = getLimaDateStr(now)
 
   const buildColaItems = (obsList, findEventFn, origenCola) => {
     return obsList.map(o => {
       const hist = obsHistory[o.id_obs] || []
       const ev = findEventFn(hist)
-      const entryDate = ev ? new Date(ev.created_at) : (o.fecha_subsanacion ? new Date(o.fecha_subsanacion) : null)
-      const waitHrs = entryDate ? Math.max(0, (now - entryDate) / (1000 * 3600)) : 0
+      const entryIso = ev ? ev.created_at : (o.fecha_subsanacion || null)
+      const entryDate = entryIso ? new Date(entryIso) : null
+
+      const rawWaitHrs = entryDate ? Math.max(0, (now - entryDate) / 3600000) : 0
+      const effWaitHrs = entryDate ? Math.max(0, calcularHorasEfectivas(entryIso, nowIso)) : 0
       const sitioInfo = sitiosMap[o.id_sitio] || {}
 
       return {
         ...o,
         localidad: sitioInfo.localidad || sitioInfo.nombre_nodo || '—',
-        waitHrs: Number(waitHrs.toFixed(1)),
-        waitDays: Number((waitHrs / 24).toFixed(1)),
+        waitHrs: Number(effWaitHrs.toFixed(1)),
+        waitHrsCorridas: Number(rawWaitHrs.toFixed(1)),
+        waitMins: Math.round(effWaitHrs * 60),
+        waitText: formatDuracionHoras(effWaitHrs),
+        waitTextCorrido: formatDuracionHoras(rawWaitHrs),
+        waitDays: Number((effWaitHrs / SLA_CONFIG.HORAS_JORNADA_CONTRATO).toFixed(1)),
         entryDate: entryDate ? entryDate.toISOString() : null,
+        responsableEntrada: ev?.usuario_nombre || o.revisor || '—',
         origenCola
       }
-    }).sort((a, b) => b.waitHrs - a.waitHrs)
+    }).sort((a, b) => b.waitHrsCorridas - a.waitHrsCorridas)
   }
 
-  const colaGilatDetalle = buildColaItems(enColaGilat, hist =>
-    hist.slice().reverse().find(h => isEnRevision(h.estado_nuevo)),
+  // En 'En Revisión', buscar la última transición real hacia 'En Revisión'
+  const colaGilatDetalle = buildColaItems(
+    enColaGilat,
+    hist => {
+      for (let i = hist.length - 1; i >= 0; i--) {
+        if (isEnRevision(hist[i].estado_nuevo)) {
+          // Si hay eventos duplicados consecutivos de En Revisión, tomar el primero de esa ráfaga
+          let entry = hist[i]
+          while (i > 0 && isEnRevision(hist[i - 1].estado_nuevo) &&
+            (new Date(entry.created_at) - new Date(hist[i - 1].created_at)) < 5 * 60 * 1000) {
+            entry = hist[i - 1]
+            i--
+          }
+          return entry
+        }
+      }
+      return null
+    },
     'gilat'
   )
 
-  const colaCovepaDetalle = buildColaItems(enColaCovepa, hist =>
-    hist.slice().reverse().find(h => isSolicitando(h.estado_nuevo) || isDocumentacion(h.estado_nuevo)),
+  // En 'Solicitando Revisión' / 'Documentación', buscar la última transición real hacia ese estado
+  const colaCovepaDetalle = buildColaItems(
+    enColaCovepa,
+    hist => {
+      for (let i = hist.length - 1; i >= 0; i--) {
+        if (isSolicitando(hist[i].estado_nuevo) || isDocumentacion(hist[i].estado_nuevo)) {
+          let entry = hist[i]
+          while (i > 0 && (isSolicitando(hist[i - 1].estado_nuevo) || isDocumentacion(hist[i - 1].estado_nuevo)) &&
+            (new Date(entry.created_at) - new Date(hist[i - 1].created_at)) < 5 * 60 * 1000) {
+            entry = hist[i - 1]
+            i--
+          }
+          return entry
+        }
+      }
+      return null
+    },
     'covepa'
   )
 
   const mayorEspera = colaGilatDetalle.length > 0 ? colaGilatDetalle[0] : null
   const mayorEsperaCovepa = colaCovepaDetalle.length > 0 ? colaCovepaDetalle[0] : null
 
-  // 6. Análisis Diario (Serie Temporal y Velocidad por Día)
+  // =========================================================================================
+  // 6. ANÁLISIS DIARIO (SERIE TEMPORAL Y VELOCIDAD POR DÍA)
+  // =========================================================================================
   const DIAS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
   const dailyMap = {}
 
@@ -375,7 +552,7 @@ export async function fetchGilatMetrics(force = false) {
     dailyMap[day].total++
     if (o.estado_covepa === 'Validado') dailyMap[day].validadas++
     if (o.estado_covepa === 'Rechazado') dailyMap[day].rechazadas++
-    const r = o.revisor || 'Desconocido'
+    const r = normalizarNombreAuditorGilat(o.revisor) || o.revisor || 'Gilat Networks'
     dailyMap[day].revisores[r] = (dailyMap[day].revisores[r] || 0) + 1
   })
 
@@ -408,10 +585,12 @@ export async function fetchGilatMetrics(force = false) {
     }
   })
 
-  // 7. Productividad y Desempeño por Auditor de Gilat
+  // =========================================================================================
+  // 7. PRODUCTIVIDAD Y SLA POR AUDITOR DE GILAT (CON NOMBRES NORMALIZADOS Y MEDIANA)
+  // =========================================================================================
   const auditorsMap = {}
   gilatDictaminadas.forEach(o => {
-    const r = o.revisor || 'Gilat Networks'
+    const r = normalizarNombreAuditorGilat(o.revisor) || o.revisor || 'Gilat Networks'
     if (!auditorsMap[r]) {
       auditorsMap[r] = {
         nombre: r,
@@ -436,8 +615,11 @@ export async function fetchGilatMetrics(force = false) {
   const rankingAuditores = Object.values(auditorsMap).map(a => {
     const tasa = a.total > 0 ? Number(((a.validadas / a.total) * 100).toFixed(1)) : 0
     const cuota = totalDictaminadas > 0 ? Number(((a.total / totalDictaminadas) * 100).toFixed(1)) : 0
-    const times = auditorTimes[a.nombre] || []
-    const avgH = times.length > 0 ? (times.reduce((x, y) => x + y, 0) / times.length) : null
+    const effTimes = auditorTimesEff[a.nombre] || []
+    const rawTimes = auditorTimesRaw[a.nombre] || []
+    const stEff = computeStats(effTimes)
+    const stRaw = computeStats(rawTimes)
+
     const diasActivos = a.fechas.size || 1
     const ritmo = (a.total / diasActivos).toFixed(1)
     const lastDay = a.ultimaFecha ? getLimaDateStr(a.ultimaFecha) : null
@@ -452,8 +634,11 @@ export async function fetchGilatMetrics(force = false) {
       rechazadas: a.rechazadas,
       tasaAprobacion: tasa,
       cuotaPorcentaje: cuota,
-      tiempoPromedioHoras: avgH !== null ? Number(avgH.toFixed(1)) : null,
-      tiempoPromedioDias: avgH !== null ? Number((avgH / 24).toFixed(1)) : null,
+      ciclosMedidos: stEff.count,
+      tiempoPromedioHoras: stEff.count > 0 ? Number(stEff.avg.toFixed(1)) : null,
+      tiempoMedianaHoras: stEff.count > 0 ? Number(stEff.median.toFixed(1)) : null,
+      tiempoCorridoHoras: stRaw.count > 0 ? Number(stRaw.avg.toFixed(1)) : null,
+      tiempoPromedioDias: stEff.count > 0 ? Number((stEff.avg / SLA_CONFIG.HORAS_JORNADA_CONTRATO).toFixed(1)) : null,
       diasActivos,
       ritmoDiario: ritmo,
       ultimaFecha: a.ultimaFecha,
@@ -462,14 +647,83 @@ export async function fetchGilatMetrics(force = false) {
     }
   }).sort((a, b) => b.total - a.total)
 
-  const avgGilatTurnaround = promedio(allGilatTimes)
-  const avgCovepaTurnaround = promedio(allCovepaTimes)
+  // =========================================================================================
+  // 8. RANKING DE REACCIÓN INTERNA COVEPA (CUANDO TÉCNICO SOLICITA REVISIÓN EN CAMPO)
+  // =========================================================================================
+  const rankingCovepa = Object.values(covepaUserReactions).map(u => {
+    const stEffMins = computeStats(u.effMinsList)
+    const stRawMins = computeStats(u.rawMinsList)
+    const pctSla = u.totalAtendidas > 0
+      ? Number(((u.dentroMeta / u.totalAtendidas) * 100).toFixed(1))
+      : 0
 
-  const cicloTotalHoras = avgGilatTurnaround + avgCovepaTurnaround
+    return {
+      nombre: u.nombre,
+      totalAtendidas: u.totalAtendidas,
+      promedioMinutos: Math.round(stEffMins.avg),
+      medianaMinutos: Math.round(stEffMins.median),
+      p90Minutos: Math.round(stEffMins.p90),
+      promedioHoras: Number((stEffMins.avg / 60).toFixed(2)),
+      medianaHoras: Number((stEffMins.median / 60).toFixed(2)),
+      promedioCorridoHoras: Number((stRawMins.avg / 60).toFixed(2)),
+      dentroMeta: u.dentroMeta,
+      tasaCumplimientoSla: pctSla,
+      ultimaAtencion: u.ultimaAtencion
+    }
+  }).sort((a, b) => b.totalAtendidas - a.totalAtendidas)
+
+  // =========================================================================================
+  // 9. ESTADÍSTICAS GLOBALES T2 (GILAT) Y T1 (COVEPA)
+  // =========================================================================================
+  const gilatEffList = lastGilatCyclesPerObs.map(c => c.effHrs)
+  const gilatRawList = lastGilatCyclesPerObs.map(c => c.rawHrs)
+  const covepaEffList = lastCovepaCyclesPerObs.map(c => c.effHrs)
+  const covepaRawList = lastCovepaCyclesPerObs.map(c => c.rawHrs)
+
+  const gilatStatsEff = computeStats(gilatEffList)
+  const gilatStatsRaw = computeStats(gilatRawList)
+  const covepaStatsEff = computeStats(covepaEffList)
+  const covepaStatsRaw = computeStats(covepaRawList)
+
+  const gilatDentroSla = lastGilatCyclesPerObs.filter(c => c.effHrs <= SLA_CONFIG.META_REVISION_GILAT_HRS).length
+  const tasaSlaGilat = lastGilatCyclesPerObs.length > 0
+    ? Number(((gilatDentroSla / lastGilatCyclesPerObs.length) * 100).toFixed(1))
+    : 0
+
+  const covepaDentroSla = lastCovepaCyclesPerObs.filter(c => (c.effHrs * 60) <= SLA_CONFIG.META_REACCION_COVEPA_MINS).length
+  const tasaSlaCovepa = lastCovepaCyclesPerObs.length > 0
+    ? Number(((covepaDentroSla / lastCovepaCyclesPerObs.length) * 100).toFixed(1))
+    : 0
+
+  const cicloTotalHoras = Number((gilatStatsEff.avg + covepaStatsEff.avg).toFixed(1))
+  const cicloTotalMedianaHoras = Number((gilatStatsEff.median + covepaStatsEff.median).toFixed(1))
 
   const hoyItem = dailyMap[hoyLima]
   const diasActivosTotales = sortedDates.length || 1
   const velocidadPromedio = Number((totalDictaminadas / diasActivosTotales).toFixed(1))
+
+  // Bitácora de los últimos 50 ciclos cerrados (para auditar observación por observación)
+  const ultimosCiclosDetalle = [...lastGilatCyclesPerObs]
+    .sort((a, b) => new Date(b.to) - new Date(a.to))
+    .slice(0, 50)
+    .map(c => ({
+      id_obs: c.id_obs,
+      id_sitio: c.id_sitio,
+      localidad: c.localidad,
+      subsistema: c.subsistema,
+      estadoFinal: c.estadoFinal,
+      revisor: c.revisor,
+      fechaEntradaRevision: c.from,
+      fechaDictamen: c.to,
+      effHrs: Number(c.effHrs.toFixed(2)),
+      rawHrs: Number(c.rawHrs.toFixed(2)),
+      tiempoGilatTexto: formatDuracionHoras(c.effHrs),
+      tiempoGilatCorridoTexto: formatDuracionHoras(c.rawHrs),
+      reaccionCovepaTexto: c.t1Asociado ? formatDuracionHoras(c.t1Asociado.effHrs) : '—',
+      reaccionCovepaMins: c.t1Asociado ? c.t1Asociado.effMins : null,
+      tecnicoSolicitante: c.t1Asociado ? c.t1Asociado.tecnicoSolicitante : '—',
+      totalCiclos: c.totalCiclos
+    }))
 
   const result = {
     kpis: {
@@ -477,21 +731,30 @@ export async function fetchGilatMetrics(force = false) {
       totalValidadas,
       totalRechazadas,
       tasaAprobacion,
-      tiempoPromedioHoras: Number(avgGilatTurnaround.toFixed(1)),
-      tiempoPromedioDias: Number((avgGilatTurnaround / 24).toFixed(1)),
-      tiempoMedianaHoras: Number(percentil(allGilatTimes, 0.5).toFixed(1)),
-      tiempoP90Horas: Number(percentil(allGilatTimes, 0.9).toFixed(1)),
-      tiempoContratoMedianaHoras: Number(percentil(allGilatTimesContrato, 0.5).toFixed(1)),
-      ciclosGilatMedidos: allGilatTimes.length,
-      ciclosGilatExcluidosCovepa,
-      tiempoCovepaMedianaHoras: Number(percentil(allCovepaTimes, 0.5).toFixed(1)),
-      tiempoCovepaP90Horas: Number(percentil(allCovepaTimes, 0.9).toFixed(1)),
-      tiempoCovepaContratoMedianaHoras: Number(percentil(allCovepaTimesContrato, 0.5).toFixed(1)),
-      ciclosCovepaMedidos: allCovepaTimes.length,
-      tiempoCovepaHoras: Number(avgCovepaTurnaround.toFixed(1)),
-      tiempoCovepaDias: Number((avgCovepaTurnaround / 24).toFixed(1)),
-      cicloTotalHoras: Number(cicloTotalHoras.toFixed(1)),
-      cicloTotalDias: Number((cicloTotalHoras / 24).toFixed(1)),
+      // T2 Gilat (Horario Efectivo Contractual 9am-7pm + ext vs Corrido 24h)
+      tiempoPromedioHoras: Number(gilatStatsEff.avg.toFixed(1)),
+      tiempoMedianaHoras: Number(gilatStatsEff.median.toFixed(1)),
+      tiempoP90Horas: Number(gilatStatsEff.p90.toFixed(1)),
+      tiempoCorridoHoras: Number(gilatStatsRaw.avg.toFixed(1)),
+      tiempoPromedioDias: Number((gilatStatsEff.avg / SLA_CONFIG.HORAS_JORNADA_CONTRATO).toFixed(1)),
+      tasaSlaGilat,
+      totalCiclosGilatMedidos: gilatStatsEff.count,
+      dictaminadasDirectasCovepaCount,
+      // T1 Reacción COVEPA (Solicitando Revisión -> En Revisión)
+      tiempoCovepaHoras: Number(covepaStatsEff.avg.toFixed(1)),
+      tiempoCovepaMedianaHoras: Number(covepaStatsEff.median.toFixed(2)),
+      tiempoCovepaMinutos: Math.round(covepaStatsEff.avg * 60),
+      medianaCovepaMinutos: Math.round(covepaStatsEff.median * 60),
+      p90CovepaMinutos: Math.round(covepaStatsEff.p90 * 60),
+      tiempoCovepaCorridoHoras: Number(covepaStatsRaw.avg.toFixed(1)),
+      tiempoCovepaDias: Number((covepaStatsEff.avg / SLA_CONFIG.HORAS_JORNADA_CONTRATO).toFixed(1)),
+      tasaSlaCovepa,
+      totalCiclosCovepaMedidos: covepaStatsEff.count,
+      // T3 Ciclo Total
+      cicloTotalHoras,
+      cicloTotalMedianaHoras,
+      cicloTotalDias: Number((cicloTotalHoras / SLA_CONFIG.HORAS_JORNADA_CONTRATO).toFixed(1)),
+      // Colas activas
       colaEsperaActual: enColaGilat.length,
       colaCovepaActual: enColaCovepa.length,
       dictaminadasHoy: hoyItem ? hoyItem.total : 0,
@@ -502,6 +765,8 @@ export async function fetchGilatMetrics(force = false) {
         id_sitio: mayorEspera.id_sitio,
         localidad: mayorEspera.localidad,
         waitHrs: mayorEspera.waitHrs,
+        waitHrsCorridas: mayorEspera.waitHrsCorridas,
+        waitText: mayorEspera.waitText,
         waitDays: mayorEspera.waitDays,
         entryDate: mayorEspera.entryDate
       } : null,
@@ -510,18 +775,21 @@ export async function fetchGilatMetrics(force = false) {
         id_sitio: mayorEsperaCovepa.id_sitio,
         localidad: mayorEsperaCovepa.localidad,
         waitHrs: mayorEsperaCovepa.waitHrs,
+        waitHrsCorridas: mayorEsperaCovepa.waitHrsCorridas,
+        waitText: mayorEsperaCovepa.waitText,
         waitDays: mayorEsperaCovepa.waitDays,
         entryDate: mayorEsperaCovepa.entryDate
       } : null
     },
     serieDiaria,
     rankingAuditores,
-    colaDetalle: colaGilatDetalle.slice(0, 30),
-    colaCovepaDetalle: colaCovepaDetalle.slice(0, 30)
+    rankingCovepa,
+    ultimosCiclosDetalle,
+    colaDetalle: colaGilatDetalle.slice(0, 50),
+    colaCovepaDetalle: colaCovepaDetalle.slice(0, 50)
   }
 
   gilatMetricsCache = result
   gilatMetricsCacheTime = Date.now()
   return result
 }
-

@@ -374,10 +374,29 @@ export const AUDITORES_GILAT_OFICIALES = Object.freeze([
   'GILAT NETWORKS'
 ])
 
+/**
+ * Normaliza el nombre de un auditor de Gilat a su formato canónico oficial
+ * (ej. "Amilcar" -> "Amilcar Hander"). Si no corresponde a Gilat, retorna null.
+ *
+ * @param {string|null} nombre
+ * @returns {string|null}
+ */
+export function normalizarNombreAuditorGilat(nombre) {
+  if (!nombre) return null
+  const n = String(nombre).trim().toUpperCase()
+  if (n === 'AMILCAR' || n.includes('AMILCAR HANDER')) return 'Amilcar Hander'
+  if (n === 'HELIO' || n.includes('HELIO CAMAC')) return 'Helio Camac'
+  if (n === 'KARIN' || n.includes('KARIN CEPEDA')) return 'Karin Cepeda'
+  if (n === 'THALIA' || n.includes('THALIA URQUIZO')) return 'Thalia Urquizo'
+  if (n.includes('SUPERVISOR GILAT')) return 'Supervisor Gilat'
+  if (n.includes('GILAT')) return 'Gilat Networks'
+  return null
+}
+
 export function esRevisorGilat(nombre, gilatOptions = []) {
   if (!nombre) return false
+  if (normalizarNombreAuditorGilat(nombre) !== null) return true
   const n = String(nombre).trim().toUpperCase()
-  if (n.includes('GILAT')) return true
   if (AUDITORES_GILAT_OFICIALES.includes(n)) return true
   return (gilatOptions || []).some(g => (g.nombre_completo || '').toUpperCase().trim() === n)
 }

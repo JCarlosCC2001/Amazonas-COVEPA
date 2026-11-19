@@ -714,34 +714,76 @@ export function NotificationProvider({ children }) {
         }
       })
 
-      // ── ENRIQUECER SOLICITUDES CON EL NOMBRE DEL TÉCNICO / SOLICITANTE ──
-      if (solRows.length > 0) {
+      // ── ENRIQUECER SOLICITUDES Y EN REVISIÓN CON HORA EXACTA DE ENTRADA Y RESPONSABLE DESDE HISTORIAL ──
+      const allActiveRows = [...solRows, ...revRows]
+      if (allActiveRows.length > 0) {
         try {
-          const obsIds = solRows.map(r => r.id_obs)
+          const obsIds = allActiveRows.map(r => r.id_obs)
           const { data: histData } = await supabase
             .from('historial_estados_observaciones')
-            .select('id_obs, usuario_nombre, created_at')
+            .select('id_obs, estado_anterior, estado_nuevo, usuario_nombre, created_at, comentario')
             .in('id_obs', obsIds)
-            .in('estado_nuevo', ['Solicitando Revisión', 'Solicitando Revision'])
+            .in('estado_nuevo', ['Solicitando Revisión', 'Solicitando Revision', 'En Revisión', 'En Revision'])
             .order('created_at', { ascending: false })
 
-          const histMap = {}
+          const solHistMap = {}
+          const revHistMap = {}
+
           if (Array.isArray(histData)) {
             histData.forEach(h => {
-              if (h.id_obs && h.usuario_nombre && !histMap[h.id_obs]) {
-                histMap[h.id_obs] = h.usuario_nombre
+              if (!h.id_obs) return
+              const com = (h.comentario || '').trim().toLowerCase()
+              if (com.includes('edición de comentario') || com.includes('edicion de comentario') || com === 'comentario covepa eliminado') return
+              const stNew = (h.estado_nuevo || '').trim()
+              const stOld = (h.estado_anterior || '').trim()
+              if (stOld && stOld.toLowerCase() === stNew.toLowerCase()) return
+
+              if (stNew === 'Solicitando Revisión' || stNew === 'Solicitando Revision') {
+                if (!solHistMap[h.id_obs]) {
+                  solHistMap[h.id_obs] = {
+                    usuario_nombre: h.usuario_nombre,
+                    created_at: h.created_at
+                  }
+                }
+              } else if (stNew === 'En Revisión' || stNew === 'En Revision') {
+                if (!revHistMap[h.id_obs]) {
+                  revHistMap[h.id_obs] = {
+                    usuario_nombre: h.usuario_nombre,
+                    created_at: h.created_at
+                  }
+                }
               }
             })
           }
 
           solRows.forEach(row => {
-            const nombreSolicitante = histMap[row.id_obs] || (row.revisor && !esRevisorGilat(row.revisor) ? row.revisor : '') || resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
+            const hInfo = solHistMap[row.id_obs]
+            const nombreSolicitante = hInfo?.usuario_nombre || (row.revisor && !esRevisorGilat(row.revisor) ? row.revisor : '') || resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
             row.solicitante = nombreSolicitante
             row.usuario_nombre = nombreSolicitante
             row.revisor = nombreSolicitante
+            if (hInfo?.created_at) {
+              row.fecha_entrada_estado = hInfo.created_at
+              row.fecha_subsanacion = hInfo.created_at
+            }
           })
+
+          revRows.forEach(row => {
+            const hInfo = revHistMap[row.id_obs]
+            if (hInfo?.created_at) {
+              row.fecha_entrada_estado = hInfo.created_at
+              row.fecha_subsanacion = hInfo.created_at
+            }
+            if (hInfo?.usuario_nombre && !row.revisor) {
+              row.pasado_por = hInfo.usuario_nombre
+            }
+          })
+
+          // Reordenar de más antigua a más reciente según su hora real de entrada al estado actual
+          solRows.sort((a, b) => new Date(a.fecha_subsanacion || 0) - new Date(b.fecha_subsanacion || 0))
+          revRows.sort((a, b) => new Date(a.fecha_subsanacion || 0) - new Date(b.fecha_subsanacion || 0))
         } catch (e) {
-          console.warn('[NOTIF-ENRICH] Error enriqueciendo solicitantes:', e)
+          console.warn('[NOTIF-ENRICH] Error enriqueciendo historial de estados activos:', e)
           solRows.forEach(row => {
             const fallback = resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
             row.solicitante = fallback
@@ -1006,8 +1048,11 @@ export function NotificationProvider({ children }) {
           if (newRow && (newRow.estado_covepa === 'Solicitando Revisión' || newRow.estado_covepa === 'Solicitando Revision')) {
             const loc = sitiosMapRef.current[newRow.id_sitio] || ''
             const solicitanteNombre = newRow.revisor || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
+            const nowEntryIso = new Date().toISOString()
             const enrichedRow = {
               ...newRow,
+              fecha_entrada_estado: nowEntryIso,
+              fecha_subsanacion: nowEntryIso,
               solicitante: solicitanteNombre,
               usuario_nombre: solicitanteNombre,
               revisor: solicitanteNombre
@@ -1068,8 +1113,11 @@ export function NotificationProvider({ children }) {
             // Pasó a En Revisión: actualizar estado en memoria (0 consultas HTTP a Supabase)
             const loc = sitiosMapRef.current[newRow.id_sitio] || ''
             const solicitanteNombre = newRow.revisor || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
+            const nowEntryIso = new Date().toISOString()
             const enrichedRow = {
               ...newRow,
+              fecha_entrada_estado: nowEntryIso,
+              fecha_subsanacion: nowEntryIso,
               solicitante: solicitanteNombre,
               usuario_nombre: solicitanteNombre,
               revisor: solicitanteNombre

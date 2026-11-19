@@ -42,6 +42,37 @@ const isDocumentacion = (st) => {
   return s.includes('documentaci')
 }
 
+// Horario contractual (hora de Lima): 9:00 a 19:00. Se usa como referencia secundaria,
+// ya que técnicos y revisores suelen trabajar fuera de ese horario (la medición principal es tiempo real).
+const CONTRATO_HORA_INICIO = 9
+const CONTRATO_HORA_FIN = 19
+const LIMA_OFFSET_MS = -5 * 3600 * 1000 // Lima = UTC-5 (sin horario de verano)
+
+function horasEnHorarioContrato(inicio, fin) {
+  const a = inicio.getTime() + LIMA_OFFSET_MS
+  const b = fin.getTime() + LIMA_OFFSET_MS
+  if (!(b > a)) return 0
+  const dayMs = 86400000
+  let total = 0
+  for (let dayStart = Math.floor(a / dayMs) * dayMs; dayStart < b; dayStart += dayMs) {
+    const s = Math.max(a, dayStart + CONTRATO_HORA_INICIO * 3600000)
+    const e = Math.min(b, dayStart + CONTRATO_HORA_FIN * 3600000)
+    if (e > s) total += e - s
+  }
+  return total / 3600000
+}
+
+const promedio = (arr) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0
+
+function percentil(arr, p) {
+  if (!arr || arr.length === 0) return 0
+  const s = [...arr].sort((a, b) => a - b)
+  const idx = (s.length - 1) * p
+  const lo = Math.floor(idx)
+  const hi = Math.ceil(idx)
+  return s[lo] + (s[hi] - s[lo]) * (idx - lo)
+}
+
 // Cache en memoria para evitar consultas masivas repetidas
 let gilatMetricsCache = null
 let gilatMetricsCacheTime = 0
@@ -168,73 +199,109 @@ export async function fetchGilatMetrics(force = false) {
     obsHistory[h.id_obs].push(h)
   })
 
-  // 3. Medición de Tiempos de Respuesta
-  // A) SLA Gilat (Demora Externa): Intervalo transcurrido desde que la observación entra a
-  //    'En Revisión' hasta que sale con dictamen a 'Rechazado', 'Validado' o 'Documentación'
-  // B) SLA COVEPA (Demora Interna): Intervalos transcurridos entre 'Solicitando Revisión' y 'En Revisión',
-  //    'Solicitando Revisión' y 'Documentación', o 'Documentación' y 'En Revisión'
+  // 3. Medición de Tiempos de Respuesta mediante CICLOS (máquina de estados por observación)
+  // A) Tiempo Gilat (T2): desde la ÚLTIMA entrada a 'En Revisión' hasta el PRIMER cambio a
+  //    'Validado', 'Rechazado' o 'Documentación'. Cada ciclo se cierra una sola vez (se consume).
+  // B) Tiempo COVEPA (T1): desde 'Solicitando Revisión' (o 'Documentación' devuelta por Gilat)
+  //    hasta que COVEPA la pasa a 'En Revisión' (o a 'Documentación').
+  const obsById = new Map(allObs.map(o => [o.id_obs, o]))
   const auditorTimes = {}
   const allGilatTimes = []
+  const allGilatTimesContrato = []
   const allCovepaTimes = []
+  const allCovepaTimesContrato = []
+  let ciclosGilatExcluidosCovepa = 0
 
   Object.entries(obsHistory).forEach(([id_obs, events]) => {
+    const obsMatch = obsById.get(id_obs)
+    let gOpen = null // Ciclo Gilat abierto (entrada a En Revisión)
+    let cOpen = null // Ciclo COVEPA abierto (Solicitando / Documentación)
+    let lastGilatCycle = null
+    const gilatCycles = []
+
+    const cerrarCovepa = (ev) => {
+      if (!cOpen) return
+      const ini = new Date(cOpen.created_at)
+      const fin = new Date(ev.created_at)
+      const dtHrs = (fin - ini) / (1000 * 3600)
+      if (dtHrs >= 0) {
+        allCovepaTimes.push(dtHrs)
+        allCovepaTimesContrato.push(horasEnHorarioContrato(ini, fin))
+      }
+      cOpen = null
+    }
+
     for (let i = 0; i < events.length; i++) {
       const ev = events[i]
-      const evState = ev.estado_nuevo
+      const st = ev.estado_nuevo
 
-      // ── B) Demora Interna por parte de COVEPA ──
-      // Caso 1: Entrada a 'En Revisión' proveniente de 'Solicitando Revisión' o 'Documentación'
-      if (isEnRevision(evState)) {
-        for (let j = i - 1; j >= 0; j--) {
-          const prev = events[j]
-          if (isSolicitando(prev.estado_nuevo) || isDocumentacion(prev.estado_nuevo)) {
-            const dtHrs = (new Date(ev.created_at) - new Date(prev.created_at)) / (1000 * 3600)
-            if (dtHrs >= 0 && dtHrs < 720) {
-              allCovepaTimes.push(dtHrs)
+      if (isEnRevision(st)) {
+        // COVEPA cierra su ciclo al pasar la observación a En Revisión
+        cerrarCovepa(ev)
+        // Solo abre ciclo Gilat si no hay uno abierto (un registro repetido no reinicia el reloj)
+        if (!gOpen) gOpen = ev
+      } else if (isDictamenGilat(st)) {
+        if (gOpen) {
+          const ini = new Date(gOpen.created_at)
+          const fin = new Date(ev.created_at)
+          const dtHrs = (fin - ini) / (1000 * 3600)
+          if (dtHrs >= 0) {
+            const cycle = {
+              hrs: dtHrs,
+              hrsContrato: horasEnHorarioContrato(ini, fin),
+              usuario: ev.usuario_nombre,
+              estadoCierre: st,
+              auditor: esRevisorGilat(ev.usuario_nombre) ? ev.usuario_nombre : null
             }
-            break
+            gilatCycles.push(cycle)
+            lastGilatCycle = cycle
           }
+          gOpen = null // El ciclo se consume: un dictamen posterior no vuelve a medirse
         }
-      }
-
-      // Caso 2: Entrada a 'Documentación' proveniente de 'Solicitando Revisión'
-      if (isDocumentacion(evState)) {
-        for (let j = i - 1; j >= 0; j--) {
-          const prev = events[j]
-          if (isSolicitando(prev.estado_nuevo)) {
-            const dtHrs = (new Date(ev.created_at) - new Date(prev.created_at)) / (1000 * 3600)
-            if (dtHrs >= 0 && dtHrs < 720) {
-              allCovepaTimes.push(dtHrs)
-            }
-            break
-          }
+        if (isDocumentacion(st)) {
+          // Solicitando -> Documentación cierra el ciclo COVEPA; Documentación abre uno nuevo
+          // (COVEPA debe responder y devolverla a En Revisión)
+          cerrarCovepa(ev)
+          cOpen = ev
+        } else {
+          cOpen = null
         }
-      }
-
-      // ── A) Demora Externa por parte de Gilat ──
-      // Salida con dictamen a 'Validado', 'Rechazado' o 'Documentación' proveniente de 'En Revisión'
-      if (isDictamenGilat(evState)) {
-        for (let j = i - 1; j >= 0; j--) {
-          const prev = events[j]
-          // Punto de inicio estricto: momento en que pasó a 'En Revisión'
-          if (isEnRevision(prev.estado_nuevo)) {
-            const dtHrs = (new Date(ev.created_at) - new Date(prev.created_at)) / (1000 * 3600)
-            // Intervalo válido: positivo y menor a 30 días (720 hrs) para descartar anomalías de prueba
-            if (dtHrs >= 0 && dtHrs < 720) {
-              allGilatTimes.push(dtHrs)
-              const obsMatch = allObs.find(o => o.id_obs === id_obs)
-              const rev = obsMatch?.revisor || ev.usuario_nombre
-              if (rev && esRevisorGilat(rev)) {
-                if (!auditorTimes[rev]) auditorTimes[rev] = []
-                auditorTimes[rev].push(dtHrs)
-              }
-            }
-            break
-          }
-        }
+      } else if (isSolicitando(st)) {
+        gOpen = null // Si regresa a solicitud, el ciclo de Gilat en curso queda descartado
+        if (!cOpen) cOpen = ev
+      } else {
+        // Cualquier otro estado (Pendiente, Descartado, Crítico, Pre-validado): descarta ciclos abiertos
+        gOpen = null
+        cOpen = null
       }
     }
+
+    // Atribución del último ciclo con el revisor vigente de la observación (el historial guarda
+    // al usuario COVEPA de sesión, no siempre al auditor Gilat que dictaminó)
+    if (lastGilatCycle && !lastGilatCycle.auditor && obsMatch) {
+      const mismoEstado = String(obsMatch.estado_covepa || '').trim().toLowerCase() ===
+        String(lastGilatCycle.estadoCierre || '').trim().toLowerCase()
+      if (mismoEstado && esRevisorGilat(obsMatch.revisor)) {
+        lastGilatCycle.auditor = obsMatch.revisor
+      } else if (mismoEstado && obsMatch.revisor && !esRevisorGilat(obsMatch.revisor)) {
+        lastGilatCycle.esDictamenCovepa = true
+      }
+    }
+
+    gilatCycles.forEach(c => {
+      if (c.esDictamenCovepa) {
+        ciclosGilatExcluidosCovepa++
+        return
+      }
+      allGilatTimes.push(c.hrs)
+      allGilatTimesContrato.push(c.hrsContrato)
+      if (c.auditor) {
+        if (!auditorTimes[c.auditor]) auditorTimes[c.auditor] = []
+        auditorTimes[c.auditor].push(c.hrs)
+      }
+    })
   })
+
 
   // 4. Filtrar observaciones dictaminadas por revisores de Gilat
   const gilatDictaminadas = allObs.filter(o =>
@@ -395,13 +462,8 @@ export async function fetchGilatMetrics(force = false) {
     }
   }).sort((a, b) => b.total - a.total)
 
-  const avgGilatTurnaround = allGilatTimes.length > 0
-    ? (allGilatTimes.reduce((a, b) => a + b, 0) / allGilatTimes.length)
-    : 0
-
-  const avgCovepaTurnaround = allCovepaTimes.length > 0
-    ? (allCovepaTimes.reduce((a, b) => a + b, 0) / allCovepaTimes.length)
-    : 0
+  const avgGilatTurnaround = promedio(allGilatTimes)
+  const avgCovepaTurnaround = promedio(allCovepaTimes)
 
   const cicloTotalHoras = avgGilatTurnaround + avgCovepaTurnaround
 
@@ -417,6 +479,15 @@ export async function fetchGilatMetrics(force = false) {
       tasaAprobacion,
       tiempoPromedioHoras: Number(avgGilatTurnaround.toFixed(1)),
       tiempoPromedioDias: Number((avgGilatTurnaround / 24).toFixed(1)),
+      tiempoMedianaHoras: Number(percentil(allGilatTimes, 0.5).toFixed(1)),
+      tiempoP90Horas: Number(percentil(allGilatTimes, 0.9).toFixed(1)),
+      tiempoContratoMedianaHoras: Number(percentil(allGilatTimesContrato, 0.5).toFixed(1)),
+      ciclosGilatMedidos: allGilatTimes.length,
+      ciclosGilatExcluidosCovepa,
+      tiempoCovepaMedianaHoras: Number(percentil(allCovepaTimes, 0.5).toFixed(1)),
+      tiempoCovepaP90Horas: Number(percentil(allCovepaTimes, 0.9).toFixed(1)),
+      tiempoCovepaContratoMedianaHoras: Number(percentil(allCovepaTimesContrato, 0.5).toFixed(1)),
+      ciclosCovepaMedidos: allCovepaTimes.length,
       tiempoCovepaHoras: Number(avgCovepaTurnaround.toFixed(1)),
       tiempoCovepaDias: Number((avgCovepaTurnaround / 24).toFixed(1)),
       cicloTotalHoras: Number(cicloTotalHoras.toFixed(1)),

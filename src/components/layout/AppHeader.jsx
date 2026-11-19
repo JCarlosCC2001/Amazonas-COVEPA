@@ -65,6 +65,7 @@ export default function AppHeader() {
     clearAllNotifications,
     dismissNotification,
     restoreDismissedNotifications,
+    notificarObservacionesEnEsperaPorTiempo,
     dispararPruebaSolicitudTecnico,
     dispararPruebaRevision,
     desktopPermission,
@@ -220,6 +221,19 @@ export default function AppHeader() {
                   <button
                     type="button"
                     className="notif-test-btn"
+                    style={{ background: '#fff7ed', borderColor: '#fed7aa', color: '#c2410c' }}
+                    onClick={() => {
+                      notificarObservacionesEnEsperaPorTiempo()
+                      setNotifOpen(false)
+                    }}
+                    title="Notificar la cantidad de observaciones pendientes agrupadas por tiempo de espera con opción de copiado"
+                  >
+                    Avisar Espera
+                  </button>
+
+                  <button
+                    type="button"
+                    className="notif-test-btn"
                     onClick={() => {
                       if (typeof dispararPruebaSolicitudTecnico === 'function') {
                         dispararPruebaSolicitudTecnico()
@@ -246,8 +260,21 @@ export default function AppHeader() {
                 </div>
               </div>
 
-              {/* Barra de Acceso Rápido: Lista de Espera y Copiado Inmediato de Códigos */}
+              {/* Barra de Acceso Rápido: Notificar Espera por Tiempo y Ver Lista */}
               <div className="notif-espera-quickbar">
+                <button
+                  type="button"
+                  className="notif-btn-notificar-espera"
+                  onClick={() => {
+                    notificarObservacionesEnEsperaPorTiempo()
+                    setNotifOpen(false)
+                  }}
+                  title="Notificar la cantidad de observaciones pendientes agrupadas por tiempo de espera con botón para copiar la lista"
+                >
+                  <Clock size={13} color="#ea580c" />
+                  <span><strong>Notificar Espera por Tiempo</strong> ({itemsEspera.length})</span>
+                </button>
+
                 <button
                   type="button"
                   className="notif-btn-ver-espera"
@@ -257,19 +284,8 @@ export default function AppHeader() {
                   }}
                   title="Abrir la lista interactiva de todas las observaciones a la espera de revisión"
                 >
-                  <ClipboardList size={13} color="#ea580c" />
-                  <span><strong>Lista en Espera</strong> ({itemsEspera.length})</span>
-                </button>
-
-                <button
-                  type="button"
-                  className={`notif-btn-copiar-espera ${copiedEsperaQuick ? 'is-copied' : ''}`}
-                  onClick={handleCopyAllEspera}
-                  disabled={itemsEspera.length === 0}
-                  title="Copiar lista de códigos de todas las observaciones en espera (uno por línea)"
-                >
-                  {copiedEsperaQuick ? <Check size={12} /> : <Copy size={12} />}
-                  <span>{copiedEsperaQuick ? '¡Códigos Copiados!' : 'Copiar Códigos'}</span>
+                  <ClipboardList size={13} />
+                  <span>Ver Lista</span>
                 </button>
               </div>
 
@@ -414,13 +430,44 @@ export default function AppHeader() {
 
                           <div className="notif-item-content">
                             <div className="notif-solicitud-top">
-                              <span className="notif-obs-code">ALERTA DE ACUMULACIÓN</span>
+                              <span className="notif-obs-code">
+                                {obs.titulo || 'ALERTA DE ESPERA'}
+                              </span>
                               <span className="notif-status-badge badge-acc-pill">
-                                {obs.count || items.length} en Revisión (+10m)
+                                {obs.count || items.length} en espera
                               </span>
                             </div>
 
-                            <p className="notif-acc-card-desc">
+                            {/* Desglose de Franjas en la tarjeta de la bandeja */}
+                            {Array.isArray(obs.resumenTiers) && obs.resumenTiers.length > 0 && (
+                              <div style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: '4px',
+                                marginTop: '4px',
+                                marginBottom: '4px'
+                              }}>
+                                {obs.resumenTiers.filter(t => t.count > 0).map(t => (
+                                  <span
+                                    key={t.key}
+                                    style={{
+                                      background: t.bg,
+                                      borderColor: t.border,
+                                      color: t.color,
+                                      border: '1px solid',
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: 'var(--text-badge)',
+                                      fontWeight: 'var(--fw-semibold)'
+                                    }}
+                                  >
+                                    {t.label}: <strong>{t.count}</strong>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <p className="notif-acc-card-desc" style={{ whiteSpace: 'pre-line' }}>
                               {obs.detalle}
                             </p>
 
@@ -439,7 +486,7 @@ export default function AppHeader() {
                                 title="Copiar exclusivamente los códigos de observación agrupados por tiempo de espera"
                               >
                                 {isCopied ? <Check size={12} /> : <Copy size={12} />}
-                                <span>{isCopied ? '¡Códigos copiados!' : 'Copiar códigos de observaciones'}</span>
+                                <span>{isCopied ? '¡Lista copiada!' : 'Copiar lista de observaciones'}</span>
                               </button>
                             </div>
 

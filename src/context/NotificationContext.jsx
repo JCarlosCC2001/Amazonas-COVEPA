@@ -597,8 +597,8 @@ export function NotificationProvider({ children }) {
     // Reproducir aviso sonoro suave
     playNotificationChime()
 
-    // Auto-descartar después de exactamente 5 segundos a solicitud expresa del usuario
-    const timeoutMs = 5000
+    // Auto-descartar después de 5 segundos, o 12 segundos si es alerta de acumulación con botón de copiado
+    const timeoutMs = (obs.isAccumulationAlert || obs.isTransicionBatch) ? 12000 : 5000
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== toastId))
     }, timeoutMs)
@@ -1367,6 +1367,127 @@ export function NotificationProvider({ children }) {
     })
   }, [enRevision, dispararToast])
 
+  // Disparar notificación estructurada de observaciones pendientes a la espera de revisión agrupadas por tiempo
+  const notificarObservacionesEnEsperaPorTiempo = useCallback(() => {
+    // Tomar las observaciones activas en 'Solicitando Revisión'
+    const listado = Array.isArray(solicitudes) ? solicitudes : []
+    const activas = listado.filter(s => !s.isReporteNotif && !s.isAccumulationAlert)
+
+    if (activas.length === 0) {
+      dispararToast({
+        id_obs: `AVISO-SIN-ESPERA-${Date.now()}`,
+        isTransicionVacia: true,
+        titulo: 'Sin observaciones en espera',
+        detalle: '¡Al día! No hay observaciones a la espera de revisión en este momento.'
+      }, '')
+      despacharNotificacionSistema('✅ Sin Observaciones en Espera', {
+        body: 'No hay solicitudes de revisión pendientes en este momento.',
+        tag: 'covepa-sin-espera'
+      })
+      return
+    }
+
+    const ordenadas = [...activas].sort((a, b) => {
+      const tA = new Date(a.fecha_subsanacion || 0).getTime()
+      const tB = new Date(b.fecha_subsanacion || 0).getTime()
+      return tA - tB // De más antigua a más reciente
+    })
+
+    const masAntigua = ordenadas[0]
+    const locMasAntigua = sitiosMapRef.current[masAntigua.id_sitio] || masAntigua.localidad || ''
+    const minsAntigua = calcWaitMins(masAntigua.fecha_subsanacion)
+    const tiempoTxtAntigua = formatWaitTime(minsAntigua)
+
+    // Agrupar por franjas de tiempo requeridas (+12h, +6h, +2h, +1h, <1h)
+    const tier12h = []
+    const tier6h = []
+    const tier2h = []
+    const tier1h = []
+    const tierReciente = []
+
+    ordenadas.forEach(item => {
+      const mins = calcWaitMins(item.fecha_subsanacion)
+      item.waitMins = mins
+      if (mins >= 720) tier12h.push(item)
+      else if (mins >= 360) tier6h.push(item)
+      else if (mins >= 120) tier2h.push(item)
+      else if (mins >= 60) tier1h.push(item)
+      else tierReciente.push(item)
+    })
+
+    const resumenTiers = [
+      { label: '+12 HORAS', count: tier12h.length, key: '12h', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', codes: tier12h.map(i => i.id_obs) },
+      { label: '+6 HORAS', count: tier6h.length, key: '6h', color: '#ea580c', bg: '#fff7ed', border: '#fed7aa', codes: tier6h.map(i => i.id_obs) },
+      { label: '+2 HORAS', count: tier2h.length, key: '2h', color: '#d97706', bg: '#fffbeb', border: '#fde68a', codes: tier2h.map(i => i.id_obs) },
+      { label: '+1 HORA', count: tier1h.length, key: '1h', color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', codes: tier1h.map(i => i.id_obs) },
+      { label: '< 1 HORA', count: tierReciente.length, key: 'reciente', color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', codes: tierReciente.map(i => i.id_obs) }
+    ]
+
+    const itemsMapped = ordenadas.map(item => ({
+      id_obs: item.id_obs,
+      id_sitio: item.id_sitio,
+      localidad: sitiosMapRef.current[item.id_sitio] || item.localidad || '',
+      solicitante: item.solicitante || item.usuario_nombre || item.revisor || 'Técnico de Campo',
+      fecha_subsanacion: item.fecha_subsanacion,
+      waitMins: item.waitMins || calcWaitMins(item.fecha_subsanacion)
+    }))
+
+    const lineasResumen = []
+    if (tier12h.length > 0) lineasResumen.push(`• +12 HORAS: ${tier12h.length} obs`)
+    if (tier6h.length > 0) lineasResumen.push(`• 6 a 12 HORAS: ${tier6h.length} obs`)
+    if (tier2h.length > 0) lineasResumen.push(`• 2 a 6 HORAS: ${tier2h.length} obs`)
+    if (tier1h.length > 0) lineasResumen.push(`• 1 a 2 HORAS: ${tier1h.length} obs`)
+    if (tierReciente.length > 0) lineasResumen.push(`• Menos de 1 hora: ${tierReciente.length} obs`)
+
+    const mensajeDetalle = `Hay ${activas.length} observaciones pendientes a la espera de revisión:\n${lineasResumen.join('\n')}\n📍 Más antigua: ${masAntigua.id_sitio}${locMasAntigua ? ` · ${locMasAntigua}` : ''} (${tiempoTxtAntigua})`
+
+    const alertId = `ALERTA-ESPERA-${Date.now()}`
+    const alertObj = {
+      id_obs: alertId,
+      isAccumulationAlert: true,
+      isEsperaPorTiempo: true,
+      tipo: 'espera_solicitando_revision',
+      titulo: `⏱️ ${activas.length} Observaciones a la Espera de Revisión`,
+      count: activas.length,
+      detalle: mensajeDetalle,
+      id_sitio: masAntigua.id_sitio,
+      localidad: locMasAntigua,
+      revisor: masAntigua.solicitante || masAntigua.usuario_nombre || masAntigua.revisor || 'Técnico de Campo',
+      fecha_subsanacion: masAntigua.fecha_subsanacion,
+      queueType: 'solicitando_revision',
+      resumenTiers,
+      items: itemsMapped
+    }
+
+    setDismissedIds(prev => {
+      const copy = new Set(prev)
+      copy.delete(alertId)
+      copy.delete('ALERTA-ACUMULACION-ESPERA')
+      return copy
+    })
+    setAccumulationAlert(alertObj)
+
+    dispararToast(alertObj, locMasAntigua)
+    playAccumulationChime()
+
+    const bodyWindows = `⏱️ ${activas.length} obs pendientes de revisión:\n` +
+      `${tier12h.length ? `• +12h: ${tier12h.length} ` : ''}` +
+      `${tier6h.length ? `• +6h: ${tier6h.length} ` : ''}` +
+      `${tier2h.length ? `• +2h: ${tier2h.length} ` : ''}` +
+      `${tier1h.length ? `• +1h: ${tier1h.length} ` : ''}` +
+      `${tierReciente.length ? `• <1h: ${tierReciente.length}` : ''}\n` +
+      `📍 Más antigua: ${masAntigua.id_sitio} (${tiempoTxtAntigua})`
+
+    despacharNotificacionSistema(`⏱️ ${activas.length} Observaciones en Espera`, {
+      body: bodyWindows,
+      tag: 'covepa-alerta-espera-tiempo',
+      renotify: true,
+      data: {
+        url: '/observaciones?estado=Solicitando%20Revisi%C3%B3n'
+      }
+    })
+  }, [solicitudes, dispararToast])
+
   // Disparar prueba directa de solicitud de revisión técnica (simula aviso de técnico en campo)
   const dispararPruebaSolicitudTecnico = useCallback(() => {
     const mockObs = {
@@ -1571,6 +1692,7 @@ export function NotificationProvider({ children }) {
         restoreDismissedNotifications,
         dispararPruebaSolicitudTecnico,
         dispararPruebaRevision,
+        notificarObservacionesEnEsperaPorTiempo,
         dispararPruebaReporte,
         reportesNotificaciones: reportesNotif,
         copyObservacionesList,
@@ -1613,6 +1735,7 @@ export function useNotifications() {
       restoreDismissed: () => {},
       dismissedIdsCount: 0,
       dismissToast: () => {},
+      notificarObservacionesEnEsperaPorTiempo: () => {},
       notificarPaseEnRevision: async () => {},
       copyPlainCodesList: async () => false,
       requestDesktopPermission: async () => 'default'

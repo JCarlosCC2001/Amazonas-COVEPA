@@ -2305,16 +2305,17 @@
   border-bottom: 1px solid #fed7aa;
 }
 
-.notif-btn-ver-espera {
+.notif-btn-notificar-espera {
   flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 5px 10px;
-  background: #ffffff;
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
   border: 1px solid #fdba74;
   border-radius: 6px;
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
   font-weight: var(--fw-semibold);
   color: #9a3412;
@@ -2323,11 +2324,35 @@
   box-shadow: 0 1px 2px rgba(234, 88, 12, 0.08);
 }
 
-.notif-btn-ver-espera:hover {
-  background: #ffedd5;
-  border-color: #f97316;
+.notif-btn-notificar-espera:hover {
+  background: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%);
+  border-color: #ea580c;
   color: #7c2d12;
   transform: translateY(-1px);
+}
+
+.notif-btn-ver-espera {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.notif-btn-ver-espera:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
 }
 
 .notif-btn-copiar-espera {

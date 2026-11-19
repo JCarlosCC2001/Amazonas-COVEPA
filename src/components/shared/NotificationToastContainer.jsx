@@ -254,21 +254,50 @@ export default function NotificationToastContainer() {
                   <>
                     <div className="notif-toast-code-row">
                       <span className="notif-toast-acc-title">
-                        ¡{items.length} Observaciones en Revisión Demoradas!
+                        {obs.titulo || `¡${items.length} Observaciones en Espera!`}
                       </span>
-                      <span className="notif-toast-count-tag">
-                        {items.length} acumuladas
+                      <span className="notif-toast-count-tag" style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>
+                        {items.length} {obs.queueType === 'auditores' ? 'en revisión' : 'en espera'}
                       </span>
                     </div>
 
+                    {/* Desglose visual por franjas de tiempo */}
+                    {Array.isArray(obs.resumenTiers) && obs.resumenTiers.length > 0 && (
+                      <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '4px',
+                        marginTop: '0.35rem',
+                        marginBottom: '0.35rem'
+                      }}>
+                        {obs.resumenTiers.filter(t => t.count > 0).map(t => (
+                          <span
+                            key={t.key}
+                            style={{
+                              background: t.bg,
+                              borderColor: t.border,
+                              color: t.color,
+                              border: '1px solid',
+                              padding: '2px 7px',
+                              borderRadius: '4px',
+                              fontSize: 'var(--text-badge)',
+                              fontWeight: 'var(--fw-semibold)'
+                            }}
+                          >
+                            {t.label}: <strong>{t.count}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     {obs.detalle && (
-                      <p className="notif-toast-detail-text notif-toast-acc-desc">
+                      <p className="notif-toast-detail-text notif-toast-acc-desc" style={{ whiteSpace: 'pre-line', fontSize: 'var(--text-meta)' }}>
                         {obs.detalle}
                       </p>
                     )}
 
                     {/* Botón para Copiar Códigos de Observaciones al Portapapeles */}
-                    <div className="notif-toast-action-row">
+                    <div className="notif-toast-action-row" style={{ display: 'flex', gap: '6px', marginTop: '0.45rem' }}>
                       <button
                         type="button"
                         className={`notif-toast-copy-btn ${isCopied ? 'is-copied' : ''}`}
@@ -276,7 +305,18 @@ export default function NotificationToastContainer() {
                         title="Copiar exclusivamente los códigos de observación agrupados por tiempo de espera"
                       >
                         {isCopied ? <Check size={13} /> : <Copy size={13} />}
-                        <span>{isCopied ? '¡Códigos copiados al portapapeles!' : 'Copiar códigos de observaciones'}</span>
+                        <span>{isCopied ? '¡Lista copiada al portapapeles!' : 'Copiar lista de observaciones'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="notif-toast-review-btn"
+                        onClick={() => handleReview(toast)}
+                        style={{ background: '#0284c7', color: '#ffffff', border: 'none' }}
+                        title="Ver observaciones en el módulo"
+                      >
+                        <Eye size={13} />
+                        <span>Ver ({items.length})</span>
                       </button>
                     </div>
                   </>

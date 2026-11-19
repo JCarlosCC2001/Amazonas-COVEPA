@@ -58,6 +58,7 @@ export default function AppHeader() {
     clearAllNotifications,
     dismissNotification,
     restoreDismissedNotifications,
+    dispararPruebaSolicitudTecnico,
     dispararPruebaRevision,
     desktopPermission,
     requestDesktopPermission,
@@ -192,12 +193,16 @@ export default function AppHeader() {
                     type="button"
                     className="notif-test-btn"
                     onClick={() => {
-                      dispararPruebaRevision()
+                      if (typeof dispararPruebaSolicitudTecnico === 'function') {
+                        dispararPruebaSolicitudTecnico()
+                      } else {
+                        dispararPruebaRevision()
+                      }
                       setNotifOpen(false)
                     }}
-                    title="Disparar notificación de prueba de observaciones en revisión"
+                    title="Disparar notificación de prueba de solicitud técnica en campo"
                   >
-                    Probar Alerta
+                    Probar Aviso
                   </button>
                   {solicitudes.length > 0 && (
                     <button
@@ -212,6 +217,30 @@ export default function AppHeader() {
                   )}
                 </div>
               </div>
+
+              {desktopPermission !== 'granted' && (
+                <div style={{
+                  padding: '8px 12px',
+                  background: '#eff6ff',
+                  borderBottom: '1px solid #bfdbfe',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px'
+                }}>
+                  <span className="t-meta" style={{ color: '#1e40af' }}>
+                    🔔 Activa las alertas de escritorio en Windows:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={requestDesktopPermission}
+                    className="btn btn-primary t-badge"
+                    style={{ padding: '3px 8px', whiteSpace: 'nowrap' }}
+                  >
+                    Permitir
+                  </button>
+                </div>
+              )}
 
               <div className="notif-popover-list">
                 {solicitudes.length === 0 ? (

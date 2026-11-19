@@ -32,6 +32,7 @@ import { useNotifications } from '../context/NotificationContext'
 import { getCachedSitiosAsignados } from '../services/sitiosService'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 import ErpTable from '../components/shared/ErpTable'
+import ModalConfirmacionEstado, { esEstadoProtegido } from '../components/shared/ModalConfirmacionEstado'
 import { estadoCovepaBadge, hasMeaningfulText, getPeruDateStr, getPeruISOString } from '../utils/helpers'
 
 // ────────────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const [showDemoraBox, setShowDemoraBox] = useState(false)
   const [showHistorial, setShowHistorial] = useState(false)
   const [historialRefreshKey, setHistorialRefreshKey] = useState(0)
+  const [confirmModalData, setConfirmModalData] = useState(null)
   const isDirtyCommentRef = useRef(false)
   const commentValRef = useRef(commentVal)
   commentValRef.current = commentVal
@@ -105,6 +107,8 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const currentRevisor = isEnRevCurrent ? '' : (obsLocal?.revisor || obsLocal?.validado_por || '')
   const currentFecha = isEnRevCurrent ? '' : (obsLocal?.fecha_subsanacion || '')
   const showRevisorYFecha = !isEnRevCurrent
+  const isProtectedCurrent = esEstadoProtegido(currentEstado)
+  const isLockedForNonAdmin = !isAdmin && isProtectedCurrent
 
   // Guardado de comentario en tiempo real (COVEPA)
   const saveCommentNow = useCallback(async () => {
@@ -241,8 +245,41 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleCloseWithAutoSave])
 
+  // Interceptar solicitud de cambio de estado: restringe opciones protegidas a Administrador
+  // y despliega ventana emergente de confirmación ante estados protegidos (Pre-validado, Crítico, Rechazado)
+  const handleRequestEstadoChange = (targetValue) => {
+    if (targetValue === currentEstado) return
+
+    // 1. Regla de seguridad estricta: si la observación ya está en un estado protegido, solo Administrador puede modificarla
+    if (!isAdmin && esEstadoProtegido(currentEstado)) {
+      alert(`Esta observación se encuentra en estado "${currentEstado}". Solo un Administrador tiene autorización para modificar su estado.`)
+      return
+    }
+
+    // 2. Regla de seguridad estricta: solo Administrador puede asignar estados protegidos
+    if (!isAdmin && esEstadoProtegido(targetValue)) {
+      alert('Solo el administrador tiene autorización para asignar los estados Pre-validado, Crítico o Rechazado.')
+      return
+    }
+
+    // 3. Ventanita emergente de confirmación si entra o sale de un estado protegido
+    if (esEstadoProtegido(currentEstado) || esEstadoProtegido(targetValue)) {
+      setConfirmModalData({
+        nuevoEstado: targetValue
+      })
+      return
+    }
+
+    handleSetEstado(targetValue)
+  }
+
   // 1. Cambio de Estado — Flujo idéntico a Programación (sincronización con Control Fotos + Historial)
   const handleSetEstado = async (nuevoEstado) => {
+    // Validar autorización de administrador para estados protegidos (tanto de origen como de destino)
+    if (!isAdmin && (esEstadoProtegido(currentEstado) || esEstadoProtegido(nuevoEstado))) {
+      alert('Solo el administrador tiene autorización para modificar observaciones en estados protegidos (Pre-validado, Crítico o Rechazado).')
+      return
+    }
     setUpdating(true)
     try {
       // 1. Responsable del cambio: SIEMPRE obtenido de la sesión activa
@@ -389,36 +426,61 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
           {/* 1. SECCIÓN PRINCIPAL: GESTIÓN DE AUDITORÍA COVEPA (IDÉNTICO A PROGRAMACIÓN) */}
           <div className="prog-obs-card-item" style={{ border: '1px solid #bae6fd', background: '#f8fbfe', borderRadius: '12px', padding: '1rem' }}>
             <div className="prog-obs-card-header" style={{ marginBottom: '0.65rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-bold)', color: '#003060', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Auditoría COVEPA:
-                </span>
-                <span className={`estado-badge ${estadoCovepaBadge(currentEstado)}`}>
-                  {currentEstado}
-                </span>
-              </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-bold)', color: '#003060', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Auditoría COVEPA:
+                    </span>
+                    <span className={`estado-badge ${estadoCovepaBadge(currentEstado)}`}>
+                      {currentEstado}
+                    </span>
+                    {isLockedForNonAdmin && (
+                      <span
+                        className="meta-pill"
+                        style={{
+                          fontSize: 'var(--text-meta)',
+                          color: '#b91c1c',
+                          background: '#fef2f2',
+                          borderColor: '#fecaca',
+                          fontWeight: 'var(--fw-medium)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                        title="Esta observación está en un estado protegido (Pre-validado, Crítico o Rechazado). Solo un Administrador puede modificarla."
+                      >
+                        🔒 Solo Admin
+                      </span>
+                    )}
+                  </div>
 
-              {/* Selector de Estado interactivo idéntico al de Programación */}
-              <div className="prog-obs-status-select-wrap">
-                <select
-                  value={currentEstado}
-                  disabled={updating || isReadOnly}
-                  onChange={(e) => handleSetEstado(e.target.value)}
-                  className={`prog-obs-status-select status-${(currentEstado || '').toLowerCase().replace(/\s+/g, '-')}`}
-                  style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.9 } : undefined}
-                >
-                  <option value="Pendiente">● Pendiente</option>
-                  <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
-                  <option value="En Revisión">🔍 En Revisión</option>
-                  <option value="Documentación">📄 Documentación</option>
-                  <option value="Pre-validado">📸 Pre-validado</option>
-                  <option value="Validado">✓ Validado</option>
-                  <option value="Crítico">⚠️ Crítico</option>
-                  <option value="Descartado">🚫 Descartado</option>
-                  <option value="Rechazado">✕ Rechazado</option>
-                </select>
-              </div>
-            </div>
+                  {/* Selector de Estado interactivo idéntico al de Programación */}
+                  <div className="prog-obs-status-select-wrap">
+                    <select
+                      value={currentEstado}
+                      disabled={updating || isReadOnly || isLockedForNonAdmin}
+                      onChange={(e) => handleRequestEstadoChange(e.target.value)}
+                      className={`prog-obs-status-select status-${(currentEstado || '').toLowerCase().replace(/\s+/g, '-')}`}
+                      style={(isReadOnly || isLockedForNonAdmin) ? { cursor: 'not-allowed', opacity: 0.85 } : undefined}
+                      title={isLockedForNonAdmin ? `Esta observación está en estado "${currentEstado}". Solo un Administrador puede modificarla.` : undefined}
+                    >
+                      <option value="Pendiente">● Pendiente</option>
+                      <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
+                      <option value="En Revisión">🔍 En Revisión</option>
+                      <option value="Documentación">📄 Documentación</option>
+                      {(isAdmin || currentEstado === 'Pre-validado') && (
+                        <option value="Pre-validado">📸 Pre-validado</option>
+                      )}
+                      <option value="Validado">✓ Validado</option>
+                      {(isAdmin || currentEstado === 'Crítico' || currentEstado === 'Critico') && (
+                        <option value="Crítico">⚠️ Crítico</option>
+                      )}
+                      <option value="Descartado">🚫 Descartado</option>
+                      {(isAdmin || currentEstado === 'Rechazado') && (
+                        <option value="Rechazado">✕ Rechazado</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
 
             {/* Insignia Directa de Último Cambio y Trazabilidad (Exclusivo Administrador) */}
             {isAdmin && (
@@ -759,6 +821,23 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
             )}
           </div>
         </div>
+
+        {/* Ventanita Emergente de Confirmación de Estados Protegidos */}
+        <ModalConfirmacionEstado
+          isOpen={Boolean(confirmModalData)}
+          onClose={() => setConfirmModalData(null)}
+          onConfirm={async () => {
+            const target = confirmModalData?.nuevoEstado
+            setConfirmModalData(null)
+            if (target) await handleSetEstado(target)
+          }}
+          idObs={obsLocal?.id_obs}
+          idSitio={obsLocal?.id_sitio}
+          localidad={localidad}
+          estadoAnterior={currentEstado}
+          estadoNuevo={confirmModalData?.nuevoEstado}
+          loading={updating}
+        />
       </div>
     </div>
   )

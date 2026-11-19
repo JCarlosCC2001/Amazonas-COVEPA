@@ -19,7 +19,8 @@ import {
 } from '../../services/auditoriaSyncService'
 import { getZonaBySiteId } from '../../services/sitiosService'
 import { useAuth } from '../../hooks/useAuth'
-import { hasMeaningfulText, getPeruISOString, getInitials, getCargoClass } from '../../utils/helpers'
+import ModalConfirmacionEstado, { esEstadoProtegido } from '../shared/ModalConfirmacionEstado'
+import { hasMeaningfulText, getPeruDateStr, getPeruISOString, getInitials, getCargoClass } from '../../utils/helpers'
 import { supabase } from '../../lib/supabase'
 // SUBCOMPONENTE: Modal Detalle de Programación y Observaciones
 // Ventana emergente centrada con edición, eliminación, gestión de observaciones
@@ -55,6 +56,7 @@ export default function ModalDetallesProgramacion({
   const [savedDelayId, setSavedDelayId] = useState(null)
   const [expandedHistorialId, setExpandedHistorialId] = useState(null)
   const [historialRefreshKeys, setHistorialRefreshKeys] = useState({})
+  const [confirmModalData, setConfirmModalData] = useState(null)
 
   // Ref con los comentarios y justificaciones modificados (dirty) para autoguardarlos al cerrar
   const dirtyCommentsRef = useRef(new Set())
@@ -121,8 +123,47 @@ export default function ModalDetallesProgramacion({
     loadObs()
   }, [loadObs])
 
+  // Interceptar solicitud de cambio de estado: restringe opciones protegidas a Administrador
+  // y despliega ventana emergente de confirmación ante estados protegidos (Pre-validado, Crítico, Rechazado)
+  const handleRequestEstadoChange = (obs, targetValue) => {
+    const rawSt = obs.estado_covepa ? obs.estado_covepa.trim() : null
+    const currentEstado = rawSt || (obs.fecha_subsanacion ? 'Validado' : 'Pendiente')
+    if (targetValue === currentEstado) return
+
+    // 1. Regla de seguridad estricta: si la observación ya está en un estado protegido, solo Administrador puede modificarla
+    if (!isAdmin && esEstadoProtegido(currentEstado)) {
+      alert(`Esta observación se encuentra en estado "${currentEstado}". Solo un Administrador tiene autorización para modificar su estado.`)
+      return
+    }
+
+    // 2. Regla de seguridad estricta: solo Administrador puede asignar estados protegidos
+    if (!isAdmin && esEstadoProtegido(targetValue)) {
+      alert('Solo el administrador tiene autorización para asignar los estados Pre-validado, Crítico o Rechazado.')
+      return
+    }
+
+    // 3. Ventanita emergente de confirmación si entra o sale de un estado protegido
+    if (esEstadoProtegido(currentEstado) || esEstadoProtegido(targetValue)) {
+      setConfirmModalData({
+        obs,
+        targetValue,
+        currentEstado
+      })
+      return
+    }
+
+    handleSetEstado(obs, targetValue)
+  }
+
   // Acción rápida: Marcar observación (Puente con App de fotos de campo)
   const handleSetEstado = async (obs, nuevoEstado) => {
+    const rawSt = obs.estado_covepa ? obs.estado_covepa.trim() : null
+    const currentEstado = rawSt || (obs.fecha_subsanacion ? 'Validado' : 'Pendiente')
+    // Validar autorización de administrador para estados protegidos (tanto de origen como de destino)
+    if (!isAdmin && (esEstadoProtegido(currentEstado) || esEstadoProtegido(nuevoEstado))) {
+      alert('Solo el administrador tiene autorización para modificar observaciones en estados protegidos (Pre-validado, Crítico o Rechazado).')
+      return
+    }
     setUpdatingId(obs.id_obs)
     try {
       // 1. Responsable del cambio: SIEMPRE obtenido de la sesión activa
@@ -975,6 +1016,8 @@ export default function ModalDetallesProgramacion({
               if (currentEstado === 'Solicitando Revision') currentEstado = 'Solicitando Revisión'
               if (currentEstado === 'Enviado') currentEstado = 'Validado'
               const isUpdating = updatingId === obs.id_obs
+              const isProtectedCurrent = esEstadoProtegido(currentEstado)
+              const isLockedForNonAdmin = !isAdmin && isProtectedCurrent
               const showRevisorYFecha = currentEstado !== 'Pendiente' && currentEstado !== 'Solicitando Revisión' && currentEstado !== 'En Revisión' && currentEstado !== 'En Revision' && currentEstado !== 'Documentación' && currentEstado !== 'Documentacion' && currentEstado !== 'Crítico' && currentEstado !== 'Critico'
 
               return (
@@ -992,25 +1035,50 @@ export default function ModalDetallesProgramacion({
                             Protocolo: <strong>{obs.protocolo}</strong>
                           </span>
                         )}
+                        {isLockedForNonAdmin && (
+                          <span
+                            className="meta-pill"
+                            style={{
+                              fontSize: 'var(--text-meta)',
+                              color: '#b91c1c',
+                              background: '#fef2f2',
+                              borderColor: '#fecaca',
+                              fontWeight: 'var(--fw-medium)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            title="Esta observación está en un estado protegido (Pre-validado, Crítico o Rechazado). Solo un Administrador puede modificarla."
+                          >
+                            🔒 Solo Admin
+                          </span>
+                        )}
                       </div>
 
                       <div className="prog-obs-status-select-wrap">
                         <select
                           value={currentEstado}
-                          disabled={isUpdating || isReadOnly}
-                          onChange={(e) => handleSetEstado(obs, e.target.value)}
+                          disabled={isUpdating || isReadOnly || isLockedForNonAdmin}
+                          onChange={(e) => handleRequestEstadoChange(obs, e.target.value)}
                           className={`prog-obs-status-select status-${(currentEstado || '').toLowerCase().replace(/\s+/g, '-')}`}
-                          style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.9 } : undefined}
+                          style={(isReadOnly || isLockedForNonAdmin) ? { cursor: 'not-allowed', opacity: 0.85 } : undefined}
+                          title={isLockedForNonAdmin ? `Esta observación está en estado "${currentEstado}". Solo un Administrador puede modificarla.` : undefined}
                         >
                           <option value="Pendiente">● Pendiente</option>
                           <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
                           <option value="En Revisión">🔍 En Revisión</option>
                           <option value="Documentación">📄 Documentación</option>
-                          <option value="Pre-validado">📸 Pre-validado</option>
+                          {(isAdmin || currentEstado === 'Pre-validado') && (
+                            <option value="Pre-validado">📸 Pre-validado</option>
+                          )}
                           <option value="Validado">✓ Validado</option>
-                          <option value="Crítico">⚠️ Crítico</option>
+                          {(isAdmin || currentEstado === 'Crítico' || currentEstado === 'Critico') && (
+                            <option value="Crítico">⚠️ Crítico</option>
+                          )}
                           <option value="Descartado">🚫 Descartado</option>
-                          <option value="Rechazado">✕ Rechazado</option>
+                          {(isAdmin || currentEstado === 'Rechazado') && (
+                            <option value="Rechazado">✕ Rechazado</option>
+                          )}
                         </select>
                       </div>
                     </div>
@@ -1064,10 +1132,10 @@ export default function ModalDetallesProgramacion({
                           <Clock size={12} color="#0284c7" />
                           <span>
                             {currentEstado === 'Validado' ? 'F. Validación:' :
-                             currentEstado === 'Pre-validado' ? 'F. Pre-validación:' :
-                             currentEstado === 'Descartado' ? 'F. Descarte:' :
-                             currentEstado === 'Rechazado' ? 'F. Rechazo:' :
-                             currentEstado === 'Enviado' ? 'F. Envío:' : 'Fecha:'}
+                              currentEstado === 'Pre-validado' ? 'F. Pre-validación:' :
+                                currentEstado === 'Descartado' ? 'F. Descarte:' :
+                                  currentEstado === 'Rechazado' ? 'F. Rechazo:' :
+                                    currentEstado === 'Enviado' ? 'F. Envío:' : 'Fecha:'}
                           </span>
                         </label>
                         <input
@@ -1196,82 +1264,82 @@ export default function ModalDetallesProgramacion({
                             </div>
                           </div>
 
-                      {/* Selectores con máscara de tiempo (HH:MM) */}
-                      <div className="time-cluster-grid">
-                        <TimeMaskInput
-                          label="⏱️ Tiempo Real de Ejecución:"
-                          value={tiemposReal[obs.id_obs] ?? ''}
-                          placeholder="00:00"
-                          disabled={!canEditDemoras}
-                          title="Tiempo neto/real trabajado en la subsanación (HH:MM)"
-                          onChange={(val) => {
-                            if (!canEditDemoras) return
-                            handleTimeRealChange(obs.id_obs, val)
-                          }}
-                          onBlur={canEditDemoras ? () => handleBlurTime(obs.id_obs) : undefined}
-                        />
-                        <TimeMaskInput
-                          label="⏳ Tiempo de Ejecución con Demoras:"
-                          value={tiemposDemora[obs.id_obs] ?? ''}
-                          placeholder="00:00"
-                          variant="warning"
-                          disabled={!canEditDemoras}
-                          title="Tiempo total considerando demoras o incidentes (HH:MM)"
-                          onChange={(val) => {
-                            if (!canEditDemoras) return
-                            handleTimeDemoraChange(obs.id_obs, val)
-                          }}
-                          onBlur={canEditDemoras ? () => handleBlurTime(obs.id_obs) : undefined}
-                        />
-                      </div>
+                          {/* Selectores con máscara de tiempo (HH:MM) */}
+                          <div className="time-cluster-grid">
+                            <TimeMaskInput
+                              label="⏱️ Tiempo Real de Ejecución:"
+                              value={tiemposReal[obs.id_obs] ?? ''}
+                              placeholder="00:00"
+                              disabled={!canEditDemoras}
+                              title="Tiempo neto/real trabajado en la subsanación (HH:MM)"
+                              onChange={(val) => {
+                                if (!canEditDemoras) return
+                                handleTimeRealChange(obs.id_obs, val)
+                              }}
+                              onBlur={canEditDemoras ? () => handleBlurTime(obs.id_obs) : undefined}
+                            />
+                            <TimeMaskInput
+                              label="⏳ Tiempo de Ejecución con Demoras:"
+                              value={tiemposDemora[obs.id_obs] ?? ''}
+                              placeholder="00:00"
+                              variant="warning"
+                              disabled={!canEditDemoras}
+                              title="Tiempo total considerando demoras o incidentes (HH:MM)"
+                              onChange={(val) => {
+                                if (!canEditDemoras) return
+                                handleTimeDemoraChange(obs.id_obs, val)
+                              }}
+                              onBlur={canEditDemoras ? () => handleBlurTime(obs.id_obs) : undefined}
+                            />
+                          </div>
 
-                      {(() => {
-                        const diff = diffTimeHHMM(tiemposReal[obs.id_obs], tiemposDemora[obs.id_obs])
-                        if (!diff) return null
-                        return (
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '0.45rem' }}>
-                            {diff.hasDelay && (
-                              <span className="time-diff-badge delay">
-                                ⚠️ Retraso neto: +{diff.formatted} ({diff.diffMins} min adicionales)
+                          {(() => {
+                            const diff = diffTimeHHMM(tiemposReal[obs.id_obs], tiemposDemora[obs.id_obs])
+                            if (!diff) return null
+                            return (
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '0.45rem' }}>
+                                {diff.hasDelay && (
+                                  <span className="time-diff-badge delay">
+                                    ⚠️ Retraso neto: +{diff.formatted} ({diff.diffMins} min adicionales)
+                                  </span>
+                                )}
+                                {diff.isEqual && (
+                                  <span className="time-diff-badge ontime">
+                                    ✓ Ejecutado dentro del plazo regular estimado
+                                  </span>
+                                )}
+                                {diff.isFaster && (
+                                  <span className="time-diff-badge faster">
+                                    ⚡ Finalizado {diff.formatted} antes del tiempo estimado
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })()}
+
+                          <textarea
+                            rows={2}
+                            value={delays[obs.id_obs] ?? ''}
+                            readOnly={!canEditDemoras}
+                            onChange={canEditDemoras ? (e) => handleDelayChange(obs.id_obs, e.target.value) : undefined}
+                            onBlur={canEditDemoras ? () => handleBlurDelay(obs.id_obs) : undefined}
+                            placeholder={!canEditDemoras ? 'Sin justificación de demora registrada.' : 'Si esta observación tomó más tiempo del debido o tuvo incidentes, redacta aquí el sustento técnico (dejar vacío si no hubo problemas de demora)...'}
+                            className="covepa-comment-textarea"
+                            style={{ borderColor: '#fde68a', background: !canEditDemoras ? '#fafafa' : undefined, cursor: !canEditDemoras ? 'default' : undefined }}
+                          />
+                          <div style={{ fontSize: 'var(--text-meta)', marginTop: '0.35rem', color: '#78716c' }}>
+                            {delays[obs.id_obs] && delays[obs.id_obs].trim() ? (
+                              <span style={{ color: '#b45309', fontWeight: 'var(--fw-medium)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <Calendar size={11} color="#b45309" />
+                                {obs.fecha_registro_demora ? `Demora registrada: ${getPeruDateStr(obs.fecha_registro_demora)}` : 'Incidente registrado: observación con retraso justificado'}
                               </span>
-                            )}
-                            {diff.isEqual && (
-                              <span className="time-diff-badge ontime">
-                                ✓ Ejecutado dentro del plazo regular estimado
-                              </span>
-                            )}
-                            {diff.isFaster && (
-                              <span className="time-diff-badge faster">
-                                ⚡ Finalizado {diff.formatted} antes del tiempo estimado
+                            ) : (
+                              <span style={{ color: '#059669', fontWeight: 'var(--fw-medium)' }}>
+                                ✓ Sin incidentes de demora (subsanación en plazo regular)
                               </span>
                             )}
                           </div>
-                        )
-                      })()}
-
-                      <textarea
-                        rows={2}
-                        value={delays[obs.id_obs] ?? ''}
-                        readOnly={!canEditDemoras}
-                        onChange={canEditDemoras ? (e) => handleDelayChange(obs.id_obs, e.target.value) : undefined}
-                        onBlur={canEditDemoras ? () => handleBlurDelay(obs.id_obs) : undefined}
-                        placeholder={!canEditDemoras ? 'Sin justificación de demora registrada.' : 'Si esta observación tomó más tiempo del debido o tuvo incidentes, redacta aquí el sustento técnico (dejar vacío si no hubo problemas de demora)...'}
-                        className="covepa-comment-textarea"
-                        style={{ borderColor: '#fde68a', background: !canEditDemoras ? '#fafafa' : undefined, cursor: !canEditDemoras ? 'default' : undefined }}
-                      />
-                      <div style={{ fontSize: 'var(--text-meta)', marginTop: '0.35rem', color: '#78716c' }}>
-                        {delays[obs.id_obs] && delays[obs.id_obs].trim() ? (
-                          <span style={{ color: '#b45309', fontWeight: 'var(--fw-medium)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <Calendar size={11} color="#b45309" />
-                            {obs.fecha_registro_demora ? `Demora registrada: ${getPeruDateStr(obs.fecha_registro_demora)}` : 'Incidente registrado: observación con retraso justificado'}
-                          </span>
-                        ) : (
-                          <span style={{ color: '#059669', fontWeight: 'var(--fw-medium)' }}>
-                            ✓ Sin incidentes de demora (subsanación en plazo regular)
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                        </div>
                       )
                     })()}
                   </div>
@@ -1280,6 +1348,25 @@ export default function ModalDetallesProgramacion({
             })
           )}
         </div>
+
+        {/* Ventanita Emergente de Confirmación de Estados Protegidos */}
+        <ModalConfirmacionEstado
+          isOpen={Boolean(confirmModalData)}
+          onClose={() => setConfirmModalData(null)}
+          onConfirm={async () => {
+            const { obs, targetValue } = confirmModalData || {}
+            setConfirmModalData(null)
+            if (obs && targetValue) {
+              await handleSetEstado(obs, targetValue)
+            }
+          }}
+          idObs={confirmModalData?.obs?.id_obs}
+          idSitio={confirmModalData?.obs?.id_sitio || currentSitioId}
+          localidad={siteInfo?.localidad || sitiosMap[confirmModalData?.obs?.id_sitio || currentSitioId]?.localidad || ''}
+          estadoAnterior={confirmModalData?.currentEstado}
+          estadoNuevo={confirmModalData?.targetValue}
+          loading={Boolean(updatingId)}
+        />
       </div>
     </div>
   )

@@ -67,29 +67,30 @@ function getAudioContext() {
   return sharedAudioCtx
 }
 
-// Escuchar la primera interacción del usuario para desbloquear el AudioContext limpiamente
+// Escuchar la primera interacción directa del usuario (gesto) para desbloquear el AudioContext limpiamente
 if (typeof window !== 'undefined') {
   const unlockAudio = () => {
-    const ctx = getAudioContext()
-    if (ctx && ctx.state === 'suspended') {
-      ctx.resume().catch(() => {})
-    }
+    try {
+      const ctx = getAudioContext()
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => {})
+      }
+    } catch {}
     window.removeEventListener('click', unlockAudio)
     window.removeEventListener('keydown', unlockAudio)
     window.removeEventListener('touchstart', unlockAudio)
+    window.removeEventListener('pointerdown', unlockAudio)
+    window.removeEventListener('mousedown', unlockAudio)
   }
   window.addEventListener('click', unlockAudio, { passive: true })
   window.addEventListener('keydown', unlockAudio, { passive: true })
   window.addEventListener('touchstart', unlockAudio, { passive: true })
+  window.addEventListener('pointerdown', unlockAudio, { passive: true })
+  window.addEventListener('mousedown', unlockAudio, { passive: true })
 }
 
-/**
- * Sintetizador Web Audio API para campana sutil de notificación
- */
-export function playNotificationChime() {
+function reproducirTonosChime(ctx) {
   try {
-    const ctx = getAudioContext()
-    if (!ctx || ctx.state === 'suspended') return
     const now = ctx.currentTime
 
     // Tono 1: Re 5 (587.33 Hz)
@@ -97,27 +98,73 @@ export function playNotificationChime() {
     const gain1 = ctx.createGain()
     osc1.type = 'sine'
     osc1.frequency.setValueAtTime(587.33, now)
-    gain1.gain.setValueAtTime(0.12, now)
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.32)
+    gain1.gain.setValueAtTime(0.18, now)
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35)
     osc1.connect(gain1)
     gain1.connect(ctx.destination)
     osc1.start(now)
-    osc1.stop(now + 0.32)
+    osc1.stop(now + 0.35)
 
     // Tono 2: La 5 (880.00 Hz) con ligero delay armónico
     const osc2 = ctx.createOscillator()
     const gain2 = ctx.createGain()
     osc2.type = 'sine'
     osc2.frequency.setValueAtTime(880.00, now + 0.11)
-    gain2.gain.setValueAtTime(0.15, now + 0.11)
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55)
+    gain2.gain.setValueAtTime(0.22, now + 0.11)
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.58)
     osc2.connect(gain2)
     gain2.connect(ctx.destination)
     osc2.start(now + 0.11)
-    osc2.stop(now + 0.55)
+    osc2.stop(now + 0.58)
+  } catch (err) {
+    console.warn('[NOTIF-AUDIO] Error sintetizando tonos chime:', err)
+  }
+}
+
+/**
+ * Sintetizador Web Audio API para campana sutil de notificación
+ */
+let lastChimeTime = 0
+export function playNotificationChime() {
+  const now = Date.now()
+  if (now - lastChimeTime < 400) return
+  lastChimeTime = now
+  try {
+    const ctx = getAudioContext()
+    if (!ctx) return
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(() => {
+        reproducirTonosChime(ctx)
+      }).catch(() => {})
+      return
+    }
+    reproducirTonosChime(ctx)
   } catch {
     // Si el contexto de audio se rompió por cambio de dispositivo o renderizador, liberar referencia
     sharedAudioCtx = null
+  }
+}
+
+function reproducirTonosAcumulacion(ctx) {
+  try {
+    const now = ctx.currentTime
+    // 3 tonos armónicos ascendentes: Mi 5 (659.25 Hz), Sol# 5 (830.61 Hz), Si 5 (987.77 Hz)
+    const freqs = [659.25, 830.61, 987.77]
+    freqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      const startT = now + idx * 0.12
+      osc.type = 'triangle'
+      osc.frequency.setValueAtTime(freq, startT)
+      gain.gain.setValueAtTime(0.18, startT)
+      gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.40)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(startT)
+      osc.stop(startT + 0.40)
+    })
+  } catch (err) {
+    console.warn('[NOTIF-AUDIO] Error sintetizando acumulación:', err)
   }
 }
 
@@ -128,24 +175,14 @@ export function playNotificationChime() {
 export function playAccumulationChime() {
   try {
     const ctx = getAudioContext()
-    if (!ctx || ctx.state === 'suspended') return
-    const now = ctx.currentTime
-
-    // 3 tonos armónicos ascendentes: Mi 5 (659.25 Hz), Sol# 5 (830.61 Hz), Si 5 (987.77 Hz)
-    const freqs = [659.25, 830.61, 987.77]
-    freqs.forEach((freq, idx) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      const startT = now + idx * 0.12
-      osc.type = 'triangle'
-      osc.frequency.setValueAtTime(freq, startT)
-      gain.gain.setValueAtTime(0.14, startT)
-      gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.38)
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.start(startT)
-      osc.stop(startT + 0.38)
-    })
+    if (!ctx) return
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(() => {
+        reproducirTonosAcumulacion(ctx)
+      }).catch(() => {})
+      return
+    }
+    reproducirTonosAcumulacion(ctx)
   } catch {
     // Si el contexto de audio se rompió por cambio de dispositivo o renderizador, liberar referencia
     sharedAudioCtx = null
@@ -385,39 +422,54 @@ export async function despacharNotificacionSistema(titulo, options = {}) {
   const notifOptions = {
     icon: '/icon-192.png',
     badge: '/icon-192.png',
-    vibrate: [120, 80, 120, 80, 240],
+    silent: false,
     ...options
   }
 
-  // 4. Intentar vía Service Worker (REQUERIDO en Android Chrome, Edge móvil y Samsung Internet)
+  // 4. Intento PRIMARIO en escritorio (Windows, Mac, Linux):
+  // new Notification() es síncrono, directo y nativo en Windows 10/11 sin requerir Service Worker.
+  // IMPORTANTE: 'actions' SOLO está permitido en persistent notifications de Service Worker.
+  // Si se pasa 'actions' al constructor new Notification(), todos los navegadores basados en Chromium
+  // (Chrome, Edge, Brave, Opera) lanzan un TypeError síncrono y bloquean por completo la notificación en Windows.
+  try {
+    const { actions, vibrate, ...cleanDesktopOptions } = notifOptions
+    const notif = new Notification(titulo, cleanDesktopOptions)
+    if (options?.data?.url) {
+      notif.onclick = () => {
+        try { window.focus() } catch (_) {}
+        window.location.href = options.data.url
+        try { notif.close() } catch (_) {}
+      }
+    }
+    setTimeout(() => {
+      try { notif.close() } catch (_) {}
+    }, 8000)
+
+    // Reproducir timbre armónico suave si no se especificó modo silencioso
+    if (!options.silent) {
+      playNotificationChime()
+    }
+
+    return true
+  } catch (desktopErr) {
+    console.warn('[NOTIF-WINDOW] Intento nativo new Notification falló, probando Service Worker:', desktopErr)
+  }
+
+  // 5. Fallback vía Service Worker (para navegadores móviles Android o PWAs instaladas)
+  // Usamos Promise.race con timeout de 1000ms para NUNCA bloquear la ejecución si el SW no está registrado
   if ('serviceWorker' in navigator) {
     try {
-      const reg = await navigator.serviceWorker.ready
+      const reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 1000))
+      ])
       if (reg && typeof reg.showNotification === 'function') {
         await reg.showNotification(titulo, notifOptions)
         return true
       }
     } catch (swErr) {
-      console.warn('[NOTIF-SW] Error mostrando notificación vía Service Worker, recurriendo a fallback:', swErr)
+      console.warn('[NOTIF-SW] Service Worker no listo o no disponible:', swErr.message)
     }
-  }
-
-  // 5. Fallback con constructor Notification (Windows Desktop, Mac, Linux)
-  try {
-    const notif = new Notification(titulo, notifOptions)
-    if (options?.data?.url) {
-      notif.onclick = () => {
-        window.focus()
-        window.location.href = options.data.url
-        notif.close()
-      }
-    }
-    setTimeout(() => {
-      try { notif.close() } catch (_) {}
-    }, 6000)
-    return true
-  } catch (notifErr) {
-    console.warn('[NOTIF-WINDOW] Error mostrando notificación vía constructor Notification:', notifErr)
   }
 
   return false
@@ -700,12 +752,26 @@ export function NotificationProvider({ children }) {
       }
 
       // Si no es la primera carga y detectamos una nueva solicitud entrante individual
-      if (!isFirstLoadRef.current && isRealtimeAlert) {
+      if (!isFirstLoadRef.current) {
         for (const row of solRows) {
           if (!knownIdsRef.current.has(row.id_obs)) {
             const loc = sitiosMapRef.current[row.id_sitio] || ''
             dispararToast(row, loc)
             dispararNotificacionEscritorio(row, loc)
+            // Marcar como no leída para que aumente el contador y reactivar si estaba descartada
+            setReadIds(prev => {
+              const updated = new Set(prev)
+              updated.delete(row.id_obs)
+              return updated
+            })
+            setDismissedIds(prev => {
+              if (prev.has(row.id_obs)) {
+                const updated = new Set(prev)
+                updated.delete(row.id_obs)
+                return updated
+              }
+              return prev
+            })
             break
           }
         }
@@ -868,18 +934,40 @@ export function NotificationProvider({ children }) {
     }, 1500)
   }, [fetchSolicitudes])
 
-  // Carga inicial y actualización a solicitud (sin intervalos automáticos en segundo plano)
+  // Carga inicial, poller de seguridad ligero y comprobación reactiva al enfocar la ventana
   useEffect(() => {
     if (!userId) return
 
     fetchSolicitudes(false, true)
 
-    // Reconsultar únicamente si la conexión de red se restablece
+    // Poller de seguridad ligero (cada 45 segundos, únicamente si la pestaña está visible)
+    // Garantiza que las alertas de técnicos nunca se pierdan si el WebSocket de Supabase se interrumpe
+    const safetyInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchSolicitudes(true, false)
+      }
+    }, 45000)
+
+    // Reconsultar si la conexión de red se restablece o el usuario regresa a la pestaña
     const handleOnline = () => fetchSolicitudes(true, true)
+    const handleFocusOrVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        const elapsed = Date.now() - (lastFetchTimeRef.current || 0)
+        if (elapsed > 20000) {
+          fetchSolicitudes(true, false)
+        }
+      }
+    }
+
     window.addEventListener('online', handleOnline)
+    window.addEventListener('focus', handleFocusOrVisible)
+    document.addEventListener('visibilitychange', handleFocusOrVisible)
 
     return () => {
+      clearInterval(safetyInterval)
       window.removeEventListener('online', handleOnline)
+      window.removeEventListener('focus', handleFocusOrVisible)
+      document.removeEventListener('visibilitychange', handleFocusOrVisible)
     }
   }, [userId, fetchSolicitudes])
 
@@ -1279,6 +1367,40 @@ export function NotificationProvider({ children }) {
     })
   }, [enRevision, dispararToast])
 
+  // Disparar prueba directa de solicitud de revisión técnica (simula aviso de técnico en campo)
+  const dispararPruebaSolicitudTecnico = useCallback(() => {
+    const mockObs = {
+      id_obs: `PRUEBA-${Math.floor(1000 + Math.random() * 9000)}`,
+      id_sitio: 'AM-0038-A01',
+      estado_covepa: 'Solicitando Revisión',
+      solicitante: 'Daniel Javier Antonio (Técnico en campo)',
+      usuario_nombre: 'Daniel Javier Antonio (Técnico en campo)',
+      revisor: 'Daniel Javier Antonio (Técnico en campo)',
+      fecha_subsanacion: new Date().toISOString(),
+      detalle: 'Levantamiento fotográfico de subsanación completado en campo.'
+    }
+    const loc = sitiosMapRef.current['AM-0038-A01'] || 'PEDRO RUIZ GALLO'
+
+    dispararToast(mockObs, loc)
+    dispararNotificacionEscritorio(mockObs, loc)
+
+    // Agregar momentáneamente a la lista de solicitudes en memoria para prueba visual
+    setSolicitudes(prev => [mockObs, ...prev.filter(r => r.id_obs !== mockObs.id_obs)])
+    setReadIds(prev => {
+      const u = new Set(prev)
+      u.delete(mockObs.id_obs)
+      return u
+    })
+    setDismissedIds(prev => {
+      if (prev.has(mockObs.id_obs)) {
+        const u = new Set(prev)
+        u.delete(mockObs.id_obs)
+        return u
+      }
+      return prev
+    })
+  }, [dispararToast, dispararNotificacionEscritorio])
+
   // Disparar notificación tras el pase masivo de observaciones a En Revisión
   const notificarPaseEnRevision = useCallback(async ({ count, items, codes }) => {
     // Si no hubo observaciones pasadas, notificar con aviso informativo
@@ -1428,10 +1550,12 @@ export function NotificationProvider({ children }) {
   // Exponer globalmente en window para pruebas en cualquier momento
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      window.probarNotificacionTecnico = dispararPruebaSolicitudTecnico
       window.probarNotificacionRevision = dispararPruebaRevision
       window.probarNotificacionReporte = dispararPruebaReporte
+      window.probarSonido = playNotificationChime
     }
-  }, [dispararPruebaRevision, dispararPruebaReporte])
+  }, [dispararPruebaSolicitudTecnico, dispararPruebaRevision, dispararPruebaReporte])
 
   return (
     <NotificationContext.Provider
@@ -1443,6 +1567,7 @@ export function NotificationProvider({ children }) {
         clearAllNotifications,
         dismissNotification,
         restoreDismissedNotifications,
+        dispararPruebaSolicitudTecnico,
         dispararPruebaRevision,
         dispararPruebaReporte,
         reportesNotificaciones: reportesNotif,

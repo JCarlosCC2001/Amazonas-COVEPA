@@ -177,13 +177,13 @@ export default function ModalConfiguracionCuenta({ isOpen, onClose }) {
     playNotificationChime()
     try {
       const notif = new Notification('🔔 Prueba de Notificación COVEPA', {
-        body: 'Notificación de prueba puntual. Se cerrará automáticamente en 3 segundos.',
+        body: 'Notificación de prueba puntual del sistema COVEPA ERP.',
         icon: '/icon-192.png',
         tag: 'covepa-test-user-click'
       })
       setTimeout(() => {
         try { notif.close() } catch (_) {}
-      }, 3000)
+      }, 6000)
     } catch (_) {}
   }
 

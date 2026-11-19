@@ -102,10 +102,10 @@ export default function ModalListaEsperaRevision({
   const handleCopyDetail = async () => {
     if (itemsFiltrados.length === 0) return
     const lineas = itemsFiltrados.map((it, idx) => {
-      const tecnico = it.solicitante || it.usuario_nombre || it.revisor || 'Técnico en campo'
-      return `${idx + 1}. ${it.id_obs} · ${it.id_sitio}${it.localidad ? ` (${it.localidad})` : ''} | Solicita: ${tecnico} | Espera: ${it.waitText}`
+      const revisor = it.revisor || it.solicitante || it.usuario_nombre || 'Auditoría Gilat'
+      return `${idx + 1}. ${it.id_obs} · ${it.id_sitio}${it.localidad ? ` (${it.localidad})` : ''} | En Revisión: ${revisor} | Espera: ${it.waitText}`
     })
-    const fullText = `LISTA DE OBSERVACIONES A LA ESPERA DE REVISIÓN (${itemsFiltrados.length}):\n\n${lineas.join('\n')}`
+    const fullText = `LISTA DE OBSERVACIONES EN REVISIÓN (${itemsFiltrados.length}):\n\n${lineas.join('\n')}`
 
     try {
       if (navigator?.clipboard?.writeText) {
@@ -140,7 +140,7 @@ export default function ModalListaEsperaRevision({
   // Navegar al módulo de observaciones con filtro aplicado
   const handleVerTodasEnModulo = () => {
     onClose()
-    navigate('/observaciones?estado=Solicitando Revisión')
+    navigate('/observaciones?estado=En Revisión')
   }
 
   if (!isOpen) return null
@@ -165,13 +165,13 @@ export default function ModalListaEsperaRevision({
             </div>
             <div>
               <div className="modal-espera-title-row">
-                <h2 className="modal-espera-title">Observaciones a la Espera de Revisión</h2>
+                <h2 className="modal-espera-title">Observaciones en Revisión</h2>
                 <span className="modal-espera-count-badge">
-                  {itemsEnriquecidos.length} {itemsEnriquecidos.length === 1 ? 'pendiente' : 'pendientes'}
+                  {itemsEnriquecidos.length} {itemsEnriquecidos.length === 1 ? 'en revisión' : 'en revisión'}
                 </span>
               </div>
               <p className="modal-espera-subtitle">
-                Solicitudes de revisión enviadas por técnicos de campo que requieren validación por auditoría COVEPA.
+                Observaciones en estado En Revisión a la espera de dictamen o validación técnica por Gilat/Auditoría.
               </p>
             </div>
           </div>
@@ -287,9 +287,9 @@ export default function ModalListaEsperaRevision({
               {itemsEnriquecidos.length === 0 ? (
                 <>
                   <CheckCircle2 size={36} color="#10b981" />
-                  <h3 className="modal-espera-empty-title">¡Sin observaciones a la espera de revisión!</h3>
+                  <h3 className="modal-espera-empty-title">¡Sin observaciones en revisión!</h3>
                   <p className="modal-espera-empty-desc">
-                    Actualmente no hay solicitudes técnicas pendientes por dictaminar en el sistema.
+                    Actualmente no hay observaciones en estado En Revisión en el sistema.
                   </p>
                 </>
               ) : (
@@ -317,7 +317,7 @@ export default function ModalListaEsperaRevision({
                   <tr>
                     <th style={{ width: '130px' }}>Código Obs</th>
                     <th style={{ width: '280px' }}>Sitio y Localidad</th>
-                    <th>Técnico Solicitante</th>
+                    <th>Auditor / Revisor</th>
                     <th style={{ width: '140px' }}>Subsistema</th>
                     <th style={{ width: '150px' }}>Tiempo de Espera</th>
                     <th style={{ width: '110px', textAlign: 'center' }}>Acción</th>
@@ -325,7 +325,7 @@ export default function ModalListaEsperaRevision({
                 </thead>
                 <tbody>
                   {itemsFiltrados.map((item) => {
-                    const solicitanteNombre = item.solicitante || item.usuario_nombre || item.revisor || 'Técnico de Campo'
+                    const revisorNombre = item.revisor || item.solicitante || item.usuario_nombre || 'Auditoría Gilat'
                     const isVeryOld = item.waitMins >= 120
                     const isOld = item.waitMins >= 60 && item.waitMins < 120
 
@@ -353,11 +353,11 @@ export default function ModalListaEsperaRevision({
                           </div>
                         </td>
 
-                        {/* Técnico Solicitante */}
+                        {/* Auditor / Revisor */}
                         <td>
                           <div className="modal-espera-user-cell">
                             <User size={13} color="#64748b" style={{ flexShrink: 0 }} />
-                            <span>{solicitanteNombre}</span>
+                            <span>{revisorNombre}</span>
                           </div>
                         </td>
 
@@ -412,7 +412,7 @@ export default function ModalListaEsperaRevision({
         <div className="modal-espera-footer">
           <div className="modal-espera-footer-left">
             <span className="t-meta" style={{ color: '#64748b' }}>
-              Mostrando <strong>{itemsFiltrados.length}</strong> de <strong>{itemsEnriquecidos.length}</strong> observaciones a la espera de revisión
+              Mostrando <strong>{itemsFiltrados.length}</strong> de <strong>{itemsEnriquecidos.length}</strong> observaciones en revisión
             </span>
           </div>
           <div className="modal-espera-footer-right">

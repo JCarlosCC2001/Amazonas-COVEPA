@@ -1367,21 +1367,21 @@ export function NotificationProvider({ children }) {
     })
   }, [enRevision, dispararToast])
 
-  // Disparar notificación estructurada de observaciones pendientes a la espera de revisión agrupadas por tiempo
+  // Disparar notificación estructurada de observaciones en revisión a la espera de dictamen agrupadas por tiempo
   const notificarObservacionesEnEsperaPorTiempo = useCallback(() => {
-    // Tomar las observaciones activas en 'Solicitando Revisión'
-    const listado = Array.isArray(solicitudes) ? solicitudes : []
+    // Tomar las observaciones activas en 'En Revisión'
+    const listado = Array.isArray(enRevision) ? enRevision : []
     const activas = listado.filter(s => !s.isReporteNotif && !s.isAccumulationAlert)
 
     if (activas.length === 0) {
       dispararToast({
         id_obs: `AVISO-SIN-ESPERA-${Date.now()}`,
         isTransicionVacia: true,
-        titulo: 'Sin observaciones en espera',
-        detalle: '¡Al día! No hay observaciones a la espera de revisión en este momento.'
+        titulo: 'Sin observaciones en revisión',
+        detalle: '¡Al día! No hay observaciones en revisión a la espera de dictamen en este momento.'
       }, '')
-      despacharNotificacionSistema('✅ Sin Observaciones en Espera', {
-        body: 'No hay solicitudes de revisión pendientes en este momento.',
+      despacharNotificacionSistema('✅ Sin Observaciones en Revisión', {
+        body: 'No hay observaciones en revisión en este momento.',
         tag: 'covepa-sin-espera'
       })
       return
@@ -1427,7 +1427,8 @@ export function NotificationProvider({ children }) {
       id_obs: item.id_obs,
       id_sitio: item.id_sitio,
       localidad: sitiosMapRef.current[item.id_sitio] || item.localidad || '',
-      solicitante: item.solicitante || item.usuario_nombre || item.revisor || 'Técnico de Campo',
+      revisor: item.revisor || 'Auditoría Gilat',
+      solicitante: item.solicitante || item.usuario_nombre || item.revisor || 'Auditoría Gilat',
       fecha_subsanacion: item.fecha_subsanacion,
       waitMins: item.waitMins || calcWaitMins(item.fecha_subsanacion)
     }))
@@ -1439,22 +1440,22 @@ export function NotificationProvider({ children }) {
     if (tier1h.length > 0) lineasResumen.push(`• 1 a 2 HORAS: ${tier1h.length} obs`)
     if (tierReciente.length > 0) lineasResumen.push(`• Menos de 1 hora: ${tierReciente.length} obs`)
 
-    const mensajeDetalle = `Hay ${activas.length} observaciones pendientes a la espera de revisión:\n${lineasResumen.join('\n')}\n📍 Más antigua: ${masAntigua.id_sitio}${locMasAntigua ? ` · ${locMasAntigua}` : ''} (${tiempoTxtAntigua})`
+    const mensajeDetalle = `Hay ${activas.length} observaciones en revisión a la espera de dictamen:\n${lineasResumen.join('\n')}\n📍 Más antigua: ${masAntigua.id_sitio}${locMasAntigua ? ` · ${locMasAntigua}` : ''} (${tiempoTxtAntigua})`
 
-    const alertId = `ALERTA-ESPERA-${Date.now()}`
+    const alertId = `ALERTA-EN-REVISION-${Date.now()}`
     const alertObj = {
       id_obs: alertId,
       isAccumulationAlert: true,
       isEsperaPorTiempo: true,
-      tipo: 'espera_solicitando_revision',
-      titulo: `⏱️ ${activas.length} Observaciones a la Espera de Revisión`,
+      tipo: 'espera_en_revision',
+      titulo: `⏱️ ${activas.length} Observaciones en Revisión`,
       count: activas.length,
       detalle: mensajeDetalle,
       id_sitio: masAntigua.id_sitio,
       localidad: locMasAntigua,
-      revisor: masAntigua.solicitante || masAntigua.usuario_nombre || masAntigua.revisor || 'Técnico de Campo',
+      revisor: masAntigua.revisor || 'Auditoría Gilat',
       fecha_subsanacion: masAntigua.fecha_subsanacion,
-      queueType: 'solicitando_revision',
+      queueType: 'auditores',
       resumenTiers,
       items: itemsMapped
     }
@@ -1470,7 +1471,7 @@ export function NotificationProvider({ children }) {
     dispararToast(alertObj, locMasAntigua)
     playAccumulationChime()
 
-    const bodyWindows = `⏱️ ${activas.length} obs pendientes de revisión:\n` +
+    const bodyWindows = `⏱️ ${activas.length} obs en revisión:\n` +
       `${tier12h.length ? `• +12h: ${tier12h.length} ` : ''}` +
       `${tier6h.length ? `• +6h: ${tier6h.length} ` : ''}` +
       `${tier2h.length ? `• +2h: ${tier2h.length} ` : ''}` +
@@ -1478,15 +1479,15 @@ export function NotificationProvider({ children }) {
       `${tierReciente.length ? `• <1h: ${tierReciente.length}` : ''}\n` +
       `📍 Más antigua: ${masAntigua.id_sitio} (${tiempoTxtAntigua})`
 
-    despacharNotificacionSistema(`⏱️ ${activas.length} Observaciones en Espera`, {
+    despacharNotificacionSistema(`⏱️ ${activas.length} Observaciones en Revisión`, {
       body: bodyWindows,
-      tag: 'covepa-alerta-espera-tiempo',
+      tag: 'covepa-alerta-en-revision-espera',
       renotify: true,
       data: {
-        url: '/observaciones?estado=Solicitando%20Revisi%C3%B3n'
+        url: '/observaciones?estado=En%20Revisi%C3%B3n'
       }
     })
-  }, [solicitudes, dispararToast])
+  }, [enRevision, dispararToast])
 
   // Disparar prueba directa de solicitud de revisión técnica (simula aviso de técnico en campo)
   const dispararPruebaSolicitudTecnico = useCallback(() => {

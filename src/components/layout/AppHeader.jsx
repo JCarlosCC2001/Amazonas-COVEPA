@@ -59,6 +59,7 @@ export default function AppHeader() {
   const {
     solicitudes,
     solicitudesEnEspera,
+    enRevision,
     unreadCount,
     readIds,
     dismissedCount,
@@ -66,8 +67,6 @@ export default function AppHeader() {
     dismissNotification,
     restoreDismissedNotifications,
     notificarObservacionesEnEsperaPorTiempo,
-    dispararPruebaSolicitudTecnico,
-    dispararPruebaRevision,
     desktopPermission,
     requestDesktopPermission,
     markAsRead,
@@ -78,27 +77,12 @@ export default function AppHeader() {
   const [notifOpen, setNotifOpen] = useState(false)
   const [copiedAccId, setCopiedAccId] = useState(null)
   const [showModalEspera, setShowModalEspera] = useState(false)
-  const [copiedEsperaQuick, setCopiedEsperaQuick] = useState(false)
   const notifRef = useRef(null)
 
-  // Obtener la lista fidedigna de observaciones en espera de revisión
-  const itemsEspera = useMemo(() => {
-    if (Array.isArray(solicitudesEnEspera) && solicitudesEnEspera.length > 0) {
-      return solicitudesEnEspera
-    }
-    return (solicitudes || []).filter(s => !s.isReporteNotif && !s.isAccumulationAlert)
-  }, [solicitudesEnEspera, solicitudes])
-
-  // Copiar rápidamente todos los códigos a la espera de revisión
-  const handleCopyAllEspera = async (e) => {
-    if (e) e.stopPropagation()
-    if (itemsEspera.length === 0) return
-    const ok = await copyPlainCodesList(itemsEspera)
-    if (ok) {
-      setCopiedEsperaQuick(true)
-      setTimeout(() => setCopiedEsperaQuick(false), 2500)
-    }
-  }
+  // Obtener la lista fidedigna de observaciones en estado 'En Revisión'
+  const itemsEnRevision = useMemo(() => {
+    return Array.isArray(enRevision) ? enRevision : []
+  }, [enRevision])
 
   // Cerrar popover de notificaciones al hacer clic afuera
   useEffect(() => {
@@ -226,25 +210,9 @@ export default function AppHeader() {
                       notificarObservacionesEnEsperaPorTiempo()
                       setNotifOpen(false)
                     }}
-                    title="Notificar la cantidad de observaciones pendientes agrupadas por tiempo de espera con opción de copiado"
+                    title="Notificar la cantidad de observaciones en revisión agrupadas por tiempo de espera con opción de copiado"
                   >
-                    Avisar Espera
-                  </button>
-
-                  <button
-                    type="button"
-                    className="notif-test-btn"
-                    onClick={() => {
-                      if (typeof dispararPruebaSolicitudTecnico === 'function') {
-                        dispararPruebaSolicitudTecnico()
-                      } else {
-                        dispararPruebaRevision()
-                      }
-                      setNotifOpen(false)
-                    }}
-                    title="Disparar notificación de prueba de solicitud técnica en campo"
-                  >
-                    Probar Aviso
+                    Avisar Espera ({itemsEnRevision.length})
                   </button>
                   {solicitudes.length > 0 && (
                     <button
@@ -260,7 +228,7 @@ export default function AppHeader() {
                 </div>
               </div>
 
-              {/* Barra de Acceso Rápido: Notificar Espera por Tiempo y Ver Lista */}
+              {/* Barra de Acceso Rápido: Aviso de Espera y Ver Lista */}
               <div className="notif-espera-quickbar">
                 <button
                   type="button"
@@ -269,10 +237,10 @@ export default function AppHeader() {
                     notificarObservacionesEnEsperaPorTiempo()
                     setNotifOpen(false)
                   }}
-                  title="Notificar la cantidad de observaciones pendientes agrupadas por tiempo de espera con botón para copiar la lista"
+                  title="Notificar la cantidad de observaciones en revisión agrupadas por tiempo de espera con botón para copiar la lista"
                 >
                   <Clock size={13} color="#ea580c" />
-                  <span><strong>Notificar Espera por Tiempo</strong> ({itemsEspera.length})</span>
+                  <span><strong>Aviso de Espera</strong> ({itemsEnRevision.length})</span>
                 </button>
 
                 <button
@@ -282,10 +250,10 @@ export default function AppHeader() {
                     setNotifOpen(false)
                     setShowModalEspera(true)
                   }}
-                  title="Abrir la lista interactiva de todas las observaciones a la espera de revisión"
+                  title="Abrir la lista interactiva de observaciones en estado En Revisión"
                 >
                   <ClipboardList size={13} />
-                  <span>Ver Lista</span>
+                  <span>Ver Lista ({itemsEnRevision.length})</span>
                 </button>
               </div>
 
@@ -615,11 +583,11 @@ export default function AppHeader() {
         </div>
       </div>
 
-      {/* Modal de Lista de Observaciones a la Espera de Revisión */}
+      {/* Modal de Lista de Observaciones en Revisión */}
       <ModalListaEsperaRevision
         isOpen={showModalEspera}
         onClose={() => setShowModalEspera(false)}
-        observaciones={itemsEspera}
+        observaciones={itemsEnRevision}
         sitiosMap={sitiosMap}
       />
     </header>

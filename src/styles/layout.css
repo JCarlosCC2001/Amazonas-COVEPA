@@ -2292,3 +2292,643 @@
     display: inline-flex;
   }
 }
+
+/* ==========================================================================
+   BARRA DE ACCESO RÁPIDO: LISTA DE ESPERA (POPOVER NOTIFICACIONES)
+   ========================================================================== */
+.notif-espera-quickbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #fff7ed;
+  border-bottom: 1px solid #fed7aa;
+}
+
+.notif-btn-ver-espera {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: #ffffff;
+  border: 1px solid #fdba74;
+  border-radius: 6px;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: #9a3412;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(234, 88, 12, 0.08);
+}
+
+.notif-btn-ver-espera:hover {
+  background: #ffedd5;
+  border-color: #f97316;
+  color: #7c2d12;
+  transform: translateY(-1px);
+}
+
+.notif-btn-copiar-espera {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 9px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.notif-btn-copiar-espera:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.notif-btn-copiar-espera.is-copied {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+  font-weight: var(--fw-semibold);
+}
+
+.notif-btn-copiar-espera:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.notif-popover-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.notif-footer-espera-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  color: #ea580c;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.notif-footer-espera-btn:hover {
+  background: #ffedd5;
+  border-color: #f97316;
+  color: #c2410c;
+}
+
+/* ==========================================================================
+   MODAL DE OBSERVACIONES A LA ESPERA DE REVISIÓN
+   ========================================================================== */
+.modal-espera-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-espera-card {
+  background: #ffffff;
+  width: 100%;
+  max-width: 980px;
+  max-height: 90vh;
+  border-radius: 14px;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalEsperaSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalEsperaSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-espera-header {
+  padding: 1.15rem 1.35rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.modal-espera-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.modal-espera-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.modal-espera-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.modal-espera-title {
+  margin: 0;
+  font-size: var(--text-title-section);
+  font-weight: var(--fw-bold);
+  color: #003060;
+  line-height: 1.25;
+}
+
+.modal-espera-count-badge {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+  border-radius: 20px;
+  padding: 2px 9px;
+  font-size: var(--text-badge);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.modal-espera-subtitle {
+  margin: 0.25rem 0 0 0;
+  font-size: var(--text-meta);
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.modal-espera-close-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.modal-espera-close-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.modal-espera-toolbar {
+  padding: 0.85rem 1.35rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-espera-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 260px;
+}
+
+.modal-espera-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.modal-espera-search-input {
+  width: 100%;
+  padding: 7px 30px 7px 32px;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: #1e293b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.modal-espera-search-input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.modal-espera-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.modal-espera-search-clear:hover {
+  color: #475569;
+}
+
+.modal-espera-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.modal-espera-btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: #ffffff;
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+  border: 1px solid #c2410c;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(234, 88, 12, 0.25);
+  white-space: nowrap;
+}
+
+.modal-espera-btn-action:hover:not(:disabled) {
+  background: linear-gradient(135deg, #c2410c 0%, #9a3412 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(234, 88, 12, 0.35);
+}
+
+.modal-espera-btn-action.is-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-color: #059669;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.25);
+}
+
+.modal-espera-btn-action.secondary {
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.modal-espera-btn-action.secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.modal-espera-btn-action.secondary.is-success {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.modal-espera-btn-action.link {
+  background: transparent;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+  box-shadow: none;
+}
+
+.modal-espera-btn-action.link:hover:not(:disabled) {
+  background: #f0f9ff;
+  border-color: #0284c7;
+  color: #0369a1;
+}
+
+.modal-espera-btn-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-espera-chips-row {
+  padding: 0.5rem 1.35rem;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+}
+
+.modal-espera-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-meta);
+  font-weight: var(--fw-semibold);
+  color: #64748b;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.modal-espera-chip {
+  padding: 3px 10px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-family: var(--font-sans);
+  font-size: var(--text-meta);
+  font-weight: var(--fw-medium);
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.modal-espera-chip:hover {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+
+.modal-espera-chip.active {
+  background: #003060;
+  color: #ffffff;
+  border-color: #003060;
+  font-weight: var(--fw-bold);
+}
+
+.modal-espera-chip.chip-urgente.active {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+
+.modal-espera-chip.chip-alerta.active {
+  background: #d97706;
+  border-color: #d97706;
+  color: #ffffff;
+}
+
+.modal-espera-chip.chip-reciente.active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+
+.modal-espera-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 240px;
+  max-height: 520px;
+}
+
+.modal-espera-table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.modal-espera-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: var(--text-body);
+}
+
+.modal-espera-table th {
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-bottom: 2px solid #e2e8f0;
+  font-size: var(--text-meta);
+  font-weight: var(--fw-bold);
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.modal-espera-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.modal-espera-table tr:hover td {
+  background: #f8fafc;
+}
+
+.modal-espera-table tr.row-urgente td {
+  background: #fffbfb;
+}
+
+.modal-espera-table tr.row-urgente:hover td {
+  background: #fef2f2;
+}
+
+.modal-espera-code-cell {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  color: #003060;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-block;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-variant-numeric: tabular-nums;
+}
+
+.modal-espera-code-cell:hover {
+  background: #003060;
+  color: #ffffff;
+  border-color: #003060;
+}
+
+.modal-espera-site-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: #1e293b;
+}
+
+.modal-espera-site-cell strong {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  color: #0f172a;
+}
+
+.modal-espera-user-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: #475569;
+  font-weight: var(--fw-medium);
+}
+
+.modal-espera-subsistema-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: var(--text-badge);
+  font-weight: var(--fw-semibold);
+  color: #475569;
+  white-space: nowrap;
+}
+
+.modal-espera-time-cell {
+  display: flex;
+  align-items: center;
+}
+
+.modal-espera-time-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: var(--text-badge);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.modal-espera-time-badge.time-urgente {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.modal-espera-time-badge.time-alerta {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+}
+
+.modal-espera-time-badge.time-normal {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+}
+
+.modal-espera-revisar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: #0284c7;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.modal-espera-revisar-btn:hover {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  transform: translateX(1px);
+}
+
+.modal-espera-empty {
+  padding: 3rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.modal-espera-empty-title {
+  margin: 0.75rem 0 0.25rem 0;
+  font-size: var(--text-subtitle);
+  font-weight: var(--fw-bold);
+  color: #1e293b;
+}
+
+.modal-espera-empty-desc {
+  margin: 0;
+  font-size: var(--text-meta);
+  color: #64748b;
+  max-width: 420px;
+}
+
+.modal-espera-footer {
+  padding: 0.85rem 1.35rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.modal-espera-btn-close {
+  padding: 6px 16px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.modal-espera-btn-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+

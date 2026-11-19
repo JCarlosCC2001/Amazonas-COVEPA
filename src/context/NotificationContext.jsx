@@ -1562,6 +1562,8 @@ export function NotificationProvider({ children }) {
       value={{
         solicitudes: unifiedNotifications,
         totalSolicitudes: unifiedNotifications.length,
+        solicitudesEnEspera: solicitudes,
+        enRevision,
         unreadCount,
         dismissedCount,
         clearAllNotifications,

@@ -1,14 +1,20 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell, Eye, EyeOff, CheckCircle2,
   X, ExternalLink, Clock, MapPin,
   User, Trash2, RotateCcw, AlertTriangle,
-  Copy, Check, Mail
+  Copy, Check, Mail, ClipboardList
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { usePresentationMode } from '../../context/PresentationContext'
-import { useNotifications, formatTiempoRelativo, copyObservacionesList } from '../../context/NotificationContext'
+import {
+  useNotifications,
+  formatTiempoRelativo,
+  copyObservacionesList,
+  copyPlainCodesList
+} from '../../context/NotificationContext'
+import ModalListaEsperaRevision from '../shared/ModalListaEsperaRevision'
 
 const PAGE_META = {
   '/': {
@@ -52,6 +58,7 @@ export default function AppHeader() {
   const { user } = useAuth()
   const {
     solicitudes,
+    solicitudesEnEspera,
     unreadCount,
     readIds,
     dismissedCount,
@@ -69,7 +76,28 @@ export default function AppHeader() {
 
   const [notifOpen, setNotifOpen] = useState(false)
   const [copiedAccId, setCopiedAccId] = useState(null)
+  const [showModalEspera, setShowModalEspera] = useState(false)
+  const [copiedEsperaQuick, setCopiedEsperaQuick] = useState(false)
   const notifRef = useRef(null)
+
+  // Obtener la lista fidedigna de observaciones en espera de revisión
+  const itemsEspera = useMemo(() => {
+    if (Array.isArray(solicitudesEnEspera) && solicitudesEnEspera.length > 0) {
+      return solicitudesEnEspera
+    }
+    return (solicitudes || []).filter(s => !s.isReporteNotif && !s.isAccumulationAlert)
+  }, [solicitudesEnEspera, solicitudes])
+
+  // Copiar rápidamente todos los códigos a la espera de revisión
+  const handleCopyAllEspera = async (e) => {
+    if (e) e.stopPropagation()
+    if (itemsEspera.length === 0) return
+    const ok = await copyPlainCodesList(itemsEspera)
+    if (ok) {
+      setCopiedEsperaQuick(true)
+      setTimeout(() => setCopiedEsperaQuick(false), 2500)
+    }
+  }
 
   // Cerrar popover de notificaciones al hacer clic afuera
   useEffect(() => {
@@ -216,6 +244,33 @@ export default function AppHeader() {
                     </button>
                   )}
                 </div>
+              </div>
+
+              {/* Barra de Acceso Rápido: Lista de Espera y Copiado Inmediato de Códigos */}
+              <div className="notif-espera-quickbar">
+                <button
+                  type="button"
+                  className="notif-btn-ver-espera"
+                  onClick={() => {
+                    setNotifOpen(false)
+                    setShowModalEspera(true)
+                  }}
+                  title="Abrir la lista interactiva de todas las observaciones a la espera de revisión"
+                >
+                  <ClipboardList size={13} color="#ea580c" />
+                  <span><strong>Lista en Espera</strong> ({itemsEspera.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`notif-btn-copiar-espera ${copiedEsperaQuick ? 'is-copied' : ''}`}
+                  onClick={handleCopyAllEspera}
+                  disabled={itemsEspera.length === 0}
+                  title="Copiar lista de códigos de todas las observaciones en espera (uno por línea)"
+                >
+                  {copiedEsperaQuick ? <Check size={12} /> : <Copy size={12} />}
+                  <span>{copiedEsperaQuick ? '¡Códigos Copiados!' : 'Copiar Códigos'}</span>
+                </button>
               </div>
 
               {desktopPermission !== 'granted' && (
@@ -484,19 +539,42 @@ export default function AppHeader() {
                   {unreadCount > 0 ? `${unreadCount} sin leer` : 'Todas leídas'}
                   {dismissedCount > 0 ? ` · ${dismissedCount} limpiadas` : ''}
                 </span>
-                <button
-                  type="button"
-                  className="notif-view-all-btn"
-                  onClick={handleViewAll}
-                >
-                  <span>Ver todas en Observaciones</span>
-                  <ExternalLink size={12} />
-                </button>
+                <div className="notif-popover-footer-actions">
+                  <button
+                    type="button"
+                    className="notif-footer-espera-btn"
+                    onClick={() => {
+                      setNotifOpen(false)
+                      setShowModalEspera(true)
+                    }}
+                    title="Ver lista interactiva de observaciones a la espera de revisión"
+                  >
+                    <ClipboardList size={12} />
+                    <span>Ver Lista</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="notif-view-all-btn"
+                    onClick={handleViewAll}
+                    title="Ir a la tabla del módulo de Observaciones"
+                  >
+                    <span>Ir a Observaciones</span>
+                    <ExternalLink size={12} />
+                  </button>
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Modal de Lista de Observaciones a la Espera de Revisión */}
+      <ModalListaEsperaRevision
+        isOpen={showModalEspera}
+        onClose={() => setShowModalEspera(false)}
+        observaciones={itemsEspera}
+        sitiosMap={sitiosMap}
+      />
     </header>
   )
 }

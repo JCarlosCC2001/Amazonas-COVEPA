@@ -4,7 +4,7 @@ import {
   Bell, Eye, EyeOff, CheckCircle2,
   X, ExternalLink, Clock, MapPin,
   User, Trash2, RotateCcw, AlertTriangle,
-  Copy, Check, Mail, ClipboardList
+  Copy, Check, Mail, ClipboardList, FileText
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { usePresentationMode } from '../../context/PresentationContext'
@@ -60,6 +60,7 @@ export default function AppHeader() {
     solicitudes,
     solicitudesEnEspera,
     enRevision,
+    enDocumentacion,
     unreadCount,
     readIds,
     dismissedCount,
@@ -83,6 +84,11 @@ export default function AppHeader() {
   const itemsEnRevision = useMemo(() => {
     return Array.isArray(enRevision) ? enRevision : []
   }, [enRevision])
+
+  // Obtener la lista de observaciones en estado 'Documentación'
+  const itemsDocumentacion = useMemo(() => {
+    return Array.isArray(enDocumentacion) ? enDocumentacion : []
+  }, [enDocumentacion])
 
   // Cerrar popover de notificaciones al hacer clic afuera
   useEffect(() => {
@@ -254,6 +260,19 @@ export default function AppHeader() {
                 >
                   <ClipboardList size={13} />
                   <span>Ver Lista ({itemsEnRevision.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="notif-btn-ver-doc"
+                  onClick={() => {
+                    setNotifOpen(false)
+                    navigate('/observaciones?estado=Documentación')
+                  }}
+                  title="Abrir lista de observaciones en el Área de Documentación"
+                >
+                  <FileText size={13} color="#9333ea" />
+                  <span><strong>Doc</strong> ({itemsDocumentacion.length})</span>
                 </button>
               </div>
 
@@ -481,20 +500,24 @@ export default function AppHeader() {
 
                     const isUnread = !readIds.has(obs.id_obs)
                     const loc = sitiosMap[obs.id_sitio] || ''
+                    const isDoc = Boolean(obs.isDocumentacion)
+
                     return (
                       <div
                         key={obs.id_obs}
-                        className={`notif-item notif-item-solicitud ${isUnread ? 'is-unread' : ''}`}
+                        className={`notif-item notif-item-solicitud ${isDoc ? 'item-documentacion' : ''} ${isUnread ? 'is-unread' : ''}`}
                         onClick={() => handleSelectNotif(obs)}
-                        title="Clic para ver detalle de la observación"
+                        title={isDoc ? 'Clic para ver detalle en Documentación' : 'Clic para ver detalle de la observación'}
                       >
-                        <div className="notif-item-icon icon-solicitud">
-                          <Clock size={16} />
+                        <div className={`notif-item-icon ${isDoc ? 'icon-documentacion' : 'icon-solicitud'}`}>
+                          {isDoc ? <FileText size={16} /> : <Clock size={16} />}
                         </div>
                         <div className="notif-item-content">
                           <div className="notif-solicitud-top">
                             <span className="notif-obs-code">{obs.id_obs}</span>
-                            <span className="notif-status-badge">Solicita Revisión</span>
+                            <span className={`notif-status-badge ${isDoc ? 'badge-documentacion-pill' : ''}`}>
+                              {isDoc ? 'Documentación' : 'Solicita Revisión'}
+                            </span>
                           </div>
 
                           <div className="notif-site-line">
@@ -504,9 +527,15 @@ export default function AppHeader() {
 
                           {(obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor) && (
                             <div className="notif-requester-line">
-                              <User size={11} color="#0284c7" />
-                              <span>Solicita: <strong>{obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor}</strong></span>
+                              <User size={11} color={isDoc ? '#9333ea' : '#0284c7'} />
+                              <span>{isDoc ? 'Enviado por: ' : 'Solicita: '}<strong>{obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor}</strong></span>
                             </div>
+                          )}
+
+                          {obs.detalle && (
+                            <p style={{ margin: '2px 0 0', fontSize: 'var(--text-xs)', color: '#64748b', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                              {obs.detalle}
+                            </p>
                           )}
 
                           <span className="notif-time-ago">

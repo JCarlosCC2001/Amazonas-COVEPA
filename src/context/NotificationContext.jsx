@@ -478,6 +478,7 @@ export async function despacharNotificacionSistema(titulo, options = {}) {
 export function NotificationProvider({ children }) {
   const [solicitudes, setSolicitudes] = useState([]) // Técnicos: Solicitando Revisión
   const [enRevision, setEnRevision] = useState([])     // Auditores: En Revisión
+  const [enDocumentacion, setEnDocumentacion] = useState([]) // Área de Documentación
   const [reportesNotif, setReportesNotif] = useState([]) // Reportes automáticos despachados
   const lastReporteEnvioRef = useRef({})
   const [accumulationAlert, setAccumulationAlert] = useState(null) // Alerta de acumulación consolidada
@@ -552,6 +553,26 @@ export function NotificationProvider({ children }) {
   const dispararNotificacionEscritorio = useCallback(async (obs, localidad) => {
     const locText = localidad ? ` · ${localidad}` : ''
     const personaSolicitante = obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor || resolverTecnicoDeSitio(obs.id_sitio) || ''
+
+    if (obs.isDocumentacion) {
+      const solicitanteText = personaSolicitante ? `👤 Enviado a Documentación por: ${personaSolicitante}` : '👤 Enviado a Documentación desde campo'
+      const detalleResumen = obs.detalle ? `\n📝 ${obs.detalle.slice(0, 95)}${obs.detalle.length > 95 ? '...' : ''}` : ''
+
+      await despacharNotificacionSistema(`📄 Documentación: ${obs.id_obs}`, {
+        body: `📍 ${obs.id_sitio}${locText}\n${solicitanteText}${detalleResumen}`,
+        tag: `covepa-doc-${obs.id_obs}`,
+        renotify: true,
+        data: {
+          url: `/observaciones?search=${encodeURIComponent(obs.id_obs)}`
+        },
+        actions: [
+          { action: 'open_obs', title: '🔍 Ver observación' },
+          { action: 'dismiss', title: '✖ Cerrar' }
+        ]
+      })
+      return
+    }
+
     const solicitanteText = personaSolicitante ? `👤 Solicitado por: ${personaSolicitante}` : '👤 Solicitud técnica en campo'
     const detalleResumen = obs.detalle ? `\n📝 ${obs.detalle.slice(0, 95)}${obs.detalle.length > 95 ? '...' : ''}` : ''
 
@@ -694,58 +715,71 @@ export function NotificationProvider({ children }) {
   const fetchSolicitudes = useCallback(async (isRealtimeAlert = false, includeReportes = false) => {
     if (!userId) return
     try {
-      // 1 y 2. Consulta UNIFICADA para Solicitando Revisión y En Revisión (50% menos peticiones a la BD)
+      // 1 y 2. Consulta UNIFICADA para Solicitando Revisión, En Revisión y Documentación
       const { data: activeObsData, error: obsErr } = await supabase
         .from('observaciones')
-        .select('id_obs, id_sitio, estado_covepa, revisor, fecha_subsanacion, subsistema')
-        .in('estado_covepa', ['Solicitando Revisión', 'Solicitando Revision', 'En Revisión', 'En Revision'])
+        .select('id_obs, id_sitio, estado_covepa, revisor, fecha_subsanacion, subsistema, comentario_covepa')
+        .in('estado_covepa', ['Solicitando Revisión', 'Solicitando Revision', 'En Revisión', 'En Revision', 'Documentación', 'Documentacion'])
         .order('fecha_subsanacion', { ascending: true }) // De más antigua a más reciente
 
       if (obsErr) console.warn('[NOTIF-FETCH] Error consultando observaciones activas:', obsErr.message)
 
       const solRows = []
       const revRows = []
+      const docRows = []
       ;(activeObsData || []).forEach(row => {
-        const st = row.estado_covepa || ''
-        if (st === 'Solicitando Revisión' || st === 'Solicitando Revision') {
+        const st = (row.estado_covepa || '').toLowerCase()
+        if (st.includes('solicitando')) {
           solRows.push(row)
+        } else if (st.includes('documentac')) {
+          docRows.push(row)
         } else {
           revRows.push(row)
         }
       })
 
-      // ── ENRIQUECER SOLICITUDES Y EN REVISIÓN CON HORA EXACTA DE ENTRADA Y RESPONSABLE DESDE HISTORIAL ──
-      const allActiveRows = [...solRows, ...revRows]
+      // ── ENRIQUECER SOLICITUDES, EN REVISIÓN Y DOCUMENTACIÓN CON HORA EXACTA Y RESPONSABLE ──
+      const allActiveRows = [...solRows, ...revRows, ...docRows]
       if (allActiveRows.length > 0) {
         try {
           const obsIds = allActiveRows.map(r => r.id_obs)
           const { data: histData } = await supabase
             .from('historial_estados_observaciones')
-            .select('id_obs, estado_anterior, estado_nuevo, usuario_nombre, created_at, comentario')
+            .select('id_obs, estado_anterior, estado_nuevo, usuario_nombre, created_at, comentario, origen')
             .in('id_obs', obsIds)
-            .in('estado_nuevo', ['Solicitando Revisión', 'Solicitando Revision', 'En Revisión', 'En Revision'])
+            .in('estado_nuevo', ['Solicitando Revisión', 'Solicitando Revision', 'En Revisión', 'En Revision', 'Documentación', 'Documentacion'])
             .order('created_at', { ascending: false })
 
           const solHistMap = {}
           const revHistMap = {}
+          const docHistMap = {}
 
           if (Array.isArray(histData)) {
             histData.forEach(h => {
               if (!h.id_obs) return
               const com = (h.comentario || '').trim().toLowerCase()
               if (com.includes('edición de comentario') || com.includes('edicion de comentario') || com === 'comentario covepa eliminado') return
-              const stNew = (h.estado_nuevo || '').trim()
-              const stOld = (h.estado_anterior || '').trim()
-              if (stOld && stOld.toLowerCase() === stNew.toLowerCase()) return
+              const stNew = (h.estado_nuevo || '').trim().toLowerCase()
+              const stOld = (h.estado_anterior || '').trim().toLowerCase()
+              if (stOld && stOld === stNew) return
 
-              if (stNew === 'Solicitando Revisión' || stNew === 'Solicitando Revision') {
+              if (stNew.includes('solicitando')) {
                 if (!solHistMap[h.id_obs]) {
                   solHistMap[h.id_obs] = {
                     usuario_nombre: h.usuario_nombre,
                     created_at: h.created_at
                   }
                 }
-              } else if (stNew === 'En Revisión' || stNew === 'En Revision') {
+              } else if (stNew.includes('documentac')) {
+                if (!docHistMap[h.id_obs]) {
+                  docHistMap[h.id_obs] = {
+                    usuario_nombre: h.usuario_nombre,
+                    created_at: h.created_at,
+                    comentario: h.comentario,
+                    origen: h.origen
+                  }
+                }
+              } else if (stNew.includes('revisi')) {
                 if (!revHistMap[h.id_obs]) {
                   revHistMap[h.id_obs] = {
                     usuario_nombre: h.usuario_nombre,
@@ -779,9 +813,25 @@ export function NotificationProvider({ children }) {
             }
           })
 
+          docRows.forEach(row => {
+            const hInfo = docHistMap[row.id_obs]
+            const nombreSolicitante = hInfo?.usuario_nombre || resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
+            row.solicitante = nombreSolicitante
+            row.usuario_nombre = nombreSolicitante
+            row.revisor = null
+            row.isDocumentacion = true
+            row.origen = hInfo?.origen || null
+            row.detalle = hInfo?.comentario || row.comentario_covepa || 'Solicitud de elaboración de documentación técnica enviada desde campo.'
+            if (hInfo?.created_at) {
+              row.fecha_entrada_estado = hInfo.created_at
+              row.fecha_subsanacion = hInfo.created_at
+            }
+          })
+
           // Reordenar de más antigua a más reciente según su hora real de entrada al estado actual
           solRows.sort((a, b) => new Date(a.fecha_subsanacion || 0) - new Date(b.fecha_subsanacion || 0))
           revRows.sort((a, b) => new Date(a.fecha_subsanacion || 0) - new Date(b.fecha_subsanacion || 0))
+          docRows.sort((a, b) => new Date(a.fecha_subsanacion || 0) - new Date(b.fecha_subsanacion || 0))
         } catch (e) {
           console.warn('[NOTIF-ENRICH] Error enriqueciendo historial de estados activos:', e)
           solRows.forEach(row => {
@@ -790,17 +840,22 @@ export function NotificationProvider({ children }) {
             row.usuario_nombre = fallback
             row.revisor = fallback
           })
+          docRows.forEach(row => {
+            const fallback = resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
+            row.solicitante = fallback
+            row.usuario_nombre = fallback
+            row.isDocumentacion = true
+          })
         }
       }
 
-      // Si no es la primera carga y detectamos una nueva solicitud entrante individual
+      // Si no es la primera carga y detectamos una nueva solicitud entrante individual (Solicitando o Documentación de campo)
       if (!isFirstLoadRef.current) {
         for (const row of solRows) {
           if (!knownIdsRef.current.has(row.id_obs)) {
             const loc = sitiosMapRef.current[row.id_sitio] || ''
             dispararToast(row, loc)
             dispararNotificacionEscritorio(row, loc)
-            // Marcar como no leída para que aumente el contador y reactivar si estaba descartada
             setReadIds(prev => {
               const updated = new Set(prev)
               updated.delete(row.id_obs)
@@ -817,16 +872,55 @@ export function NotificationProvider({ children }) {
             break
           }
         }
+
+        // Opción 2: Para documentación, solo alertar si proviene de campo
+        for (const row of docRows) {
+          if (!knownIdsRef.current.has(row.id_obs)) {
+            const esDeCampo = row.origen === 'app_fotos' ||
+              (row.detalle && row.detalle.toLowerCase().includes('documentación técnica')) ||
+              (row.detalle && row.detalle.toLowerCase().includes('documentacion tecnica'))
+            if (esDeCampo) {
+              const loc = sitiosMapRef.current[row.id_sitio] || ''
+              dispararToast(row, loc)
+              dispararNotificacionEscritorio(row, loc)
+              setReadIds(prev => {
+                const updated = new Set(prev)
+                updated.delete(row.id_obs)
+                return updated
+              })
+              setDismissedIds(prev => {
+                if (prev.has(row.id_obs)) {
+                  const updated = new Set(prev)
+                  updated.delete(row.id_obs)
+                  return updated
+                }
+                return prev
+              })
+              break
+            }
+          }
+        }
       }
 
       // Evaluar si se han acumulado (5+ con > 10 min de espera) de forma silenciosa en carga inicial
       evaluarAlertasAcumulacion(solRows, revRows, isRealtimeAlert && !isFirstLoadRef.current)
 
-      knownIdsRef.current = new Set([...solRows.map(r => r.id_obs), ...revRows.map(r => r.id_obs)])
+      knownIdsRef.current = new Set([
+        ...solRows.map(r => r.id_obs),
+        ...revRows.map(r => r.id_obs),
+        ...docRows.map(r => r.id_obs)
+      ])
       isFirstLoadRef.current = false
 
-      setSolicitudes(solRows)
+      // En la bandeja de campana (solicitudes): Solicitudes de revisión técnica + Solicitudes de Documentación provenientes de campo
+      const docDeCampo = docRows.filter(r =>
+        r.origen === 'app_fotos' ||
+        (r.detalle && r.detalle.toLowerCase().includes('documentación técnica')) ||
+        (r.detalle && r.detalle.toLowerCase().includes('documentacion tecnica'))
+      )
+      setSolicitudes([...solRows, ...docDeCampo])
       setEnRevision(revRows)
+      setEnDocumentacion(docRows)
 
       // 3. Consultar últimos reportes automáticos despachados (Diario y Semanal)
       // Optimización: Solo consultar al inicio o cuando el evento Realtime sea específico de reportes
@@ -1127,11 +1221,58 @@ export function NotificationProvider({ children }) {
               const filtered = prev.filter(r => r.id_obs !== newRow.id_obs)
               return [enrichedRow, ...filtered]
             })
-          } else if (oldRow && (oldRow.estado_covepa === 'Solicitando Revisión' || oldRow.estado_covepa === 'Solicitando Revision' || oldRow.estado_covepa === 'En Revisión' || oldRow.estado_covepa === 'En Revision')) {
-            // Ya no está en solicitando revisión ni en revisión (se validó, rechazó, pre-validó, etc.) - actualizar en memoria
+          } else if (newRow && (newRow.estado_covepa === 'Documentación' || newRow.estado_covepa === 'Documentacion')) {
+            // Pasó a Documentación: actualizar estado en memoria
+            const loc = sitiosMapRef.current[newRow.id_sitio] || ''
+            const solicitanteNombre = newRow.revisor || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
+            const com = (newRow.comentario_covepa || '').toLowerCase()
+            const esDeCampo = com.includes('documentación técnica') || com.includes('documentacion tecnica')
+            const nowEntryIso = new Date().toISOString()
+            const enrichedRow = {
+              ...newRow,
+              fecha_entrada_estado: nowEntryIso,
+              fecha_subsanacion: nowEntryIso,
+              solicitante: solicitanteNombre,
+              usuario_nombre: solicitanteNombre,
+              revisor: null,
+              detalle: newRow.comentario_covepa || 'Solicitud de elaboración de documentación técnica enviada desde campo.',
+              isDocumentacion: true
+            }
+
+            // Opción 2: Solo disparar alerta intrusiva si proviene de campo
+            if (esDeCampo && !isDupe) {
+              dispararToast(enrichedRow, loc)
+              dispararNotificacionEscritorio(enrichedRow, loc)
+              setReadIds(prev => {
+                const updated = new Set(prev)
+                updated.delete(newRow.id_obs)
+                return updated
+              })
+              setDismissedIds(prev => {
+                if (prev.has(newRow.id_obs)) {
+                  const updated = new Set(prev)
+                  updated.delete(newRow.id_obs)
+                  return updated
+                }
+                return prev
+              })
+              setSolicitudes(prev => {
+                const filtered = prev.filter(r => r.id_obs !== newRow.id_obs)
+                return [enrichedRow, ...filtered]
+              })
+            }
+
+            setEnDocumentacion(prev => {
+              const filtered = prev.filter(r => r.id_obs !== newRow.id_obs)
+              return [enrichedRow, ...filtered]
+            })
+            setEnRevision(prev => prev.filter(r => r.id_obs !== newRow.id_obs))
+          } else if (oldRow && (oldRow.estado_covepa === 'Solicitando Revisión' || oldRow.estado_covepa === 'Solicitando Revision' || oldRow.estado_covepa === 'En Revisión' || oldRow.estado_covepa === 'En Revision' || oldRow.estado_covepa === 'Documentación' || oldRow.estado_covepa === 'Documentacion')) {
+            // Ya no está en solicitando revisión, en revisión ni en documentación - actualizar en memoria
             const idTarget = newRow?.id_obs || oldRow?.id_obs
             setSolicitudes(prev => prev.filter(r => r.id_obs !== idTarget))
             setEnRevision(prev => prev.filter(r => r.id_obs !== idTarget))
+            setEnDocumentacion(prev => prev.filter(r => r.id_obs !== idTarget))
           }
 
           // Regla: Detectar registro o modificación de demoras y tiempos desde la App de Fotos / Control COVEPA (solo admin/coord)
@@ -1216,6 +1357,54 @@ export function NotificationProvider({ children }) {
               const filtered = prev.filter(r => r.id_obs !== row.id_obs)
               return [obsLike, ...filtered]
             })
+          } else if (row && (row.estado_nuevo === 'Documentación' || row.estado_nuevo === 'Documentacion')) {
+            // Opción 2: Solo alertar si proviene de campo (app_fotos o solicitud técnica de elaboración)
+            const com = (row.comentario || '').toLowerCase()
+            const esDeCampo = row.origen === 'app_fotos' ||
+              com.includes('documentación técnica') ||
+              com.includes('documentacion tecnica')
+
+            const solicitanteNombre = row.usuario_nombre || resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
+            const obsLike = {
+              id_obs: row.id_obs,
+              id_sitio: row.id_sitio,
+              estado_covepa: row.estado_nuevo,
+              revisor: null,
+              solicitante: solicitanteNombre,
+              usuario_nombre: solicitanteNombre,
+              fecha_subsanacion: row.created_at,
+              detalle: row.comentario || 'Solicitud de elaboración de documentación técnica enviada desde campo.',
+              isDocumentacion: true
+            }
+
+            if (esDeCampo) {
+              const loc = sitiosMapRef.current[row.id_sitio] || ''
+              dispararToast(obsLike, loc)
+              dispararNotificacionEscritorio(obsLike, loc)
+              setDismissedIds(prev => {
+                if (prev.has(row.id_obs)) {
+                  const updated = new Set(prev)
+                  updated.delete(row.id_obs)
+                  return updated
+                }
+                return prev
+              })
+              setReadIds(prev => {
+                const updated = new Set(prev)
+                updated.delete(row.id_obs)
+                return updated
+              })
+              setSolicitudes(prev => {
+                const filtered = prev.filter(r => r.id_obs !== row.id_obs)
+                return [obsLike, ...filtered]
+              })
+            }
+
+            setEnDocumentacion(prev => {
+              const filtered = prev.filter(r => r.id_obs !== row.id_obs)
+              return [obsLike, ...filtered]
+            })
+            setEnRevision(prev => prev.filter(r => r.id_obs !== row.id_obs))
           }
         }
       )
@@ -1734,6 +1923,7 @@ export function NotificationProvider({ children }) {
         totalSolicitudes: unifiedNotifications.length,
         solicitudesEnEspera: solicitudes,
         enRevision,
+        enDocumentacion,
         unreadCount,
         dismissedCount,
         clearAllNotifications,
@@ -1769,6 +1959,7 @@ export function useNotifications() {
     return {
       solicitudes: [],
       enRevision: [],
+      enDocumentacion: [],
       unreadCount: 0,
       unreadRevisionCount: 0,
       unreadTotalCount: 0,

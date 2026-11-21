@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   X, CheckCircle2, Clock, MapPin, User,
   ChevronRight, AlertTriangle, ExternalLink,
-  Copy, Check, Eye
+  Copy, Check, Eye, FileText
 } from 'lucide-react'
 import {
   useNotifications,
@@ -71,7 +71,7 @@ export default function NotificationToastContainer() {
             key={toast.id}
             className={`notif-toast-card ${(isAccumulation || isTransicionBatch) ? 'toast-accumulation-card' : ''}`}
           >
-            <div className={`notif-toast-accent ${(isAccumulation || isTransicionBatch) ? ((obs.queueType === 'auditores' || isTransicionBatch) ? 'accent-auditores' : 'accent-accumulation') : isTransicionVacia ? 'accent-empty' : ''}`} />
+            <div className={`notif-toast-accent ${obs.isDocumentacion ? 'accent-documentacion' : (isAccumulation || isTransicionBatch) ? ((obs.queueType === 'auditores' || isTransicionBatch) ? 'accent-auditores' : 'accent-accumulation') : isTransicionVacia ? 'accent-empty' : ''}`} />
 
             <div className="notif-toast-main">
               {/* Cabecera del Toast */}
@@ -96,6 +96,11 @@ export default function NotificationToastContainer() {
                     <span className="notif-toast-badge-pill badge-accumulation">
                       <AlertTriangle size={12} />
                       <span>Observaciones en Revisión (+10m)</span>
+                    </span>
+                  ) : obs.isDocumentacion ? (
+                    <span className="notif-toast-badge-pill badge-documentacion">
+                      <FileText size={12} />
+                      <span>Área de Documentación</span>
                     </span>
                   ) : (
                     <span className="notif-toast-badge-pill badge-solicitud">
@@ -361,8 +366,11 @@ export default function NotificationToastContainer() {
 
                     {(obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor) && (
                       <div className="notif-toast-author-row">
-                        <User size={11} color="#0284c7" />
-                        <span className="t-meta">Solicitado por: <strong>{obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor}</strong></span>
+                        <User size={11} color={obs.isDocumentacion ? '#9333ea' : '#0284c7'} />
+                        <span className="t-meta">
+                          {obs.isDocumentacion ? 'Enviado por: ' : 'Solicitado por: '}
+                          <strong>{obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor}</strong>
+                        </span>
                       </div>
                     )}
                   </>
@@ -395,6 +403,17 @@ export default function NotificationToastContainer() {
                   >
                     <span>Ver en Observaciones</span>
                     <ExternalLink size={12} />
+                  </button>
+                ) : obs.isDocumentacion ? (
+                  <button
+                    type="button"
+                    className="notif-toast-action-btn"
+                    onClick={() => handleReview(toast)}
+                    style={{ background: '#7e22ce', color: '#ffffff' }}
+                  >
+                    <Eye size={13} />
+                    <span>Ver en Documentación</span>
+                    <ChevronRight size={13} />
                   </button>
                 ) : (
                   <button

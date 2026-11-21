@@ -3127,7 +3127,7 @@
   inset: 0;
   background: rgba(0, 24, 48, 0.45);
   backdrop-filter: blur(6px);
-  z-index: 1000;
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5254,6 +5254,13 @@
   padding: 0.65rem 1.1rem;
 }
 
+.prog-avance-modal .prog-export-btn {
+  height: 32px;
+  padding: 0 0.65rem;
+  font-size: var(--text-2xs);
+  border-radius: 6px;
+}
+
 .prog-avance-modal .prog-modal-stats-bar {
   padding: 0.45rem 1.1rem;
   gap: 0.45rem;
@@ -5394,6 +5401,175 @@
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
   font-size: var(--text-2xs) !important;
+}
+
+/* Indicador de scroll horizontal móvil (oculto en desktop) */
+.prog-avance-scroll-hint {
+  display: none;
+}
+
+.prog-avance-date-pill {
+  font-size: var(--text-xs);
+  color: #475569;
+  font-weight: var(--fw-medium);
+  background: #f1f5f9;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  text-transform: capitalize;
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .prog-details-modal-overlay {
+    padding: 0.35rem !important;
+  }
+
+  .prog-avance-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 96vh !important;
+    border-radius: 12px !important;
+  }
+
+  .prog-avance-modal .prog-details-modal-header {
+    position: relative !important;
+    padding: 0.65rem 0.8rem 0.55rem 0.8rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.45rem !important;
+  }
+
+  .prog-avance-modal .prog-details-header-main {
+    padding-right: 2.2rem;
+  }
+
+  .prog-avance-modal .prog-modal-close-btn {
+    position: absolute;
+    top: 0.65rem;
+    right: 0.65rem;
+    z-index: 2;
+  }
+
+  .prog-avance-modal .prog-details-modal-actions {
+    width: 100% !important;
+    display: flex !important;
+    gap: 0.35rem !important;
+  }
+
+  .prog-avance-modal .prog-export-btn {
+    flex: 1 1 0;
+    height: 30px !important;
+    padding: 0 0.4rem !important;
+    font-size: var(--text-2xs) !important;
+    justify-content: center;
+  }
+
+  .prog-avance-modal .prog-modal-stats-bar {
+    padding: 0.35rem 0.6rem !important;
+    gap: 0.35rem !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: thin;
+  }
+
+  .prog-avance-modal .prog-modal-stat-btn {
+    height: 38px !important;
+    min-width: 68px !important;
+    padding: 0.15rem 0.4rem !important;
+    flex-shrink: 0;
+  }
+
+  .prog-avance-modal .prog-avance-modal-body {
+    padding: 0.5rem !important;
+    gap: 0.5rem !important;
+  }
+
+  .prog-avance-scroll-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    background: #eff6ff;
+    color: #0284c7;
+    font-size: var(--text-2xs);
+    font-weight: var(--fw-medium);
+    padding: 0.28rem 0.5rem;
+    border-radius: 6px;
+    border: 1px dashed #bae6fd;
+    margin-bottom: 0.15rem;
+  }
+
+  .prog-avance-modal .dash-weekly-card {
+    padding: 0.5rem !important;
+    border-radius: 8px !important;
+    margin-bottom: 0.35rem !important;
+  }
+
+  .prog-avance-modal .dash-weekly-header {
+    padding: 0.1rem 0 0.25rem 0 !important;
+    margin-bottom: 0.25rem !important;
+  }
+
+  /* Desbloquear scroll horizontal y resetear anchos forzados en móvil */
+  .prog-avance-modal .dash-weekly-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: thin !important;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  }
+
+  .prog-avance-modal .dash-weekly-table {
+    table-layout: auto !important;
+    width: max-content !important;
+    min-width: 630px !important;
+  }
+
+  .prog-avance-modal .dash-weekly-table th:nth-child(n),
+  .prog-avance-modal .dash-weekly-table td:nth-child(n) {
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  .prog-avance-modal .dash-weekly-table th:nth-child(1),
+  .prog-avance-modal .dash-weekly-table td:nth-child(1) {
+    min-width: 82px;
+    white-space: nowrap;
+  }
+
+  .prog-avance-modal .dash-weekly-table th:nth-child(2),
+  .prog-avance-modal .dash-weekly-table td:nth-child(2) {
+    min-width: 125px;
+    max-width: 160px;
+    white-space: nowrap;
+  }
+
+  .prog-avance-modal .dash-weekly-table th:nth-child(3),
+  .prog-avance-modal .dash-weekly-table td:nth-child(3),
+  .prog-avance-modal .dash-weekly-table th:nth-child(4),
+  .prog-avance-modal .dash-weekly-table td:nth-child(4),
+  .prog-avance-modal .dash-weekly-table th:nth-child(5),
+  .prog-avance-modal .dash-weekly-table td:nth-child(5),
+  .prog-avance-modal .dash-weekly-table th:nth-child(6),
+  .prog-avance-modal .dash-weekly-table td:nth-child(6),
+  .prog-avance-modal .dash-weekly-table th:nth-child(7),
+  .prog-avance-modal .dash-weekly-table td:nth-child(7),
+  .prog-avance-modal .dash-weekly-table th:nth-child(8),
+  .prog-avance-modal .dash-weekly-table td:nth-child(8) {
+    min-width: 58px;
+    padding: 0.35rem 0.25rem;
+    text-align: center;
+  }
+
+  .prog-avance-modal .dash-weekly-table th:nth-child(9),
+  .prog-avance-modal .dash-weekly-table td:nth-child(9) {
+    min-width: 52px;
+    padding: 0.35rem 0.35rem;
+    text-align: center;
+  }
 }
 
 @media (max-width: 640px) {

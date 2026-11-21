@@ -868,10 +868,10 @@ function TableHeaderSortable({ label, field, currentField, currentDirection, onS
   )
 }
 
-function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOptions = [] }) {
-  const [isOpen, setIsOpen] = useState(false)
+function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOptions = [], defaultOpen = false }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen)
   const [obsData, setObsData] = useState(null)
-  const [loadingObs, setLoadingObs] = useState(false)
+  const [loadingObs, setLoadingObs] = useState(() => Boolean(defaultOpen))
   const [errorObs, setErrorObs] = useState(null)
 
   const localidad = sitioInfo?.localidad || sitioInfo?.nombre_nodo || ''
@@ -881,13 +881,23 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
     setErrorObs(null)
     try {
       const data = await fetchObservacionesPorSitio(sitio, filtros)
-      setObsData(data)
+      setObsData(Array.isArray(data) ? data : [])
     } catch (err) {
       setErrorObs(err.message)
     } finally {
       setLoadingObs(false)
     }
   }
+
+  // Auto-abrir y cargar si defaultOpen es true
+  useEffect(() => {
+    if (defaultOpen) {
+      setIsOpen(true)
+      if (obsData === null) {
+        loadSitioObs()
+      }
+    }
+  }, [defaultOpen])
 
   const handleToggle = () => {
     if (!isOpen && obsData === null) {
@@ -948,7 +958,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
       {/* Cuerpo: observaciones del sitio con el mismo formato que en la vista de tabla */}
       {isOpen && (
         <div className="agrupada-obs-list" style={{ padding: 0 }}>
-          {loadingObs ? (
+          {loadingObs || obsData === null ? (
             <div className="agrupada-loading-row" style={{ padding: '1.5rem', textAlign: 'center' }}>
               <Loader2 size={16} className="spinning"/>
               <span>Cargando observaciones de {sitio}{localidad ? ` (${localidad})` : ''}...</span>
@@ -957,7 +967,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
             <div className="agrupada-loading-row" style={{ color: '#dc2626', padding: '1.25rem' }}>
               <AlertCircle size={15}/> {errorObs}
             </div>
-          ) : obsData?.length === 0 ? (
+          ) : !obsData || obsData.length === 0 ? (
             <div className="agrupada-loading-row" style={{ color: 'var(--text-muted)', padding: '1.5rem' }}>
               Sin observaciones con los filtros actuales
             </div>
@@ -998,7 +1008,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                   </tr>
                 </thead>
                 <tbody>
-                  {obsData.map(o => {
+                  {(obsData || []).map(o => {
                     const revisorNombre = o.revisor || o.validado_por || ''
                     return (
                       <tr
@@ -1096,6 +1106,8 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
 
 function GrupadaView({ resumen, loading, filtros, sitiosMap = {}, onSelectObs, gilatOptions = [] }) {
   const sitios = Object.keys(resumen).sort()
+  const isSearchActive = Boolean(filtros?.search && filtros.search.trim().length > 0)
+  const shouldAutoOpen = isSearchActive && sitios.length <= 5
 
   if (loading) return (
     <div className="table-loading-state" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid var(--border)', padding: '3.5rem 1.5rem', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
@@ -1129,6 +1141,7 @@ function GrupadaView({ resumen, loading, filtros, sitiosMap = {}, onSelectObs, g
           filtros={filtros}
           onSelectObs={onSelectObs}
           gilatOptions={gilatOptions}
+          defaultOpen={shouldAutoOpen}
         />
       ))}
     </div>
@@ -1152,6 +1165,7 @@ export default function Observaciones() {
   const [gruposData, setGruposData] = useState({})
   const [sitiosMap, setSitiosMap] = useState({})
   const [tecnicos, setTecnicos] = useState([])
+  const [showMetricsMobile, setShowMetricsMobile] = useState(true)
 
   // Personal auditor y revisor oficial de GILAT (100% desde la Base de Datos)
   const gilatOptions = useMemo(() => {
@@ -1320,15 +1334,34 @@ export default function Observaciones() {
     return all
   }, [filtros.sitios, proyecto])
 
+  // Resolver sitios que coincidan con la búsqueda por código, localidad o nombre de nodo
+  const searchSitios = useMemo(() => {
+    if (!search || !search.trim()) return []
+    const clean = search.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    if (clean.length < 2) return []
+
+    const matches = []
+    for (const [id, s] of Object.entries(sitiosMap || {})) {
+      const loc = (s.localidad || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      const nodo = (s.nombre_nodo || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      const siteId = (id || '').toLowerCase()
+      if (loc.includes(clean) || nodo.includes(clean) || siteId.includes(clean)) {
+        matches.push(id)
+      }
+    }
+    return matches
+  }, [search, sitiosMap])
+
   const filtrosActivos = useMemo(() => ({
     search,
     protocolo,
     estadoCovepa,
     idSitio,
     idSitios: siteIdsForCuadrilla,
+    searchSitios,
     filtroDemora,
     proyecto
-  }), [search, protocolo, estadoCovepa, idSitio, siteIdsForCuadrilla, filtroDemora, proyecto])
+  }), [search, protocolo, estadoCovepa, idSitio, siteIdsForCuadrilla, searchSitios, filtroDemora, proyecto])
 
   const loadKpis = useCallback(async () => {
     setLoadingKpis(true)
@@ -1729,7 +1762,24 @@ export default function Observaciones() {
     <div className="obs-container">
       {/* ── ZONA FIJA SUPERIOR: MEDIDORES + TOOLBAR + ERROR (PÁGINA ESTÁTICA) ── */}
       <div className="obs-fixed-top">
-        <MetricGrid columns={5} className="obs-metric-grid-5x2">
+        {/* Barra compacta de control de medidores en móvil */}
+        <div className="obs-metrics-mobile-bar">
+          <span className="obs-metrics-mobile-title">
+            Medidores ({loadingKpis ? '...' : (kpis.total || 0).toLocaleString()} obs)
+          </span>
+          <button
+            type="button"
+            className="obs-metrics-mobile-toggle-btn"
+            onClick={() => setShowMetricsMobile(prev => !prev)}
+            title={showMetricsMobile ? 'Ocultar medidores para ver más lista' : 'Mostrar medidores'}
+          >
+            <span>{showMetricsMobile ? 'Ocultar' : 'Ver medidores'}</span>
+            {showMetricsMobile ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
+        </div>
+
+        {showMetricsMobile && (
+          <MetricGrid columns={5} className="obs-metric-grid-5x2 obs-metrics-grid">
           {/* Fila 1: Total y Flujo de Gestión Operativa */}
           <MetricCard
             icon={<ClipboardList size={20} />}
@@ -1839,6 +1889,7 @@ export default function Observaciones() {
             title="Filtrar por observaciones descartadas"
           />
         </MetricGrid>
+        )}
 
       {/* ── Toolbar Filtros — Fila 1: Buscador + Filtros | Fila 2: Acciones + Switch ── */}
       <div className="obs-toolbar">
@@ -1878,7 +1929,7 @@ export default function Observaciones() {
             <input
               id="obs-search-input"
               type="text"
-              placeholder="Buscar por código, sitio, detalle, subsistema, medidor..."
+              placeholder="Buscar código, sitio, localidad, detalle..."
               className="obs-search-input"
               value={searchInputVal}
               onChange={e => handleSearchChange(e.target.value)}

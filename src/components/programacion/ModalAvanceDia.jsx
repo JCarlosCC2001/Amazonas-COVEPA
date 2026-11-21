@@ -410,7 +410,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     <div className="prog-details-modal-overlay">
       <div ref={modalCardRef} className="prog-details-modal prog-avance-modal">
         {/* Cabecera del Modal */}
-        <div className="prog-details-modal-header">
+        <div className="prog-details-modal-header prog-avance-modal-header">
           <div className="prog-details-header-main">
             <div className="prog-details-site-title-row">
               <div className="prog-details-site-badge-icon" style={{ background: '#f0f9ff', color: '#0284c7', borderColor: '#bae6fd' }}>
@@ -418,25 +418,24 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
               </div>
               <div className="prog-details-site-texts">
                 <div className="prog-details-title-line">
-                  <h2 className="prog-details-site-title" style={{ fontFamily: 'var(--font-sans)', letterSpacing: 'normal' }}>
+                  <h2 className="prog-details-site-title">
                     Avance del Día
                   </h2>
-                  <span className="prog-details-site-loc" style={{ textTransform: 'capitalize', color: '#475569', fontSize: 'var(--text-base)' }}>
-                    · {formattedDate}
+                  <span className="prog-avance-date-pill">
+                    {formattedDate}
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="prog-details-modal-actions no-export" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+          <div className="prog-details-modal-actions no-export">
             <button
               type="button"
               className={`prog-export-btn prog-export-copy-btn ${copiedPng ? 'copied' : ''}`}
               onClick={handleCopyPNG}
               disabled={exportingPng || (matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0))}
               title="Copiar imagen del cuadro de resumen por equipos al portapapeles para WhatsApp o correo (Ctrl+V)"
-              style={{ height: '32px', padding: '0 0.65rem', fontSize: 'var(--text-2xs)' }}
             >
               {copiedPng ? <Check size={13} /> : <Copy size={13} />}
               <span>{copiedPng ? '¡Copiado!' : (exportingPng ? 'Generando...' : 'Copiar PNG')}</span>
@@ -448,7 +447,6 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
               onClick={handleDownloadPNG}
               disabled={exportingPng || (matrixData.matrixGrandTotal === 0 && (!avanceData.rows || avanceData.rows.length === 0))}
               title="Descargar imagen PNG del cuadro de resumen por equipos de alta definición"
-              style={{ height: '32px', padding: '0 0.65rem', fontSize: 'var(--text-2xs)' }}
             >
               <Image size={13} />
               <span>{exportingPng ? 'Generando...' : 'Descargar PNG'}</span>
@@ -554,6 +552,11 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {/* Indicador visual de desplazamiento horizontal en móvil */}
+              <div className="prog-avance-scroll-hint no-export">
+                <span>↔ Desliza la tabla para ver todos los estados</span>
+              </div>
+
               {/* Matriz 1: Amazonas Original (Equipo 1, Equipo 2 y Equipo 3) */}
               <CuadrillasMatrixTable
                 icon={<TrendingUp size={18} color="#003060" />}

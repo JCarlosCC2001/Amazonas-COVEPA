@@ -35,27 +35,58 @@ export {
 const PAGE_SIZE_MAX = 1000
 
 // Helper para construir la expresión de búsqueda flexible
-// Soporta singular/plural (p. ej. "medidores" -> busca también "medidor")
-function buildSearchOr(search) {
-  if (!search) return null
+// Soporta singular/plural, normalización de acentos, búsqueda multicampo y resolución por localidad/sitio
+function buildSearchOr(search, searchSitios = null) {
+  if (!search) {
+    if (Array.isArray(searchSitios) && searchSitios.length > 0) {
+      const validSites = searchSitios.slice(0, 30)
+      return validSites.length === 1 ? `id_sitio.eq.${validSites[0]}` : `id_sitio.in.(${validSites.join(',')})`
+    }
+    return null
+  }
   const clean = search.trim()
   if (!clean) return null
 
-  const terms = [clean]
+  // Normalizar acentos
+  const cleanSinTildes = clean.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const terms = new Set([clean, cleanSinTildes])
+
   if (clean.endsWith('es') && clean.length > 4) {
-    terms.push(clean.slice(0, -2))
+    terms.add(clean.slice(0, -2))
   } else if (clean.endsWith('s') && clean.length > 3) {
-    terms.push(clean.slice(0, -1))
+    terms.add(clean.slice(0, -1))
+  }
+
+  // Palabras individuales si el término contiene múltiples palabras
+  const words = clean.split(/\s+/).filter(w => w.length >= 3)
+  if (words.length > 1) {
+    for (const w of words) {
+      terms.add(w)
+      terms.add(w.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+    }
   }
 
   const columns = ['id_obs', 'id_sitio', 'detalle', 'subsistema', 'protocolo', 'item', 'sub_item', 'justificacion_demora']
   const parts = []
   for (const t of terms) {
+    const sanitized = t.replace(/[,()]/g, '').trim()
+    if (!sanitized) continue
     for (const col of columns) {
-      parts.push(`${col}.ilike.%${t}%`)
+      parts.push(`${col}.ilike.%${sanitized}%`)
     }
   }
-  return parts.join(',')
+
+  // Si hay sitios coincidentes por nombre de localidad o nodo
+  if (Array.isArray(searchSitios) && searchSitios.length > 0) {
+    const validSites = searchSitios.slice(0, 30)
+    if (validSites.length === 1) {
+      parts.push(`id_sitio.eq.${validSites[0]}`)
+    } else {
+      parts.push(`id_sitio.in.(${validSites.join(',')})`)
+    }
+  }
+
+  return parts.length > 0 ? parts.join(',') : null
 }
 
 // Aplica los filtros activos a una consulta de Supabase (exclusivo para COVEPA)
@@ -65,10 +96,11 @@ function applyQueryFilters(query, {
   estadoCovepa = '',
   idSitio = '',
   idSitios = null,
+  searchSitios = null,
   filtroDemora = '',
   proyecto = 'todos'
 } = {}) {
-  const searchOr = buildSearchOr(search)
+  const searchOr = buildSearchOr(search, searchSitios)
   if (searchOr) query = query.or(searchOr)
   if (protocolo)      query = query.eq('protocolo', protocolo)
   if (estadoCovepa) {
@@ -137,6 +169,7 @@ export async function fetchObservaciones({
   estadoCovepa = '', 
   idSitio = '',
   idSitios = null,
+  searchSitios = null,
   filtroDemora = '',
   proyecto = 'todos',
   page = 1,
@@ -148,7 +181,7 @@ export async function fetchObservaciones({
     .from('observaciones')
     .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,fecha_registro_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora', { count: 'exact' })
 
-  query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio, idSitios, filtroDemora, proyecto })
+  query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio, idSitios, searchSitios, filtroDemora, proyecto })
 
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
@@ -179,7 +212,7 @@ export async function fetchObservaciones({
     let fallbackQuery = supabase
       .from('observaciones')
       .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora', { count: 'exact' })
-    fallbackQuery = applyQueryFilters(fallbackQuery, { search, protocolo, estadoCovepa, idSitio, idSitios, filtroDemora, proyecto })
+    fallbackQuery = applyQueryFilters(fallbackQuery, { search, protocolo, estadoCovepa, idSitio, idSitios, searchSitios, filtroDemora, proyecto })
     const res = await fallbackQuery.order(dbCol, { ascending: isAsc, nullsFirst: false }).range(from, to)
     data = res.data
     count = res.count

@@ -2,9 +2,9 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell, Eye, EyeOff, CheckCircle2,
-  X, ExternalLink, Clock, MapPin,
+  X, Clock, MapPin,
   User, Trash2, RotateCcw, AlertTriangle,
-  Copy, Check, Mail, ClipboardList, FileText
+  Copy, Check, Mail, FileText
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { usePresentationMode } from '../../context/PresentationContext'
@@ -14,7 +14,6 @@ import {
   copyObservacionesList,
   copyPlainCodesList
 } from '../../context/NotificationContext'
-import ModalListaEsperaRevision from '../shared/ModalListaEsperaRevision'
 
 const PAGE_META = {
   '/': {
@@ -60,7 +59,6 @@ export default function AppHeader() {
     solicitudes,
     solicitudesEnEspera,
     enRevision,
-    enDocumentacion,
     unreadCount,
     readIds,
     dismissedCount,
@@ -71,24 +69,17 @@ export default function AppHeader() {
     desktopPermission,
     requestDesktopPermission,
     markAsRead,
-    markAllAsRead,
     sitiosMap
   } = useNotifications()
 
   const [notifOpen, setNotifOpen] = useState(false)
   const [copiedAccId, setCopiedAccId] = useState(null)
-  const [showModalEspera, setShowModalEspera] = useState(false)
   const notifRef = useRef(null)
 
   // Obtener la lista fidedigna de observaciones en estado 'En Revisión'
   const itemsEnRevision = useMemo(() => {
     return Array.isArray(enRevision) ? enRevision : []
   }, [enRevision])
-
-  // Obtener la lista de observaciones en estado 'Documentación'
-  const itemsDocumentacion = useMemo(() => {
-    return Array.isArray(enDocumentacion) ? enDocumentacion : []
-  }, [enDocumentacion])
 
   // Cerrar popover de notificaciones al hacer clic afuera
   useEffect(() => {
@@ -118,11 +109,6 @@ export default function AppHeader() {
     markAsRead(obs.id_obs)
     setNotifOpen(false)
     navigate(`/observaciones?search=${encodeURIComponent(obs.id_obs)}`)
-  }
-
-  const handleViewAll = () => {
-    setNotifOpen(false)
-    navigate('/observaciones?estado=Solicitando Revisión')
   }
 
   return (
@@ -198,16 +184,6 @@ export default function AppHeader() {
                     <X size={15} />
                   </button>
 
-                  {unreadCount > 0 && (
-                    <button
-                      type="button"
-                      className="notif-mark-read-btn"
-                      onClick={markAllAsRead}
-                      title="Marcar todas como leídas"
-                    >
-                      Marcar vistas
-                    </button>
-                  )}
                   <button
                     type="button"
                     className="notif-test-btn"
@@ -218,7 +194,8 @@ export default function AppHeader() {
                     }}
                     title="Notificar la cantidad de observaciones en revisión agrupadas por tiempo de espera con opción de copiado"
                   >
-                    Avisar Espera ({itemsEnRevision.length})
+                    <Clock size={12} color="#ea580c" />
+                    <span>Aviso de Espera ({itemsEnRevision.length})</span>
                   </button>
                   {solicitudes.length > 0 && (
                     <button
@@ -232,48 +209,6 @@ export default function AppHeader() {
                     </button>
                   )}
                 </div>
-              </div>
-
-              {/* Barra de Acceso Rápido: Aviso de Espera y Ver Lista */}
-              <div className="notif-espera-quickbar">
-                <button
-                  type="button"
-                  className="notif-btn-notificar-espera"
-                  onClick={() => {
-                    notificarObservacionesEnEsperaPorTiempo()
-                    setNotifOpen(false)
-                  }}
-                  title="Notificar la cantidad de observaciones en revisión agrupadas por tiempo de espera con botón para copiar la lista"
-                >
-                  <Clock size={13} color="#ea580c" />
-                  <span><strong>Aviso de Espera</strong> ({itemsEnRevision.length})</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="notif-btn-ver-espera"
-                  onClick={() => {
-                    setNotifOpen(false)
-                    setShowModalEspera(true)
-                  }}
-                  title="Abrir la lista interactiva de observaciones en estado En Revisión"
-                >
-                  <ClipboardList size={13} />
-                  <span>Ver Lista ({itemsEnRevision.length})</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="notif-btn-ver-doc"
-                  onClick={() => {
-                    setNotifOpen(false)
-                    navigate('/observaciones?estado=Documentación')
-                  }}
-                  title="Abrir lista de observaciones en el Área de Documentación"
-                >
-                  <FileText size={13} color="#9333ea" />
-                  <span><strong>Doc</strong> ({itemsDocumentacion.length})</span>
-                </button>
               </div>
 
               {desktopPermission !== 'granted' && (
@@ -583,42 +518,11 @@ export default function AppHeader() {
                   {unreadCount > 0 ? `${unreadCount} sin leer` : 'Todas leídas'}
                   {dismissedCount > 0 ? ` · ${dismissedCount} limpiadas` : ''}
                 </span>
-                <div className="notif-popover-footer-actions">
-                  <button
-                    type="button"
-                    className="notif-footer-espera-btn"
-                    onClick={() => {
-                      setNotifOpen(false)
-                      setShowModalEspera(true)
-                    }}
-                    title="Ver lista interactiva de observaciones a la espera de revisión"
-                  >
-                    <ClipboardList size={12} />
-                    <span>Ver Lista</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="notif-view-all-btn"
-                    onClick={handleViewAll}
-                    title="Ir a la tabla del módulo de Observaciones"
-                  >
-                    <span>Ir a Observaciones</span>
-                    <ExternalLink size={12} />
-                  </button>
-                </div>
               </div>
             </div>
           )}
         </div>
       </div>
-
-      {/* Modal de Lista de Observaciones en Revisión */}
-      <ModalListaEsperaRevision
-        isOpen={showModalEspera}
-        onClose={() => setShowModalEspera(false)}
-        observaciones={itemsEnRevision}
-        sitiosMap={sitiosMap}
-      />
     </header>
   )
 }

@@ -560,15 +560,12 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
     sitios.forEach(s => { sitiosMap[s.id_site] = s })
   }
 
-  // Mapa de técnicos por cuadrilla (titulares oficiales)
+  // Mapa de técnicos por cuadrilla (titulares oficiales de las 4 cuadrillas)
   const cuadrillaStaffMap = {
-    'CUADRILLA 1': 'Jhonatan Flores',
-    'CUADRILLA 2': 'Marco Chamba',
-    'CUADRILLA 3': 'Daniel Javier',
-    'CUADRILLA 4': 'Alfonso Curi',
-    'CUADRILLA 5': 'William Avila',
-    'CUADRILLA 6': 'Juan Castro',
-    'CUADRILLA 7': 'Por Asignar'
+    'CUADRILLA 1': 'Jhonatan Flores · Marco Chamba',
+    'CUADRILLA 2': 'Juan Castro · Willy Fernández',
+    'CUADRILLA 3': 'Alfonso Curi · William Avila',
+    'CUADRILLA 4': 'Hugo Espinoza · Daniel Javier · Roger Valdivia'
   }
   if (Array.isArray(personal)) {
     personal.forEach(p => {
@@ -932,12 +929,12 @@ export async function exportarExcelReporteDiarioInterno(datos) {
   ]
 
   const origMatrix = datos.matrixOriginal || {
-    matrixRows: (datos.matrixRows || []).filter(r => r.id !== 'EQUIPO 4'),
+    matrixRows: (datos.matrixRows || []).filter(r => r.id !== 'EQUIPO 4' && r.id !== 'CUADRILLA 4'),
     matrixTotals: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
     matrixGrandTotal: 0
   }
   const amplMatrix = datos.matrixAmpliacion || {
-    matrixRows: (datos.matrixRows || []).filter(r => r.id === 'EQUIPO 4'),
+    matrixRows: (datos.matrixRows || []).filter(r => r.id === 'EQUIPO 4' || r.id === 'CUADRILLA 4'),
     matrixTotals: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
     matrixGrandTotal: 0
   }
@@ -1073,8 +1070,8 @@ export async function exportarExcelReporteDiarioInterno(datos) {
   // PESTAÑAS 2 Y 3: DETALLE ORIGINAL Y DETALLE AMPLIACIÓN
   // ========================================================
   const rawRows = datos.rows || []
-  const detailRowsOriginal = rawRows.filter(r => r.equipo !== 'EQUIPO 4')
-  const detailRowsAmpliacion = rawRows.filter(r => r.equipo === 'EQUIPO 4')
+  const detailRowsOriginal = rawRows.filter(r => !esAmpliacionObs(r.id_sitio, r.id_obs) && r.equipo !== 'EQUIPO 4' && r.equipo !== 'CUADRILLA 4')
+  const detailRowsAmpliacion = rawRows.filter(r => esAmpliacionObs(r.id_sitio, r.id_obs) || r.equipo === 'EQUIPO 4' || r.equipo === 'CUADRILLA 4')
 
   const detailColsConfig = [
     { width: 22 }, // ID Obs
@@ -1934,12 +1931,12 @@ export function generarHTMLReporteInterno({ config, datos, isWebPreview = true }
     : 'cid:covepa-logo'
 
   const matrixOriginal = datos.matrixOriginal || {
-    matrixRows: (datos.matrixRows || []).filter(r => r.id !== 'EQUIPO 4'),
+    matrixRows: (datos.matrixRows || []).filter(r => r.id !== 'EQUIPO 4' && r.id !== 'CUADRILLA 4'),
     matrixTotals: datos.matrixTotals || {},
     matrixGrandTotal: 0
   }
   const matrixAmpliacion = datos.matrixAmpliacion || {
-    matrixRows: (datos.matrixRows || []).filter(r => r.id === 'EQUIPO 4'),
+    matrixRows: (datos.matrixRows || []).filter(r => r.id === 'EQUIPO 4' || r.id === 'CUADRILLA 4'),
     matrixTotals: datos.matrixTotals || {},
     matrixGrandTotal: 0
   }

@@ -48,6 +48,10 @@ export default function ModalDetallesProgramacion({
   const [savingTimeId, setSavingTimeId] = useState(null)
   const [savedTimeId, setSavedTimeId] = useState(null)
   const [expandedDemoraIds, setExpandedDemoraIds] = useState({})
+  const [expandedFichaIds, setExpandedFichaIds] = useState({})
+  const toggleFicha = (idObs) => {
+    setExpandedFichaIds(prev => ({ ...prev, [idObs]: !prev[idObs] }))
+  }
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [updatingId, setUpdatingId] = useState(null)
@@ -807,34 +811,10 @@ export default function ModalDetallesProgramacion({
   return (
     <div className="prog-details-modal-overlay">
       <div className="prog-details-modal">
-        {/* Cabecera Limpia y Profesional (Sin Fecha, Sin Itinerario y Sin Detalle de Técnico) */}
+        {/* Cabecera Limpia y Profesional: Código, Localidad y Zona únicamente */}
         <div className="prog-details-modal-header">
           <div className="prog-details-header-main">
-            {/* Pestañas para cambiar de sitio si la jornada incluye más de uno */}
-            {allSitios.length > 1 && (
-              <div className="prog-site-tabs-bar">
-                {allSitios.map(s => {
-                  const sId = s.id_sitio || s
-                  const isActive = sId === currentSitioId
-                  const loc = sitiosMap[sId]?.localidad || sitiosMap[sId]?.nombre_nodo
-                  return (
-                    <button
-                      key={sId}
-                      type="button"
-                      className={`prog-site-tab-btn ${isActive ? 'active' : ''}`}
-                      onClick={() => handleSwitchSitio(sId)}
-                      title={loc ? `${sId} · ${loc}` : sId}
-                    >
-                      <MapPin size={12} className={isActive ? 'tab-icon-active' : ''} />
-                      <span className="tab-site-code">{sId}</span>
-                      {loc && <span className="tab-loc-text">· {loc}</span>}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Título Principal: Código de Sitio · Localidad + Metadatos */}
+            {/* Título Principal: Código de Sitio · Localidad · Zona únicamente */}
             <div className="prog-details-site-title-row">
               <div className="prog-details-site-badge-icon">
                 <MapPin size={22} />
@@ -845,14 +825,10 @@ export default function ModalDetallesProgramacion({
                   {siteInfo.localidad && (
                     <span className="prog-details-site-loc">· {siteInfo.localidad}</span>
                   )}
+                  {siteInfo.zona && (
+                    <span className="prog-details-site-loc">· {siteInfo.zona}</span>
+                  )}
                 </div>
-                {(siteInfo.grupo || siteInfo.zona || siteInfo.distrito) && (
-                  <div className="prog-details-site-meta-pills">
-                    {siteInfo.grupo && <span className="meta-pill">{siteInfo.grupo}</span>}
-                    {siteInfo.zona && <span className="meta-pill">{siteInfo.zona}</span>}
-                    {siteInfo.distrito && <span className="meta-pill">{siteInfo.distrito}</span>}
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -973,9 +949,9 @@ export default function ModalDetallesProgramacion({
           )}
         </div>
 
-        {/* Barra de búsqueda interactiva y botón de exportación */}
+        {/* Barra de búsqueda interactiva */}
         <div className="prog-modal-search-bar">
-          <div className="prog-modal-search-box-wrap">
+          <div className="prog-modal-search-box-wrap" style={{ width: '100%' }}>
             <div className="search-input-container">
               <Search size={15} className="search-input-icon" />
               <input
@@ -1002,17 +978,6 @@ export default function ModalDetallesProgramacion({
               </span>
             )}
           </div>
-
-          <button
-            type="button"
-            onClick={handleExportXLSX}
-            disabled={exportingXlsx || observaciones.length === 0}
-            className="prog-export-btn"
-            title={`Descargar las ${filteredObservaciones.length} observaciones en Excel (.xlsx)`}
-          >
-            <FileSpreadsheet size={15} />
-            <span>{exportingXlsx ? 'Generando Excel...' : 'Descargar Excel (.xlsx)'}</span>
-          </button>
         </div>
 
         {/* Lista de Observaciones */}
@@ -1150,16 +1115,6 @@ export default function ModalDetallesProgramacion({
                     </div>
                   </div>
 
-                  {/* Insignia Directa de Último Cambio y Trazabilidad (Exclusivo Administrador) */}
-                  {isAdmin && (
-                    <div style={{ margin: '0.45rem 0' }}>
-                      <UltimoCambioBadge
-                        idObs={obs.id_obs}
-                        refreshKey={historialRefreshKeys[obs.id_obs] || 0}
-                      />
-                    </div>
-                  )}
-
                   {/* Fila de Auditoría: Revisor y Fecha de Validación */}
                   {showRevisorYFecha && (
                     <div className="prog-obs-audit-bar">
@@ -1211,27 +1166,58 @@ export default function ModalDetallesProgramacion({
 
                   {/* Cajas de Contenido: Detalle, Comentario Inicial y Acuerdo de Subsanación */}
                   <div className="prog-obs-blocks-wrap">
-                    {/* Detalle */}
-                    {hasMeaningfulText(obs.detalle) && (
-                      <div className="obs-content-box box-detalle">
-                        <span className="box-label">Detalle de la Observación:</span>
-                        <div className="box-body-text">{obs.detalle}</div>
+                    {/* Botón para desplegar/ocultar Ficha Técnica (Detalle, Comentario Inicial, Acuerdo) */}
+                    {(hasMeaningfulText(obs.detalle) || hasMeaningfulText(obs.comentario_inicial) || hasMeaningfulText(obs.acuerdo_subsanacion)) && (
+                      <div style={{ marginBottom: '0.45rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => toggleFicha(obs.id_obs)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '0.28rem 0.65rem',
+                            background: expandedFichaIds[obs.id_obs] ? '#f0f9ff' : '#f8fafc',
+                            border: `1px solid ${expandedFichaIds[obs.id_obs] ? '#7dd3fc' : '#cbd5e1'}`,
+                            borderRadius: '6px',
+                            fontSize: 'var(--text-xs)',
+                            fontWeight: 'var(--fw-bold)',
+                            color: expandedFichaIds[obs.id_obs] ? '#0369a1' : '#475569',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title={expandedFichaIds[obs.id_obs] ? 'Ocultar ficha técnica y comentarios iniciales' : 'Ver ficha técnica, detalle y comentarios iniciales'}
+                        >
+                          <FileText size={13} color={expandedFichaIds[obs.id_obs] ? '#0284c7' : '#64748b'} />
+                          <span>{expandedFichaIds[obs.id_obs] ? 'Ocultar Ficha Técnica / Detalles' : 'Ver Ficha Técnica / Detalles'}</span>
+                          {expandedFichaIds[obs.id_obs] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                        </button>
                       </div>
                     )}
 
-                    {/* Comentario Inicial */}
-                    {hasMeaningfulText(obs.comentario_inicial) && (
-                      <div className="obs-content-box box-inicial">
-                        <span className="box-label">Comentario Inicial:</span>
-                        <div className="box-body-text">{obs.comentario_inicial}</div>
-                      </div>
-                    )}
+                    {/* Bloque desplegable de Detalle, Comentario Inicial y Acuerdo */}
+                    {expandedFichaIds[obs.id_obs] && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.65rem' }}>
+                        {hasMeaningfulText(obs.detalle) && (
+                          <div className="obs-content-box box-detalle" style={{ margin: 0 }}>
+                            <span className="box-label">Detalle de la Observación:</span>
+                            <div className="box-body-text">{obs.detalle}</div>
+                          </div>
+                        )}
 
-                    {/* Acuerdo de Subsanación */}
-                    {hasMeaningfulText(obs.acuerdo_subsanacion) && (
-                      <div className="obs-content-box box-acuerdo">
-                        <span className="box-label">Acuerdo de Subsanación:</span>
-                        <div className="box-body-text">{obs.acuerdo_subsanacion}</div>
+                        {hasMeaningfulText(obs.comentario_inicial) && (
+                          <div className="obs-content-box box-inicial" style={{ margin: 0 }}>
+                            <span className="box-label">Comentario Inicial:</span>
+                            <div className="box-body-text">{obs.comentario_inicial}</div>
+                          </div>
+                        )}
+
+                        {hasMeaningfulText(obs.acuerdo_subsanacion) && (
+                          <div className="obs-content-box box-acuerdo" style={{ margin: 0 }}>
+                            <span className="box-label">Acuerdo de Subsanación:</span>
+                            <div className="box-body-text">{obs.acuerdo_subsanacion}</div>
+                          </div>
+                        )}
                       </div>
                     )}
 

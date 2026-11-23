@@ -415,23 +415,6 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   <span className="prog-details-site-title">{obsLocal.id_obs}</span>
                   <span className="prog-details-site-loc">· {obsLocal.id_sitio}{localidad ? ` · ${localidad}` : ''}{zona ? ` · ${zona}` : ''}</span>
                 </div>
-                <div className="prog-details-site-meta-pills">
-                  {obsLocal.hito && (
-                    <span className="meta-pill" style={{ color: '#0369a1' }}>
-                      Hito: <strong>{obsLocal.hito}</strong>
-                    </span>
-                  )}
-                  {obsLocal.protocolo && (
-                    <span className="meta-pill">
-                      Protocolo: <strong>{obsLocal.protocolo}</strong>
-                    </span>
-                  )}
-                  {obsLocal.subsistema && (
-                    <span className="meta-pill">
-                      Subsistema: <strong>{obsLocal.subsistema}</strong>
-                    </span>
-                  )}
-                </div>
               </div>
             </div>
           </div>
@@ -609,7 +592,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   </label>
                   <input
                     type="date"
-                    value={currentFecha ? String(currentFecha).split('T')[0].split(' ')[0] : ''}
+                    value={currentFecha ? getPeruDateStr(currentFecha) : ''}
                     disabled={updating || isReadOnly}
                     onChange={(e) => handleUpdateFecha(e.target.value)}
                     className="audit-date-input"

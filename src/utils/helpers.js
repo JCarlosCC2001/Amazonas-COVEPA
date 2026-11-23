@@ -24,8 +24,8 @@ export function getPeruDateStr(dateInput = new Date()) {
   try {
     const d = (dateInput instanceof Date) ? dateInput : new Date(dateInput)
     if (isNaN(d.getTime())) return s.slice(0, 10)
-    // Si viene como medianoche UTC pura (ej: '2026-10-26T00:00:00+00:00'), no retroceder de día
-    if (s.includes('T00:00:00')) return s.split('T')[0]
+    // Si viene como medianoche pura sin zona horaria ni sufijo UTC (ej: '2026-10-26T00:00:00' o '2026-10-26 00:00:00')
+    if (/^\d{4}-\d{2}-\d{2}[T ]00:00:00(?:\.000)?$/.test(s)) return s.slice(0, 10)
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(d)
   } catch {
     return s.slice(0, 10)

@@ -1064,11 +1064,9 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                   <col className="col-obs-tecnico" />
                   <col className="col-obs-sitio" />
                   <col className="col-obs-localidad" />
-                  <col className="col-obs-zona" />
                   <col className="col-obs-estado" />
                   <col className="col-obs-fecha" />
                   <col className="col-obs-revisor" />
-                  <col className="col-obs-demora" />
                 </colgroup>
                 <thead>
                   <tr>
@@ -1080,7 +1078,6 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                       <span className="col-header-short">Sitio</span>
                     </th>
                     <th className="col-obs-localidad">Localidad</th>
-                    <th className="col-obs-zona">Zona</th>
                     <th className="col-obs-estado">
                       <span className="col-header-full">Estado COVEPA</span>
                       <span className="col-header-short">Estado</span>
@@ -1090,7 +1087,6 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                       <span className="col-header-short">Fecha</span>
                     </th>
                     <th className="col-obs-revisor">Revisado por</th>
-                    <th className="col-obs-demora" style={{ textAlign: 'center' }}>¿Tuvo Demora?</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1144,13 +1140,6 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                             {localidad || '—'}
                           </span>
                         </td>
-                        <td className="col-obs-zona">
-                          {sitioInfo?.zona ? (
-                            <span className="obs-zona-pill">{sitioInfo.zona}</span>
-                          ) : (
-                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
-                          )}
-                        </td>
                         <td className="col-obs-estado">
                           <span className={`estado-badge ${estadoCovepaBadge(o.estado_covepa)}`}>
                             {o.estado_covepa || 'Pendiente'}
@@ -1177,19 +1166,6 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                               <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
                             )
                           })()}
-                        </td>
-                        <td className="col-obs-demora cell-obs-demora" style={{ textAlign: 'center' }}>
-                          {o.justificacion_demora && o.justificacion_demora.trim() ? (
-                            <span
-                              className="obs-demora-pill"
-                              title={`Justificación:\n${o.justificacion_demora}${o.fecha_registro_demora ? `\n\nFecha de registro: ${getPeruDateStr(o.fecha_registro_demora)}` : ''}`}
-                            >
-                              <AlertTriangle size={12} color="#d97706" style={{ flexShrink: 0 }} />
-                              Tuvo Demora
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
-                          )}
                         </td>
                       </tr>
                     )
@@ -1810,22 +1786,6 @@ export default function Observaciones() {
       }
     },
     {
-      key: 'zona',
-      label: 'Zona',
-      className: 'col-obs-zona',
-      cellClassName: 'cell-obs-zona',
-      align: 'center',
-      sortable: true,
-      render: (o) => {
-        const sInfo = sitiosMap[o.id_sitio] || {}
-        return sInfo.zona ? (
-          <span className="obs-zona-pill">{sInfo.zona}</span>
-        ) : (
-          <span className="t-meta" style={{ color: 'var(--text-muted)' }}>—</span>
-        )
-      }
-    },
-    {
       key: 'estado',
       label: (
         <>
@@ -1883,27 +1843,6 @@ export default function Observaciones() {
           <span className="t-meta" style={{ color: 'var(--text-muted)' }}>—</span>
         )
       }
-    },
-    {
-      key: 'demora',
-      label: '¿Tuvo Demora?',
-      className: 'col-obs-demora',
-      cellClassName: 'cell-obs-demora',
-      align: 'center',
-      sortable: true,
-      render: (o) => (
-        o.justificacion_demora && o.justificacion_demora.trim() ? (
-          <span
-            className="obs-demora-pill"
-            title={`Justificación:\n${o.justificacion_demora}${o.fecha_registro_demora ? `\n\nFecha de registro: ${getPeruDateStr(o.fecha_registro_demora)}` : ''}`}
-          >
-            <AlertTriangle size={12} color="#d97706" style={{ flexShrink: 0 }} />
-            Tuvo Demora
-          </span>
-        ) : (
-          <span className="t-meta" style={{ color: 'var(--text-muted)' }}>—</span>
-        )
-      )
     }
   ], [sitiosMap, gilatOptions])
 

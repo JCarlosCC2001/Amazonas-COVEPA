@@ -307,14 +307,6 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       const revisorGilatActual = esEnRev ? null : (esRevisorGilat(obsLocal.revisor, gilatOptions) ? obsLocal.revisor : null)
 
       let comentarioActual = commentValRef.current ?? obsLocal.comentario_covepa ?? null
-      if (designacion?.tecnico) {
-        const tag = `[Técnico: ${designacion.tecnico}]`
-        if (!comentarioActual) {
-          comentarioActual = tag
-        } else if (!comentarioActual.includes('[Técnico:')) {
-          comentarioActual = `${tag} ${comentarioActual}`
-        }
-      }
       const fechaIso = getPeruISOString()
 
       const sInfo = sitiosMap[obsLocal.id_sitio] || {}

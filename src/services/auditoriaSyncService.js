@@ -388,12 +388,6 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
     // El autor de la acción para el historial de trazabilidad es el usuario que ejecutó el cambio
     const usuarioAccion = extraContext.usuarioNombre || 'Usuario del Sistema'
 
-    let finalComentario = comentario
-    if (extraContext.tecnicoDesignado && (!finalComentario || !finalComentario.includes('[Técnico:'))) {
-      const tag = `[Técnico: ${extraContext.tecnicoDesignado}]`
-      finalComentario = finalComentario ? `${tag} ${finalComentario}` : tag
-    }
-
     // Registro automático no bloqueante en el historial de estados
     registrarHistorialEstado({
       idObs,
@@ -403,7 +397,7 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
       usuarioNombre: usuarioAccion,
       usuarioEmail: extraContext.usuarioEmail,
       usuarioId: extraContext.usuarioId,
-      comentario: finalComentario,
+      comentario,
       origen: extraContext.origen || 'web_erp'
     }).catch(err => console.warn('[HISTORIAL-WARN] Error registrando historial:', err))
 

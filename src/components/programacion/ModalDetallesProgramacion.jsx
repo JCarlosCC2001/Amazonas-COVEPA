@@ -20,7 +20,8 @@ import {
 import { getZonaBySiteId } from '../../services/sitiosService'
 import { useAuth } from '../../hooks/useAuth'
 import ModalConfirmacionEstado, { esEstadoProtegido, esEstadoRequiereConfirmacion } from '../shared/ModalConfirmacionEstado'
-import { hasMeaningfulText, getPeruDateStr, getPeruISOString, getInitials, getCargoClass } from '../../utils/helpers'
+import ModalDesignarTecnico from '../shared/ModalDesignarTecnico'
+import { hasMeaningfulText, getPeruDateStr, getPeruISOString, getInitials, getCargoClass, formatPrimerNombrePrimerApellido } from '../../utils/helpers'
 import { supabase } from '../../lib/supabase'
 // SUBCOMPONENTE: Modal Detalle de Programación y Observaciones
 // Ventana emergente centrada con edición, eliminación, gestión de observaciones
@@ -57,6 +58,7 @@ export default function ModalDetallesProgramacion({
   const [expandedHistorialId, setExpandedHistorialId] = useState(null)
   const [historialRefreshKeys, setHistorialRefreshKeys] = useState({})
   const [confirmModalData, setConfirmModalData] = useState(null)
+  const [designarModalData, setDesignarModalData] = useState(null)
 
   // Ref con los comentarios y justificaciones modificados (dirty) para autoguardarlos al cerrar
   const dirtyCommentsRef = useRef(new Set())
@@ -152,11 +154,26 @@ export default function ModalDetallesProgramacion({
       return
     }
 
+    // 4. Ventanita emergente: Si NO tiene cuadrilla y técnico asignado, solicitarlo
+    // Condición: En 'Descartado', NUNCA solicitar técnico ni asignar técnico, solo asignar cuadrilla del sitio.
+    const esDescartado = targetValue === 'Descartado'
+    if (!esDescartado) {
+      const tieneEjecutor = Boolean(obs.cuadrilla_ejecutora && obs.tecnico_ejecutor)
+      if (!tieneEjecutor) {
+        setDesignarModalData({
+          obs,
+          nuevoEstado: targetValue
+        })
+        return
+      }
+    }
+
+    // Si ya tiene ejecutor asignado o es Descartado, proceder directamente
     handleSetEstado(obs, targetValue)
   }
 
   // Acción rápida: Marcar observación (Puente con App de fotos de campo)
-  const handleSetEstado = async (obs, nuevoEstado) => {
+  const handleSetEstado = async (obs, nuevoEstado, designacion = null) => {
     const rawSt = obs.estado_covepa ? obs.estado_covepa.trim() : null
     const currentEstado = rawSt || (obs.fecha_subsanacion ? 'Validado' : 'Pendiente')
     // Validar autorización de administrador para estados protegidos (tanto de origen como de destino)
@@ -174,10 +191,31 @@ export default function ModalDetallesProgramacion({
       const esEnRev = nuevoEstado === 'En Revisión' || nuevoEstado === 'En Revision' || nuevoEstado === 'Solicitando Revisión' || nuevoEstado === 'Solicitando Revision' || nuevoEstado === 'Documentación' || nuevoEstado === 'Documentacion'
       const revisorGilatActual = esEnRev ? null : (esRevisorGilat(obs.revisor, gilatOptions) ? obs.revisor : null)
 
-      const comentarioActual = comments[obs.id_obs] ?? obs.comentario_covepa ?? null
+      let comentarioActual = comments[obs.id_obs] ?? obs.comentario_covepa ?? null
+      if (designacion?.tecnico) {
+        const tag = `[Técnico: ${designacion.tecnico}]`
+        if (!comentarioActual) {
+          comentarioActual = tag
+        } else if (!comentarioActual.includes('[Técnico:')) {
+          comentarioActual = `${tag} ${comentarioActual}`
+        }
+      }
       const fechaIso = getPeruISOString()
 
       // Sincronización oficial con Control Fotos + Historial de Estados
+      const sInfo = siteInfo || sitiosMap[obs.id_sitio || currentSitioId] || {}
+      const cuadDelSitio = ((obs.id_sitio || currentSitioId)?.startsWith('AMEX') || obs.id_obs?.startsWith('AMEX'))
+        ? 'CUADRILLA 4'
+        : (sInfo.cuadrilla || sInfo.grupo || 'CUADRILLA 1')
+
+      let tecFinal = designacion?.tecnico || obs.tecnico_ejecutor || null
+      let cuadFinal = designacion?.cuadrilla || obs.cuadrilla_ejecutora || cuadDelSitio
+
+      if (nuevoEstado === 'Descartado') {
+        tecFinal = null
+        cuadFinal = cuadDelSitio
+      }
+
       await sincronizarEstadoConControlFotos(
         obs.id_obs,
         nuevoEstado,
@@ -190,7 +228,9 @@ export default function ModalDetallesProgramacion({
           usuarioNombre: responsableSesion,
           usuarioEmail: user?.email,
           usuarioId: user?.id,
-          origen: 'programacion'
+          origen: 'programacion',
+          tecnicoDesignado: tecFinal,
+          cuadrillaDesignada: cuadFinal
         }
       )
 
@@ -202,7 +242,9 @@ export default function ModalDetallesProgramacion({
             estado_covepa: nuevoEstado,
             fecha_subsanacion: fechaIso,
             revisor: revisorGilatActual,
-            comentario_covepa: comentarioActual
+            comentario_covepa: comentarioActual,
+            tecnico_ejecutor: tecFinal,
+            cuadrilla_ejecutora: cuadFinal
           }
         }
         return o
@@ -1083,13 +1125,29 @@ export default function ModalDetallesProgramacion({
                       </div>
                     </div>
 
-                    {obs.subsistema && (
-                      <div className="prog-obs-card-meta-row">
+                    <div className="prog-obs-card-meta-row" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      {obs.subsistema && (
                         <span className="meta-pill meta-pill-subsistema" title={`Subsistema: ${obs.subsistema}`}>
                           Subsistema: <strong>{obs.subsistema}</strong>
                         </span>
-                      </div>
-                    )}
+                      )}
+                      <span className="meta-pill" style={{ background: 'rgba(0, 48, 96, 0.08)', color: '#003060', borderColor: 'rgba(0, 48, 96, 0.2)' }}>
+                        Cuadrilla: <strong>{obs.cuadrilla_ejecutora || siteInfo?.cuadrilla || 'Sin Cuadrilla'}</strong>
+                      </span>
+                      <span
+                        className="meta-pill"
+                        style={{
+                          background: obs.tecnico_ejecutor ? '#f0fdf4' : '#fffbeb',
+                          borderColor: obs.tecnico_ejecutor ? '#bbf7d0' : '#fef3c7',
+                          color: obs.tecnico_ejecutor ? '#166534' : '#92400e',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setDesignarModalData({ obs, nuevoEstado: currentEstado })}
+                        title="Clic para cambiar o designar técnico ejecutor"
+                      >
+                        Ejecutor: <strong>{formatPrimerNombrePrimerApellido(obs.tecnico_ejecutor) || 'Sin Asignar (Clic)'}</strong>
+                      </span>
+                    </div>
                   </div>
 
                   {/* Insignia Directa de Último Cambio y Trazabilidad (Exclusivo Administrador) */}
@@ -1357,6 +1415,14 @@ export default function ModalDetallesProgramacion({
             const { obs, targetValue } = confirmModalData || {}
             setConfirmModalData(null)
             if (obs && targetValue) {
+              const esDescartado = targetValue === 'Descartado'
+              if (!esDescartado) {
+                const tieneEjecutor = Boolean(obs.cuadrilla_ejecutora && obs.tecnico_ejecutor)
+                if (!tieneEjecutor) {
+                  setDesignarModalData({ obs, nuevoEstado: targetValue })
+                  return
+                }
+              }
               await handleSetEstado(obs, targetValue)
             }
           }}
@@ -1366,6 +1432,21 @@ export default function ModalDetallesProgramacion({
           estadoAnterior={confirmModalData?.currentEstado}
           estadoNuevo={confirmModalData?.targetValue}
           loading={Boolean(updatingId)}
+        />
+
+        {/* Modal de Designación de Técnico Responsable para Cambios Locales */}
+        <ModalDesignarTecnico
+          isOpen={Boolean(designarModalData)}
+          obs={designarModalData?.obs}
+          nuevoEstado={designarModalData?.nuevoEstado}
+          onConfirm={async (designacion) => {
+            const { obs, nuevoEstado } = designarModalData || {}
+            setDesignarModalData(null)
+            if (obs && nuevoEstado) {
+              await handleSetEstado(obs, nuevoEstado, designacion)
+            }
+          }}
+          onClose={() => setDesignarModalData(null)}
         />
       </div>
     </div>

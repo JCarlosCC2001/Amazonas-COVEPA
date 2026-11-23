@@ -197,22 +197,21 @@ export default function ModalProgramacionForm({ initialDate, editingProg, initia
           return tCuad === siteCuad
         })
 
-        // Filtrar exclusivamente técnicos o supervisores (excluyendo terminantemente conductores)
+        // Auto-seleccionar a la pareja de técnicos de la cuadrilla oficial (excluyendo conductores)
         const leads = cuadrillaMembers.filter(t => {
           const cargo = (t.cargo || '').toUpperCase()
           const isLead = cargo.includes('TÉCNICO') || cargo.includes('TECNICO') || cargo.includes('SUPERVISOR')
-          const isConductor = cargo.includes('CONDUCTOR')
-          return isLead && !isConductor
+          const isConductor = cargo.includes('CONDUCTOR') || cargo.includes('CHOFER')
+          return (isLead || !isConductor) && !isConductor
         })
 
         if (leads.length > 0) {
-          // Auto-asignar únicamente al técnico o supervisor designado
-          setSelectedPersonalIds([leads[0].id])
+          // Auto-asignar a todos los técnicos titulares de la cuadrilla (dupla técnica)
+          setSelectedPersonalIds(leads.map(l => l.id))
         } else {
-          // Si no tiene cargo explícito pero tampoco es conductor
           const nonConductors = cuadrillaMembers.filter(t => !(t.cargo || '').toUpperCase().includes('CONDUCTOR'))
           if (nonConductors.length > 0) {
-            setSelectedPersonalIds([nonConductors[0].id])
+            setSelectedPersonalIds(nonConductors.map(t => t.id))
           }
         }
       }

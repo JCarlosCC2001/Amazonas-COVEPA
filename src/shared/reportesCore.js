@@ -7,6 +7,56 @@
 // - Cálculo de KPIs de Reportes Diarios y Matrices Ejecutivas
 // ============================================================================
 
+import { formatPrimerNombrePrimerApellido } from '../utils/helpers.js'
+
+/**
+ * Resuelve la cuadrilla (CUADRILLA 1 a 4) y el técnico oficial
+ * a partir de un nombre de usuario, mención o comentario con etiqueta [Técnico: ...].
+ */
+export function resolveTecnicoAndCuadrilla(str) {
+  if (!str) return null
+  const s = String(str).trim()
+  if (!s || s === '—' || s === '-') return null
+
+  // Si incluye etiqueta de designación tipo "[Técnico: Juan Castro]"
+  const tagMatch = s.match(/\[Técnico:\s*([^\]]+)\]/i)
+  const target = tagMatch ? tagMatch[1].trim() : s
+  const upper = target.toUpperCase()
+
+  // Ignorar nombres de revisores/auditores que no son técnicos de campo
+  if (upper.includes('CESAR ARIAS') || upper.includes('ADMINISTRADOR') || upper.includes('APP FOTOS') || upper.includes('SISTEMA') || upper.includes('GILAT')) {
+    return null
+  }
+
+  // Cuadrilla 1: Jhonatan Flores, Marco Chamba
+  if ((upper.includes('JHONATAN') && upper.includes('FLORES')) || (upper.includes('MARCO') && upper.includes('CHAMBA'))) {
+    const tec = (upper.includes('MARCO') && upper.includes('CHAMBA')) ? 'Marco Chamba' : 'Jhonatan Flores'
+    return { cuadrilla: 'CUADRILLA 1', tecnico: tec }
+  }
+
+  // Cuadrilla 2: Juan Castro, Willy Fernández
+  if ((upper.includes('JUAN') && upper.includes('CASTRO')) || (upper.includes('WILLY') && (upper.includes('FERNANDEZ') || upper.includes('FERNÁNDEZ')))) {
+    const tec = (upper.includes('WILLY')) ? 'Willy Fernández' : 'Juan Castro'
+    return { cuadrilla: 'CUADRILLA 2', tecnico: tec }
+  }
+
+  // Cuadrilla 3: Alfonso Curi, William Avila
+  if ((upper.includes('ALFONSO') && upper.includes('CURI')) || ((upper.includes('WILLIAM') || upper.includes('WILL')) && (upper.includes('AVILA') || upper.includes('ÁVILA')))) {
+    const tec = ((upper.includes('WILLIAM') || upper.includes('WILL'))) ? 'William Avila' : 'Alfonso Curi'
+    return { cuadrilla: 'CUADRILLA 3', tecnico: tec }
+  }
+
+  // Cuadrilla 4: Hugo Espinoza, Daniel Javier, Roger Valdivia
+  if ((upper.includes('HUGO') && upper.includes('ESPINOZA')) || (upper.includes('DANIEL') && upper.includes('JAVIER')) || (upper.includes('ROGER') && upper.includes('VALDIVIA'))) {
+    let tec = 'Hugo Espinoza'
+    if (upper.includes('DANIEL')) tec = 'Daniel Javier'
+    else if (upper.includes('ROGER')) tec = 'Roger Valdivia'
+    return { cuadrilla: 'CUADRILLA 4', tecnico: tec }
+  }
+
+  return null
+}
+
 /**
  * Normaliza cualquier cadena de estado al estándar oficial de 9 estados de COVEPA.
  */
@@ -52,9 +102,32 @@ export function resolveCuadrillaOficial(obs, optionsOrSitiosMap = {}) {
   const siteId = String(obs?.id_sitio || obs?.id_site || '').trim().toUpperCase()
   const obsId = String(obs?.id_obs || '').trim().toUpperCase()
 
-  // 0. Sitios o códigos AMEX pertenecen siempre a CUADRILLA 7
+  // 0. Sitios o códigos AMEX pertenecen siempre a CUADRILLA 4 (Ampliación)
   if (esAmpliacionObs(siteId, obsId)) {
-    return 'CUADRILLA 7'
+    return 'CUADRILLA 4'
+  }
+
+  // Normalizador auxiliar de cuadrilla a las 4 oficiales
+  const normalizeCuad = (raw) => {
+    if (!raw) return null
+    const cClean = String(raw).toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
+    if (cClean.includes('AMEX') || cClean.includes('AMPLIACI')) return 'CUADRILLA 4'
+    const match = cClean.match(/CUADRILLA\s*([1-7])/)
+    if (match) {
+      const num = parseInt(match[1], 10)
+      if (num === 1) return 'CUADRILLA 1'
+      if (num === 2 || num === 6) return 'CUADRILLA 2'
+      if (num === 3 || num === 5) return 'CUADRILLA 3'
+      if (num === 4 || num === 7) return 'CUADRILLA 4'
+      return `CUADRILLA ${num}`
+    }
+    return null
+  }
+
+  // 1. Prioridad: Cuadrilla ejecutora asignada directamente en la observación
+  if (obs?.cuadrilla_ejecutora) {
+    const norm = normalizeCuad(obs.cuadrilla_ejecutora)
+    if (norm) return norm
   }
 
   const isOptionsObj = Boolean(
@@ -67,51 +140,60 @@ export function resolveCuadrillaOficial(obs, optionsOrSitiosMap = {}) {
   const cuadrillaStaffMap = isOptionsObj ? (optionsOrSitiosMap.cuadrillaStaffMap || {}) : {}
   const defaultCuadrillasConfig = isOptionsObj ? (optionsOrSitiosMap.defaultCuadrillasConfig || {}) : {}
 
-  // 1. Prioridad por catálogo maestro de asignaciones territoriales
-  const asig = asignacionesMap[siteId] || sitiosMap[obs?.id_sitio] || sitiosMap[siteId]
-  if (asig) {
-    const rawGrupo = String(asig.cuadrilla || asig.grupo || '').toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
-    const match = rawGrupo.match(/CUADRILLA\s*([1-7])/)
-    if (match) return `CUADRILLA ${match[1]}`
-  }
+  // 2. Prioridad: Resolución directa por técnico ejecutor o técnico de la observación
+  const tecNombre = obs?.tecnico_ejecutor || obs?.tecnico
+  if (tecNombre) {
+    const resolved = resolveTecnicoAndCuadrilla(tecNombre)
+    if (resolved?.cuadrilla) {
+      const norm = normalizeCuad(resolved.cuadrilla)
+      if (norm) return norm
+    }
 
-  // 2. Prioridad por cuadrilla explícita en el registro
-  if (obs?.cuadrilla) {
-    const cClean = String(obs.cuadrilla).toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
-    const match = cClean.match(/CUADRILLA\s*([1-7])/)
-    if (match) return `CUADRILLA ${match[1]}`
-  }
-
-  // 3. Prioridad por nombre del técnico asignado
-  if (obs?.tecnico) {
-    const tClean = String(obs.tecnico).toUpperCase().trim()
+    const tClean = String(tecNombre).toUpperCase().trim()
     for (const [cName, tecNom] of Object.entries(cuadrillaStaffMap)) {
       if (tecNom && tClean.includes(String(tecNom).toUpperCase())) return cName
     }
     for (const [cName, cfg] of Object.entries(defaultCuadrillasConfig)) {
       if (cfg?.tecnicoNombre && tClean.includes(String(cfg.tecnicoNombre).toUpperCase())) return cName
+      if (cfg?.tecnicoNombre2 && tClean.includes(String(cfg.tecnicoNombre2).toUpperCase())) return cName
+      if (Array.isArray(cfg?.tecnicosNombres)) {
+        for (const nom of cfg.tecnicosNombres) {
+          if (nom && tClean.includes(String(nom).toUpperCase())) return cName
+        }
+      }
     }
-    if (tClean.includes('FLORES') || tClean.includes('JHONATAN')) return 'CUADRILLA 1'
-    if (tClean.includes('CHAMBA') || tClean.includes('MARCO')) return 'CUADRILLA 2'
-    if (tClean.includes('DANIEL') || tClean.includes('JAVIER') || tClean.includes('PERCY') || tClean.includes('ROJAS')) return 'CUADRILLA 3'
-    if (tClean.includes('ALFONSO') || tClean.includes('CURI')) return 'CUADRILLA 4'
-    if (tClean.includes('WILL') || tClean.includes('AVILA')) return 'CUADRILLA 5'
-    if (tClean.includes('CASTRO') || tClean.includes('JUAN')) return 'CUADRILLA 6'
+    if (tClean.includes('FLORES') || tClean.includes('JHONATAN') || tClean.includes('CHAMBA') || tClean.includes('MARCO') || tClean.includes('DENIS') || tClean.includes('TORRES')) return 'CUADRILLA 1'
+    if (tClean.includes('CASTRO') || tClean.includes('JUAN') || tClean.includes('WILLY') || tClean.includes('FERNANDEZ') || tClean.includes('FERNÁNDEZ')) return 'CUADRILLA 2'
+    if (tClean.includes('ALFONSO') || tClean.includes('CURI') || tClean.includes('WILL') || tClean.includes('AVILA') || tClean.includes('ÁVILA')) return 'CUADRILLA 3'
+    if (tClean.includes('HUGO') || tClean.includes('ESPINOZA') || tClean.includes('DANIEL') || tClean.includes('JAVIER') || tClean.includes('PERCY') || tClean.includes('ROJAS') || tClean.includes('ROGER') || tClean.includes('VALDIVIA')) return 'CUADRILLA 4'
+  }
+
+  // 3. Prioridad: Cuadrilla explícita en el registro de observación
+  if (obs?.cuadrilla) {
+    const norm = normalizeCuad(obs.cuadrilla)
+    if (norm) return norm
+  }
+
+  // 4. Prioridad: Catálogo maestro de asignaciones territoriales
+  const asig = asignacionesMap[siteId] || sitiosMap[obs?.id_sitio] || sitiosMap[siteId]
+  if (asig) {
+    const norm = normalizeCuad(asig.cuadrilla || asig.grupo)
+    if (norm) return norm
   }
 
   return 'CUADRILLA 1'
 }
 
 /**
- * Resuelve el Equipo Ejecutivo (EQUIPO 1 a EQUIPO 4) a partir de la Cuadrilla.
+ * Resuelve el Equipo Ejecutivo / Grupo a partir de la Cuadrilla (CUADRILLA 1 a CUADRILLA 4).
  */
 export function resolveEquipoPorCuadrilla(cuadrilla, isAmex = false) {
   const c = String(cuadrilla || '').trim().toUpperCase()
-  if (isAmex || c === 'CUADRILLA 7') return 'EQUIPO 4'
-  if (c === 'CUADRILLA 1' || c === 'CUADRILLA 2') return 'EQUIPO 1'
-  if (c === 'CUADRILLA 3' || c === 'CUADRILLA 6') return 'EQUIPO 2'
-  if (c === 'CUADRILLA 4' || c === 'CUADRILLA 5') return 'EQUIPO 3'
-  return 'EQUIPO 1'
+  if (isAmex || c === 'CUADRILLA 4' || c === 'CUADRILLA 7' || c === 'EQUIPO 4') return 'CUADRILLA 4'
+  if (c === 'CUADRILLA 1' || c === 'EQUIPO 1') return 'CUADRILLA 1'
+  if (c === 'CUADRILLA 2' || c === 'CUADRILLA 6' || c === 'EQUIPO 2') return 'CUADRILLA 2'
+  if (c === 'CUADRILLA 3' || c === 'CUADRILLA 5' || c === 'EQUIPO 3') return 'CUADRILLA 3'
+  return c || 'CUADRILLA 1'
 }
 
 /**
@@ -130,13 +212,10 @@ export function construirMatricesEjecutivas(rows = [], secondArg = {}, thirdArg 
     const sitiosMap = secondArg || {}
     const getTec = thirdArg
     tecnicosPorCuadrilla = {
-      'CUADRILLA 1': getTec('CUADRILLA 1'),
-      'CUADRILLA 2': getTec('CUADRILLA 2'),
-      'CUADRILLA 3': getTec('CUADRILLA 3'),
-      'CUADRILLA 4': getTec('CUADRILLA 4'),
-      'CUADRILLA 5': getTec('CUADRILLA 5'),
-      'CUADRILLA 6': getTec('CUADRILLA 6'),
-      'CUADRILLA 7': getTec('CUADRILLA 7')
+      'CUADRILLA 1': getTec('CUADRILLA 1') || 'Jhonatan Flores · Marco Chamba',
+      'CUADRILLA 2': getTec('CUADRILLA 2') || 'Juan Castro · Willy Fernández',
+      'CUADRILLA 3': getTec('CUADRILLA 3') || 'Alfonso Curi · William Avila',
+      'CUADRILLA 4': getTec('CUADRILLA 4') || 'Hugo Espinoza · Daniel Javier'
     }
     resolveCuadrillaFn = (r) => resolveCuadrillaOficial(r, sitiosMap)
   } else {
@@ -144,47 +223,44 @@ export function construirMatricesEjecutivas(rows = [], secondArg = {}, thirdArg 
     resolveCuadrillaFn = secondArg?.resolveCuadrillaFn || null
   }
 
-  const tecC1 = tecnicosPorCuadrilla['CUADRILLA 1'] || 'Jhonatan Flores'
-  const tecC2 = tecnicosPorCuadrilla['CUADRILLA 2'] || 'Marco Chamba'
-  const tecC3 = tecnicosPorCuadrilla['CUADRILLA 3'] || 'Daniel Javier'
-  const tecC4 = tecnicosPorCuadrilla['CUADRILLA 4'] || 'Alfonso Curi'
-  const tecC5 = tecnicosPorCuadrilla['CUADRILLA 5'] || 'William Avila'
-  const tecC6 = tecnicosPorCuadrilla['CUADRILLA 6'] || 'Juan Castro'
-  const tecC7 = tecnicosPorCuadrilla['CUADRILLA 7'] || 'Por Asignar'
+  const tecC1 = formatPrimerNombrePrimerApellido(tecnicosPorCuadrilla['CUADRILLA 1'] || 'Jhonatan Flores · Marco Chamba')
+  const tecC2 = formatPrimerNombrePrimerApellido(tecnicosPorCuadrilla['CUADRILLA 2'] || 'Juan Castro · Willy Fernández')
+  const tecC3 = formatPrimerNombrePrimerApellido(tecnicosPorCuadrilla['CUADRILLA 3'] || 'Alfonso Curi · William Avila')
+  const tecC4 = formatPrimerNombrePrimerApellido(tecnicosPorCuadrilla['CUADRILLA 4'] || 'Hugo Espinoza · Daniel Javier')
 
   const equiposOriginalMap = {
-    'EQUIPO 1': {
-      id: 'EQUIPO 1',
-      cuadrilla: 'EQUIPO 1',
-      subtitulo: 'Cuadrilla 1 y 2',
-      tecnico: [tecC1, tecC2].filter(Boolean).join(' · ') || 'Técnicos Equipo 1',
+    'CUADRILLA 1': {
+      id: 'CUADRILLA 1',
+      cuadrilla: 'CUADRILLA 1',
+      subtitulo: null,
+      tecnico: tecC1,
       values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
       total: 0
     },
-    'EQUIPO 2': {
-      id: 'EQUIPO 2',
-      cuadrilla: 'EQUIPO 2',
-      subtitulo: 'Cuadrilla 3 y 6',
-      tecnico: [tecC3, tecC6].filter(Boolean).join(' · ') || 'Técnicos Equipo 2',
+    'CUADRILLA 2': {
+      id: 'CUADRILLA 2',
+      cuadrilla: 'CUADRILLA 2',
+      subtitulo: null,
+      tecnico: tecC2,
       values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
       total: 0
     },
-    'EQUIPO 3': {
-      id: 'EQUIPO 3',
-      cuadrilla: 'EQUIPO 3',
-      subtitulo: 'Cuadrilla 4 y 5',
-      tecnico: [tecC4, tecC5].filter(Boolean).join(' · ') || 'Técnicos Equipo 3',
+    'CUADRILLA 3': {
+      id: 'CUADRILLA 3',
+      cuadrilla: 'CUADRILLA 3',
+      subtitulo: null,
+      tecnico: tecC3,
       values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
       total: 0
     }
   }
 
   const equiposAmpliacionMap = {
-    'EQUIPO 4': {
-      id: 'EQUIPO 4',
-      cuadrilla: 'EQUIPO 4',
-      subtitulo: 'Cuadrilla 7',
-      tecnico: tecC7 || 'Por Asignar',
+    'CUADRILLA 4': {
+      id: 'CUADRILLA 4',
+      cuadrilla: 'CUADRILLA 4',
+      subtitulo: null,
+      tecnico: tecC4,
       values: { enRevision: 0, descartados: 0, criticos: 0, documentacion: 0, rechazados: 0, validados: 0 },
       total: 0
     }

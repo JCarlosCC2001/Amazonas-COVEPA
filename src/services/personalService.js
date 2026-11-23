@@ -104,56 +104,43 @@ export function mapExternalPerson(p, localMetaMap = {}, profileMap = {}, profile
   }
 }
 
-// Helper: Configuración de cuadrillas oficiales según reporte del proyecto
+// Helper: Configuración de cuadrillas oficiales según reporte del proyecto (4 cuadrillas con pareja de técnicos)
 export const DEFAULT_CUADRILLAS_CONFIG = {
   'CUADRILLA 1': {
     idTecnico: '554a3a58-bf04-480a-8795-d85e055ee4c6', // Jhonatan Flores Rojas
-    tecnicoNombre: 'Jhonatan Flores',
-    idConductor: '37633174-4fa7-448e-83a1-afcaa67d4189', // Carlos Perez
-    conductorNombre: 'Carlos Perez',
-    conductorTelefono: ''
+    tecnicoNombre: 'Jhonatan Flores · Marco Chamba',
+    idTecnico2: '4f9d2cc7-3a88-42f9-b9ac-e97eec0277fe', // Marco Chamba
+    tecnicoNombre2: 'Marco Chamba',
+    tecnicosNombres: ['Jhonatan Flores', 'Marco Chamba'],
+    tecnicosIds: ['554a3a58-bf04-480a-8795-d85e055ee4c6', '4f9d2cc7-3a88-42f9-b9ac-e97eec0277fe'],
+    subtitulo: null
   },
   'CUADRILLA 2': {
-    idTecnico: '4f9d2cc7-3a88-42f9-b9ac-e97eec0277fe', // Marco Chamba
-    tecnicoNombre: 'Marco Chamba',
-    idConductor: '63ba01bf-2b85-488a-864b-965b6a96c9db', // Jhordin Perez
-    conductorNombre: 'Jhordin Perez',
-    conductorTelefono: '921004913'
+    idTecnico: '84444118-163f-4568-8040-e60e1824fd73', // Juan Castro
+    tecnicoNombre: 'Juan Castro · Willy Fernández',
+    idTecnico2: '61d6e0fc-81ae-4e84-9841-1436795d27fd', // Willy Fernández
+    tecnicoNombre2: 'Willy Fernández',
+    tecnicosNombres: ['Juan Castro', 'Willy Fernández'],
+    tecnicosIds: ['84444118-163f-4568-8040-e60e1824fd73', '61d6e0fc-81ae-4e84-9841-1436795d27fd'],
+    subtitulo: null
   },
   'CUADRILLA 3': {
-    idTecnico: '05db4c32-3c7a-42e4-a0aa-8ac33dd5c75f', // Daniel Javier
-    tecnicoNombre: 'Daniel Javier',
-    idConductor: '38375217-1e58-4c17-aeed-12e6cd71fd52', // Lino Ticlla
-    conductorNombre: 'Lino Ticlla',
-    conductorTelefono: '910493156'
+    idTecnico: '4b56f618-981f-4f2a-a901-4a4de4543899', // Alfonso Curi Lopez
+    tecnicoNombre: 'Alfonso Curi · William Avila',
+    idTecnico2: '19ff0cdf-7afc-4e50-94b2-f1a9998de148', // William Avila
+    tecnicoNombre2: 'William Avila',
+    tecnicosNombres: ['Alfonso Curi', 'William Avila'],
+    tecnicosIds: ['4b56f618-981f-4f2a-a901-4a4de4543899', '19ff0cdf-7afc-4e50-94b2-f1a9998de148'],
+    subtitulo: null
   },
   'CUADRILLA 4': {
-    idTecnico: '4b56f618-981f-4f2a-a901-4a4de4543899', // Alfonso Curi Lopez
-    tecnicoNombre: 'Alfonso Curi',
-    idConductor: '077953b1-9fe9-41ac-b31e-227b7dd270a3', // Nilson Vera
-    conductorNombre: 'Nilson Vera',
-    conductorTelefono: '969936764'
-  },
-  'CUADRILLA 5': {
-    idTecnico: '19ff0cdf-7afc-4e50-94b2-f1a9998de148', // William Avila
-    tecnicoNombre: 'William Avila',
-    idConductor: '84072c1a-9f19-4c98-b7da-f9ec3c3391e6', // Jhordin Antonio
-    conductorNombre: 'Jhordin Antonio',
-    conductorTelefono: '999389272'
-  },
-  'CUADRILLA 6': {
-    idTecnico: '84444118-163f-4568-8040-e60e1824fd73', // Juan Castro
-    tecnicoNombre: 'Juan Castro',
-    idConductor: 'd879089f-5981-4f08-94ca-ccccf8027f78', // Ander Peralta
-    conductorNombre: 'Ander Peralta',
-    conductorTelefono: '945551928'
-  },
-  'CUADRILLA 7': {
-    idTecnico: '',
-    tecnicoNombre: 'Por Asignar',
-    idConductor: '',
-    conductorNombre: 'Por Asignar',
-    conductorTelefono: ''
+    idTecnico: '98a85d5b-9514-43f6-ae29-6a8c2ef6d06c', // Hugo Espinoza Pezo
+    tecnicoNombre: 'Hugo Espinoza · Daniel Javier',
+    idTecnico2: '05db4c32-3c7a-42e4-a0aa-8ac33dd5c75f', // Daniel Javier
+    tecnicoNombre2: 'Daniel Javier',
+    tecnicosNombres: ['Hugo Espinoza', 'Daniel Javier'],
+    tecnicosIds: ['98a85d5b-9514-43f6-ae29-6a8c2ef6d06c', '05db4c32-3c7a-42e4-a0aa-8ac33dd5c75f'],
+    subtitulo: null
   }
 }
 
@@ -165,7 +152,7 @@ const CUADRILLAS_STORAGE_KEY = 'covepa_cuadrillas_config'
 export function getLocalCuadrillasMap() {
   const base = {}
   Object.entries(DEFAULT_CUADRILLAS_CONFIG).forEach(([cName, cfg]) => {
-    base[cName] = { idTecnico: cfg.idTecnico, idConductor: cfg.idConductor }
+    base[cName] = { idTecnico: cfg.idTecnico, idTecnico1: cfg.idTecnico, idTecnico2: cfg.idTecnico2 }
   })
   if (typeof window === 'undefined') return base
   try {
@@ -565,14 +552,17 @@ export async function toggleAccesoPersonal(id, activo, email, rol = 'supervisor'
 
 // ────────────────────────────────────────────────────────────
 // 7. Configurar o actualizar integrantes de una cuadrilla predefinida
+// Soporta parejas de técnicos { idTecnico1, idTecnico2 } y compatibilidad { idTecnico, idConductor }
 // Persiste en la tabla oficial 'personal_cuadrillas' de Supabase y en localStorage como respaldo
 // ────────────────────────────────────────────────────────────
-export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idConductor }, allStaff = []) {
+export async function updateCuadrillaAssignments(cuadrillaName, assignments = {}, allStaff = []) {
   const cName = cuadrillaName.trim().toUpperCase()
+  const tec1 = assignments.idTecnico1 || assignments.idTecnico || null
+  const tec2 = assignments.idTecnico2 || assignments.idConductor || null
 
   // 1. Guardar en localStorage para disponibilidad inmediata y fallback
   const map = getLocalCuadrillasMap()
-  map[cName] = { idTecnico, idConductor }
+  map[cName] = { idTecnico: tec1, idTecnico1: tec1, idTecnico2: tec2 }
   saveLocalCuadrillasMap(map)
 
   // 2. Persistir en la base de datos Supabase (tabla oficial 'personal_cuadrillas')
@@ -583,8 +573,9 @@ export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idC
       .select('id, id_personal')
       .eq('cuadrilla', cName)
 
+    const keepIds = [tec1, tec2].filter(Boolean)
     if (previousRows && previousRows.length > 0) {
-      const toRemove = previousRows.filter(r => r.id_personal !== idTecnico && r.id_personal !== idConductor)
+      const toRemove = previousRows.filter(r => !keepIds.includes(r.id_personal))
       for (const r of toRemove) {
         await supabase
           .from('personal_cuadrillas')
@@ -597,28 +588,28 @@ export async function updateCuadrillaAssignments(cuadrillaName, { idTecnico, idC
       }
     }
 
-    // B. Asignar al Técnico seleccionado (relación por id_personal con la tabla externa)
-    if (idTecnico) {
-      const tec = (allStaff || []).find(p => p.id === idTecnico || p.id_personal === idTecnico)
+    // B. Asignar al Técnico 1 (relación por id_personal con la tabla externa)
+    if (tec1) {
+      const p1 = (allStaff || []).find(p => p.id === tec1 || p.id_personal === tec1)
       await supabase
         .from('personal_cuadrillas')
         .upsert({
-          id_personal: idTecnico,
-          cargo: tec?.cargo || 'TÉCNICO',
+          id_personal: tec1,
+          cargo: p1?.cargo || 'TÉCNICO',
           cuadrilla: cName,
           activo: true,
           updated_at: new Date().toISOString()
         }, { onConflict: 'id_personal' })
     }
 
-    // C. Asignar al Conductor seleccionado (relación por id_personal con la tabla externa)
-    if (idConductor) {
-      const cond = (allStaff || []).find(p => p.id === idConductor || p.id_personal === idConductor)
+    // C. Asignar al Técnico 2 (relación por id_personal con la tabla externa)
+    if (tec2) {
+      const p2 = (allStaff || []).find(p => p.id === tec2 || p.id_personal === tec2)
       await supabase
         .from('personal_cuadrillas')
         .upsert({
-          id_personal: idConductor,
-          cargo: cond?.cargo || 'CONDUCTOR',
+          id_personal: tec2,
+          cargo: p2?.cargo || 'TÉCNICO',
           cuadrilla: cName,
           activo: true,
           updated_at: new Date().toISOString()

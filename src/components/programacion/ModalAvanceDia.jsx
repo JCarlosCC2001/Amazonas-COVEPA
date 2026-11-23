@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   TrendingUp, X, Search, MapPin, User,
   Clock, ShieldCheck, RefreshCw, AlertCircle, Eye, FileText,
@@ -9,7 +10,7 @@ import { ASIGNACIONES_BASE } from '../../services/sitiosService'
 import { DEFAULT_CUADRILLAS_CONFIG, fetchPersonal } from '../../services/personalService'
 import { resolveCuadrillaOficial, construirMatricesEjecutivas } from '../../shared/reportesCore'
 import CuadrillasMatrixTable from '../shared/CuadrillasMatrixTable'
-import { formatNombrePersona, getPeruDateStr } from '../../utils/helpers'
+import { formatNombrePersona, formatPrimerNombrePrimerApellido, getPeruDateStr } from '../../utils/helpers'
 import { usePresentationMode } from '../../context/PresentationContext'
 
 export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
@@ -27,23 +28,48 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
   const [selectedCellFilter, setSelectedCellFilter] = useState(null)
   const [cuadrillaStaffMap, setCuadrillaStaffMap] = useState({})
 
-  // Cargar asignaciones oficiales actualizadas desde personalService (relación por id_personal)
+  // Cargar asignaciones oficiales actualizadas desde personalService (duplas de técnicos por cuadrilla)
   useEffect(() => {
     let isMounted = true
     const loadCuadrillaStaff = async () => {
       try {
         const staff = await fetchPersonal()
-        if (isMounted && Array.isArray(staff) && staff.length > 0) {
+        if (isMounted) {
+          const cuadrillaStaffLists = {
+            'CUADRILLA 1': [],
+            'CUADRILLA 2': [],
+            'CUADRILLA 3': [],
+            'CUADRILLA 4': []
+          }
+
+          if (Array.isArray(staff) && staff.length > 0) {
+            staff.forEach(p => {
+              const cClean = String(p.cuadrilla || '').toUpperCase().trim()
+              const cargo = (p.cargo || '').toUpperCase()
+              const isTec = cargo.includes('TECN') || cargo.includes('TÉCN') || cargo.includes('SUPERV') || !cargo.includes('CONDUCT')
+              const nom = (p.nombre_completo || p.nombre || '').trim()
+              if (cClean.startsWith('CUADRILLA') && isTec && nom) {
+                const formatted = formatPrimerNombrePrimerApellido(nom)
+                if (cuadrillaStaffLists[cClean] && !cuadrillaStaffLists[cClean].includes(formatted)) {
+                  cuadrillaStaffLists[cClean].push(formatted)
+                }
+              }
+            })
+          }
+
           const map = {}
-          staff.forEach(p => {
-            const cClean = String(p.cuadrilla || '').toUpperCase().trim()
-            const cargo = (p.cargo || '').toUpperCase()
-            const isTec = cargo.includes('TECN') || cargo.includes('TÉCN') || cargo.includes('SUPERV') || !cargo.includes('CONDUCT')
-            const nom = (p.nombre_completo || p.nombre || '').trim()
-            if (cClean.startsWith('CUADRILLA') && isTec && nom) {
-              map[cClean] = formatNombrePersona(nom)
-            }
-          })
+          for (const [cName, list] of Object.entries(cuadrillaStaffLists)) {
+            const defaults = DEFAULT_CUADRILLAS_CONFIG[cName]?.tecnicosNombres || []
+            const combined = [...list]
+            defaults.forEach(defName => {
+              const fDef = formatPrimerNombrePrimerApellido(defName)
+              if (!combined.some(item => item.toUpperCase() === fDef.toUpperCase())) {
+                combined.push(fDef)
+              }
+            })
+            // Dupla oficial con Primer Nombre y Primer Apellido
+            map[cName] = combined.slice(0, 2).join(' · ')
+          }
           setCuadrillaStaffMap(map)
         }
       } catch (err) {
@@ -196,9 +222,12 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
   // Consolidación de datos matriciales agrupados por Equipos desde el núcleo único compartido
   const { matrixOriginal, matrixAmpliacion, matrixData } = useMemo(() => {
     const getCuadrillaTecnico = (cName) => {
-      return cuadrillaStaffMap[cName] ||
-        DEFAULT_CUADRILLAS_CONFIG[cName]?.tecnicoNombre ||
-        ''
+      if (cuadrillaStaffMap[cName]) return cuadrillaStaffMap[cName]
+      const cfg = DEFAULT_CUADRILLAS_CONFIG[cName]
+      if (cfg?.tecnicosNombres?.length > 0) {
+        return cfg.tecnicosNombres.map(formatPrimerNombrePrimerApellido).join(' · ')
+      }
+      return cfg?.tecnicoNombre || ''
     }
 
     const tecnicosPorCuadrilla = {
@@ -406,7 +435,7 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
     }
   }
 
-  return (
+  const modalContent = (
     <div className="prog-details-modal-overlay">
       <div ref={modalCardRef} className="prog-details-modal prog-avance-modal">
         {/* Cabecera del Modal */}
@@ -557,11 +586,12 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                 <span>↔ Desliza la tabla para ver todos los estados</span>
               </div>
 
-              {/* Matriz 1: Amazonas Original (Equipo 1, Equipo 2 y Equipo 3) */}
+              {/* Matriz 1: Amazonas Original (Cuadrillas 1, 2 y 3) */}
               <CuadrillasMatrixTable
                 icon={<TrendingUp size={18} color="#003060" />}
                 title="Amazonas Original"
-                groupColumnLabel="Equipo"
+                subtitle="Cuadrillas 1, 2 y 3"
+                groupColumnLabel="Cuadrilla"
                 techColumnLabel="Técnicos"
                 columns={statusColumns}
                 rows={matrixOriginal.matrixRows}
@@ -571,11 +601,12 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
                 presentationMode={presentationMode}
               />
 
-              {/* Matriz 2: Amazonas Ampliación (Equipo 4) */}
+              {/* Matriz 2: Amazonas Ampliación (Cuadrilla 4) */}
               <CuadrillasMatrixTable
                 icon={<TrendingUp size={18} color="#0284c7" />}
                 title="Amazonas Ampliación"
-                groupColumnLabel="Equipo"
+                subtitle="Cuadrilla 4"
+                groupColumnLabel="Cuadrilla"
                 techColumnLabel="Técnicos"
                 columns={statusColumns}
                 rows={matrixAmpliacion.matrixRows}
@@ -661,4 +692,9 @@ export default function ModalAvanceDia({ fecha, sitiosMap = {}, onClose }) {
       </div>
     </div>
   )
+
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body)
+  }
+  return modalContent
 }

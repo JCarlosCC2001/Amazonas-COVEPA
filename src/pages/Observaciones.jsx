@@ -6,7 +6,7 @@ import {
   ChevronRight, ClipboardList, AlertCircle, CheckCircle2,
   AlertTriangle, FileText, Save, LayoutList, Table2,
   ChevronDown, ChevronUp, MapPin, Loader2, Calendar, Ban, UploadCloud, Layers, Clock,
-  Users, Check, Info, History, CheckCheck, Send, Camera, AlertOctagon, Globe
+  Users, User, Check, Info, History, CheckCheck, Send, Camera, AlertOctagon, Globe
 } from 'lucide-react'
 import HistorialEstadosTimeline from '../components/shared/HistorialEstadosTimeline'
 import UltimoCambioBadge from '../components/shared/UltimoCambioBadge'
@@ -29,11 +29,12 @@ import {
 import { getPersonalActivo } from '../services/programacionService'
 import { useAuth } from '../hooks/useAuth'
 import { useNotifications } from '../context/NotificationContext'
-import { getCachedSitiosAsignados } from '../services/sitiosService'
+import { getCachedSitiosAsignados, ASIGNACIONES_BASE } from '../services/sitiosService'
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 import ErpTable from '../components/shared/ErpTable'
 import ModalConfirmacionEstado, { esEstadoProtegido, esEstadoRequiereConfirmacion } from '../components/shared/ModalConfirmacionEstado'
-import { estadoCovepaBadge, hasMeaningfulText, getPeruDateStr, getPeruISOString } from '../utils/helpers'
+import ModalDesignarTecnico from '../components/shared/ModalDesignarTecnico'
+import { estadoCovepaBadge, hasMeaningfulText, getPeruDateStr, getPeruISOString, formatPrimerNombrePrimerApellido } from '../utils/helpers'
 
 // ────────────────────────────────────────────────────────────
 // VENTANA EMERGENTE — Detalle Completo de Observación (Flujo Programación)
@@ -56,6 +57,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const [showHistorial, setShowHistorial] = useState(false)
   const [historialRefreshKey, setHistorialRefreshKey] = useState(0)
   const [confirmModalData, setConfirmModalData] = useState(null)
+  const [designarModalData, setDesignarModalData] = useState(null)
   const isDirtyCommentRef = useRef(false)
   const commentValRef = useRef(commentVal)
   commentValRef.current = commentVal
@@ -270,11 +272,25 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       return
     }
 
+    // 4. Ventana emergente: Si NO tiene cuadrilla y técnico asignado, solicitarlo
+    // Condición: En 'Descartado', NUNCA solicitar técnico ni asignar técnico, solo asignar cuadrilla del sitio.
+    const esDescartado = targetValue === 'Descartado'
+    if (!esDescartado) {
+      const tieneEjecutor = Boolean(obsLocal.cuadrilla_ejecutora && obsLocal.tecnico_ejecutor)
+      if (!tieneEjecutor) {
+        setDesignarModalData({
+          nuevoEstado: targetValue
+        })
+        return
+      }
+    }
+
+    // Si ya tiene ejecutor asignado o es Descartado, proceder directamente
     handleSetEstado(targetValue)
   }
 
   // 1. Cambio de Estado — Flujo idéntico a Programación (sincronización con Control Fotos + Historial)
-  const handleSetEstado = async (nuevoEstado) => {
+  const handleSetEstado = async (nuevoEstado, designacion = null) => {
     // Validar autorización de administrador para estados protegidos (tanto de origen como de destino)
     if (!isAdmin && (esEstadoProtegido(currentEstado) || esEstadoProtegido(nuevoEstado))) {
       alert('Solo el administrador tiene autorización para modificar observaciones en estados protegidos (Pre-validado, Crítico o Descartado).')
@@ -290,8 +306,29 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       const esEnRev = nuevoEstado === 'En Revisión' || nuevoEstado === 'En Revision' || nuevoEstado === 'Solicitando Revisión' || nuevoEstado === 'Solicitando Revision' || nuevoEstado === 'Documentación' || nuevoEstado === 'Documentacion'
       const revisorGilatActual = esEnRev ? null : (esRevisorGilat(obsLocal.revisor, gilatOptions) ? obsLocal.revisor : null)
 
-      const comentarioActual = commentValRef.current ?? obsLocal.comentario_covepa ?? null
+      let comentarioActual = commentValRef.current ?? obsLocal.comentario_covepa ?? null
+      if (designacion?.tecnico) {
+        const tag = `[Técnico: ${designacion.tecnico}]`
+        if (!comentarioActual) {
+          comentarioActual = tag
+        } else if (!comentarioActual.includes('[Técnico:')) {
+          comentarioActual = `${tag} ${comentarioActual}`
+        }
+      }
       const fechaIso = getPeruISOString()
+
+      const sInfo = sitiosMap[obsLocal.id_sitio] || {}
+      const cuadDelSitio = (obsLocal.id_sitio?.startsWith('AMEX') || obsLocal.id_obs?.startsWith('AMEX'))
+        ? 'CUADRILLA 4'
+        : (sInfo.cuadrilla || sInfo.grupo || 'CUADRILLA 1')
+
+      let tecFinal = designacion?.tecnico || obsLocal.tecnico_ejecutor || null
+      let cuadFinal = designacion?.cuadrilla || obsLocal.cuadrilla_ejecutora || cuadDelSitio
+
+      if (nuevoEstado === 'Descartado') {
+        tecFinal = null
+        cuadFinal = cuadDelSitio
+      }
 
       await sincronizarEstadoConControlFotos(
         obsLocal.id_obs,
@@ -305,7 +342,9 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
           usuarioNombre: responsableSesion,
           usuarioEmail: user?.email,
           usuarioId: personalMember?.id_personal || user?.id,
-          origen: 'observaciones'
+          origen: 'observaciones',
+          tecnicoDesignado: tecFinal,
+          cuadrillaDesignada: cuadFinal
         }
       )
 
@@ -314,7 +353,9 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
         estado_covepa: nuevoEstado,
         fecha_subsanacion: fechaIso,
         revisor: revisorGilatActual,
-        comentario_covepa: comentarioActual
+        comentario_covepa: comentarioActual,
+        tecnico_ejecutor: tecFinal,
+        cuadrilla_ejecutora: cuadFinal
       }
 
       setObsLocal(updatedRow)
@@ -403,6 +444,22 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                       Subsistema: <strong>{obsLocal.subsistema}</strong>
                     </span>
                   )}
+                  <span className="meta-pill" style={{ background: 'rgba(0, 48, 96, 0.08)', color: '#003060', borderColor: 'rgba(0, 48, 96, 0.2)' }}>
+                    Cuadrilla Ejecutora: <strong>{obsLocal.cuadrilla_ejecutora || sitioInfo?.cuadrilla || 'Sin Cuadrilla'}</strong>
+                  </span>
+                  <span
+                    className="meta-pill"
+                    style={{
+                      background: obsLocal.tecnico_ejecutor ? '#f0fdf4' : '#fffbeb',
+                      borderColor: obsLocal.tecnico_ejecutor ? '#bbf7d0' : '#fef3c7',
+                      color: obsLocal.tecnico_ejecutor ? '#166534' : '#92400e',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setDesignarModalData({ nuevoEstado: currentEstado })}
+                    title="Clic para cambiar o designar técnico ejecutor"
+                  >
+                    Técnico Ejecutor: <strong>{formatPrimerNombrePrimerApellido(obsLocal.tecnico_ejecutor) || 'Sin Asignar (Clic para asignar)'}</strong>
+                  </span>
                 </div>
               </div>
             </div>
@@ -829,7 +886,17 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
           onConfirm={async () => {
             const target = confirmModalData?.nuevoEstado
             setConfirmModalData(null)
-            if (target) await handleSetEstado(target)
+            if (target) {
+              const esDescartado = target === 'Descartado'
+              if (!esDescartado) {
+                const tieneEjecutor = Boolean(obsLocal.cuadrilla_ejecutora && obsLocal.tecnico_ejecutor)
+                if (!tieneEjecutor) {
+                  setDesignarModalData({ nuevoEstado: target })
+                  return
+                }
+              }
+              await handleSetEstado(target)
+            }
           }}
           idObs={obsLocal?.id_obs}
           idSitio={obsLocal?.id_sitio}
@@ -837,6 +904,19 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
           estadoAnterior={currentEstado}
           estadoNuevo={confirmModalData?.nuevoEstado}
           loading={updating}
+        />
+
+        {/* Modal de Designación de Técnico Responsable para Cambios Locales */}
+        <ModalDesignarTecnico
+          isOpen={Boolean(designarModalData)}
+          obs={obsLocal}
+          nuevoEstado={designarModalData?.nuevoEstado}
+          onConfirm={async (designacion) => {
+            const target = designarModalData?.nuevoEstado
+            setDesignarModalData(null)
+            if (target) await handleSetEstado(target, designacion)
+          }}
+          onClose={() => setDesignarModalData(null)}
         />
       </div>
     </div>
@@ -977,6 +1057,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                 <colgroup>
                   <col className="col-obs-cod" />
                   <col className="col-obs-cuadrilla" />
+                  <col className="col-obs-tecnico" />
                   <col className="col-obs-sitio" />
                   <col className="col-obs-localidad" />
                   <col className="col-obs-zona" />
@@ -988,7 +1069,8 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                 <thead>
                   <tr>
                     <th className="col-obs-cod">Código</th>
-                    <th className="col-obs-cuadrilla">Cuadrilla</th>
+                    <th className="col-obs-cuadrilla">Cuadrilla Ejecutora</th>
+                    <th className="col-obs-tecnico">Técnico Ejecutor</th>
                     <th className="col-obs-sitio">
                       <span className="col-header-full">Código de Sitio</span>
                       <span className="col-header-short">Sitio</span>
@@ -1010,6 +1092,8 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                 <tbody>
                   {(obsData || []).map(o => {
                     const revisorNombre = o.revisor || o.validado_por || ''
+                    const tecEjecutorNombre = formatPrimerNombrePrimerApellido(o.tecnico_ejecutor)
+                    const cuadEjecutoraNombre = o.cuadrilla_ejecutora || sitioInfo?.cuadrilla || 'Sin Cuadrilla'
                     return (
                       <tr
                         key={o.id_obs}
@@ -1031,8 +1115,20 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                               whiteSpace: 'nowrap'
                             }}
                           >
-                            {sitioInfo?.cuadrilla || 'Sin Cuadrilla'}
+                            {cuadEjecutoraNombre}
                           </span>
+                        </td>
+                        <td className="col-obs-tecnico">
+                          {tecEjecutorNombre ? (
+                            <span className="obs-revisor-pill" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }} title={tecEjecutorNombre}>
+                              <User size={12} color="#16a34a" style={{ flexShrink: 0 }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {tecEjecutorNombre}
+                              </span>
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
+                          )}
                         </td>
                         <td className="col-obs-sitio">
                           <span className="site-code-badge" style={{ color: 'var(--accent)' }}>
@@ -1184,7 +1280,7 @@ export default function Observaciones() {
   const initialEstado = searchParams.get('estado') || ''
   const [search, setSearch] = useState(() => initialSearch)
   const [searchInputVal, setSearchInputVal] = useState(() => initialSearch)
-  const [vista, setVista] = useState(() => (initialSearch || initialEstado) ? 'tabla' : 'agrupada')
+  const [vista, setVista] = useState('tabla')
   const [protocolo, setProtocolo] = useState('')
   const [estadoCovepa, setEstadoCovepa] = useState(() => initialEstado)
   const [idSitio, setIdSitio] = useState('')
@@ -1194,9 +1290,9 @@ export default function Observaciones() {
   const [page, setPage] = useState(1)
   const pageSize = 20
 
-  // Ordenamiento interactivo por cabeceras de columna
-  const [sortField, setSortField] = useState('codigo') // 'codigo' | 'cuadrilla' | 'sitio' | 'localidad' | 'zona' | 'estado' | 'fecha' | 'revisor' | 'demora'
-  const [sortDirection, setSortDirection] = useState('asc') // 'asc' | 'desc'
+  // Ordenamiento interactivo por cabeceras de columna (por defecto: de la más reciente a la más antigua)
+  const [sortField, setSortField] = useState('fecha')
+  const [sortDirection, setSortDirection] = useState('desc')
 
   const { user, personalMember, isReadOnly } = useAuth()
   const { notificarPaseEnRevision } = useNotifications()
@@ -1340,16 +1436,24 @@ export default function Observaciones() {
     const clean = search.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     if (clean.length < 2) return []
 
-    const matches = []
+    const matches = new Set()
     for (const [id, s] of Object.entries(sitiosMap || {})) {
       const loc = (s.localidad || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       const nodo = (s.nombre_nodo || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       const siteId = (id || '').toLowerCase()
       if (loc.includes(clean) || nodo.includes(clean) || siteId.includes(clean)) {
-        matches.push(id)
+        matches.add(id)
       }
     }
-    return matches
+    // Fallback con ASIGNACIONES_BASE para disponibilidad inmediata antes o durante la carga de BD externa
+    ASIGNACIONES_BASE.forEach(s => {
+      const siteId = (s.id_site || '').toLowerCase()
+      const loc = (s.localidad || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      if (siteId.includes(clean) || (loc && loc.includes(clean))) {
+        matches.add(s.id_site)
+      }
+    })
+    return Array.from(matches)
   }, [search, sitiosMap])
 
   const filtrosActivos = useMemo(() => ({
@@ -1447,7 +1551,7 @@ export default function Observaciones() {
   }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla, filtroDemora])
   useEffect(() => { if (vista === 'tabla' && page > 1) loadData() }, [page])
   useEffect(() => { if (vista === 'tabla') loadData(false) }, [sortField, sortDirection])
-  useEffect(() => { loadAgrupada() }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla, filtroDemora])
+  useEffect(() => { loadAgrupada() }, [vista, search, protocolo, estadoCovepa, idSitio, cuadrilla, filtroDemora, proyecto, searchSitios])
 
   const handleSearchChange = (val) => {
     setSearchInputVal(val)
@@ -1479,14 +1583,15 @@ export default function Observaciones() {
     try {
       const data = await exportObservacionesCSV(filtrosActivos)
       const cols = [
-        'id_obs', 'cuadrilla', 'id_sitio', 'localidad', 'zona', 'hito', 'protocolo', 'subsistema', 'detalle', 'item', 'sub_item',
+        'id_obs', 'cuadrilla', 'tecnico_asignado', 'id_sitio', 'localidad', 'zona', 'hito', 'protocolo', 'subsistema', 'detalle', 'item', 'sub_item',
         'comentario_inicial', 'comentario_complementario', 'comentario_final',
         'acuerdo_subsanacion', 'estado_gilat', 'estado_pronatel', 'comentario_pronatel', 'estado_covepa', 'fecha_subsanacion', 'revisor', 'comentario_covepa', 'justificacion_demora'
       ]
       const header = cols.join(',')
       const rows = data.map(r => cols.map(c => {
         let v = r[c] ?? ''
-        if (c === 'cuadrilla') v = sitiosMap[r.id_sitio]?.cuadrilla || ''
+        if (c === 'cuadrilla') v = r.cuadrilla_ejecutora || sitiosMap[r.id_sitio]?.cuadrilla || ''
+        if (c === 'tecnico_asignado') v = r.tecnico_ejecutor || r.tecnico || ''
         if (c === 'localidad') v = sitiosMap[r.id_sitio]?.localidad || ''
         if (c === 'zona') v = sitiosMap[r.id_sitio]?.zona || ''
         if (c === 'revisor') {
@@ -1536,9 +1641,16 @@ export default function Observaciones() {
           const valB = b.id_obs || ''
           return dir * valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
         }
+        case 'cuadrilla_ejecutora':
         case 'cuadrilla': {
-          const valA = sInfoA.cuadrilla || ''
-          const valB = sInfoB.cuadrilla || ''
+          const valA = a.cuadrilla_ejecutora || sInfoA.cuadrilla || ''
+          const valB = b.cuadrilla_ejecutora || sInfoB.cuadrilla || ''
+          return dir * valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
+        }
+        case 'tecnico':
+        case 'tecnico_ejecutor': {
+          const valA = a.tecnico_ejecutor || ''
+          const valB = b.tecnico_ejecutor || ''
           return dir * valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
         }
         case 'sitio': {
@@ -1601,13 +1713,20 @@ export default function Observaciones() {
       render: (o) => <span className="site-code-badge">{o.id_obs}</span>
     },
     {
-      key: 'cuadrilla',
-      label: 'Cuadrilla',
+      key: 'cuadrilla_ejecutora',
+      label: (
+        <>
+          <span className="col-header-full">Cuadrilla Ejecutora</span>
+          <span className="col-header-short">Cuadrilla</span>
+        </>
+      ),
+      title: 'Cuadrilla Ejecutora',
       className: 'col-obs-cuadrilla',
       align: 'left',
       sortable: true,
       render: (o) => {
         const sInfo = sitiosMap[o.id_sitio] || {}
+        const cuadVal = o.cuadrilla_ejecutora || sInfo.cuadrilla || 'Sin Cuadrilla'
         return (
           <span
             style={{
@@ -1622,8 +1741,34 @@ export default function Observaciones() {
             }}
             className="t-meta"
           >
-            {sInfo.cuadrilla || 'Sin Cuadrilla'}
+            {cuadVal}
           </span>
+        )
+      }
+    },
+    {
+      key: 'tecnico_ejecutor',
+      label: (
+        <>
+          <span className="col-header-full">Técnico Ejecutor</span>
+          <span className="col-header-short">Técnico</span>
+        </>
+      ),
+      title: 'Técnico Ejecutor',
+      className: 'col-obs-tecnico',
+      align: 'left',
+      sortable: true,
+      render: (o) => {
+        const tecVal = formatPrimerNombrePrimerApellido(o.tecnico_ejecutor)
+        return tecVal ? (
+          <span className="obs-revisor-pill" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }} title={tecVal}>
+            <User size={12} color="#16a34a" style={{ flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {tecVal}
+            </span>
+          </span>
+        ) : (
+          <span className="t-meta" style={{ color: 'var(--text-muted)' }}>—</span>
         )
       }
     },
@@ -1895,8 +2040,8 @@ export default function Observaciones() {
       <div className="obs-toolbar">
         {/* Fila 1: Selector de Ámbito, Buscador y Filtros comparten el espacio */}
         <div className="obs-toolbar-row-search-filter">
-          {/* Selector de Ámbito de Proyecto: Todos / Original / Ampliación */}
-          <div className="obs-proyecto-toggle" role="group" aria-label="Filtro de proyecto">
+          {/* Selector de Ámbito de Proyecto: Todos / Original / Ampliación (Solo en PC/Tablet grande para dar espacio prioritario al buscador en celular) */}
+          <div className="obs-proyecto-toggle obs-proyecto-toggle-desktop" role="group" aria-label="Filtro de proyecto">
             <button
               type="button"
               className={`obs-proj-btn ${proyecto === 'todos' ? 'active' : ''}`}
@@ -2015,13 +2160,11 @@ export default function Observaciones() {
                       value={cuadrilla}
                       onChange={e => { setCuadrilla(e.target.value); setPage(1) }}
                     >
-                      <option value="">Todas las Cuadrillas</option>
-                      <option value="CUADRILLA 1">CUADRILLA 1</option>
-                      <option value="CUADRILLA 2">CUADRILLA 2</option>
-                      <option value="CUADRILLA 3">CUADRILLA 3</option>
-                      <option value="CUADRILLA 4">CUADRILLA 4</option>
-                      <option value="CUADRILLA 5">CUADRILLA 5</option>
-                      <option value="CUADRILLA 6">CUADRILLA 6</option>
+                      <option value="">Todas las Cuadrillas (1 a 4)</option>
+                      <option value="CUADRILLA 1">CUADRILLA 1 (Jhonatan Flores · Marco Chamba)</option>
+                      <option value="CUADRILLA 2">CUADRILLA 2 (Juan Castro · Willy Fernández)</option>
+                      <option value="CUADRILLA 3">CUADRILLA 3 (Alfonso Curi · William Ávila)</option>
+                      <option value="CUADRILLA 4">CUADRILLA 4 (Hugo Espinoza · Daniel Javier)</option>
                     </select>
                   </div>
 
@@ -2158,21 +2301,21 @@ export default function Observaciones() {
             </div>
           )}
 
-          {/* Toggle vista: Por sitio (predeterminada) / Tabla */}
+          {/* Toggle vista: Tabla (predeterminada) / Por sitio */}
           <div className="vista-toggle">
+            <button
+              className={`vista-toggle-btn ${vista === 'tabla' ? 'active' : ''}`}
+              onClick={() => setVista('tabla')}
+              title="Vista tabla detallada (predeterminada)"
+            >
+              <Table2 size={14}/> <span>Tabla</span>
+            </button>
             <button
               className={`vista-toggle-btn ${vista === 'agrupada' ? 'active' : ''}`}
               onClick={() => setVista('agrupada')}
               title="Vista agrupada por sitio"
             >
               <LayoutList size={14}/> <span>Por sitio</span>
-            </button>
-            <button
-              className={`vista-toggle-btn ${vista === 'tabla' ? 'active' : ''}`}
-              onClick={() => setVista('tabla')}
-              title="Vista tabla detallada"
-            >
-              <Table2 size={14}/> <span>Tabla</span>
             </button>
           </div>
         </div>

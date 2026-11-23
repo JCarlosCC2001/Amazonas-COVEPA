@@ -2,7 +2,8 @@ import { supabase } from '../lib/supabase'
 import { supabaseExt } from '../lib/supabase'
 import { ASIGNACIONES_BASE, getZonaBySiteId } from './sitiosService'
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService.js'
-import { normalizarEstadoObservacion } from '../shared/reportesCore.js'
+import { normalizarEstadoObservacion, resolveTecnicoAndCuadrilla } from '../shared/reportesCore.js'
+import { formatPrimerNombrePrimerApellido } from '../utils/helpers.js'
 
 // Cache en memoria de catálogo de sitios para no saturar la BD externa
 let cachedSitiosCatalog = null
@@ -219,28 +220,33 @@ export async function getAvancePorFecha(fechaStr, forceRefresh = false) {
       })
     })
 
-    // 2. Obtener observaciones con fecha de revisión en ese día en hora Perú (UTC-5)
+    // 2. Obtener observaciones con fecha de revisión/modificación en ese día en hora Perú (UTC-5)
     const { data: rawObsFecha, error: obsErr } = await supabase
       .from('observaciones')
-      .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+      .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora, cuadrilla_ejecutora, tecnico_ejecutor')
       .gte('fecha_subsanacion', startIsoUtc)
       .lte('fecha_subsanacion', endIsoUtc)
       .order('fecha_subsanacion', { ascending: false })
 
     if (obsErr) throw obsErr
 
-    // 2.1 Obtener TODAS las observaciones que tuvieron cambios de estado/auditoría en ese día (historial_estados_observaciones)
+    // 2.1 Obtener observaciones que tuvieron cambios de estado/auditoría en ese día (historial_estados_observaciones)
     const histMap = new Map()
+    const histEventsByObs = new Map()
     try {
       const { data: rawHist } = await supabase
         .from('historial_estados_observaciones')
-        .select('id_obs, id_sitio, estado_anterior, estado_nuevo, created_at, usuario_nombre')
+        .select('id_obs, id_sitio, estado_anterior, estado_nuevo, created_at, usuario_nombre, comentario')
         .gte('created_at', startIsoUtc)
         .lte('created_at', endIsoUtc)
         .order('created_at', { ascending: true })
 
       ;(rawHist || []).forEach(h => {
         histMap.set(h.id_obs, h)
+        if (!histEventsByObs.has(h.id_obs)) {
+          histEventsByObs.set(h.id_obs, [])
+        }
+        histEventsByObs.get(h.id_obs).push(h)
       })
     } catch (histErr) {
       console.warn('Aviso consultando historial de cambios en fecha:', histErr.message)
@@ -255,7 +261,7 @@ export async function getAvancePorFecha(fechaStr, forceRefresh = false) {
       try {
         const { data: addData } = await supabase
           .from('observaciones')
-          .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
+          .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora, cuadrilla_ejecutora, tecnico_ejecutor')
           .in('id_obs', missingObsIds)
         additionalObs = addData || []
       } catch (addErr) {
@@ -263,33 +269,10 @@ export async function getAvancePorFecha(fechaStr, forceRefresh = false) {
       }
     }
 
-    // 3. Obtener observaciones en estado 'En Revision' o 'Solicitando Revisión'
-    // Para la fecha de hoy se traen todas las que están en revisión activa en el sistema.
-    // Para otras fechas, las que pertenezcan a los sitios programados en esa fecha.
-    let revisionQuery = supabase
-      .from('observaciones')
-      .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora')
-      .or('estado_covepa.eq.En Revision,estado_covepa.eq.En Revisión,estado_covepa.eq.Solicitando Revision,estado_covepa.eq.Solicitando Revisión')
-
-    if (!isToday) {
-      if (programmedSiteIds.length > 0) {
-        revisionQuery = revisionQuery.in('id_sitio', programmedSiteIds)
-      } else {
-        revisionQuery = null
-      }
-    }
-
-    const { data: rawObsRevision } = revisionQuery ? await revisionQuery : { data: [] }
-
-    // Consolidar observaciones evitando duplicados
+    // Consolidar únicamente las observaciones que tuvieron modificación en la fecha seleccionada
     const obsMap = new Map()
     ;(rawObsFecha || []).forEach(o => obsMap.set(o.id_obs, { ...o }))
     additionalObs.forEach(o => {
-      if (!obsMap.has(o.id_obs)) {
-        obsMap.set(o.id_obs, { ...o })
-      }
-    })
-    ;(rawObsRevision || []).forEach(o => {
       if (!obsMap.has(o.id_obs)) {
         obsMap.set(o.id_obs, { ...o })
       }
@@ -344,23 +327,79 @@ export async function getAvancePorFecha(fechaStr, forceRefresh = false) {
       const siteInfo = sitiosMap[siteId] || {}
       const localidad = siteInfo.localidad || siteInfo.nombre_nodo || ''
 
-      // Técnico asignado
-      let techInfo = siteTechMap[siteId]
-      const baseAsig = ASIGNACIONES_BASE.find(s => s.id_site === siteId)
-      const officialCuadrilla = baseAsig?.grupo ? baseAsig.grupo.toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim() : null
+      // Técnico asignado: Atribuir automáticamente según quién solicitó la validación o designación local en la jornada
+      const events = histEventsByObs.get(o.id_obs) || []
 
-      // Si el sitio tiene cuadrilla oficial definida en catálogo y discrepa de la vinculada por error en programación o no tiene
-      if (officialCuadrilla && (!techInfo?.cuadrilla || officialCuadrilla !== techInfo.cuadrilla.toUpperCase().trim())) {
-        const defaultCfg = DEFAULT_CUADRILLAS_CONFIG[officialCuadrilla]
-        techInfo = {
-          nombre: defaultCfg?.tecnicoNombre || techInfo?.nombre || 'Técnico de Cuadrilla',
-          cuadrilla: officialCuadrilla,
-          equipoCompleto: defaultCfg?.tecnicoNombre || techInfo?.equipoCompleto || 'Técnico de Cuadrilla'
+      // 1. Prioridad: Quién solicitó la revisión en la jornada ('Solicitando Revisión') - buscando del más reciente al más antiguo
+      let resolvedTech = null
+      for (let i = events.length - 1; i >= 0; i--) {
+        const ev = events[i]
+        const stN = (ev.estado_nuevo || '').trim().toLowerCase()
+        if (stN === 'solicitando revisión' || stN === 'solicitando revision') {
+          if (ev.usuario_nombre && !ev.usuario_nombre.includes('Técnico de Campo (App Fotos)')) {
+            const byUser = resolveTecnicoAndCuadrilla(ev.usuario_nombre)
+            if (byUser) {
+              resolvedTech = byUser
+              break
+            }
+          }
         }
       }
 
-      const nombreTecnico = techInfo ? techInfo.nombre : (o.revisor || 'Técnico de Cuadrilla')
-      const cuadrillaTecnico = techInfo?.cuadrilla || officialCuadrilla || null
+      // 2. Prioridad: Etiqueta explícita de designación [Técnico: ...] en comentario
+      if (!resolvedTech) {
+        for (let i = events.length - 1; i >= 0; i--) {
+          const ev = events[i]
+          if (ev.comentario && ev.comentario.includes('[Técnico:')) {
+            resolvedTech = resolveTecnicoAndCuadrilla(ev.comentario)
+            if (resolvedTech) break
+          }
+        }
+      }
+
+      // 3. Prioridad: Técnico ejecutor guardado directamente en la base de datos
+      if (!resolvedTech && o.tecnico_ejecutor) {
+        resolvedTech = resolveTecnicoAndCuadrilla(o.tecnico_ejecutor)
+      }
+
+      // 4. Prioridad: Cualquier acción registrada en el historial ejecutada por un técnico de cuadrilla
+      if (!resolvedTech) {
+        for (let i = events.length - 1; i >= 0; i--) {
+          const ev = events[i]
+          if (ev.usuario_nombre && !ev.usuario_nombre.includes('Técnico de Campo (App Fotos)')) {
+            const byUser = resolveTecnicoAndCuadrilla(ev.usuario_nombre)
+            if (byUser) {
+              resolvedTech = byUser
+              break
+            }
+          }
+        }
+      }
+
+      let nombreTecnico = ''
+      let cuadrillaTecnico = null
+
+      if (resolvedTech) {
+        nombreTecnico = formatPrimerNombrePrimerApellido(resolvedTech.tecnico)
+        cuadrillaTecnico = resolvedTech.cuadrilla
+      } else {
+        // Fallback a programación del sitio o catálogo territorial oficial
+        let techInfo = siteTechMap[siteId]
+        const baseAsig = ASIGNACIONES_BASE.find(s => s.id_site === siteId)
+        const officialCuadrilla = baseAsig?.grupo ? baseAsig.grupo.toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim() : null
+
+        if (officialCuadrilla && (!techInfo?.cuadrilla || officialCuadrilla !== techInfo.cuadrilla.toUpperCase().trim())) {
+          const defaultCfg = DEFAULT_CUADRILLAS_CONFIG[officialCuadrilla]
+          techInfo = {
+            nombre: defaultCfg?.tecnicoNombre || techInfo?.nombre || 'Técnico de Cuadrilla',
+            cuadrilla: officialCuadrilla,
+            equipoCompleto: defaultCfg?.tecnicoNombre || techInfo?.equipoCompleto || 'Técnico de Cuadrilla'
+          }
+        }
+
+        nombreTecnico = formatPrimerNombrePrimerApellido(techInfo ? techInfo.nombre : (o.revisor || 'Técnico de Cuadrilla'))
+        cuadrillaTecnico = techInfo?.cuadrilla || officialCuadrilla || null
+      }
 
       // Para la jornada de hoy (isToday), el estado prioritario es el estado vivo actual en la BD (o.estado_covepa).
       // Para jornadas anteriores, si tuvo transición en esa fecha, se toma el estado que alcanzó en dicha fecha (hTransition.estado_nuevo).
@@ -382,6 +421,8 @@ export async function getAvancePorFecha(fechaStr, forceRefresh = false) {
         localidad: localidad,
         tecnico: nombreTecnico,
         cuadrilla: cuadrillaTecnico,
+        tecnico_ejecutor: nombreTecnico,
+        cuadrilla_ejecutora: cuadrillaTecnico,
         estado: estadoNormalizado,
         revisor: (o.revisor && o.revisor.trim()) ? o.revisor.trim() : null,
         fecha_subsanacion: isPendingReview ? (o.fecha_subsanacion || 'Pendiente') : o.fecha_subsanacion,

@@ -20,7 +20,9 @@
 
 import { supabase } from '../lib/supabase'
 import { asegurarProgramacionSitio } from './programacionService'
+import { ASIGNACIONES_BASE } from './sitiosService'
 import { getPeruISOString } from '../utils/helpers'
+import { resolveTecnicoAndCuadrilla } from '../shared/reportesCore.js'
 
 /**
  * Catálogo estricto de los estados oficiales permitidos por la integración
@@ -317,6 +319,39 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
       updatePayload.revisor = (revisor && esRevisorGilat(revisor, extraContext.gilatOptions)) ? String(revisor).trim() : null
     }
 
+    // Regla de Negocio — Cuadrilla Ejecutora y Técnico Ejecutor:
+    // Al pedir validación o asignación, se asigna esa cuadrilla y técnico ejecutor.
+    // Se mantiene intacto hasta que otro técnico solicite validación y lo reemplace.
+    let tecEjecutor = extraContext.tecnicoDesignado || null
+    let cuadEjecutora = extraContext.cuadrillaDesignada || null
+
+    if (estadoNorm === 'Descartado') {
+      // Regla de Negocio: En estado 'Descartado', SIEMPRE asignar la cuadrilla oficial del sitio y NUNCA técnico.
+      tecEjecutor = null
+      updatePayload.tecnico_ejecutor = null
+
+      const siteId = extraContext.idSitio || ''
+      if (siteId.startsWith('AMEX') || idObs.startsWith('AMEX')) {
+        cuadEjecutora = 'CUADRILLA 4'
+      } else {
+        const asig = ASIGNACIONES_BASE.find(s => s.id_site === siteId)
+        cuadEjecutora = asig?.cuadrilla || asig?.grupo || extraContext.cuadrillaDesignada || 'CUADRILLA 1'
+      }
+      updatePayload.cuadrilla_ejecutora = cuadEjecutora
+    } else if (estadoNorm === 'Solicitando Revisión' || estadoNorm === 'Solicitando Revision') {
+      const resolved = resolveTecnicoAndCuadrilla(extraContext.usuarioNombre || extraContext.tecnicoDesignado)
+      if (resolved) {
+        tecEjecutor = resolved.tecnico
+        cuadEjecutora = resolved.cuadrilla
+      }
+    } else if (tecEjecutor && !cuadEjecutora) {
+      const resolved = resolveTecnicoAndCuadrilla(tecEjecutor)
+      if (resolved) cuadEjecutora = resolved.cuadrilla
+    }
+
+    if (tecEjecutor) updatePayload.tecnico_ejecutor = tecEjecutor
+    if (cuadEjecutora) updatePayload.cuadrilla_ejecutora = cuadEjecutora
+
     let qEstado = supabase
       .from('observaciones')
       .update(updatePayload)
@@ -326,7 +361,22 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
       qEstado = qEstado.eq('id_sitio', extraContext.idSitio)
     }
 
-    const { data, error } = await qEstado
+    let { data, error } = await qEstado
+
+    // Resiliencia: Si las columnas nuevas aún no existen en la base de datos, reintentar sin ellas
+    if (error && (error.code === '42703' || String(error.message).includes('cuadrilla_ejecutora') || String(error.message).includes('tecnico_ejecutor'))) {
+      console.warn('[AVISO-SCHEMA] Columnas ejecutoras no creadas aún. Ejecuta sql/migraciones/20261123_agregar_columnas_cuadrilla_tecnico_ejecutor.sql. Reintentando...')
+      delete updatePayload.tecnico_ejecutor
+      delete updatePayload.cuadrilla_ejecutora
+
+      let retryQ = supabase
+        .from('observaciones')
+        .update(updatePayload)
+        .eq('id_obs', idObs)
+      if (extraContext?.idSitio) retryQ = retryQ.eq('id_sitio', extraContext.idSitio)
+      const retryRes = await retryQ
+      error = retryRes.error
+    }
 
     if (error) {
       console.error('Error al actualizar observación:', error)
@@ -338,6 +388,12 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
     // El autor de la acción para el historial de trazabilidad es el usuario que ejecutó el cambio
     const usuarioAccion = extraContext.usuarioNombre || 'Usuario del Sistema'
 
+    let finalComentario = comentario
+    if (extraContext.tecnicoDesignado && (!finalComentario || !finalComentario.includes('[Técnico:'))) {
+      const tag = `[Técnico: ${extraContext.tecnicoDesignado}]`
+      finalComentario = finalComentario ? `${tag} ${finalComentario}` : tag
+    }
+
     // Registro automático no bloqueante en el historial de estados
     registrarHistorialEstado({
       idObs,
@@ -347,7 +403,7 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
       usuarioNombre: usuarioAccion,
       usuarioEmail: extraContext.usuarioEmail,
       usuarioId: extraContext.usuarioId,
-      comentario: comentario,
+      comentario: finalComentario,
       origen: extraContext.origen || 'web_erp'
     }).catch(err => console.warn('[HISTORIAL-WARN] Error registrando historial:', err))
 

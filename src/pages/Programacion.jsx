@@ -26,6 +26,7 @@ import {
   getSitiosObservacionesResumen,
   getObservacionesSitioDetalle
 } from '../services/programacionService'
+import { DEFAULT_CUADRILLAS_CONFIG } from '../services/personalService'
 import { updateObservacionCovepa, sincronizarEstadoConControlFotos, esRevisorGilat, pasarTodasSolicitudesAEnRevision } from '../services/observacionesService'
 import {
   sincronizarAuditoriaObservacion,
@@ -58,7 +59,6 @@ export default function Programacion() {
   const { notificarPaseEnRevision } = useNotifications()
   const [batchRevisionLoading, setBatchRevisionLoading] = useState(false)
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [viewMode, setViewMode] = useState('today') // 'today' | 'week'
   const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL' | 'SOLICITANDO' | 'EN_REVISION' | 'VALIDADO' | 'RECHAZADO'
   const [proyectoFilter, setProyectoFilter] = useState('ALL') // 'ALL' | 'ORIGINAL' | 'AMPLIACION'
   const [loading, setLoading] = useState(true)
@@ -157,61 +157,104 @@ export default function Programacion() {
   const [modalAvanceOpen, setModalAvanceOpen] = useState(false)
   const [selectedTimelineTecnico, setSelectedTimelineTecnico] = useState(null) // { tecnico, cuadrilla, fecha, siteIds }
 
-  // Abrir la línea de actividad horizontal del técnico
-  const handleOpenTimelineTecnico = useCallback((tec, groupOrDay, customFecha = null) => {
+  // Mapa de duplas oficiales de técnicos por cuadrilla (para mostrar en las tarjetas)
+  const cuadrillaStaffMap = useMemo(() => {
+    const cuadrillaStaffLists = {
+      'CUADRILLA 1': [],
+      'CUADRILLA 2': [],
+      'CUADRILLA 3': [],
+      'CUADRILLA 4': []
+    }
+    ;(tecnicos || []).forEach(p => {
+      const cClean = String(p.cuadrilla || '').toUpperCase().trim()
+      const isTec = (p.cargo || '').toUpperCase().includes('TÉCN') || (p.cargo || '').toUpperCase().includes('TECN')
+      const nom = p.nombre_completo || ''
+      if (cClean.startsWith('CUADRILLA') && isTec && nom) {
+        const formatted = nom.split(' ').slice(0, 2).join(' ')
+        if (cuadrillaStaffLists[cClean] && !cuadrillaStaffLists[cClean].includes(formatted)) {
+          cuadrillaStaffLists[cClean].push(formatted)
+        }
+      }
+    })
+    const map = {}
+    for (const [cName, list] of Object.entries(cuadrillaStaffLists)) {
+      const defaults = DEFAULT_CUADRILLAS_CONFIG[cName]?.tecnicosNombres || []
+      const combined = [...list]
+      defaults.forEach(d => {
+        if (!combined.some(c => c.toLowerCase().includes(d.toLowerCase()) || d.toLowerCase().includes(c.toLowerCase()))) {
+          combined.push(d)
+        }
+      })
+      map[cName] = combined.slice(0, 2).join(' · ') || DEFAULT_CUADRILLAS_CONFIG[cName]?.tecnicoNombre || 'Por Asignar'
+    }
+    return map
+  }, [tecnicos])
+
+  // Abrir la línea de actividad horizontal de la cuadrilla
+  const handleOpenTimelineCuadrilla = useCallback((cuadGroup, customFecha = null) => {
     const fechaVal = customFecha || toLocalDateString(currentDate)
-    const siteIds = (groupOrDay?.sitios || []).map(s => s.id_sitio).filter(Boolean)
+    const siteIds = (cuadGroup?.sitios || []).map(s => s.id_sitio).filter(Boolean)
+    const tecPrincipal = cuadGroup?.team?.[0] || {
+      id: cuadGroup?.cuadrilla,
+      nombre_completo: cuadGroup?.tecnicos || cuadGroup?.cuadrilla,
+      cargo: 'TÉCNICO',
+      cuadrilla: cuadGroup?.cuadrilla
+    }
     setSelectedTimelineTecnico({
-      tecnico: tec,
-      cuadrilla: groupOrDay?.cuadrilla || tec?.cuadrilla,
+      tecnico: tecPrincipal,
+      cuadrilla: cuadGroup?.cuadrilla,
       fecha: fechaVal,
       siteIds
     })
   }, [currentDate])
 
-  // Resolver la última solicitud de revisión o último reporte de un grupo de técnico para la jornada activa
-  const getUltimoReporteTecnico = useCallback((tGroup) => {
+  const handleOpenTimelineTecnico = handleOpenTimelineCuadrilla
+
+  // Resolver la última solicitud de revisión o último reporte de una cuadrilla para la jornada activa
+  const getUltimoReporteCuadrilla = useCallback((cuadGroup) => {
     let latestSolicitud = null
-    
-    const tecName = (tGroup?.tecnico?.nombre_completo || '').trim().toUpperCase()
 
     // 1. Prioridad: Buscar solicitudes de revisión
-    // 1.1 Por sitios asignados
-    ;(tGroup?.sitios || []).forEach(s => {
+    // 1.1 Por sitios asignados a la cuadrilla
+    ;(cuadGroup?.sitios || []).forEach(s => {
       const sol = ultimosReportes.bySiteSolicitud?.[s.id_sitio]
       if (sol && (!latestSolicitud || new Date(sol.ts) > new Date(latestSolicitud.ts))) {
         latestSolicitud = { ...sol, isSolicitud: true }
       }
     })
 
-    // 1.2 Por técnico responsable
-    if (tecName && ultimosReportes.byUserSolicitud) {
-      const solUser = ultimosReportes.byUserSolicitud[tecName] ||
-        Object.entries(ultimosReportes.byUserSolicitud).find(([name]) => name.includes(tecName) || tecName.includes(name))?.[1]
-      if (solUser && (!latestSolicitud || new Date(solUser.ts) > new Date(latestSolicitud.ts))) {
-        latestSolicitud = { ...solUser, isSolicitud: true }
-      }
+    // 1.2 Por cuadrilla
+    if (!latestSolicitud && cuadGroup?.cuadrilla && ultimosReportes.byCuadrillaSolicitud) {
+      const cClean = String(cuadGroup.cuadrilla).trim().toUpperCase().replace(/GRUPO/gi, 'CUADRILLA')
+      const solCuad = ultimosReportes.byCuadrillaSolicitud[cClean] || ultimosReportes.byCuadrillaSolicitud[cuadGroup.cuadrilla]
+      if (solCuad) latestSolicitud = { ...solCuad, isSolicitud: true }
     }
 
-    // 1.3 Por cuadrilla
-    if (!latestSolicitud && tGroup?.cuadrilla && ultimosReportes.byCuadrillaSolicitud) {
-      const cClean = String(tGroup.cuadrilla).trim().toUpperCase().replace(/GRUPO/gi, 'CUADRILLA')
-      const solCuad = ultimosReportes.byCuadrillaSolicitud[cClean] || ultimosReportes.byCuadrillaSolicitud[tGroup.cuadrilla]
-      if (solCuad) latestSolicitud = { ...solCuad, isSolicitud: true }
+    // 1.3 Por técnicos del equipo
+    if (!latestSolicitud && ultimosReportes.byUserSolicitud) {
+      const names = (cuadGroup?.team || []).map(m => (m.nombre_completo || '').trim().toUpperCase()).filter(Boolean)
+      for (const tName of names) {
+        const solUser = ultimosReportes.byUserSolicitud[tName] ||
+          Object.entries(ultimosReportes.byUserSolicitud).find(([name]) => name.includes(tName) || tName.includes(name))?.[1]
+        if (solUser && (!latestSolicitud || new Date(solUser.ts) > new Date(latestSolicitud.ts))) {
+          latestSolicitud = { ...solUser, isSolicitud: true }
+          break
+        }
+      }
     }
 
     // 2. Si no hubo solicitud explícita de revisión, buscar última actividad registrada de sus sitios/cuadrilla
     if (!latestSolicitud) {
       let latestActividad = null
-      ;(tGroup?.sitios || []).forEach(s => {
+      ;(cuadGroup?.sitios || []).forEach(s => {
         const act = ultimosReportes.bySite?.[s.id_sitio]
         if (act && (!latestActividad || new Date(act.ts) > new Date(latestActividad.ts))) {
           latestActividad = act
         }
       })
-      if (!latestActividad && tGroup?.cuadrilla && ultimosReportes.byCuadrilla) {
-        const cClean = String(tGroup.cuadrilla).trim().toUpperCase().replace(/GRUPO/gi, 'CUADRILLA')
-        latestActividad = ultimosReportes.byCuadrilla[cClean] || ultimosReportes.byCuadrilla[tGroup.cuadrilla]
+      if (!latestActividad && cuadGroup?.cuadrilla && ultimosReportes.byCuadrilla) {
+        const cClean = String(cuadGroup.cuadrilla).trim().toUpperCase().replace(/GRUPO/gi, 'CUADRILLA')
+        latestActividad = ultimosReportes.byCuadrilla[cClean] || ultimosReportes.byCuadrilla[cuadGroup.cuadrilla]
       }
       if (latestActividad) {
         return latestActividad
@@ -220,6 +263,8 @@ export default function Programacion() {
 
     return latestSolicitud
   }, [ultimosReportes])
+
+  const getUltimoReporteTecnico = getUltimoReporteCuadrilla
 
   // Buscador de Observación e Intersección Operativa
   const [searchObsQuery, setSearchObsQuery] = useState('')
@@ -331,24 +376,16 @@ export default function Programacion() {
     }
   }
 
-  // Navegación de período (día en 'today', semana en 'week' / 'list')
+  // Navegación de período (día a día)
   const prevPeriod = () => {
     const d = new Date(currentDate)
-    if (viewMode === 'today') {
-      d.setDate(d.getDate() - 1)
-    } else {
-      d.setDate(d.getDate() - 7)
-    }
+    d.setDate(d.getDate() - 1)
     setCurrentDate(d)
   }
 
   const nextPeriod = () => {
     const d = new Date(currentDate)
-    if (viewMode === 'today') {
-      d.setDate(d.getDate() + 1)
-    } else {
-      d.setDate(d.getDate() + 7)
-    }
+    d.setDate(d.getDate() + 1)
     setCurrentDate(d)
   }
 
@@ -367,58 +404,6 @@ export default function Programacion() {
       alert('Error al eliminar programación: ' + err.message)
     }
   }
-
-  // Medidores / Estadísticas de la semana (por estados operativos de observaciones en sitios de la semana)
-  const weekStats = useMemo(() => {
-    let totalObs = 0
-    let validadas = 0
-    let solicitando = 0
-    let enRevision = 0
-    let enviadas = 0
-    let descartadas = 0
-    let rechazadas = 0
-    let pendientes = 0
-    let documentacion = 0
-    const weekSitesSet = new Set()
-
-    programaciones.forEach(p => {
-      ;(p.sitios || []).forEach(s => {
-        if (!s.id_sitio) return
-        const isAmex = String(s.id_sitio).toUpperCase().startsWith('AMEX')
-        if (proyectoFilter === 'ORIGINAL' && isAmex) return
-        if (proyectoFilter === 'AMPLIACION' && !isAmex) return
-
-        if (!weekSitesSet.has(s.id_sitio)) {
-          weekSitesSet.add(s.id_sitio)
-          const stat = sitiosStats[s.id_sitio]
-          if (stat) {
-            totalObs += (stat.total || 0)
-            validadas += (stat.validadas || 0)
-            solicitando += (stat.solicitando || 0)
-            enRevision += (stat.enRevision || 0)
-            enviadas += (stat.enviadas || 0)
-            descartadas += (stat.descartadas || 0)
-            rechazadas += (stat.rechazadas || 0)
-            pendientes += (stat.pendientes || 0)
-            documentacion += (stat.documentacion || 0)
-          }
-        }
-      })
-    })
-
-    return {
-      totalObs,
-      validadas,
-      solicitando,
-      enRevision,
-      enviadas,
-      descartadas,
-      rechazadas,
-      pendientes,
-      documentacion,
-      totalSitios: weekSitesSet.size
-    }
-  }, [programaciones, sitiosStats, proyectoFilter])
 
   // Estadísticas y datos específicos para la vista 'Hoy'
   const todayStats = useMemo(() => {
@@ -514,7 +499,7 @@ export default function Programacion() {
     }
   }, [dayAvance.rows, dayAvance.stats, proyectoFilter])
 
-  const solicitandoCount = viewMode === 'today' ? (filteredDayAvanceStats?.solicitando ?? 0) : (weekStats.solicitando ?? 0)
+  const solicitandoCount = filteredDayAvanceStats?.solicitando ?? 0
 
   // Helper para filtrar cualquier lista de programaciones por estado de observación y proyecto
   const filterProgsByStatus = useCallback((progsList) => {
@@ -570,32 +555,56 @@ export default function Programacion() {
     return filterProgsByStatus(todayStats.progs)
   }, [todayStats.progs, filterProgsByStatus])
 
-  // Función para agrupar cualquier lista de programaciones por técnico
-  const groupProgsByTecnico = useCallback((list, statsMap = {}) => {
+  // Función para agrupar cualquier lista de programaciones por Cuadrilla (ya no por técnico individual)
+  const groupProgsByCuadrilla = useCallback((list, statsMap = {}) => {
     const map = new Map()
 
     list.forEach(prog => {
       const team = prog.equipo && prog.equipo.length > 0 ? prog.equipo : [prog.personal || {}]
 
-      // Encontrar el técnico responsable (o supervisor)
-      const tec = team.find(m => {
-        const c = (m.cargo || '').toUpperCase()
-        return c.includes('TÉCN') || c.includes('TECN') || c.includes('SUPERVISOR')
-      }) || (prog.personal?.nombre_completo ? prog.personal : team[0]) || {
-        id: 'sin-asignar',
-        nombre_completo: 'Técnico sin asignar',
-        cargo: 'TÉCNICO',
-        cuadrilla: null
+      // 1. Resolver cuadrilla asignada
+      let rawCuad = prog.cuadrilla || prog.personal?.cuadrilla || null
+      if (!rawCuad) {
+        const teamCuad = team.find(m => m.cuadrilla)?.cuadrilla
+        if (teamCuad) rawCuad = teamCuad
+      }
+      if (!rawCuad && prog.sitios && prog.sitios.length > 0) {
+        for (const s of prog.sitios) {
+          const sCuad = sitiosMap[s.id_sitio]?.cuadrilla || sitiosMap[s.id_sitio]?.grupo
+          if (sCuad) {
+            rawCuad = sCuad
+            break
+          }
+        }
+      }
+      if (!rawCuad) {
+        const tecName = (prog.personal?.nombre_completo || team[0]?.nombre_completo || '').toUpperCase()
+        if (tecName) {
+          for (const [cName, cfg] of Object.entries(DEFAULT_CUADRILLAS_CONFIG)) {
+            const match = (cfg.tecnicosNombres || []).some(n => tecName.includes(n.toUpperCase()) || n.toUpperCase().includes(tecName))
+            if (match) {
+              rawCuad = cName
+              break
+            }
+          }
+        }
       }
 
-      const tecKey = tec.id || tec.nombre_completo || 'sin-id'
+      let cKey = rawCuad
+        ? String(rawCuad).trim().toUpperCase().replace(/GRUPO/gi, 'CUADRILLA')
+        : 'SIN CUADRILLA'
 
-      if (!map.has(tecKey)) {
-        const companions = team.filter(m => (m.id ? m.id !== tec.id : m.nombre_completo !== tec.nombre_completo))
-        map.set(tecKey, {
-          tecnico: tec,
-          companions,
-          cuadrilla: tec.cuadrilla || prog.personal?.cuadrilla || null,
+      if (/^C[1-7]$/i.test(cKey)) {
+        cKey = `CUADRILLA ${cKey.slice(1)}`
+      }
+
+      if (!map.has(cKey)) {
+        const defaultTecs = cuadrillaStaffMap[cKey] || DEFAULT_CUADRILLAS_CONFIG[cKey]?.tecnicoNombre || 'Por Asignar'
+
+        map.set(cKey, {
+          cuadrilla: cKey,
+          team: [],
+          tecnicos: defaultTecs,
           progs: [],
           sitios: [],
           sitiosSet: new Set(),
@@ -611,14 +620,15 @@ export default function Programacion() {
         })
       }
 
-      const group = map.get(tecKey)
+      const group = map.get(cKey)
       group.progs.push(prog)
 
-      // Agregar acompañantes no duplicados
-      const currentCompanions = team.filter(m => (m.id ? m.id !== tec.id : m.nombre_completo !== tec.nombre_completo))
-      currentCompanions.forEach(comp => {
-        if (!group.companions.some(c => (c.id ? c.id === comp.id : c.nombre_completo === comp.nombre_completo))) {
-          group.companions.push(comp)
+      // Registrar miembros del equipo sin duplicados
+      team.forEach(m => {
+        if (m && (m.id || m.nombre_completo)) {
+          if (!group.team.some(existing => (existing.id && existing.id === m.id) || existing.nombre_completo === m.nombre_completo)) {
+            group.team.push(m)
+          }
         }
       })
 
@@ -633,6 +643,7 @@ export default function Programacion() {
             enRevision: 0,
             enviadas: 0,
             descartadas: 0,
+            rechazadas: 0,
             pendientes: 0,
             subsanadas: 0
           }
@@ -657,11 +668,16 @@ export default function Programacion() {
       })
     })
 
+    // Ordenar numéricamente por número de cuadrilla (CUADRILLA 1, CUADRILLA 2, CUADRILLA 3, CUADRILLA 4, ...)
     return Array.from(map.values()).sort((a, b) => {
-      if (a.cuadrilla && b.cuadrilla) return a.cuadrilla.localeCompare(b.cuadrilla)
-      return (a.tecnico.nombre_completo || '').localeCompare(b.tecnico.nombre_completo || '')
+      const numA = parseInt((a.cuadrilla || '').replace(/\D/g, ''), 10) || 999
+      const numB = parseInt((b.cuadrilla || '').replace(/\D/g, ''), 10) || 999
+      return numA - numB
     })
-  }, [])
+  }, [sitiosMap, cuadrillaStaffMap])
+
+  // Alias para retrocompatibilidad
+  const groupProgsByTecnico = groupProgsByCuadrilla
 
   // Búsqueda de observación en Supabase y verificación de intersección con la jornada activa
   const handleSearchObservation = useCallback(async (queryText, selectedObsItem = null) => {
@@ -806,27 +822,27 @@ export default function Programacion() {
     }
   }
 
-  // Agrupación de programaciones de hoy por técnico
-  const todayByTecnicos = useMemo(() => {
-    return groupProgsByTecnico(filteredTodayProgs, sitiosStats)
-  }, [filteredTodayProgs, sitiosStats, groupProgsByTecnico])
+  // Agrupación de programaciones de hoy por cuadrilla
+  const todayByCuadrillas = useMemo(() => {
+    return groupProgsByCuadrilla(filteredTodayProgs, sitiosStats)
+  }, [filteredTodayProgs, sitiosStats, groupProgsByCuadrilla])
 
-  // Cuadrillas mostradas en Hoy: si hay una observación buscada y programada hoy, filtrar exclusivamente a esa cuadrilla/técnico
-  const displayedTodayByTecnicos = useMemo(() => {
+  // Cuadrillas mostradas en Hoy: si hay una observación buscada y programada hoy, filtrar exclusivamente a esa cuadrilla
+  const displayedTodayByCuadrillas = useMemo(() => {
     if (searchObsResult?.status === 'SCHEDULED' && searchObsResult.siteId) {
-      const match = todayByTecnicos.filter(item =>
+      const match = todayByCuadrillas.filter(item =>
         item.sitios.some(s => s.id_sitio === searchObsResult.siteId)
       )
-      return match.length > 0 ? match : todayByTecnicos
+      return match.length > 0 ? match : todayByCuadrillas
     }
-    return todayByTecnicos
-  }, [todayByTecnicos, searchObsResult])
+    return todayByCuadrillas
+  }, [todayByCuadrillas, searchObsResult])
 
   return (
     <div className="prog-container">
       {/* ── MEDIDORES / KPIs Y FILTROS INTERACTIVOS SUPERIORES ── */}
       {(() => {
-        const docCount = viewMode === 'today' ? (filteredDayAvanceStats?.documentacion ?? 0) : (weekStats.documentacion ?? 0)
+        const docCount = filteredDayAvanceStats?.documentacion ?? 0
         const showDoc = docCount > 0 || statusFilter === 'DOCUMENTACION'
         return (
           <MetricGrid columns={showDoc ? 5 : 4}>
@@ -834,107 +850,107 @@ export default function Programacion() {
               icon={<Clock size={20} />}
               label="Solicitando Revisión"
               value={solicitandoCount}
-              subtitle={viewMode === 'today' ? 'esperando validación' : 'en la semana'}
+              subtitle="esperando validación"
               variant="orange"
               onClick={() => setStatusFilter(prev => prev === 'SOLICITANDO' ? 'ALL' : 'SOLICITANDO')}
               active={statusFilter === 'SOLICITANDO'}
               badge={statusFilter === 'SOLICITANDO' ? 'Filtrando' : null}
-              loading={viewMode === 'today' && dayAvance.loading}
+              loading={dayAvance.loading}
             />
             <MetricCard
               icon={<Search size={20} />}
               label="En Revisión"
-              value={viewMode === 'today' ? (filteredDayAvanceStats?.enRevision ?? 0) : (weekStats.enRevision ?? 0)}
-              subtitle={viewMode === 'today' ? 'en auditoría técnica' : 'en la semana'}
+              value={filteredDayAvanceStats?.enRevision ?? 0}
+              subtitle="en auditoría técnica"
               variant="sky"
               onClick={() => setStatusFilter(prev => prev === 'EN_REVISION' ? 'ALL' : 'EN_REVISION')}
               active={statusFilter === 'EN_REVISION'}
               badge={statusFilter === 'EN_REVISION' ? 'Filtrando' : null}
-              loading={viewMode === 'today' && dayAvance.loading}
+              loading={dayAvance.loading}
             />
             <MetricCard
               icon={<CheckCircle2 size={20} />}
               label="Validados (Por Subir)"
-              value={viewMode === 'today' ? (filteredDayAvanceStats?.validadas ?? 0) : (weekStats.validadas ?? 0)}
-              subtitle={viewMode === 'today' ? 'listos para cargar' : 'en la semana'}
+              value={filteredDayAvanceStats?.validadas ?? 0}
+              subtitle="listos para cargar"
               variant="emerald"
               onClick={() => setStatusFilter(prev => prev === 'VALIDADO' ? 'ALL' : 'VALIDADO')}
               active={statusFilter === 'VALIDADO'}
               badge={statusFilter === 'VALIDADO' ? 'Filtrando' : null}
-              loading={viewMode === 'today' && dayAvance.loading}
+              loading={dayAvance.loading}
             />
             <MetricCard
               icon={<AlertTriangle size={20} />}
               label="Rechazadas"
-              value={viewMode === 'today' ? (filteredDayAvanceStats?.rechazadas ?? 0) : (weekStats.rechazadas ?? 0)}
-              subtitle={viewMode === 'today' ? 'observaciones rechazadas' : 'en la semana'}
+              value={filteredDayAvanceStats?.rechazadas ?? 0}
+              subtitle="observaciones rechazadas"
               variant="rose"
               onClick={() => setStatusFilter(prev => prev === 'RECHAZADO' ? 'ALL' : 'RECHAZADO')}
               active={statusFilter === 'RECHAZADO'}
               badge={statusFilter === 'RECHAZADO' ? 'Filtrando' : null}
-              loading={viewMode === 'today' && dayAvance.loading}
+              loading={dayAvance.loading}
             />
             {showDoc && (
               <MetricCard
                 icon={<FileText size={20} />}
                 label="Documentación"
                 value={docCount}
-                subtitle={viewMode === 'today' ? 'en recopilación técnica' : 'en la semana'}
+                subtitle="en recopilación técnica"
                 variant="purple"
                 onClick={() => setStatusFilter(prev => prev === 'DOCUMENTACION' ? 'ALL' : 'DOCUMENTACION')}
                 active={statusFilter === 'DOCUMENTACION'}
                 badge={statusFilter === 'DOCUMENTACION' ? 'Filtrando' : null}
-                loading={viewMode === 'today' && dayAvance.loading}
+                loading={dayAvance.loading}
               />
             )}
           </MetricGrid>
         )
       })()}
 
-      {/* ── BARRA SUPERIOR INTEGRADA (Navegación de Fecha + Distribución + Selector de Vista + Acción) ── */}
+      {/* ── BARRA SUPERIOR INTEGRADA (Navegación de Fecha + Ámbito de Proyecto + Acción) ── */}
       <div className="prog-toolbar">
-        {/* Izquierda: Selector de Día / Semana */}
+        {/* Izquierda: Navegación de Día y Selector de Fecha */}
         <div className="prog-nav-group">
           <div className="prog-nav-btns-cluster">
-            <button className="prog-btn-nav" onClick={prevPeriod} title={viewMode === 'today' ? 'Día anterior' : 'Semana anterior'}>
+            <button className="prog-btn-nav" onClick={prevPeriod} title="Día anterior">
               <ChevronLeft size={16} />
             </button>
             <button className="prog-btn-nav" onClick={goToToday} title="Ir a hoy">
               Hoy
             </button>
-            <button className="prog-btn-nav" onClick={nextPeriod} title={viewMode === 'today' ? 'Día siguiente' : 'Semana siguiente'}>
+            <button className="prog-btn-nav" onClick={nextPeriod} title="Día siguiente">
               <ChevronRight size={16} />
             </button>
           </div>
-          <div className="prog-nav-title">
-            {viewMode === 'today' ? (
-              <>
-                <Clock size={16} style={{ color: '#0284c7', display: 'inline', marginRight: '6px', flexShrink: 0 }} />
-                <span style={{ textTransform: 'capitalize' }}>
-                  {currentDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                </span>
-                {toLocalDateString(currentDate) === toLocalDateString(new Date()) && (
-                  <span className="prog-badge-today">
-                    HOY
-                  </span>
-                )}
-              </>
-            ) : (
-              <>
-                <CalendarDays size={16} style={{ color: '#003060', display: 'inline', marginRight: '6px', flexShrink: 0 }} />
-                <span>
-                  {weekDays[0].date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })} –{' '}
-                  {weekDays[6].date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-              </>
+          <label className="prog-nav-title is-clickable" title="Clic para seleccionar una fecha" style={{ cursor: 'pointer', position: 'relative' }}>
+            <Clock size={16} style={{ color: '#0284c7', display: 'inline', marginRight: '6px', flexShrink: 0 }} />
+            <span style={{ textTransform: 'capitalize' }}>
+              {currentDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+            {toLocalDateString(currentDate) === toLocalDateString(new Date()) && (
+              <span className="prog-badge-today">
+                HOY
+              </span>
             )}
-          </div>
+            <input
+              type="date"
+              className="prog-hidden-date-input"
+              value={toLocalDateString(currentDate)}
+              onChange={(e) => {
+                if (e.target.value) {
+                  const [y, m, d] = e.target.value.split('-').map(Number)
+                  setCurrentDate(new Date(y, m - 1, d))
+                }
+              }}
+              style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', top: 0, left: 0, cursor: 'pointer' }}
+            />
+          </label>
           <button className="prog-btn-nav prog-btn-refresh" onClick={fetchWeekData} title="Refrescar datos">
             <RefreshCw size={13} className={loading ? 'spin' : ''} />
           </button>
         </div>
 
-        {/* Derecha: Selector de Ámbito de Proyecto + Toggle Hoy / Semana + Botón Nueva Programación */}
+        {/* Derecha: Selector de Ámbito de Proyecto + Avance del Día + Botones de Acción */}
         <div className="prog-toolbar-actions">
           {/* Selector de Ámbito de Proyecto: Todos / Original / Ampliación */}
           <div className="prog-proyecto-toggle" role="group" aria-label="Filtro de proyecto">
@@ -962,26 +978,6 @@ export default function Programacion() {
               title="Filtrar solo Amazonas Ampliación (sitios AMEX-...)"
             >
               <span>Ampliación</span>
-            </button>
-          </div>
-
-          <div className="prog-views-toggle">
-            <button
-              className={`prog-view-btn ${viewMode === 'today' ? 'active' : ''}`}
-              onClick={() => {
-                goToToday()
-                setViewMode('today')
-              }}
-            >
-              <Clock size={13} />
-              Hoy
-            </button>
-            <button
-              className={`prog-view-btn ${viewMode === 'week' ? 'active' : ''}`}
-              onClick={() => setViewMode('week')}
-            >
-              <CalendarDays size={13} />
-              Semana
             </button>
           </div>
 
@@ -1207,504 +1203,345 @@ export default function Programacion() {
         )}
       </div>
 
-      {/* ── CONTENIDO PRINCIPAL: VISTA HOY ── */}
-      {viewMode === 'today' && (
-        <div className="prog-today-container">
-          {/* Indicador de filtro activo si se seleccionó un medidor específico o ámbito de proyecto */}
-          {(statusFilter !== 'ALL' || proyectoFilter !== 'ALL') && (
-            <div className="prog-filter-notice-banner">
-              <span>
-                {proyectoFilter !== 'ALL' && (
-                  <strong style={{ marginRight: '6px' }}>
-                    Ámbito: {proyectoFilter === 'AMPLIACION' ? '🚀 Amazonas Ampliación (AMEX)' : '🏛️ Amazonas Original (AM)'}
-                    {statusFilter !== 'ALL' ? ' · ' : ''}
-                  </strong>
-                )}
-                {statusFilter !== 'ALL' && (
-                  <>
-                    Filtrando cuadrillas con observaciones en estado: <strong>{
-                      statusFilter === 'SOLICITANDO' ? 'Solicitando Revisión' :
-                      statusFilter === 'EN_REVISION' ? 'En Revisión' :
-                      statusFilter === 'VALIDADO' ? 'Validados (Por subir)' :
-                      statusFilter === 'RECHAZADO' ? 'Rechazadas' :
-                      statusFilter
-                    }</strong>
-                  </>
-                )}
-              </span>
-              <button
-                type="button"
-                className="prog-filter-notice-btn"
-                onClick={() => {
-                  setStatusFilter('ALL')
-                  setProyectoFilter('ALL')
-                }}
-              >
-                ✕ Limpiar Filtros
-              </button>
-            </div>
-          )}
-
-          {/* Tarjetas de cuadrillas programadas hoy */}
-          {filteredTodayProgs.length === 0 ? (
-            <div
-              style={{
-                textAlign: 'center',
-                padding: '3rem 1.5rem',
-                background: '#ffffff',
-                border: '1px dashed #cbd5e1',
-                borderRadius: '12px',
-                boxShadow: 'var(--shadow-sm)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '0.8rem'
+      {/* ── CONTENIDO PRINCIPAL: VISTA DIARIA AGRUPADA POR CUADRILLAS ── */}
+      <div className="prog-today-container">
+        {/* Indicador de filtro activo si se seleccionó un medidor específico o ámbito de proyecto */}
+        {(statusFilter !== 'ALL' || proyectoFilter !== 'ALL') && (
+          <div className="prog-filter-notice-banner">
+            <span>
+              {proyectoFilter !== 'ALL' && (
+                <strong style={{ marginRight: '6px' }}>
+                  Ámbito: {proyectoFilter === 'AMPLIACION' ? '🚀 Amazonas Ampliación (AMEX)' : '🏛️ Amazonas Original (AM)'}
+                  {statusFilter !== 'ALL' ? ' · ' : ''}
+                </strong>
+              )}
+              {statusFilter !== 'ALL' && (
+                <>
+                  Filtrando cuadrillas con observaciones en estado: <strong>{
+                    statusFilter === 'SOLICITANDO' ? 'Solicitando Revisión' :
+                    statusFilter === 'EN_REVISION' ? 'En Revisión' :
+                    statusFilter === 'VALIDADO' ? 'Validados (Por subir)' :
+                    statusFilter === 'RECHAZADO' ? 'Rechazadas' :
+                    statusFilter
+                  }</strong>
+                </>
+              )}
+            </span>
+            <button
+              type="button"
+              className="prog-filter-notice-btn"
+              onClick={() => {
+                setStatusFilter('ALL')
+                setProyectoFilter('ALL')
               }}
             >
-              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Clock size={24} color="#003060" />
-              </div>
-              <div style={{ fontSize: 'var(--text-md)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
-                {statusFilter !== 'ALL'
-                  ? 'No hay cuadrillas con ese estado específico para esta fecha'
-                  : 'No hay cuadrillas programadas para esta fecha'}
-              </div>
-              <div style={{ fontSize: 'var(--text-sm)', color: '#64748b', maxWidth: '440px', lineHeight: 1.5 }}>
-                {statusFilter !== 'ALL'
-                  ? 'Prueba seleccionando "Todas" para ver el total de las rutas y cuadrillas del día.'
-                  : 'Organiza las salidas del personal y asigna los sitios a visitar para mantener el avance de observaciones al día.'}
-              </div>
-              {statusFilter !== 'ALL' ? (
-                <button
-                  className="prog-btn-create"
-                  onClick={() => setStatusFilter('ALL')}
-                  style={{ marginTop: '0.5rem' }}
-                >
-                  Ver Todas las Cuadrillas
-                </button>
-              ) : (
-                <button
-                  className="prog-btn-create"
-                  onClick={() => {
-                    setModalNewDate(toLocalDateString(currentDate))
-                    setModalNewOpen(true)
-                  }}
-                  style={{ marginTop: '0.5rem' }}
-                >
-                  <Plus size={15} />
-                  Programar Cuadrilla Ahora
-                </button>
-              )}
+              ✕ Limpiar Filtros
+            </button>
+          </div>
+        )}
+
+        {/* Tarjetas de cuadrillas programadas en la fecha activa */}
+        {displayedTodayByCuadrillas.length === 0 ? (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '3rem 1.5rem',
+              background: '#ffffff',
+              border: '1px dashed #cbd5e1',
+              borderRadius: '12px',
+              boxShadow: 'var(--shadow-sm)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.8rem'
+            }}
+          >
+            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Clock size={24} color="#003060" />
             </div>
-          ) : (
-            /* ── DISEÑO POR TÉCNICOS (COMPACTO Y SCROLL INDEPENDIENTE) ── */
-            <div className="prog-tech-list-wrap">
-              {displayedTodayByTecnicos.map(tGroup => {
-                const tec = tGroup.tecnico
-                const pDonePct = tGroup.totalObs > 0 ? (tGroup.resueltas / tGroup.totalObs) * 100 : 0
-
-                return (
-                  <div key={tec.id || tec.nombre_completo} className="prog-tech-compact-row">
-                    {/* Fila superior: Perfil esencial del Técnico y Resumen */}
-                    <div className="prog-tech-main-bar">
-                      <div className="prog-tech-person-info">
-                        <div className="prog-tech-avatar-sm">
-                          {presentationMode
-                            ? (tGroup.cuadrilla ? tGroup.cuadrilla.replace(/CUADRILLA\s*/i, 'C') : 'CP')
-                            : getInitials(tec.nombre_completo)}
-                        </div>
-                        <div className="prog-tech-details">
-                          <div className="prog-tech-title-line">
-                            {!presentationMode && (
-                              <span className="prog-tech-name-text">{tec.nombre_completo || 'Técnico sin asignar'}</span>
-                            )}
-                            {tGroup.cuadrilla ? (
-                              <span className="prog-card-cuadrilla-badge">
-                                {tGroup.cuadrilla}
-                              </span>
-                            ) : (
-                              <span className="prog-cuadrilla-badge-rotativo">
-                                Apoyo
-                              </span>
-                            )}
-                            {!presentationMode && tGroup.companions.length > 0 && (
-                              <span
-                                className="prog-tech-comp-pill"
-                                title={tGroup.companions.map(c => `${c.cargo ? `${c.cargo}: ` : ''}${c.nombre_completo}`).join(' · ')}
-                              >
-                                👥 {tGroup.companions.map(c => c.nombre_completo).join(' · ')}
-                              </span>
-                            )}
-                            {/* Píldora de Última Solicitud de Revisión / Reporte al lado de Actividad */}
-                            {(() => {
-                              const ultRep = getUltimoReporteTecnico(tGroup)
-                              const isRecent = ultRep?.ts ? (new Date() - new Date(ultRep.ts)) < 45 * 60 * 1000 : false
-
-                              if (ultRep && ultRep.isSolicitud) {
-                                return (
-                                  <span
-                                    className={`prog-tech-last-report-pill is-solicitud ${isRecent ? 'is-recent' : ''}`}
-                                    title={`Última solicitud de revisión registrada a las ${ultRep.hora}${ultRep.obs ? ` (Obs: ${ultRep.obs})` : ''}${ultRep.user ? ` · ${ultRep.user}` : ''}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleOpenTimelineTecnico(tec, tGroup)
-                                    }}
-                                  >
-                                    <span className="last-report-dot is-solicitud" />
-                                    <span className="last-report-label">Últ. solicitud de revisión:</span>
-                                    <strong className="last-report-time">{ultRep.timeAgo}</strong>
-                                    <span className="last-report-hour">· {ultRep.hora}</span>
-                                  </span>
-                                )
-                              }
-
-                              if (ultRep) {
-                                return (
-                                  <span
-                                    className={`prog-tech-last-report-pill ${isRecent ? 'is-recent' : ''}`}
-                                    title={`Última actividad registrada a las ${ultRep.hora}${ultRep.obs ? ` (Obs: ${ultRep.obs})` : ''}${ultRep.user ? ` · ${ultRep.user}` : ''}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleOpenTimelineTecnico(tec, tGroup)
-                                    }}
-                                  >
-                                    <span className="last-report-dot" />
-                                    <span className="last-report-label">Últ. actividad:</span>
-                                    <strong className="last-report-time">{ultRep.timeAgo}</strong>
-                                    <span className="last-report-hour">· {ultRep.hora}</span>
-                                  </span>
-                                )
-                              }
-
-                              return (
-                                <span
-                                  className="prog-tech-last-report-pill empty"
-                                  title="Sin solicitudes de revisión registradas para la fecha seleccionada"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleOpenTimelineTecnico(tec, tGroup)
-                                  }}
-                                  style={{ cursor: 'pointer' }}
-                                >
-                                  <span className="last-report-dot empty" />
-                                  <span className="last-report-label">Sin solicitudes de revisión hoy</span>
-                                </span>
-                              )
-                            })()}
-
-                            {/* Botón para ver Línea de Actividad Horizontal */}
-                            <button
-                              type="button"
-                              className="prog-tech-timeline-btn"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleOpenTimelineTecnico(tec, tGroup)
-                              }}
-                              title="Ver línea de actividad horizontal y solicitudes de validación de este técnico"
-                            >
-                              <Clock size={11} />
-                              <span>Actividad</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Resumen numérico esencial del técnico */}
-                      <div className="prog-tech-summary-pill">
-                        <span className="prog-tech-sum-sites">
-                          <strong>{tGroup.sitios.length}</strong> {tGroup.sitios.length === 1 ? 'sitio' : 'sitios'}
-                        </span>
-                        <span className="prog-tech-sum-sep">•</span>
-                        <span
-                          className="prog-tech-sum-obs"
-                          style={{
-                            color: tGroup.resueltas === tGroup.totalObs && tGroup.totalObs > 0 ? '#059669' : '#003060'
-                          }}
-                        >
-                          <strong>{tGroup.resueltas}/{tGroup.totalObs}</strong> resueltas
-                          {tGroup.totalObs > 0 && (
-                            <span className="prog-tech-sum-pct">
-                              ({Math.round((tGroup.resueltas / tGroup.totalObs) * 100)}%)
-                            </span>
-                          )}
-                        </span>
-
-                        {tGroup.solicitando > 0 && (
-                          <span
-                            className="site-pill-badge badge-sol"
-                            title={`${tGroup.solicitando} observación(es) solicitando revisión de este técnico`}
-                          >
-                            ⏳ {tGroup.solicitando} sol.
-                          </span>
-                        )}
-                        {tGroup.enRevision > 0 && (
-                          <span
-                            className="site-pill-badge badge-rev"
-                            title={`${tGroup.enRevision} observación(es) en revisión de este técnico`}
-                          >
-                            🔍 {tGroup.enRevision} rev.
-                          </span>
-                        )}
-                        {tGroup.validadas > 0 && (
-                          <span
-                            className="site-pill-badge badge-subir"
-                            title={`${tGroup.validadas} observación(es) validadas (listas por subir)`}
-                          >
-                            ✓ {tGroup.validadas} por subir
-                          </span>
-                        )}
-
-                        <div className="prog-tech-mini-prog-track" title={`Avance: ${pDonePct.toFixed(0)}%`}>
-                          <div
-                            className="prog-tech-mini-prog-fill"
-                            style={{
-                              width: `${pDonePct}%`,
-                              background: tGroup.resueltas === tGroup.totalObs && tGroup.totalObs > 0 ? '#10b981' : '#0284c7'
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Fila inferior: Sitios asignados como tarjetas de 2 filas interactivas */}
-                    <div className="prog-tech-sites-strip">
-                      {tGroup.sitios.map(siteItem => {
-                        const sStat = siteItem.stat
-                        const sDone = (sStat.validadas || 0) + (sStat.descartadas || 0) + (sStat.enviadas || 0)
-                        const isComplete = sDone === sStat.total && sStat.total > 0
-                        const localidad = sitiosMap[siteItem.id_sitio]?.localidad
-
-                        const isMatchObs = searchObsResult?.siteId === siteItem.id_sitio
-                        return (
-                          <div
-                            key={siteItem.id_sitio}
-                            className={`prog-site-2row-card ${isComplete ? 'is-complete' : ''} ${isMatchObs ? 'is-searched-match' : ''}`}
-                            onClick={() => setSelectedProgModal({ id_sitio: siteItem.id_sitio, programacion: siteItem.programacion, allSitios: siteItem.allSitios })}
-                            title="Clic para ver detalle y observaciones en el modal"
-                          >
-                            {/* Fila 1: Código de Sitio y Localidad */}
-                            <div className="site-2row-top">
-                              <MapPin size={13} className="site-2row-pin" />
-                              <span className="site-2row-code">{siteItem.id_sitio}</span>
-                              {localidad && (
-                                <span className="site-2row-loc">· {localidad}</span>
-                              )}
-                            </div>
-
-                            {/* Fila 2: Cantidades de observaciones y estados */}
-                            <div className="site-2row-bottom">
-                              <span className={`site-2row-count ${isComplete ? 'complete' : ''}`} title="Total resueltas del sitio">
-                                {sDone}/{sStat.total} resueltas
-                              </span>
-
-                              {sStat.solicitando > 0 && (
-                                <span
-                                  className="site-pill-badge badge-sol"
-                                  title={`${sStat.solicitando} observación(es) solicitando revisión`}
-                                >
-                                  ⏳ {sStat.solicitando} sol.
-                                </span>
-                              )}
-                              {sStat.enRevision > 0 && (
-                                <span
-                                  className="site-pill-badge badge-rev"
-                                  title={`${sStat.enRevision} observación(es) en revisión`}
-                                >
-                                  🔍 {sStat.enRevision} rev.
-                                </span>
-                              )}
-                              {sStat.validadas > 0 && (
-                                <span
-                                  className="site-pill-badge badge-subir"
-                                  title={`${sStat.validadas} observación(es) listas por subir`}
-                                >
-                                  ✓ {sStat.validadas} por subir
-                                </span>
-                              )}
-                              {sStat.rechazadas > 0 && (
-                                <span
-                                  className="site-pill-badge badge-rech"
-                                  title={`${sStat.rechazadas} observación(es) rechazadas`}
-                                >
-                                  ✕ {sStat.rechazadas} rech.
-                                </span>
-                              )}
-                              {sStat.enviadas > 0 && (
-                                <span
-                                  className="site-pill-badge badge-env"
-                                  title={`${sStat.enviadas} observación(es) enviadas a Covepa`}
-                                >
-                                  ✉ {sStat.enviadas} env.
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
+            <div style={{ fontSize: 'var(--text-md)', fontWeight: 'var(--fw-bold)', color: '#003060' }}>
+              {statusFilter !== 'ALL'
+                ? 'No hay cuadrillas con ese estado específico para esta fecha'
+                : 'No hay cuadrillas programadas para esta fecha'}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* ── CONTENIDO PRINCIPAL: VISTA SEMANA ── */}
-      {viewMode === 'week' && (
-        <div className="prog-week-wrap">
-          {/* Indicador de filtro activo si se seleccionó un medidor específico o ámbito de proyecto en la semana */}
-          {(statusFilter !== 'ALL' || proyectoFilter !== 'ALL') && (
-            <div className="prog-filter-notice-banner" style={{ marginBottom: '0.85rem' }}>
-              <span>
-                {proyectoFilter !== 'ALL' && (
-                  <strong style={{ marginRight: '6px' }}>
-                    Ámbito: {proyectoFilter === 'AMPLIACION' ? '🚀 Amazonas Ampliación (AMEX)' : '🏛️ Amazonas Original (AM)'}
-                    {statusFilter !== 'ALL' ? ' · ' : ''}
-                  </strong>
-                )}
-                {statusFilter !== 'ALL' && (
-                  <>
-                    Filtrando cuadrillas con observaciones en estado: <strong>{
-                      statusFilter === 'SOLICITANDO' ? 'Solicitando Revisión' :
-                      statusFilter === 'EN_REVISION' ? 'En Revisión' :
-                      statusFilter === 'VALIDADO' ? 'Validados (Por subir)' :
-                      statusFilter === 'ENVIADO' ? 'Enviados por COVEPA' :
-                      statusFilter === 'RECHAZADO' ? 'Rechazadas' :
-                      statusFilter
-                    }</strong>
-                  </>
-                )}
-              </span>
+            <div style={{ fontSize: 'var(--text-sm)', color: '#64748b', maxWidth: '440px', lineHeight: 1.5 }}>
+              {statusFilter !== 'ALL'
+                ? 'Prueba seleccionando "Todas" para ver el total de las rutas y cuadrillas del día.'
+                : 'Organiza las salidas del personal y asigna los sitios a visitar para mantener el avance de observaciones al día.'}
+            </div>
+            {statusFilter !== 'ALL' ? (
               <button
-                type="button"
-                className="prog-filter-notice-btn"
-                onClick={() => {
-                  setStatusFilter('ALL')
-                  setProyectoFilter('ALL')
-                }}
+                className="prog-btn-create"
+                onClick={() => setStatusFilter('ALL')}
+                style={{ marginTop: '0.5rem' }}
               >
-                ✕ Limpiar Filtros
+                Ver Todas las Cuadrillas
               </button>
-            </div>
-          )}
-
-          <div className="prog-week-grid">
-            {weekDays.map(day => {
-              const dayProgs = programaciones.filter(p => p.fecha === day.dateStr)
-              const filteredDayProgs = filterProgsByStatus(dayProgs)
-              const dayTecnicos = groupProgsByTecnico(filteredDayProgs, sitiosStats)
+            ) : (
+              <button
+                className="prog-btn-create"
+                onClick={() => {
+                  setModalNewDate(toLocalDateString(currentDate))
+                  setModalNewOpen(true)
+                }}
+                style={{ marginTop: '0.5rem' }}
+              >
+                <Plus size={15} />
+                Programar Cuadrilla Ahora
+              </button>
+            )}
+          </div>
+        ) : (
+          /* ── DISEÑO AGRUPADO POR CUADRILLAS (COMPACTO Y SCROLL INDEPENDIENTE) ── */
+          <div className="prog-tech-list-wrap">
+            {displayedTodayByCuadrillas.map(cGroup => {
+              const cName = cGroup.cuadrilla
+              const cNum = cName.replace(/[^0-9]/g, '')
+              const pDonePct = cGroup.totalObs > 0 ? (cGroup.resueltas / cGroup.totalObs) * 100 : 0
+              const ultRep = getUltimoReporteCuadrilla(cGroup)
+              const isRecent = ultRep?.ts ? (new Date() - new Date(ultRep.ts)) < 45 * 60 * 1000 : false
 
               return (
-                <div key={day.dateStr} className={`prog-day-col ${day.isToday ? 'is-today' : ''}`}>
-                  <div className="prog-day-header">
-                    <span className="prog-day-name">{day.dayName}</span>
-                    <span className="prog-day-number">{day.dayNum}</span>
-                  </div>
+                <div key={cName} className="prog-tech-compact-row">
+                  {/* Fila superior: Identidad de la Cuadrilla, Técnicos y Resumen */}
+                  <div className="prog-tech-main-bar">
+                    <div className="prog-tech-person-info">
+                      <div className="prog-tech-avatar-sm">
+                        {cNum ? `C${cNum}` : 'CP'}
+                      </div>
+                      <div className="prog-tech-details">
+                        <div className="prog-tech-title-line">
+                          <span className="prog-tech-name-text">
+                            {cName}
+                          </span>
+                          <span className="prog-card-cuadrilla-badge">
+                            {cName}
+                          </span>
+                          <span
+                            className="prog-tech-comp-pill"
+                            title={`Técnicos asignados: ${cGroup.tecnicos}`}
+                          >
+                            👥 {cGroup.tecnicos}
+                          </span>
 
-                  <div className="prog-day-body">
-                    {dayTecnicos.map(tDay => {
-                      const tec = tDay.tecnico
-
-                      return (
-                        <div key={tec.id || tec.nombre_completo} className="prog-week-tech-card">
-                          {/* Cabecera del Técnico: Solo Nombre y Cuadrilla */}
-                          <div className="week-tech-header">
-                            <div className="week-tech-avatar">
-                              {presentationMode
-                                ? (tDay.cuadrilla ? tDay.cuadrilla.replace(/CUADRILLA\s*/i, 'C') : 'CP')
-                                : getInitials(tec.nombre_completo)}
-                            </div>
-                            <div className="week-tech-info">
-                              {!presentationMode && (
-                                <span className="week-tech-name" title={tec.nombre_completo}>
-                                  {tec.nombre_completo || 'Sin asignar'}
-                                </span>
-                              )}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                {tDay.cuadrilla && (
-                                  <span className="week-tech-badge">{tDay.cuadrilla}</span>
-                                )}
-                                {(() => {
-                                  const ultRep = getUltimoReporteTecnico(tDay)
-                                  if (!ultRep) return null
-                                  const isSol = ultRep.isSolicitud
-                                  return (
-                                    <span
-                                      className={`week-tech-last-report-mini ${isSol ? 'is-solicitud' : ''}`}
-                                      title={`${isSol ? 'Última solicitud de revisión' : 'Última actividad'}: ${ultRep.timeAgo} (${ultRep.hora})`}
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleOpenTimelineTecnico(tec, tDay, day.dateStr)
-                                      }}
-                                      style={{ cursor: 'pointer' }}
-                                    >
-                                      {isSol ? `Sol: ${ultRep.timeAgo}` : ultRep.timeAgo}
-                                    </span>
-                                  )
-                                })()}
-                                <button
-                                  type="button"
-                                  className="week-tech-timeline-mini-btn"
+                          {/* Píldora de Última Solicitud de Revisión / Reporte al lado de Actividad */}
+                          {(() => {
+                            if (ultRep && ultRep.isSolicitud) {
+                              return (
+                                <span
+                                  className={`prog-tech-last-report-pill is-solicitud ${isRecent ? 'is-recent' : ''}`}
+                                  title={`Última solicitud de revisión registrada a las ${ultRep.hora}${ultRep.obs ? ` (Obs: ${ultRep.obs})` : ''}${ultRep.user ? ` · ${ultRep.user}` : ''}`}
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    handleOpenTimelineTecnico(tec, tDay, day.dateStr)
+                                    handleOpenTimelineCuadrilla(cGroup)
                                   }}
-                                  title={`Ver actividad y validaciones de ${tec.nombre_completo || 'este técnico'} el ${day.dateStr}`}
                                 >
-                                  <Clock size={11} />
-                                </button>
-                              </div>
-                            </div>
+                                  <span className="last-report-dot is-solicitud" />
+                                  <span className="last-report-label">Últ. solicitud de revisión:</span>
+                                  <strong className="last-report-time">{ultRep.timeAgo}</strong>
+                                  <span className="last-report-hour">· {ultRep.hora}</span>
+                                </span>
+                              )
+                            }
+
+                            if (ultRep) {
+                              return (
+                                <span
+                                  className={`prog-tech-last-report-pill ${isRecent ? 'is-recent' : ''}`}
+                                  title={`Última actividad registrada a las ${ultRep.hora}${ultRep.obs ? ` (Obs: ${ultRep.obs})` : ''}${ultRep.user ? ` · ${ultRep.user}` : ''}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleOpenTimelineCuadrilla(cGroup)
+                                  }}
+                                >
+                                  <span className="last-report-dot" />
+                                  <span className="last-report-label">Últ. actividad:</span>
+                                  <strong className="last-report-time">{ultRep.timeAgo}</strong>
+                                  <span className="last-report-hour">· {ultRep.hora}</span>
+                                </span>
+                              )
+                            }
+
+                            return (
+                              <span
+                                className="prog-tech-last-report-pill empty"
+                                title="Sin solicitudes de revisión registradas para la fecha seleccionada"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleOpenTimelineCuadrilla(cGroup)
+                                }}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <span className="last-report-dot empty" />
+                                <span className="last-report-label">Sin solicitudes de revisión hoy</span>
+                              </span>
+                            )
+                          })()}
+
+                          {/* Botón para ver Línea de Actividad Horizontal */}
+                          <button
+                            type="button"
+                            className="prog-tech-timeline-btn"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleOpenTimelineCuadrilla(cGroup)
+                            }}
+                            title={`Ver línea de actividad horizontal y solicitudes de validación de ${cName}`}
+                          >
+                            <Clock size={11} />
+                            <span>Actividad</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Resumen numérico esencial de la cuadrilla */}
+                    <div className="prog-tech-summary-pill">
+                      <span className="prog-tech-sum-sites">
+                        <strong>{cGroup.sitios.length}</strong> {cGroup.sitios.length === 1 ? 'sitio' : 'sitios'}
+                      </span>
+                      <span className="prog-tech-sum-sep">•</span>
+                      <span
+                        className="prog-tech-sum-obs"
+                        style={{
+                          color: cGroup.resueltas === cGroup.totalObs && cGroup.totalObs > 0 ? '#059669' : '#003060'
+                        }}
+                      >
+                        <strong>{cGroup.resueltas}/{cGroup.totalObs}</strong> resueltas
+                        {cGroup.totalObs > 0 && (
+                          <span className="prog-tech-sum-pct">
+                            ({Math.round((cGroup.resueltas / cGroup.totalObs) * 100)}%)
+                          </span>
+                        )}
+                      </span>
+
+                      {cGroup.solicitando > 0 && (
+                        <span
+                          className="site-pill-badge badge-sol"
+                          title={`${cGroup.solicitando} observación(es) solicitando revisión`}
+                        >
+                          ⏳ {cGroup.solicitando} sol.
+                        </span>
+                      )}
+                      {cGroup.enRevision > 0 && (
+                        <span
+                          className="site-pill-badge badge-rev"
+                          title={`${cGroup.enRevision} observación(es) en revisión`}
+                        >
+                          🔍 {cGroup.enRevision} rev.
+                        </span>
+                      )}
+                      {cGroup.validadas > 0 && (
+                        <span
+                          className="site-pill-badge badge-subir"
+                          title={`${cGroup.validadas} observación(es) listas por subir`}
+                        >
+                          ✓ {cGroup.validadas} por subir
+                        </span>
+                      )}
+                      {cGroup.rechazadas > 0 && (
+                        <span
+                          className="site-pill-badge badge-rech"
+                          title={`${cGroup.rechazadas} observación(es) rechazadas`}
+                        >
+                          ✕ {cGroup.rechazadas} rech.
+                        </span>
+                      )}
+
+                      <div className="prog-tech-mini-prog-track" title={`Avance: ${pDonePct.toFixed(0)}%`}>
+                        <div
+                          className="prog-tech-mini-prog-fill"
+                          style={{
+                            width: `${pDonePct}%`,
+                            background: cGroup.resueltas === cGroup.totalObs && cGroup.totalObs > 0 ? '#10b981' : '#0284c7'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fila inferior: Sitios asignados como tarjetas de 2 filas interactivas */}
+                  <div className="prog-tech-sites-strip">
+                    {cGroup.sitios.map(siteItem => {
+                      const sStat = siteItem.stat
+                      const sDone = (sStat.validadas || 0) + (sStat.descartadas || 0) + (sStat.enviadas || 0)
+                      const isComplete = sDone === sStat.total && sStat.total > 0
+                      const localidad = sitiosMap[siteItem.id_sitio]?.localidad
+
+                      const isMatchObs = searchObsResult?.siteId === siteItem.id_sitio
+                      return (
+                        <div
+                          key={siteItem.id_sitio}
+                          className={`prog-site-2row-card ${isComplete ? 'is-complete' : ''} ${isMatchObs ? 'is-searched-match' : ''}`}
+                          onClick={() => setSelectedProgModal({ id_sitio: siteItem.id_sitio, programacion: siteItem.programacion, allSitios: siteItem.allSitios })}
+                          title="Clic para ver detalle y observaciones en el modal"
+                        >
+                          {/* Fila 1: Código de Sitio y Localidad (Regla 2.1) */}
+                          <div className="site-2row-top">
+                            <MapPin size={13} className="site-2row-pin" />
+                            <span className="site-2row-code">{siteItem.id_sitio}</span>
+                            {localidad && (
+                              <span className="site-2row-loc">· {localidad}</span>
+                            )}
                           </div>
 
-                          {/* Sitios asignados: Solo Código de Sitio y Nombre/Localidad */}
-                          <div className="week-tech-sites">
-                            {tDay.sitios.map(sItem => {
-                              const localidad = sitiosMap[sItem.id_sitio]?.localidad
+                          {/* Fila 2: Cantidades de observaciones y estados */}
+                          <div className="site-2row-bottom">
+                            <span className={`site-2row-count ${isComplete ? 'complete' : ''}`} title="Total resueltas del sitio">
+                              {sDone}/{sStat.total} resueltas
+                            </span>
 
-                              const isMatchObs = searchObsResult?.siteId === sItem.id_sitio
-                              return (
-                                <div
-                                  key={sItem.id_sitio}
-                                  className={`week-site-pill ${isMatchObs ? 'is-searched-match' : ''}`}
-                                  onClick={() => setSelectedProgModal({ id_sitio: sItem.id_sitio, programacion: sItem.programacion, allSitios: sItem.allSitios })}
-                                  title="Clic para ver detalle y observaciones"
-                                >
-                                  <MapPin size={11} className="week-site-pin" />
-                                  <span className="week-site-code">{sItem.id_sitio}</span>
-                                  {localidad && (
-                                    <span className="week-site-loc">· {localidad}</span>
-                                  )}
-                                </div>
-                              )
-                            })}
+                            {sStat.solicitando > 0 && (
+                              <span
+                                className="site-pill-badge badge-sol"
+                                title={`${sStat.solicitando} observación(es) solicitando revisión`}
+                              >
+                                ⏳ {sStat.solicitando} sol.
+                              </span>
+                            )}
+                            {sStat.enRevision > 0 && (
+                              <span
+                                className="site-pill-badge badge-rev"
+                                title={`${sStat.enRevision} observación(es) en revisión`}
+                              >
+                                🔍 {sStat.enRevision} rev.
+                              </span>
+                            )}
+                            {sStat.validadas > 0 && (
+                              <span
+                                className="site-pill-badge badge-subir"
+                                title={`${sStat.validadas} observación(es) listas por subir`}
+                              >
+                                ✓ {sStat.validadas} por subir
+                              </span>
+                            )}
+                            {sStat.rechazadas > 0 && (
+                              <span
+                                className="site-pill-badge badge-rech"
+                                title={`${sStat.rechazadas} observación(es) rechazadas`}
+                              >
+                                ✕ {sStat.rechazadas} rech.
+                              </span>
+                            )}
+                            {sStat.enviadas > 0 && (
+                              <span
+                                className="site-pill-badge badge-env"
+                                title={`${sStat.enviadas} observación(es) enviadas a Covepa`}
+                              >
+                                ✉ {sStat.enviadas} env.
+                              </span>
+                            )}
                           </div>
                         </div>
                       )
                     })}
-
-                    {/* Botón para programar directamente en este día */}
-                    {canEditProgramacion && (
-                      <div
-                        className="prog-empty-slot"
-                        onClick={() => {
-                          setModalNewDate(day.dateStr)
-                          setModalNewOpen(true)
-                        }}
-                        title="Programar una nueva cuadrilla en este día"
-                      >
-                        <Plus size={13} />
-                        <span>Programar</span>
-                      </div>
-                    )}
                   </div>
                 </div>
               )
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── MODAL: PROGRAMACIÓN (CREAR O EDITAR) ── */}
       {(modalNewOpen || editingProg) && (

@@ -5520,12 +5520,22 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    position: relative;
   }
 
   .prog-avance-modal .dash-weekly-table {
     table-layout: auto !important;
     width: max-content !important;
-    min-width: 630px !important;
+    min-width: 650px !important;
+  }
+
+  .prog-avance-modal .dash-weekly-table th {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    line-height: 1.15 !important;
+    font-size: var(--text-2xs) !important;
+    vertical-align: middle !important;
   }
 
   .prog-avance-modal .dash-weekly-table th:nth-child(n),
@@ -5534,17 +5544,32 @@
     max-width: none !important;
   }
 
+  /* Columna 1 fija sticky a la izquierda para navegación fluida en móvil */
   .prog-avance-modal .dash-weekly-table th:nth-child(1),
   .prog-avance-modal .dash-weekly-table td:nth-child(1) {
-    min-width: 82px;
-    white-space: nowrap;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 96px !important;
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 3 !important;
+    background: #ffffff !important;
+    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.06) !important;
+    white-space: nowrap !important;
+  }
+
+  .prog-avance-modal .dash-weekly-table th:nth-child(1) {
+    background: #f8fafc !important;
+    z-index: 4 !important;
   }
 
   .prog-avance-modal .dash-weekly-table th:nth-child(2),
   .prog-avance-modal .dash-weekly-table td:nth-child(2) {
-    min-width: 125px;
-    max-width: 160px;
-    white-space: nowrap;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 145px !important;
+    white-space: normal !important;
+    line-height: 1.25 !important;
   }
 
   .prog-avance-modal .dash-weekly-table th:nth-child(3),
@@ -5559,16 +5584,20 @@
   .prog-avance-modal .dash-weekly-table td:nth-child(7),
   .prog-avance-modal .dash-weekly-table th:nth-child(8),
   .prog-avance-modal .dash-weekly-table td:nth-child(8) {
-    min-width: 58px;
-    padding: 0.35rem 0.25rem;
-    text-align: center;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 62px !important;
+    padding: 0.35rem 0.25rem !important;
+    text-align: center !important;
   }
 
   .prog-avance-modal .dash-weekly-table th:nth-child(9),
   .prog-avance-modal .dash-weekly-table td:nth-child(9) {
-    min-width: 52px;
-    padding: 0.35rem 0.35rem;
-    text-align: center;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 55px !important;
+    padding: 0.35rem 0.35rem !important;
+    text-align: center !important;
   }
 }
 

@@ -1,7 +1,7 @@
 // M3: ExcelJS se importa dinamicamente dentro de generateStyledExcel
 import { supabase } from '../lib/supabase.js'
 import { fetchSitios, getZonaBySiteId } from './sitiosService.js'
-import { getPeruDateStr } from '../utils/helpers.js'
+import { getPeruDateStr, formatPrimerNombrePrimerApellido } from '../utils/helpers.js'
 import { getProgramaciones } from './programacionService.js'
 
 // Consulta completa de todas las columnas de la tabla 'observaciones'
@@ -115,6 +115,7 @@ async function generateStyledExcel({ observations, siteMap, sheetName, fileName 
   const columnsDef = [
     { name: '#', width: 7, align: 'center' },
     { name: 'CUADRILLA', width: 16, align: 'center' },
+    { name: 'TÉCNICO ASIGNADO', width: 24, align: 'left' },
     { name: 'CÓDIGO DE SITIO', width: 18, align: 'center' },
     { name: 'LOCALIDAD', width: 26, align: 'left' },
     { name: 'NOMBRE NODO', width: 26, align: 'left' },
@@ -203,10 +204,14 @@ async function generateStyledExcel({ observations, siteMap, sheetName, fileName 
     const site = siteMap.get(o.id_sitio) || {}
     const rawSt = o.estado_covepa || (o.fecha_subsanacion ? 'Validado' : 'Pendiente')
     const fechaSub = o.fecha_subsanacion ? getPeruDateStr(o.fecha_subsanacion) : ''
+    const cuad = (o.cuadrilla_ejecutora || site.cuadrilla || site.grupo || 'Sin Cuadrilla').replace(/GRUPO/gi, 'CUADRILLA')
+    const tecRaw = o.tecnico_ejecutor || o.tecnico || ''
+    const tecAsignado = tecRaw ? formatPrimerNombrePrimerApellido(tecRaw) : ''
 
     const rowValues = [
       idx + 1,
-      (site.cuadrilla || site.grupo || 'Sin Cuadrilla').replace(/GRUPO/gi, 'CUADRILLA'),
+      cuad,
+      tecAsignado,
       o.id_sitio || '',
       site.localidad || 'Sin localidad', // Regla 2.1: LOCALIDAD al lado de CÓDIGO DE SITIO
       site.nombre_nodo || '',

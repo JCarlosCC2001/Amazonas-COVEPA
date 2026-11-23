@@ -5,6 +5,7 @@ import { getCachedSitiosAsignados, ASIGNACIONES_BASE } from '../services/sitiosS
 import { DEFAULT_CUADRILLAS_CONFIG } from '../services/personalService'
 import { asegurarProgramacionSitio } from '../services/programacionService'
 import { registrarHistorialEstado, esRevisorGilat } from '../services/auditoriaSyncService'
+import { resolveTecnicoAndCuadrilla } from '../shared/reportesCore'
 
 const NotificationContext = createContext(null)
 
@@ -67,9 +68,13 @@ function getAudioContext() {
   return sharedAudioCtx
 }
 
+// Bandera de interacción de usuario para evitar advertencias de Autoplay y Vibrate en Chrome
+let hasUserInteracted = false
+
 // Escuchar la primera interacción directa del usuario (gesto) para desbloquear el AudioContext limpiamente
 if (typeof window !== 'undefined') {
   const unlockAudio = () => {
+    hasUserInteracted = true
     try {
       const ctx = getAudioContext()
       if (ctx && ctx.state === 'suspended') {
@@ -129,6 +134,7 @@ export function playNotificationChime() {
   const now = Date.now()
   if (now - lastChimeTime < 400) return
   lastChimeTime = now
+  if (!hasUserInteracted) return
   try {
     const ctx = getAudioContext()
     if (!ctx) return
@@ -403,8 +409,8 @@ export function formatTiempoRelativo(isoString) {
  * - Escritorio: Utiliza Service Worker o el constructor new Notification() con cierre automático.
  */
 export async function despacharNotificacionSistema(titulo, options = {}) {
-  // 1. Vibración táctil para dispositivos móviles (patrón háptico dinámico: dos toques cortos y uno mediano)
-  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+  // 1. Vibración táctil para dispositivos móviles (patrón háptico dinámico: dos toques cortos y uno mediano, solo tras interacción del usuario)
+  if (hasUserInteracted && typeof navigator !== 'undefined' && navigator.vibrate) {
     try {
       navigator.vibrate([120, 80, 120, 80, 240])
     } catch (_) {}
@@ -1192,15 +1198,25 @@ export function NotificationProvider({ children }) {
                 fechaExacta: newRow.fecha_subsanacion || null
               }).catch(err => console.warn('[NOTIF-HISTORIAL] Error registrando solicitud en historial:', err))
 
-              // Regla estricta: en 'revisor' solo va personal de Gilat. Si vino con el técnico, limpiarlo en observaciones
+              // Atribuir automáticamente al técnico ejecutor y su cuadrilla
+              const candTec = (newRow.revisor && !esRevisorGilat(newRow.revisor)) ? newRow.revisor : resolverTecnicoDeSitio(newRow.id_sitio)
+              const resolved = resolveTecnicoAndCuadrilla(candTec)
+              const updatePayload = {}
               if (newRow.revisor && !esRevisorGilat(newRow.revisor)) {
+                updatePayload.revisor = null
+              }
+              if (resolved?.tecnico && !newRow.tecnico_ejecutor) {
+                updatePayload.tecnico_ejecutor = resolved.tecnico
+                updatePayload.cuadrilla_ejecutora = resolved.cuadrilla
+              }
+              if (Object.keys(updatePayload).length > 0) {
                 supabase
                   .from('observaciones')
-                  .update({ revisor: null })
+                  .update(updatePayload)
                   .eq('id_obs', newRow.id_obs)
                   .eq('id_sitio', newRow.id_sitio)
-                  .then(() => console.log(`[NOTIF-SYNC] Campo revisor de ${newRow.id_obs} limpiado a null (reservado exclusivamente a Gilat)`))
-                  .catch(err => console.warn('[NOTIF-SYNC] Error limpiando revisor no-Gilat:', err))
+                  .then(() => console.log(`[NOTIF-SYNC] Observación ${newRow.id_obs} sincronizada con técnico ejecutor:`, updatePayload))
+                  .catch(err => console.warn('[NOTIF-SYNC] Error sincronizando técnico ejecutor:', err))
               }
             }
           } else if (newRow && (newRow.estado_covepa === 'En Revisión' || newRow.estado_covepa === 'En Revision')) {

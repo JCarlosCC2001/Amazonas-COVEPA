@@ -66,7 +66,7 @@ function buildSearchOr(search, searchSitios = null) {
     }
   }
 
-  const columns = ['id_obs', 'id_sitio', 'detalle', 'subsistema', 'protocolo', 'item', 'sub_item', 'justificacion_demora']
+  const columns = ['id_obs', 'id_sitio', 'detalle', 'subsistema', 'protocolo', 'item', 'sub_item', 'justificacion_demora', 'revisor', 'comentario_covepa']
   const parts = []
   for (const t of terms) {
     const sanitized = t.replace(/[,()]/g, '').trim()
@@ -77,12 +77,11 @@ function buildSearchOr(search, searchSitios = null) {
   }
 
   // Si hay sitios coincidentes por nombre de localidad o nodo
+  // Importante: usar id_sitio.eq. individual para evitar incompatibilidad de comas internas de .in.(...) en PostgREST .or()
   if (Array.isArray(searchSitios) && searchSitios.length > 0) {
     const validSites = searchSitios.slice(0, 30)
-    if (validSites.length === 1) {
-      parts.push(`id_sitio.eq.${validSites[0]}`)
-    } else {
-      parts.push(`id_sitio.in.(${validSites.join(',')})`)
+    for (const s of validSites) {
+      parts.push(`id_sitio.eq.${s}`)
     }
   }
 
@@ -179,7 +178,7 @@ export async function fetchObservaciones({
 } = {}) {
   let query = supabase
     .from('observaciones')
-    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,fecha_registro_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora', { count: 'exact' })
+    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,fecha_registro_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora,cuadrilla_ejecutora,tecnico_ejecutor', { count: 'exact' })
 
   query = applyQueryFilters(query, { search, protocolo, estadoCovepa, idSitio, idSitios, searchSitios, filtroDemora, proyecto })
 
@@ -190,6 +189,10 @@ export async function fetchObservaciones({
   const validDbCols = {
     codigo: 'id_obs',
     id_obs: 'id_obs',
+    cuadrilla: 'cuadrilla_ejecutora',
+    cuadrilla_ejecutora: 'cuadrilla_ejecutora',
+    tecnico: 'tecnico_ejecutor',
+    tecnico_ejecutor: 'tecnico_ejecutor',
     sitio: 'id_sitio',
     id_sitio: 'id_sitio',
     estado: 'estado_covepa',
@@ -207,7 +210,7 @@ export async function fetchObservaciones({
   query = query.order(dbCol, { ascending: isAsc, nullsFirst: false }).range(from, to)
 
   let { data, count, error } = await query
-  if (error && (error.code === 'PGRST204' || error.message?.includes('tiempo_ejecucion'))) {
+  if (error && (error.code === 'PGRST204' || error.message?.includes('tiempo_ejecucion') || error.message?.includes('cuadrilla_ejecutora') || error.message?.includes('tecnico_ejecutor'))) {
     // Fallback sin columnas nuevas si aún no se ejecutó la migración SQL
     let fallbackQuery = supabase
       .from('observaciones')
@@ -418,7 +421,7 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
 // 5. Exporta a CSV todas las observaciones del filtro actual
 // ────────────────────────────────────────────────────────────
 export async function exportObservacionesCSV(filters = {}) {
-  const selectCols = 'id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora'
+  const selectCols = 'id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,comentario_inicial,comentario_complementario,comentario_final,acuerdo_subsanacion,estado_gilat,estado_covepa,estado_pronatel,comentario_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora,cuadrilla_ejecutora,tecnico_ejecutor'
   const allRows = await fetchAllRowsInBatches('observaciones', selectCols, filters)
   return allRows.sort((a, b) => (a.id_obs || '').localeCompare(b.id_obs || ''))
 }
@@ -478,14 +481,14 @@ export async function fetchResumenPorSitio(filters = {}) {
 export async function fetchObservacionesPorSitio(idSitio, filters = {}) {
   let query = supabase
     .from('observaciones')
-    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora')
+    .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora,tiempo_ejecucion_real,tiempo_ejecucion_demora,cuadrilla_ejecutora,tecnico_ejecutor')
     .eq('id_sitio', idSitio)
 
   query = applyQueryFilters(query, filters)
   query = query.order('id_obs')
 
   let { data, error } = await query
-  if (error && (error.code === 'PGRST204' || error.message?.includes('tiempo_ejecucion'))) {
+  if (error && (error.code === 'PGRST204' || error.message?.includes('tiempo_ejecucion') || error.message?.includes('cuadrilla_ejecutora') || error.message?.includes('tecnico_ejecutor'))) {
     let fallbackQuery = supabase
       .from('observaciones')
       .select('id_obs,hito,id_sitio,protocolo,subsistema,detalle,item,sub_item,estado_gilat,estado_covepa,estado_pronatel,comentario_covepa,fecha_subsanacion,revisor,justificacion_demora')
@@ -520,14 +523,13 @@ export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
   const hoyPeru = getPeruDateStr(new Date())
   const hoyPeruIso = getPeruISOString()
 
-  // Si no hay observaciones en Solicitando Revisión, verificar y sincronizar las que están hoy en 'En Revisión'
+  // Si no hay observaciones en Solicitando Revisión, retornar count 0 limpiamente
   if (!rows || rows.length === 0) {
-    const syncHoy = await sincronizarProgramacionesEnRevisionHoy()
     return {
       count: 0,
       items: [],
       codes: [],
-      programaciones: syncHoy.results || []
+      programaciones: []
     }
   }
 

@@ -1016,23 +1016,14 @@ function isConductorCargo(cargo) {
 
 function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated, canEditPersonal = true }) {
   const defaultList = useMemo(() => [
-    'CUADRILLA 1', 'CUADRILLA 2', 'CUADRILLA 3',
-    'CUADRILLA 4', 'CUADRILLA 5', 'CUADRILLA 6'
+    'CUADRILLA 1', 'CUADRILLA 2', 'CUADRILLA 3', 'CUADRILLA 4'
   ], [])
 
   // Candidatos COVEPA para Técnico (técnicos y supervisores de campo)
   const candidatosTecnicos = useMemo(() => {
     return personal.filter(p => {
       if (p.empresa && p.empresa.toUpperCase() === 'GILAT') return false
-      return isTecnicoCargo(p.cargo)
-    }).sort((a, b) => (a.nombre_completo || '').localeCompare(b.nombre_completo || ''))
-  }, [personal])
-
-  // Candidatos COVEPA para Conductor
-  const candidatosConductores = useMemo(() => {
-    return personal.filter(p => {
-      if (p.empresa && p.empresa.toUpperCase() === 'GILAT') return false
-      return isConductorCargo(p.cargo)
+      return isTecnicoCargo(p.cargo) || !isConductorCargo(p.cargo)
     }).sort((a, b) => (a.nombre_completo || '').localeCompare(b.nombre_completo || ''))
   }, [personal])
 
@@ -1041,13 +1032,16 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated, canEd
     const set = new Set(defaultList)
     personal.forEach(p => {
       if (p.cuadrilla && (!p.empresa || p.empresa.toUpperCase() === 'COVEPA')) {
-        set.add(p.cuadrilla.trim().toUpperCase())
+        const cUp = p.cuadrilla.trim().toUpperCase()
+        if (defaultList.includes(cUp)) {
+          set.add(cUp)
+        }
       }
     })
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
   }, [personal, defaultList])
 
-  // Estado local para edición de cada cuadrilla: { idTecnico, idConductor }
+  // Estado local para edición de cada cuadrilla: { idTecnico1, idTecnico2 }
   const [cuadrillasForm, setCuadrillasForm] = useState({})
   const [savingCuadrilla, setSavingCuadrilla] = useState(null)
   const [savedCuadrilla, setSavedCuadrilla] = useState(null)
@@ -1060,28 +1054,26 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated, canEd
     const form = {}
     const fullList = Array.from(new Set([...allCuadrillas, ...customList]))
     fullList.forEach(cName => {
-      // 1. Buscar técnico asignado por coincidencia de cuadrilla y cargo
-      let tec = personal.find(p => matchCuadrillaClean(p.cuadrilla, cName) && isTecnicoCargo(p.cargo))
-      if (!tec) {
-        tec = personal.find(p => matchCuadrillaClean(p.cuadrilla, cName) && !isConductorCargo(p.cargo))
-      }
-      let idTecnico = tec?.id || ''
-      if (!idTecnico && DEFAULT_CUADRILLAS_CONFIG[cName]?.idTecnico) {
-        const defTec = personal.find(p => p.id === DEFAULT_CUADRILLAS_CONFIG[cName].idTecnico)
-        if (defTec) idTecnico = defTec.id
-      }
+      // 1. Buscar técnicos asignados por coincidencia de cuadrilla
+      const miembrosCuad = personal.filter(p => matchCuadrillaClean(p.cuadrilla, cName) && !isConductorCargo(p.cargo))
 
-      // 2. Buscar conductor asignado
-      let cond = personal.find(p => matchCuadrillaClean(p.cuadrilla, cName) && isConductorCargo(p.cargo))
-      let idConductor = cond?.id || ''
-      if (!idConductor && DEFAULT_CUADRILLAS_CONFIG[cName]?.idConductor) {
-        const defCond = personal.find(p => p.id === DEFAULT_CUADRILLAS_CONFIG[cName].idConductor)
-        if (defCond) idConductor = defCond.id
+      let idTecnico1 = miembrosCuad[0]?.id || ''
+      let idTecnico2 = miembrosCuad[1]?.id || ''
+
+      // Si no están en la BD local, cargar valores predeterminados oficiales
+      const defCfg = DEFAULT_CUADRILLAS_CONFIG[cName]
+      if (!idTecnico1 && defCfg?.idTecnico) {
+        const defTec1 = personal.find(p => p.id === defCfg.idTecnico || p.id_personal === defCfg.idTecnico)
+        if (defTec1) idTecnico1 = defTec1.id
+      }
+      if (!idTecnico2 && defCfg?.idTecnico2) {
+        const defTec2 = personal.find(p => p.id === defCfg.idTecnico2 || p.id_personal === defCfg.idTecnico2)
+        if (defTec2) idTecnico2 = defTec2.id
       }
 
       form[cName] = {
-        idTecnico,
-        idConductor
+        idTecnico1,
+        idTecnico2
       }
     })
     setCuadrillasForm(form)
@@ -1100,8 +1092,8 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated, canEd
   const handleSave = async (cName) => {
     setSavingCuadrilla(cName)
     try {
-      const { idTecnico, idConductor } = cuadrillasForm[cName] || {}
-      await updateCuadrillaAssignments(cName, { idTecnico, idConductor }, personal)
+      const { idTecnico1, idTecnico2 } = cuadrillasForm[cName] || {}
+      await updateCuadrillaAssignments(cName, { idTecnico1, idTecnico2 }, personal)
       setSavedCuadrilla(cName)
       setTimeout(() => setSavedCuadrilla(null), 2500)
       if (onCuadrillasUpdated) onCuadrillasUpdated()
@@ -1130,94 +1122,102 @@ function VistaCuadrillasPredefinidas({ personal = [], onCuadrillasUpdated, canEd
       {/* Banner Informativo */}
       <div className="cuadrillas-banner">
         <div className="cuadrillas-banner-icon">
-          <Truck size={18} color="#818cf8" />
+          <Users size={18} color="#818cf8" />
         </div>
         <div className="cuadrillas-banner-text">
-          <strong>Configuración de Cuadrillas Predefinidas:</strong> Asigna el <strong>Técnico</strong> y el <strong>Conductor</strong> para cada cuadrilla. Puedes actualizar estos datos las veces que lo requieras. Al programar en el calendario, podrás seleccionar toda la cuadrilla con <strong>1 solo clic</strong> sin tener que buscar persona por persona.
+          <strong>Nueva Distribución Operativa por Cuadrillas:</strong> Cada cuadrilla está conformada por una <strong>pareja de 2 técnicos</strong> (sin conductor asignado). Puedes reasignar los técnicos en cualquier momento. Al programar en el calendario, se auto-seleccionarán los dos integrantes de la cuadrilla con <strong>1 solo clic</strong>.
         </div>
       </div>
 
       {/* Grid de Tarjetas de Cuadrilla */}
       <div className="cuadrillas-grid">
         {displayCuadrillas.map(cName => {
-          const form = cuadrillasForm[cName] || { idTecnico: '', idConductor: '' }
-          const tecSelected = candidatosTecnicos.find(t => t.id === form.idTecnico)
-          const condSelected = candidatosConductores.find(c => c.id === form.idConductor)
+          const form = cuadrillasForm[cName] || { idTecnico1: '', idTecnico2: '' }
+          const tec1Selected = candidatosTecnicos.find(t => t.id === form.idTecnico1)
+          const tec2Selected = candidatosTecnicos.find(t => t.id === form.idTecnico2)
 
-          const isCompleta = !!form.idTecnico && !!form.idConductor
-          const isParcial = (!!form.idTecnico && !form.idConductor) || (!form.idTecnico && !!form.idConductor)
+          const isCompleta = !!form.idTecnico1 && !!form.idTecnico2
+          const isParcial = (!!form.idTecnico1 && !form.idTecnico2) || (!form.idTecnico1 && !!form.idTecnico2)
           const isSaving = savingCuadrilla === cName
           const isSaved = savedCuadrilla === cName
+          const defCfg = DEFAULT_CUADRILLAS_CONFIG[cName]
 
           return (
             <div key={cName} className="cuadrilla-config-card">
               {/* Encabezado de la Tarjeta */}
               <div className="cuadrilla-card-header">
-                <div className="cuadrilla-card-title">
-                  <Truck size={17} color="#818cf8" />
-                  <span>{cName}</span>
+                <div>
+                  <div className="cuadrilla-card-title">
+                    <Users size={17} color="#003060" />
+                    <span>{cName}</span>
+                  </div>
+                  {defCfg?.subtitulo && (
+                    <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                      {defCfg.subtitulo}
+                    </div>
+                  )}
                 </div>
                 <span className={`cuadrilla-badge-status ${isCompleta ? 'completa' : isParcial ? 'parcial' : 'vacia'}`}>
-                  {isCompleta ? '✓ Completa (Téc + Cond)' : isParcial ? '1 Integrante' : 'Sin asignar'}
+                  {isCompleta ? '✓ Pareja Completa (2 Téc)' : isParcial ? '1 Técnico' : 'Sin asignar'}
                 </span>
               </div>
 
-              {/* Selector de Técnico */}
+              {/* Selector de Técnico 1 */}
               <div className="cuadrilla-field-group">
                 <label className="cuadrilla-field-label">
-                  <Wrench size={11} color="#818cf8" />
-                  <span>Técnico / Supervisor Asignado</span>
+                  <Wrench size={11} color="#003060" />
+                  <span>Técnico 1 (Titular A)</span>
                 </label>
                 <select
                   className="cuadrilla-field-select"
-                  value={form.idTecnico || ''}
+                  value={form.idTecnico1 || ''}
                   disabled={!canEditPersonal}
-                  onChange={e => handleSelect(cName, 'idTecnico', e.target.value)}
+                  onChange={e => handleSelect(cName, 'idTecnico1', e.target.value)}
                 >
-                  <option value="">-- Sin técnico asignado --</option>
+                  <option value="">-- Sin técnico 1 asignado --</option>
                   {candidatosTecnicos.map(t => {
                     const enOtra = t.cuadrilla && t.cuadrilla !== cName ? ` · (Actualmente en ${t.cuadrilla})` : ''
                     return (
                       <option key={t.id} value={t.id}>
-                        {t.nombre_completo} ({t.cargo}){enOtra}
+                        {t.nombre_completo} ({t.cargo || 'Técnico'}){enOtra}
                       </option>
                     )
                   })}
                 </select>
-                {tecSelected && (
+                {tec1Selected && (
                   <div className="cuadrilla-member-preview">
-                    <span>{tecSelected.nombre_completo}</span>
-                    <span style={{ color: '#818cf8', fontWeight: 'var(--fw-semibold)' }}>{tecSelected.telefono || 'Sin telf.'}</span>
+                    <span>{tec1Selected.nombre_completo}</span>
+                    <span style={{ color: '#0284c7', fontWeight: 'var(--fw-semibold)' }}>{tec1Selected.telefono || 'Sin telf.'}</span>
                   </div>
                 )}
               </div>
 
-              {/* Selector de Conductor */}
+              {/* Selector de Técnico 2 */}
               <div className="cuadrilla-field-group">
                 <label className="cuadrilla-field-label">
-                  <Truck size={11} color="#38bdf8" />
-                  <span>Conductor Asignado</span>
+                  <UserCheck size={11} color="#0284c7" />
+                  <span>Técnico 2 (Titular B)</span>
                 </label>
                 <select
                   className="cuadrilla-field-select"
-                  value={form.idConductor || ''}
+                  value={form.idTecnico2 || ''}
                   disabled={!canEditPersonal}
-                  onChange={e => handleSelect(cName, 'idConductor', e.target.value)}
+                  onChange={e => handleSelect(cName, 'idTecnico2', e.target.value)}
                 >
-                  <option value="">-- Sin conductor asignado --</option>
-                  {candidatosConductores.map(c => {
-                    const enOtra = c.cuadrilla && c.cuadrilla !== cName ? ` · (Actualmente en ${c.cuadrilla})` : ''
+                  <option value="">-- Sin técnico 2 asignado --</option>
+                  {candidatosTecnicos.map(t => {
+                    const enOtra = t.cuadrilla && t.cuadrilla !== cName ? ` · (Actualmente en ${t.cuadrilla})` : ''
                     return (
-                      <option key={c.id} value={c.id}>
-                        {c.nombre_completo}{enOtra}
+                      <option key={t.id} value={t.id}>
+                        {t.nombre_completo} ({t.cargo || 'Técnico'}){enOtra}
                       </option>
                     )
                   })}
                 </select>
-                {condSelected && (
+                {tec2Selected && (
                   <div className="cuadrilla-member-preview">
-                    <span>{condSelected.nombre_completo}</span>
-                    <span style={{ color: '#38bdf8', fontWeight: 'var(--fw-semibold)' }}>{condSelected.telefono || 'Sin telf.'}</span>
+                    <span>{tec2Selected.nombre_completo}</span>
+                    <span style={{ color: '#0284c7', fontWeight: 'var(--fw-semibold)' }}>{tec2Selected.telefono || 'Sin telf.'}</span>
                   </div>
                 )}
               </div>

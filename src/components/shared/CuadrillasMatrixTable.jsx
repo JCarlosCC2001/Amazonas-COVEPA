@@ -1,5 +1,5 @@
 import React from 'react'
-import { formatNombrePersona } from '../../utils/helpers'
+import { formatNombrePersona, formatPrimerNombrePrimerApellido } from '../../utils/helpers'
 
 /**
  * Componente Reutilizable: CuadrillasMatrixTable
@@ -121,8 +121,10 @@ export default function CuadrillasMatrixTable({
             ) : (
               rows.map(row => {
                 const cuadrillaName = row.cuadrilla || row.grupo || 'Sin Cuadrilla'
-                const techName = !presentationMode ? (formatNombrePersona(row.tecnico) || '—') : '—'
+                const techName = !presentationMode ? (formatPrimerNombrePrimerApellido(row.tecnico) || formatNombrePersona(row.tecnico) || '—') : '—'
                 const rowTotal = row.total ?? row.totalSemana ?? 0
+                // Eliminar subtítulos de agrupaciones anteriores (C3 + C6, Ampliación, etc.)
+                const hasSub = row.subtitulo && !row.subtitulo.includes('C3 + C6') && !row.subtitulo.includes('Ampliación') && !row.subtitulo.includes('C1 + C2') && !row.subtitulo.includes('C4 + C5')
 
                 return (
                   <tr
@@ -132,7 +134,7 @@ export default function CuadrillasMatrixTable({
                   >
                     <td className="td-left" style={{ fontWeight: 'var(--fw-bold)', color: '#003060' }}>
                       <div>{cuadrillaName}</div>
-                      {row.subtitulo && (
+                      {hasSub && (
                         <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-normal)' }}>
                           {row.subtitulo}
                         </div>

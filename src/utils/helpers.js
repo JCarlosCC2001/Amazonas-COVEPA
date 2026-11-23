@@ -147,7 +147,54 @@ export function isHoyPeru(isoString) {
   }
 }
 
-import { ASIGNACIONES_BASE } from '../services/sitiosService'
+import { ASIGNACIONES_BASE } from '../services/sitiosService.js'
+
+/**
+ * Extrae y formatea solo el primer nombre y primer apellido de una persona.
+ * Si recibe una dupla unida por "·" o "/", formatea ambas personas:
+ * Ej: "Marco Antonio Chamba Contreras" -> "Marco Chamba"
+ * Ej: "Jhonatan Flores Rojas · Marco Antonio Chamba Contreras" -> "Jhonatan Flores · Marco Chamba"
+ * Ej: "Juan Castro Torres" -> "Juan Castro"
+ * Ej: "Willy Fernández Aquino" -> "Willy Fernández"
+ */
+export function formatPrimerNombrePrimerApellido(str) {
+  if (!str) return ''
+  const trimmed = String(str).trim()
+  if (!trimmed || trimmed === '—' || trimmed === '-') return ''
+
+  if (trimmed.includes('·')) {
+    return trimmed.split('·').map(part => formatPrimerNombrePrimerApellido(part.trim())).filter(Boolean).join(' · ')
+  }
+  if (trimmed.includes('/')) {
+    return trimmed.split('/').map(part => formatPrimerNombrePrimerApellido(part.trim())).filter(Boolean).join(' · ')
+  }
+
+  const cleaned = formatNombrePersona(trimmed)
+  const upper = cleaned.toUpperCase()
+
+  // Mapeos oficiales exactos de los técnicos y supervisores del proyecto
+  if (upper.includes('JHONATAN') && upper.includes('FLORES')) return 'Jhonatan Flores'
+  if (upper.includes('MARCO') && upper.includes('CHAMBA')) return 'Marco Chamba'
+  if (upper.includes('JUAN') && upper.includes('CASTRO')) return 'Juan Castro'
+  if (upper.includes('WILLY') && (upper.includes('FERNANDEZ') || upper.includes('FERNÁNDEZ'))) return 'Willy Fernández'
+  if (upper.includes('ALFONSO') && upper.includes('CURI')) return 'Alfonso Curi'
+  if ((upper.includes('WILLIAM') || upper.includes('WILL')) && (upper.includes('AVILA') || upper.includes('ÁVILA'))) return 'William Avila'
+  if (upper.includes('HUGO') && upper.includes('ESPINOZA')) return 'Hugo Espinoza'
+  if (upper.includes('DANIEL') && upper.includes('JAVIER')) return 'Daniel Javier'
+  if (upper.includes('ROGER') && upper.includes('VALDIVIA')) return 'Roger Valdivia'
+  if (upper.includes('PERCY') && upper.includes('ROJAS')) return 'Percy Rojas'
+  if (upper.includes('CARLOS') && upper.includes('CONDOR')) return 'Carlos Condor'
+
+  const parts = cleaned.split(/\s+/).filter(Boolean)
+  if (parts.length <= 2) return cleaned
+
+  // Si tiene 3 palabras: [Nombre, ApellidoPaterno, ApellidoMaterno] -> parts[0] + parts[1]
+  if (parts.length === 3) {
+    return `${parts[0]} ${parts[1]}`
+  }
+  // Si tiene 4 palabras o más: [Nombre1, Nombre2, ApellidoPaterno, ApellidoMaterno] -> parts[0] + parts[2]
+  return `${parts[0]} ${parts[2]}`
+}
 
 /**
  * Resuelve la localidad contigua al ID de un sitio.

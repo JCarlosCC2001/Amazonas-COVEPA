@@ -80,10 +80,51 @@
 @media (max-width: 860px) {
   .covepa-metric-grid.obs-metric-grid-5x2 {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 0.5rem;
+    gap: 0.35rem !important;
   }
   .covepa-metric-grid.obs-metric-grid-5x2 > :first-child {
     grid-column: auto !important;
+  }
+  .covepa-metric-grid.obs-metric-grid-5x2 .covepa-metric-card {
+    min-height: unset !important;
+    border-radius: 9px !important;
+    border-width: 1px !important;
+  }
+  .covepa-metric-grid.obs-metric-grid-5x2 .metric-card-inner {
+    padding: 0.35rem 0.55rem !important;
+    gap: 0.4rem !important;
+    align-items: center !important;
+  }
+  .covepa-metric-grid.obs-metric-grid-5x2 .metric-icon-box {
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    border-radius: 7px !important;
+  }
+  .covepa-metric-grid.obs-metric-grid-5x2 .metric-icon-box svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .covepa-metric-grid.obs-metric-grid-5x2 .metric-label {
+    font-size: 10px !important;
+    letter-spacing: 0.01em !important;
+    font-weight: var(--fw-bold) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.1 !important;
+  }
+  .covepa-metric-grid.obs-metric-grid-5x2 .metric-value {
+    font-size: 1.1rem !important;
+    line-height: 1.1 !important;
+    font-weight: var(--fw-black) !important;
+  }
+  /* Ocultar subtítulos largos en móvil para ganar 55% de espacio vertical */
+  .covepa-metric-grid.obs-metric-grid-5x2 .metric-sub-pill {
+    display: none !important;
+  }
+  .covepa-metric-grid.obs-metric-grid-5x2 .metric-watermark {
+    display: none !important;
   }
 }
 

@@ -547,18 +547,39 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
 
     // 3. Determinar la cuadrilla oficial del sitio
     let cuadrillaName = null
-    try {
-      const { data: scData } = await supabase
-        .from('sitios_cuadrillas')
-        .select('cuadrilla')
-        .eq('id_site', siteId)
-        .eq('activo', true)
-        .maybeSingle()
 
-      if (scData?.cuadrilla) {
-        cuadrillaName = scData.cuadrilla.toUpperCase().trim().replace(/GRUPO/gi, 'CUADRILLA')
-      }
-    } catch {}
+    // Si es sitio AMEX, pertenece sin excepción a CUADRILLA 4
+    if (siteId.startsWith('AMEX')) {
+      cuadrillaName = 'CUADRILLA 4'
+    }
+
+    if (!cuadrillaName && idObs) {
+      try {
+        const { data: oData } = await supabase
+          .from('observaciones')
+          .select('cuadrilla_ejecutora')
+          .eq('id_obs', idObs)
+          .maybeSingle()
+        if (oData?.cuadrilla_ejecutora) {
+          cuadrillaName = oData.cuadrilla_ejecutora.toUpperCase().trim().replace(/GRUPO/gi, 'CUADRILLA')
+        }
+      } catch {}
+    }
+
+    if (!cuadrillaName) {
+      try {
+        const { data: scData } = await supabase
+          .from('sitios_cuadrillas')
+          .select('cuadrilla')
+          .eq('id_site', siteId)
+          .eq('activo', true)
+          .maybeSingle()
+
+        if (scData?.cuadrilla) {
+          cuadrillaName = scData.cuadrilla.toUpperCase().trim().replace(/GRUPO/gi, 'CUADRILLA')
+        }
+      } catch {}
+    }
 
     if (!cuadrillaName) {
       const fallbackSite = (ASIGNACIONES_BASE || []).find(s => s.id_site === siteId)
@@ -571,9 +592,25 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
       cuadrillaName = 'CUADRILLA 1'
     }
 
-    // 4. Determinar el técnico oficial de esa cuadrilla (excluyendo terminantemente conductores)
+    // Normalizar a una de las 4 cuadrillas oficiales
+    if (cuadrillaName.includes('4') || cuadrillaName.includes('7') || cuadrillaName.includes('AMEX') || siteId.startsWith('AMEX')) {
+      cuadrillaName = 'CUADRILLA 4'
+    } else if (cuadrillaName.includes('2') || cuadrillaName.includes('6')) {
+      cuadrillaName = 'CUADRILLA 2'
+    } else if (cuadrillaName.includes('3') || cuadrillaName.includes('5')) {
+      cuadrillaName = 'CUADRILLA 3'
+    } else {
+      cuadrillaName = 'CUADRILLA 1'
+    }
+
+    // 4. Determinar los técnicos de esa cuadrilla
     const defaultCfg = DEFAULT_CUADRILLAS_CONFIG[cuadrillaName] || DEFAULT_CUADRILLAS_CONFIG['CUADRILLA 1']
     let idTecnico = defaultCfg?.idTecnico
+    const candidateTechIds = new Set([
+      defaultCfg?.idTecnico,
+      defaultCfg?.idTecnico2,
+      ...(defaultCfg?.tecnicosIds || [])
+    ].filter(Boolean))
 
     try {
       const { data: pcRows } = await supabase
@@ -583,6 +620,9 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
         .eq('activo', true)
 
       if (pcRows && pcRows.length > 0) {
+        pcRows.forEach(p => {
+          if (p.id_personal) candidateTechIds.add(p.id_personal)
+        })
         const tec = pcRows.find(p => {
           const c = (p.cargo || '').toUpperCase()
           return (c.includes('TÉCN') || c.includes('TECN') || c.includes('SUPERVISOR')) && !c.includes('CONDUCTOR')
@@ -595,12 +635,19 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
       idTecnico = '8359c281-33ce-423e-9823-0e9e09663889' // Carlos Cóndor (Supervisor) fallback
     }
 
-    // 5. Verificar si el técnico titular ya tiene una jornada iniciada en esa fecha
-    const progExistenteTecnico = (progsFecha || []).find(p => p.id_tecnico === idTecnico)
+    // 5. Verificar si la cuadrilla ya tiene una jornada iniciada en esa fecha (por cualquiera de sus técnicos)
+    const progExistenteCuadrilla = (progsFecha || []).find(p => {
+      if (candidateTechIds.has(p.id_tecnico)) return true
+      if (p.personal?.id_personal && candidateTechIds.has(p.personal.id_personal)) return true
+      if (Array.isArray(p.asignaciones_personal)) {
+        if (p.asignaciones_personal.some(ap => candidateTechIds.has(ap.id_personal))) return true
+      }
+      return false
+    })
 
-    if (progExistenteTecnico) {
-      // Caso A: El técnico ya tiene programación, agregamos el sitio a su jornada
-      const sitiosExistentes = progExistenteTecnico.sitios || []
+    if (progExistenteCuadrilla) {
+      // Caso A: La cuadrilla ya tiene programación, agregamos el sitio a su jornada
+      const sitiosExistentes = progExistenteCuadrilla.sitios || []
       const yaEnLista = sitiosExistentes.some(s => (s.id_sitio || '').toUpperCase().trim() === siteId)
 
       if (!yaEnLista) {
@@ -609,7 +656,7 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
         const { error: insSitioErr } = await supabase
           .from('programacion_sitios')
           .insert([{
-            id_programacion: progExistenteTecnico.id,
+            id_programacion: progExistenteCuadrilla.id,
             id_sitio: siteId,
             orden: maxOrden + 1
           }])
@@ -625,7 +672,7 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('covepa-programacion-actualizada', {
-          detail: { idSitio: siteId, fecha: fechaYmd, programacionId: progExistenteTecnico.id }
+          detail: { idSitio: siteId, fecha: fechaYmd, programacionId: progExistenteCuadrilla.id }
         }))
       }
 
@@ -635,7 +682,7 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
         tipo: 'sitio_agregado',
         cuadrilla: cuadrillaName,
         fecha: fechaYmd,
-        programacionId: progExistenteTecnico.id
+        programacionId: progExistenteCuadrilla.id
       }
     } else {
       // Caso B: El técnico no tiene programación esa fecha, creamos una nueva jornada ÚNICAMENTE con el técnico (sin conductor)
@@ -698,5 +745,88 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
   } catch (err) {
     console.error('[AUTO-PROG] Error inesperado en asegurarProgramacionSitio:', err)
     return { success: false, error: err.message }
+  }
+}
+
+/**
+ * Reconcilia la programación de una fecha con todas las observaciones que tuvieron
+ * modificación de estado o actividad en esa fecha.
+ * Verifica si cada sitio activo ya tiene programación; si ya tiene, la mantiene intacta.
+ * Si no tiene, la crea o agrega automáticamente a su respectiva cuadrilla.
+ */
+export async function reconciliarProgramacionesConObservacionesModificadas(fechaYmd = null) {
+  try {
+    let targetFecha = fechaYmd
+    if (!targetFecha) {
+      targetFecha = toLocalDateString(new Date())
+    }
+
+    // Delimitar jornada exacta en zona horaria de Perú (UTC-5)
+    const startIsoUtc = new Date(`${targetFecha}T00:00:00-05:00`).toISOString()
+    const endIsoUtc = new Date(`${targetFecha}T23:59:59.999-05:00`).toISOString()
+
+    // 1. Obtener observaciones modificadas en la fecha
+    const { data: obsFecha } = await supabase
+      .from('observaciones')
+      .select('id_obs, id_sitio, cuadrilla_ejecutora')
+      .gte('fecha_subsanacion', startIsoUtc)
+      .lte('fecha_subsanacion', endIsoUtc)
+
+    if (!obsFecha || obsFecha.length === 0) {
+      return { totalModificados: 0, nuevosAgregados: 0 }
+    }
+
+    // 2. Extraer sitios únicos con actividad
+    const sitiosActivosSet = new Set(obsFecha.map(o => o.id_sitio).filter(Boolean))
+    const sitiosActivos = Array.from(sitiosActivosSet)
+
+    // 3. Consultar sitios ya programados en esa fecha
+    const { data: progsFecha } = await supabase
+      .from('programaciones')
+      .select(`
+        id,
+        programacion_sitios (
+          id_sitio
+        )
+      `)
+      .eq('fecha', targetFecha)
+
+    const sitiosYaProgramados = new Set()
+    ;(progsFecha || []).forEach(p => {
+      ;(p.programacion_sitios || []).forEach(s => {
+        if (s.id_sitio) sitiosYaProgramados.add(s.id_sitio.toUpperCase().trim())
+      })
+    })
+
+    // 4. Identificar sitios sin programación
+    const sitiosFaltantes = sitiosActivos.filter(s => !sitiosYaProgramados.has(s.toUpperCase().trim()))
+
+    if (sitiosFaltantes.length === 0) {
+      return { totalModificados: sitiosActivos.length, nuevosAgregados: 0 }
+    }
+
+    console.log(`[RECONCILIAR-PROG] ⚡ Reconciliando ${sitiosFaltantes.length} sitios activos sin programación en ${targetFecha}:`, sitiosFaltantes)
+
+    let nuevosAgregados = 0
+    for (const siteId of sitiosFaltantes) {
+      const matchObs = obsFecha.find(o => o.id_sitio === siteId)
+      const res = await asegurarProgramacionSitio({
+        idSitio: siteId,
+        idObs: matchObs?.id_obs,
+        fecha: targetFecha
+      })
+      if (res?.success && !res?.yaExiste) {
+        nuevosAgregados++
+      }
+    }
+
+    if (nuevosAgregados > 0) {
+      invalidateProgramacionesCache()
+    }
+
+    return { totalModificados: sitiosActivos.length, nuevosAgregados }
+  } catch (err) {
+    console.error('[RECONCILIAR-PROG] Error en reconciliación automática:', err)
+    return { totalModificados: 0, nuevosAgregados: 0, error: err.message }
   }
 }

@@ -24,7 +24,8 @@ import {
   updateProgramacion,
   deleteProgramacion,
   getSitiosObservacionesResumen,
-  getObservacionesSitioDetalle
+  getObservacionesSitioDetalle,
+  reconciliarProgramacionesConObservacionesModificadas
 } from '../services/programacionService'
 import { DEFAULT_CUADRILLAS_CONFIG } from '../services/personalService'
 import { updateObservacionCovepa, sincronizarEstadoConControlFotos, esRevisorGilat, pasarTodasSolicitudesAEnRevision } from '../services/observacionesService'
@@ -306,10 +307,21 @@ export default function Programacion() {
     loadTechs()
   }, [])
 
-  // Cargar programaciones de la semana seleccionada
+  // Cargar programaciones de la jornada activa (con reconciliación de observaciones modificadas)
   const fetchWeekData = useCallback(async () => {
     setLoading(true)
     try {
+      // Reconciliar automáticamente sitios que tienen observaciones modificadas en la fecha activa
+      const activeDateStr = toLocalDateString(currentDate)
+      try {
+        const recon = await reconciliarProgramacionesConObservacionesModificadas(activeDateStr)
+        if (recon?.nuevosAgregados > 0) {
+          console.log(`[PROG-AUTO-SYNC] ${recon.nuevosAgregados} sitios agregados a la programación del día ${activeDateStr}`)
+        }
+      } catch (reconErr) {
+        console.warn('[PROG-AUTO-SYNC] Aviso en reconciliación automática:', reconErr)
+      }
+
       const progs = await getProgramaciones(startDateStr, endDateStr)
       setProgramaciones(progs)
 

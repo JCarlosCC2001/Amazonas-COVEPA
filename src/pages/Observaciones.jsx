@@ -424,11 +424,6 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   <span className="prog-details-site-loc">· {obsLocal.id_sitio}{localidad ? ` · ${localidad}` : ''}{zona ? ` · ${zona}` : ''}</span>
                 </div>
                 <div className="prog-details-site-meta-pills">
-                  {cuadrilla && (
-                    <span className="meta-pill" style={{ color: '#003060', fontWeight: 'var(--fw-bold)' }}>
-                      {cuadrilla}
-                    </span>
-                  )}
                   {obsLocal.hito && (
                     <span className="meta-pill" style={{ color: '#0369a1' }}>
                       Hito: <strong>{obsLocal.hito}</strong>
@@ -444,22 +439,6 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                       Subsistema: <strong>{obsLocal.subsistema}</strong>
                     </span>
                   )}
-                  <span className="meta-pill" style={{ background: 'rgba(0, 48, 96, 0.08)', color: '#003060', borderColor: 'rgba(0, 48, 96, 0.2)' }}>
-                    Cuadrilla Ejecutora: <strong>{obsLocal.cuadrilla_ejecutora || sitioInfo?.cuadrilla || 'Sin Cuadrilla'}</strong>
-                  </span>
-                  <span
-                    className="meta-pill"
-                    style={{
-                      background: obsLocal.tecnico_ejecutor ? '#f0fdf4' : '#fffbeb',
-                      borderColor: obsLocal.tecnico_ejecutor ? '#bbf7d0' : '#fef3c7',
-                      color: obsLocal.tecnico_ejecutor ? '#166534' : '#92400e',
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => setDesignarModalData({ nuevoEstado: currentEstado })}
-                    title="Clic para cambiar o designar técnico ejecutor"
-                  >
-                    Técnico Ejecutor: <strong>{formatPrimerNombrePrimerApellido(obsLocal.tecnico_ejecutor) || 'Sin Asignar (Clic para asignar)'}</strong>
-                  </span>
                 </div>
               </div>
             </div>
@@ -482,36 +461,14 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
         <div className="prog-details-modal-body">
           {/* 1. SECCIÓN PRINCIPAL: GESTIÓN DE AUDITORÍA COVEPA (IDÉNTICO A PROGRAMACIÓN) */}
           <div className="prog-obs-card-item" style={{ border: '1px solid #bae6fd', background: '#f8fbfe', borderRadius: '12px', padding: '1rem' }}>
-            <div className="prog-obs-card-header" style={{ marginBottom: '0.65rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-bold)', color: '#003060', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Auditoría COVEPA:
-                    </span>
-                    <span className={`estado-badge ${estadoCovepaBadge(currentEstado)}`}>
-                      {currentEstado}
-                    </span>
-                    {isLockedForNonAdmin && (
-                      <span
-                        className="meta-pill"
-                        style={{
-                          fontSize: 'var(--text-meta)',
-                          color: '#b91c1c',
-                          background: '#fef2f2',
-                          borderColor: '#fecaca',
-                          fontWeight: 'var(--fw-medium)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}
-                        title="Esta observación está en un estado protegido (Pre-validado, Crítico o Descartado). Solo un Administrador puede modificarla."
-                      >
-                        🔒 Solo Admin
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Selector de Estado interactivo idéntico al de Programación */}
-                  <div className="prog-obs-status-select-wrap">
+            <div className="prog-obs-card-header" style={{ marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', width: '100%' }}>
+                {/* Lado izquierdo: Auditoría COVEPA y Selector de Estado único */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-bold)', color: '#003060', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Auditoría COVEPA:
+                  </span>
+                  <div className="prog-obs-status-select-wrap" style={{ minWidth: '170px' }}>
                     <select
                       value={currentEstado}
                       disabled={updating || isReadOnly || isLockedForNonAdmin}
@@ -520,24 +477,65 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                       style={(isReadOnly || isLockedForNonAdmin) ? { cursor: 'not-allowed', opacity: 0.85 } : undefined}
                       title={isLockedForNonAdmin ? `Esta observación está en estado "${currentEstado}". Solo un Administrador puede modificarla.` : undefined}
                     >
-                      <option value="Pendiente">● Pendiente</option>
-                      <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
-                      <option value="En Revisión">🔍 En Revisión</option>
+                      <option value="Validado">✓ Validado</option>
+                      <option value="Rechazado">✕ Rechazado</option>
                       <option value="Documentación">📄 Documentación</option>
+                      <option value="En Revisión">🔍 En Revisión</option>
+                      <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
+                      <option value="Pendiente">● Pendiente</option>
                       {(isAdmin || currentEstado === 'Pre-validado') && (
                         <option value="Pre-validado">📸 Pre-validado</option>
                       )}
-                      <option value="Validado">✓ Validado</option>
                       {(isAdmin || currentEstado === 'Crítico' || currentEstado === 'Critico') && (
                         <option value="Crítico">⚠️ Crítico</option>
                       )}
                       {(isAdmin || currentEstado === 'Descartado') && (
                         <option value="Descartado">🚫 Descartado</option>
                       )}
-                      <option value="Rechazado">✕ Rechazado</option>
                     </select>
                   </div>
+                  {isLockedForNonAdmin && (
+                    <span
+                      className="meta-pill"
+                      style={{
+                        fontSize: 'var(--text-meta)',
+                        color: '#b91c1c',
+                        background: '#fef2f2',
+                        borderColor: '#fecaca',
+                        fontWeight: 'var(--fw-medium)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      title="Esta observación está en un estado protegido (Pre-validado, Crítico o Descartado). Solo un Administrador puede modificarla."
+                    >
+                      🔒 Solo Admin
+                    </span>
+                  )}
                 </div>
+
+                {/* Lado derecho: A la misma altura, Cuadrilla Ejecutora y Técnico Ejecutor */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span className="meta-pill" style={{ background: 'rgba(0, 48, 96, 0.08)', color: '#003060', borderColor: 'rgba(0, 48, 96, 0.2)', padding: '0.35rem 0.65rem' }}>
+                    Cuadrilla Ejecutora: <strong>{obsLocal.cuadrilla_ejecutora || sitioInfo?.cuadrilla || 'Sin Cuadrilla'}</strong>
+                  </span>
+                  <span
+                    className="meta-pill"
+                    style={{
+                      background: obsLocal.tecnico_ejecutor ? '#f0fdf4' : '#fffbeb',
+                      borderColor: obsLocal.tecnico_ejecutor ? '#bbf7d0' : '#fef3c7',
+                      color: obsLocal.tecnico_ejecutor ? '#166534' : '#92400e',
+                      cursor: 'pointer',
+                      padding: '0.35rem 0.65rem'
+                    }}
+                    onClick={() => setDesignarModalData({ nuevoEstado: currentEstado })}
+                    title="Clic para cambiar o designar técnico ejecutor"
+                  >
+                    Técnico Ejecutor: <strong>{formatPrimerNombrePrimerApellido(obsLocal.tecnico_ejecutor) || 'Sin Asignar (Clic para asignar)'}</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
 
             {/* Insignia Directa de Último Cambio y Trazabilidad (Exclusivo Administrador) */}
             {isAdmin && (

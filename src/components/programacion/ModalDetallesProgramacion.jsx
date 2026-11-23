@@ -1106,21 +1106,21 @@ export default function ModalDetallesProgramacion({
                           style={(isReadOnly || isLockedForNonAdmin) ? { cursor: 'not-allowed', opacity: 0.85 } : undefined}
                           title={isLockedForNonAdmin ? `Esta observación está en estado "${currentEstado}". Solo un Administrador puede modificarla.` : undefined}
                         >
-                          <option value="Pendiente">● Pendiente</option>
-                          <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
-                          <option value="En Revisión">🔍 En Revisión</option>
+                          <option value="Validado">✓ Validado</option>
+                          <option value="Rechazado">✕ Rechazado</option>
                           <option value="Documentación">📄 Documentación</option>
+                          <option value="En Revisión">🔍 En Revisión</option>
+                          <option value="Solicitando Revisión">⏳ Solicitando Revisión</option>
+                          <option value="Pendiente">● Pendiente</option>
                           {(isAdmin || currentEstado === 'Pre-validado') && (
                             <option value="Pre-validado">📸 Pre-validado</option>
                           )}
-                          <option value="Validado">✓ Validado</option>
                           {(isAdmin || currentEstado === 'Crítico' || currentEstado === 'Critico') && (
                             <option value="Crítico">⚠️ Crítico</option>
                           )}
                           {(isAdmin || currentEstado === 'Descartado') && (
                             <option value="Descartado">🚫 Descartado</option>
                           )}
-                          <option value="Rechazado">✕ Rechazado</option>
                         </select>
                       </div>
                     </div>

@@ -37,7 +37,8 @@ import {
   DEFAULT_CONFIG_SEMANAL
 } from '../services/reportesCorreoService'
 import { fetchPersonal } from '../services/personalService'
-import { getPeruDateStr, getAyerPeruStr, toLocalDateString, getLocalidadBySiteId } from '../utils/helpers'
+import { getPeruDateStr, getAyerPeruStr, toLocalDateString } from '../utils/helpers'
+import { getLocalidadBySiteId } from '../services/sitiosService'
 
 // Componentes modulares de informes
 import CardAutomatizacionCorreo from '../components/informes/CardAutomatizacionCorreo'

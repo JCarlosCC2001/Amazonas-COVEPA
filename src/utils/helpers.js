@@ -147,8 +147,6 @@ export function isHoyPeru(isoString) {
   }
 }
 
-import { ASIGNACIONES_BASE } from '../services/sitiosService.js'
-
 /**
  * Extrae y formatea solo el primer nombre y primer apellido de una persona.
  * Si recibe una dupla unida por "·" o "/", formatea ambas personas:
@@ -197,19 +195,9 @@ export function formatPrimerNombrePrimerApellido(str) {
 }
 
 /**
- * Resuelve la localidad contigua al ID de un sitio.
+ * Resuelve la localidad contigua al ID de un sitio (stub de compatibilidad; usar sitiosService para la versión con catálogo).
  */
 export function getLocalidadBySiteId(siteId) {
-  if (!siteId) return ''
-  const clean = String(siteId).trim().toUpperCase()
-  const found = ASIGNACIONES_BASE.find(s => s.id_site.toUpperCase() === clean)
-  if (found?.localidad) return found.localidad
-  const parts = clean.split('-')
-  if (parts.length >= 2) {
-    const prefix = `${parts[0]}-${parts[1]}`
-    const byPrefix = ASIGNACIONES_BASE.find(s => s.id_site.toUpperCase().startsWith(prefix))
-    if (byPrefix?.localidad) return byPrefix.localidad
-  }
   return ''
 }
 

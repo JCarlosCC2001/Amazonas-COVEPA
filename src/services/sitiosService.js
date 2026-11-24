@@ -1,6 +1,6 @@
 // Servicio para gestionar sitios combinando la BD propia (asignaciones) y la BD externa (georreferenciación y catálogo)
-import { supabase } from '../lib/supabase'
-import { supabaseExt } from '../lib/supabase'
+import { supabase } from '../lib/supabase.js'
+import { supabaseExt } from '../lib/supabase.js'
 import baseSitiosJson from '../../scripts/base_sitios_asignados.json'
 
 // Fuente única de verdad para los 183 sitios asignados (156 Original + 27 Ampliación)
@@ -14,6 +14,23 @@ export const ASIGNACIONES_BASE = Object.entries(baseSitiosJson).map(([id_site, i
     ...(info.localidad ? { localidad: info.localidad } : {})
   }
 })
+
+/**
+ * Resuelve la localidad contigua al ID de un sitio.
+ */
+export function getLocalidadBySiteId(siteId) {
+  if (!siteId) return ''
+  const clean = String(siteId).trim().toUpperCase()
+  const found = ASIGNACIONES_BASE.find(s => s.id_site.toUpperCase() === clean)
+  if (found?.localidad) return found.localidad
+  const parts = clean.split('-')
+  if (parts.length >= 2) {
+    const prefix = `${parts[0]}-${parts[1]}`
+    const byPrefix = ASIGNACIONES_BASE.find(s => s.id_site.toUpperCase().startsWith(prefix))
+    if (byPrefix?.localidad) return byPrefix.localidad
+  }
+  return ''
+}
 
 
 // Cache en memoria para catálogo de sitios

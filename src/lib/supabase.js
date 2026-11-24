@@ -1,8 +1,18 @@
 // Cliente Supabase — Base de datos PROPIA (lectura y escritura)
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const getEnv = (key) => {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
+    return import.meta.env[key]
+  }
+  if (typeof process !== 'undefined' && process.env && process.env[key]) {
+    return process.env[key]
+  }
+  return ''
+}
+
+const supabaseUrl = getEnv('VITE_SUPABASE_URL') || getEnv('SUPABASE_URL')
+const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY') || getEnv('SUPABASE_ANON_KEY') || getEnv('SUPABASE_SERVICE_ROLE_KEY')
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('⚠️ Supabase (proyecto propio): variables de entorno no configuradas.')
@@ -21,8 +31,8 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
 export const supabaseAplicativo = supabase
 
 // Cliente Supabase — Base de datos EXTERNA (Amazonas-SELNET)
-const supabaseExtUrl = import.meta.env.VITE_SUPABASE_EXT_URL
-const supabaseExtKey = import.meta.env.VITE_SUPABASE_EXT_ANON_KEY
+const supabaseExtUrl = getEnv('VITE_SUPABASE_EXT_URL')
+const supabaseExtKey = getEnv('VITE_SUPABASE_EXT_ANON_KEY')
 
 if (!supabaseExtUrl || !supabaseExtKey) {
   console.warn('⚠️ Supabase (base externa): variables de entorno no configuradas.')

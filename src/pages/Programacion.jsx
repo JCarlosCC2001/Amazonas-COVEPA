@@ -1323,12 +1323,14 @@ export default function Programacion() {
                       </div>
                       <div className="prog-tech-details">
                         <div className="prog-tech-title-line">
-                          <span
-                            className="prog-tech-comp-pill"
-                            title={`Técnicos asignados: ${cGroup.tecnicos}`}
-                          >
-                            👥 {cGroup.tecnicos}
-                          </span>
+                          {!presentationMode && cGroup.tecnicos && (
+                            <span
+                              className="prog-tech-comp-pill"
+                              title={`Técnicos asignados: ${cGroup.tecnicos}`}
+                            >
+                              👥 {cGroup.tecnicos}
+                            </span>
+                          )}
 
                           {/* Píldora de Última Solicitud de Revisión / Reporte al lado de Actividad */}
                           {(() => {
@@ -1336,7 +1338,7 @@ export default function Programacion() {
                               return (
                                 <span
                                   className={`prog-tech-last-report-pill is-solicitud ${isRecent ? 'is-recent' : ''}`}
-                                  title={`Última solicitud de revisión registrada a las ${ultRep.hora}${ultRep.obs ? ` (Obs: ${ultRep.obs})` : ''}${ultRep.user ? ` · ${ultRep.user}` : ''}`}
+                                  title={`Última solicitud de revisión registrada a las ${ultRep.hora}${ultRep.obs ? ` (Obs: ${ultRep.obs})` : ''}${!presentationMode && ultRep.user ? ` · ${ultRep.user}` : ''}`}
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleOpenTimelineCuadrilla(cGroup)
@@ -1354,7 +1356,7 @@ export default function Programacion() {
                               return (
                                 <span
                                   className={`prog-tech-last-report-pill ${isRecent ? 'is-recent' : ''}`}
-                                  title={`Última actividad registrada a las ${ultRep.hora}${ultRep.obs ? ` (Obs: ${ultRep.obs})` : ''}${ultRep.user ? ` · ${ultRep.user}` : ''}`}
+                                  title={`Última actividad registrada a las ${ultRep.hora}${ultRep.obs ? ` (Obs: ${ultRep.obs})` : ''}${!presentationMode && ultRep.user ? ` · ${ultRep.user}` : ''}`}
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleOpenTimelineCuadrilla(cGroup)

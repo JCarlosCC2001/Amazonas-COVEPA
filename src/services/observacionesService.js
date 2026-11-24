@@ -11,7 +11,8 @@ import {
   fetchHistorialObservacion,
   fetchUltimoCambioObservacion,
   registrarHistorialEstado,
-  esRevisorGilat
+  esRevisorGilat,
+  atribuirTecnicoYCuadrillaAObservacion
 } from './auditoriaSyncService'
 import { asegurarProgramacionSitio } from './programacionService'
 import { ASIGNACIONES_BASE } from './sitiosService'
@@ -601,20 +602,9 @@ export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
 
   // 4. Registrar trazabilidad en historial_estados_observaciones (no bloqueante)
   rows.forEach(r => {
-    // Si la solicitud provino con el nombre del técnico de campo, registrar previamente su evento de solicitud en el historial
+    // Si la observación no tenía técnico ejecutor asignado y revisor traía el nombre del técnico, asignarlo
     if (r.revisor && !esRevisorGilat(r.revisor)) {
-      registrarHistorialEstado({
-        idObs: r.id_obs,
-        idSitio: r.id_sitio,
-        estadoAnterior: 'Pendiente',
-        estadoNuevo: 'Solicitando Revisión',
-        usuarioNombre: r.revisor,
-        usuarioEmail: null,
-        usuarioId: null,
-        comentario: 'Solicitud de revisión técnica enviada desde campo',
-        origen: 'app_fotos',
-        fechaExacta: r.fecha_subsanacion || null
-      }).catch(err => console.warn('[HISTORIAL-WARN] Error registrando solicitud previa de técnico:', err))
+      atribuirTecnicoYCuadrillaAObservacion(r.id_obs, r.revisor, r.id_sitio).catch(() => {})
     }
 
     // Registrar el pase a En Revisión por parte del usuario de oficina (con su nombre completo oficial)

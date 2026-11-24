@@ -153,6 +153,39 @@ export async function registrarHistorialEstado({
     return null
   }
 
+  // Prevención de duplicados para 'Solicitando Revisión':
+  // Si en los últimos 15 minutos ya existe un registro de Solicitando Revisión para esta observación, no duplicar.
+  if (estNuevoNorm === 'Solicitando Revisión') {
+    try {
+      const quinceMinAtras = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+      const { data: exist } = await supabase
+        .from('historial_estados_observaciones')
+        .select('id, usuario_nombre, comentario')
+        .eq('id_obs', idObs)
+        .in('estado_nuevo', ['Solicitando Revisión', 'Solicitando Revision'])
+        .gte('created_at', quinceMinAtras)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (exist && exist.length > 0) {
+        // Si el registro previo tenía nombre genérico y ahora se conoce el técnico real, enriquecerlo
+        if (esNombreGenerico(exist[0].usuario_nombre) && !esNombreGenerico(usuarioNombre)) {
+          await supabase
+            .from('historial_estados_observaciones')
+            .update({ usuario_nombre: usuarioNombre })
+            .eq('id', exist[0].id)
+        }
+        // Atribuir técnico ejecutor a la observación si no estaba
+        if (!esNombreGenerico(usuarioNombre)) {
+          atribuirTecnicoYCuadrillaAObservacion(idObs, usuarioNombre, idSitio).catch(() => {})
+        }
+        return null // Omitir inserción redundante
+      }
+    } catch (checkErr) {
+      console.warn('[HISTORIAL-DEDUPE] Advertencia comprobando duplicado:', checkErr)
+    }
+  }
+
   try {
     const { data, error } = await supabase
       .from('historial_estados_observaciones')
@@ -175,9 +208,141 @@ export async function registrarHistorialEstado({
       console.warn('[HISTORIAL-SYNC] Advertencia al registrar historial:', error.message)
       return null
     }
+
+    // Si es Solicitando Revisión, auto-asignar el técnico ejecutor y cuadrilla a la observación
+    if (estNuevoNorm === 'Solicitando Revisión' && !esNombreGenerico(usuarioNombre)) {
+      atribuirTecnicoYCuadrillaAObservacion(idObs, usuarioNombre, idSitio).catch(() => {})
+    }
+
     return data
   } catch (err) {
     console.warn('[HISTORIAL-SYNC] Error de red al registrar historial:', err)
+    return null
+  }
+}
+
+/**
+ * Determina si un nombre es genérico del sistema en lugar de una persona real.
+ */
+export function esNombreGenerico(nombre) {
+  if (!nombre) return true
+  const s = String(nombre).trim().toLowerCase()
+  return (
+    s === 'técnico de campo (app fotos)' ||
+    s === 'tecnico de campo (app fotos)' ||
+    s === 'técnico de campo' ||
+    s === 'tecnico de campo' ||
+    s === 'app fotos' ||
+    s === 'auditor covepa' ||
+    s === 'usuario de sesión' ||
+    s === 'usuario de sesion' ||
+    s === 'sistema' ||
+    s === 'sistema (trigger)' ||
+    s === 'administrador'
+  )
+}
+
+/**
+ * Deduplica eventos de historial consecutivos con el mismo estado nuevo
+ * ocurridos en una misma ráfaga de tiempo (<= 30 minutos).
+ * Si uno de los eventos tiene el nombre real del técnico (ej. Juan Castro Torres)
+ * y el otro es genérico (ej. Técnico de Campo (App Fotos)), conserva el nombre real.
+ */
+export function deduplicarHistorialEventos(eventos) {
+  if (!Array.isArray(eventos) || eventos.length <= 1) return eventos || []
+
+  const resultado = []
+
+  for (let i = 0; i < eventos.length; i++) {
+    const cur = eventos[i]
+    if (resultado.length === 0) {
+      resultado.push(cur)
+      continue
+    }
+
+    const prev = resultado[resultado.length - 1]
+    const mismoEstadoNuevo = normalizarEstadoOficial(cur.estado_nuevo) === normalizarEstadoOficial(prev.estado_nuevo)
+
+    if (mismoEstadoNuevo) {
+      const diffMs = Math.abs(new Date(cur.created_at) - new Date(prev.created_at))
+      // Si ocurrieron con menos de 30 minutos de diferencia (ráfaga o sincronización duplicada)
+      if (isNaN(diffMs) || diffMs <= 30 * 60 * 1000) {
+        const prevEsGen = esNombreGenerico(prev.usuario_nombre)
+        const curEsGen = esNombreGenerico(cur.usuario_nombre)
+
+        if (prevEsGen && !curEsGen) {
+          // Reemplazar prev por cur porque cur tiene el nombre real del técnico
+          resultado[resultado.length - 1] = {
+            ...cur,
+            comentario: cur.comentario || prev.comentario || null,
+            created_at: cur.created_at || prev.created_at
+          }
+        } else if (!prevEsGen && curEsGen) {
+          // Conservar prev que ya tiene el nombre real, pero transferir comentario si prev no tenía
+          if (!prev.comentario && cur.comentario) {
+            resultado[resultado.length - 1] = {
+              ...prev,
+              comentario: cur.comentario
+            }
+          }
+        } else {
+          // Ambos genéricos o ambos con nombre: conservar el de mayor detalle o fecha inicial
+          if (!prev.comentario && cur.comentario) {
+            resultado[resultado.length - 1] = {
+              ...prev,
+              comentario: cur.comentario
+            }
+          }
+        }
+        continue // Omitir duplicado
+      }
+    }
+
+    resultado.push(cur)
+  }
+
+  return resultado
+}
+
+/**
+ * Atribuye automáticamente el técnico ejecutor y cuadrilla a una observación en Supabase
+ * buscando el nombre recibido contra la lista oficial de personal del proyecto.
+ *
+ * @param {string} idObs - Código de la observación (ej: 'C-4068')
+ * @param {string} nombreTecnico - Nombre del solicitante (ej: 'Juan Castro Torres')
+ * @param {string} [idSitio] - Código del sitio (opcional)
+ * @returns {Promise<Object|null>} { tecnico, cuadrilla } si se resolvió y actualizó
+ */
+export async function atribuirTecnicoYCuadrillaAObservacion(idObs, nombreTecnico, idSitio = null) {
+  if (!idObs || !nombreTecnico) return null
+  const resolved = resolveTecnicoAndCuadrilla(nombreTecnico)
+  if (!resolved?.tecnico || !resolved?.cuadrilla) return null
+
+  try {
+    const updatePayload = {
+      tecnico_ejecutor: resolved.tecnico,
+      cuadrilla_ejecutora: resolved.cuadrilla,
+      revisor: null
+    }
+
+    let query = supabase
+      .from('observaciones')
+      .update(updatePayload)
+      .eq('id_obs', idObs)
+
+    if (idSitio) {
+      query = query.eq('id_sitio', idSitio)
+    }
+
+    const { error } = await query
+    if (error) {
+      console.warn('[ATRIBUIR-TEC] Error asignando técnico ejecutor:', error.message)
+      return null
+    }
+
+    return resolved
+  } catch (err) {
+    console.warn('[ATRIBUIR-TEC] Excepción asignando técnico ejecutor:', err)
     return null
   }
 }
@@ -210,7 +375,7 @@ export function esRegistroSoloComentario(h) {
 
 /**
  * Consulta la lista cronológica de cambios de estado de una observación.
- * Excluye registros que sean solo de comentario para no distorsionar la trazabilidad de estados.
+ * Excluye registros que sean solo de comentario y deduplica ráfagas del mismo estado.
  *
  * @param {string} idObs - Código de observación
  * @returns {Promise<Array>} Lista de registros ordenada descendentemente por fecha
@@ -232,7 +397,8 @@ export async function fetchHistorialObservacion(idObs) {
     // Filtrar cambios de solo comentario o sin transición real de estado
     const limpios = (data || []).filter(h => !esRegistroSoloComentario(h))
 
-    return limpios
+    // Deduplicar ráfagas o repeticiones de estado
+    return deduplicarHistorialEventos(limpios)
   } catch (err) {
     console.warn('[HISTORIAL-FETCH] Error de red al consultar historial:', err)
     return []
@@ -261,8 +427,8 @@ export async function fetchUltimoCambioObservacion(idObs) {
       return { latest: null, count: 0 }
     }
 
-    // Filtrar cambios que sean solo de comentario
-    const limpios = (data || []).filter(h => !esRegistroSoloComentario(h))
+    // Filtrar cambios que sean solo de comentario y deduplicar ráfagas
+    const limpios = deduplicarHistorialEventos((data || []).filter(h => !esRegistroSoloComentario(h)))
 
     return { latest: limpios[0] || null, count: limpios.length }
   } catch (err) {

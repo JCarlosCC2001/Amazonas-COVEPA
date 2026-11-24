@@ -4,7 +4,7 @@ import {
   History, AlertCircle, Loader2, RefreshCw
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
-import { fetchHistorialObservacion, esRegistroSoloComentario } from '../../services/auditoriaSyncService'
+import { fetchHistorialObservacion, esRegistroSoloComentario, deduplicarHistorialEventos } from '../../services/auditoriaSyncService'
 import { estadoCovepaBadge } from '../../utils/helpers'
 
 /**
@@ -24,8 +24,8 @@ export default function HistorialEstadosTimeline({ idObs, refreshKey = 0 }) {
     setError(null)
     try {
       const data = await fetchHistorialObservacion(idObs)
-      // Filtrar cambios de solo comentario o sin cambio real de estado
-      const limpios = (data || []).filter(h => !esRegistroSoloComentario(h))
+      // Filtrar cambios de solo comentario o sin cambio real de estado y deduplicar ráfagas
+      const limpios = deduplicarHistorialEventos((data || []).filter(h => !esRegistroSoloComentario(h)))
       setHistorial(limpios)
     } catch (err) {
       console.error('Error cargando historial de observación:', err)

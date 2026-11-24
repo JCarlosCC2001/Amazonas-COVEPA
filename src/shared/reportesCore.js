@@ -29,30 +29,67 @@ export function resolveTecnicoAndCuadrilla(str) {
   }
 
   // Cuadrilla 1: Jhonatan Flores, Marco Chamba
-  if ((upper.includes('JHONATAN') && upper.includes('FLORES')) || (upper.includes('MARCO') && upper.includes('CHAMBA'))) {
-    const tec = (upper.includes('MARCO') && upper.includes('CHAMBA')) ? 'Marco Chamba' : 'Jhonatan Flores'
+  if (
+    (upper.includes('JHONATAN') && upper.includes('FLORES')) ||
+    (upper.includes('MARCO') && upper.includes('CHAMBA')) ||
+    upper.includes('CHAMBA') ||
+    upper.includes('FLORES ROJAS')
+  ) {
+    const tec = (upper.includes('CHAMBA')) ? 'Marco Chamba' : 'Jhonatan Flores'
     return { cuadrilla: 'CUADRILLA 1', tecnico: tec }
   }
 
-  // Cuadrilla 2: Juan Castro, Willy Fernández
-  if ((upper.includes('JUAN') && upper.includes('CASTRO')) || (upper.includes('WILLY') && (upper.includes('FERNANDEZ') || upper.includes('FERNÁNDEZ')))) {
-    const tec = (upper.includes('WILLY')) ? 'Willy Fernández' : 'Juan Castro'
+  // Cuadrilla 2: Juan Castro, Willy Fernández, Cristian Isla
+  if (
+    (upper.includes('JUAN') && upper.includes('CASTRO')) ||
+    upper.includes('CASTRO TORRES') ||
+    (upper.includes('CASTRO') && !upper.includes('CONDOR')) ||
+    (upper.includes('WILLY') && (upper.includes('FERNANDEZ') || upper.includes('FERNÁNDEZ') || upper.includes('AQUINO'))) ||
+    upper.includes('FERNANDEZ AQUINO') ||
+    upper.includes('FERNÁNDEZ AQUINO') ||
+    upper.includes('CRISTIAN ISLA')
+  ) {
+    let tec = 'Juan Castro'
+    if (upper.includes('WILLY') || upper.includes('FERNANDEZ') || upper.includes('FERNÁNDEZ')) tec = 'Willy Fernández'
+    else if (upper.includes('ISLA')) tec = 'Cristian Isla'
     return { cuadrilla: 'CUADRILLA 2', tecnico: tec }
   }
 
   // Cuadrilla 3: Alfonso Curi, William Avila
-  if ((upper.includes('ALFONSO') && upper.includes('CURI')) || ((upper.includes('WILLIAM') || upper.includes('WILL')) && (upper.includes('AVILA') || upper.includes('ÁVILA')))) {
-    const tec = ((upper.includes('WILLIAM') || upper.includes('WILL'))) ? 'William Avila' : 'Alfonso Curi'
+  if (
+    (upper.includes('ALFONSO') && upper.includes('CURI')) ||
+    upper.includes('CURI LOPEZ') ||
+    upper.includes('CURI LÓPEZ') ||
+    ((upper.includes('WILLIAM') || upper.includes('WILL')) && (upper.includes('AVILA') || upper.includes('ÁVILA') || upper.includes('COTRINA'))) ||
+    upper.includes('AVILA COTRINA') ||
+    upper.includes('ÁVILA COTRINA')
+  ) {
+    const tec = (upper.includes('AVILA') || upper.includes('ÁVILA') || upper.includes('COTRINA') || upper.includes('WILLIAM') || upper.includes('WILL'))
+      ? 'William Avila'
+      : 'Alfonso Curi'
     return { cuadrilla: 'CUADRILLA 3', tecnico: tec }
   }
 
   // Cuadrilla 4: Hugo Espinoza, Daniel Javier, Roger Valdivia
-  if ((upper.includes('HUGO') && upper.includes('ESPINOZA')) || (upper.includes('DANIEL') && upper.includes('JAVIER')) || (upper.includes('ROGER') && upper.includes('VALDIVIA'))) {
+  if (
+    (upper.includes('HUGO') && upper.includes('ESPINOZA')) ||
+    upper.includes('ESPINOZA PEZO') ||
+    (upper.includes('DANIEL') && upper.includes('JAVIER')) ||
+    upper.includes('JAVIER ANTONIO') ||
+    (upper.includes('ROGER') && upper.includes('VALDIVIA')) ||
+    upper.includes('VALDIVIA RODRIGUEZ') ||
+    upper.includes('VALDIVIA RODRÍGUEZ')
+  ) {
     let tec = 'Hugo Espinoza'
-    if (upper.includes('DANIEL')) tec = 'Daniel Javier'
-    else if (upper.includes('ROGER')) tec = 'Roger Valdivia'
+    if (upper.includes('JAVIER')) tec = 'Daniel Javier'
+    else if (upper.includes('VALDIVIA')) tec = 'Roger Valdivia'
     return { cuadrilla: 'CUADRILLA 4', tecnico: tec }
   }
+
+  // Coincidencias por apellido o nombre individual
+  if (upper.includes('CHAMBA')) return { cuadrilla: 'CUADRILLA 1', tecnico: 'Marco Chamba' }
+  if (upper.includes('CURI')) return { cuadrilla: 'CUADRILLA 3', tecnico: 'Alfonso Curi' }
+  if (upper.includes('CASTRO') && !upper.includes('CONDOR')) return { cuadrilla: 'CUADRILLA 2', tecnico: 'Juan Castro' }
 
   return null
 }

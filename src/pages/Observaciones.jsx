@@ -24,8 +24,12 @@ import {
   sincronizarComentarioObservacion,
   sincronizarJustificacionDemora,
   sincronizarTiemposEjecucion,
-  resolverNombreAuditor
+  resolverNombreAuditor,
+  fetchUltimoCambioObservacion,
+  atribuirTecnicoYCuadrillaAObservacion,
+  esNombreGenerico
 } from '../services/auditoriaSyncService'
+import { resolveTecnicoAndCuadrilla } from '../shared/reportesCore'
 import { getPersonalActivo } from '../services/programacionService'
 import { useAuth } from '../hooks/useAuth'
 import { useNotifications } from '../context/NotificationContext'
@@ -86,6 +90,33 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       isDirtyDelayRef.current = false
       isDirtyTimeRef.current = false
       setShowDemoraBox(Boolean((obs.justificacion_demora && obs.justificacion_demora.trim()) || (obs.tiempo_ejecucion_real && obs.tiempo_ejecucion_real.trim()) || (obs.tiempo_ejecucion_demora && obs.tiempo_ejecucion_demora.trim())))
+
+      // Auto-asignación inmediata si la observación no tiene técnico ejecutor asignado:
+      // Si el técnico solicitó revisión o validación en el historial (ej. Willy Fernandez Aquino, Juan Castro, etc.),
+      // auto-asignar inmediatamente en la vista y en la base de datos para no mostrar "Sin Asignar (Clic)".
+      if (!obs.tecnico_ejecutor) {
+        fetchUltimoCambioObservacion(obs.id_obs).then(res => {
+          const author = res?.latest?.usuario_nombre
+          if (author && !esNombreGenerico(author)) {
+            const resolved = resolveTecnicoAndCuadrilla(author)
+            if (resolved?.tecnico) {
+              setObsLocal(prev => ({
+                ...prev,
+                tecnico_ejecutor: resolved.tecnico,
+                cuadrilla_ejecutora: resolved.cuadrilla || prev.cuadrilla_ejecutora
+              }))
+              atribuirTecnicoYCuadrillaAObservacion(obs.id_obs, author, obs.id_sitio)
+              if (onSaved) {
+                onSaved({
+                  ...obs,
+                  tecnico_ejecutor: resolved.tecnico,
+                  cuadrilla_ejecutora: resolved.cuadrilla || obs.cuadrilla_ejecutora
+                })
+              }
+            }
+          }
+        }).catch(err => console.warn('[AUTO-TEC-OBS] Advertencia auto-resolviendo técnico:', err))
+      }
 
       // Carga bajo demanda de textos pesados (evita descargarlos en la lista general para ahorrar egress)
       if (obs.comentario_final === undefined || obs.comentario_pronatel === undefined || obs.comentario_inicial === undefined) {
@@ -443,6 +474,26 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   idObs={obsLocal.id_obs}
                   refreshKey={historialRefreshKey}
                   initialOpen={showHistorial}
+                  onLatestResolved={(latest) => {
+                    if (!obsLocal.tecnico_ejecutor && latest?.usuario_nombre && !esNombreGenerico(latest.usuario_nombre)) {
+                      const resolved = resolveTecnicoAndCuadrilla(latest.usuario_nombre)
+                      if (resolved?.tecnico) {
+                        setObsLocal(prev => ({
+                          ...prev,
+                          tecnico_ejecutor: resolved.tecnico,
+                          cuadrilla_ejecutora: resolved.cuadrilla || prev.cuadrilla_ejecutora
+                        }))
+                        atribuirTecnicoYCuadrillaAObservacion(obsLocal.id_obs, latest.usuario_nombre, obsLocal.id_sitio)
+                        if (onSaved) {
+                          onSaved({
+                            ...obsLocal,
+                            tecnico_ejecutor: resolved.tecnico,
+                            cuadrilla_ejecutora: resolved.cuadrilla || obsLocal.cuadrilla_ejecutora
+                          })
+                        }
+                      }
+                    }
+                  }}
                 />
               </div>
             )}

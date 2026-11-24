@@ -70,6 +70,7 @@ export default function UltimoCambioBadge({
   refreshKey = 0,
   initialOpen = false,
   showTimeline = true,
+  onLatestResolved = null,
   className = ''
 }) {
   const { isAdmin } = useAuth()
@@ -83,10 +84,13 @@ export default function UltimoCambioBadge({
     try {
       const res = await fetchUltimoCambioObservacion(idObs)
       setData(res)
+      if (res?.latest && onLatestResolved) {
+        onLatestResolved(res.latest)
+      }
     } finally {
       setLoading(false)
     }
-  }, [isAdmin, idObs])
+  }, [isAdmin, idObs, onLatestResolved])
 
   useEffect(() => {
     if (isAdmin) {

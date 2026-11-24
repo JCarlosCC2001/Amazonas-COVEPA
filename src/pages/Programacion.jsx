@@ -1318,17 +1318,11 @@ export default function Programacion() {
                   {/* Fila superior: Identidad de la Cuadrilla, Técnicos y Resumen */}
                   <div className="prog-tech-main-bar">
                     <div className="prog-tech-person-info">
-                      <div className="prog-tech-avatar-sm">
+                      <div className="prog-tech-avatar-sm" title={cName}>
                         {cNum ? `C${cNum}` : 'CP'}
                       </div>
                       <div className="prog-tech-details">
                         <div className="prog-tech-title-line">
-                          <span className="prog-tech-name-text">
-                            {cName}
-                          </span>
-                          <span className="prog-card-cuadrilla-badge">
-                            {cName}
-                          </span>
                           <span
                             className="prog-tech-comp-pill"
                             title={`Técnicos asignados: ${cGroup.tecnicos}`}
@@ -1407,12 +1401,8 @@ export default function Programacion() {
                       </div>
                     </div>
 
-                    {/* Resumen numérico esencial de la cuadrilla */}
+                    {/* Resumen numérico esencial de la cuadrilla (sin contador de sitios por requerimiento) */}
                     <div className="prog-tech-summary-pill">
-                      <span className="prog-tech-sum-sites">
-                        <strong>{cGroup.sitios.length}</strong> {cGroup.sitios.length === 1 ? 'sitio' : 'sitios'}
-                      </span>
-                      <span className="prog-tech-sum-sep">•</span>
                       <span
                         className="prog-tech-sum-obs"
                         style={{

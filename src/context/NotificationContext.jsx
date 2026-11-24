@@ -1082,13 +1082,13 @@ export function NotificationProvider({ children }) {
 
     fetchSolicitudes(false, true)
 
-    // Poller de seguridad ligero (cada 45 segundos, únicamente si la pestaña está visible)
+    // Poller de seguridad ligero (cada 60 segundos, únicamente si la pestaña está visible)
     // Garantiza que las alertas de técnicos nunca se pierdan si el WebSocket de Supabase se interrumpe
     const safetyInterval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         fetchSolicitudes(true, false)
       }
-    }, 45000)
+    }, 60000)
 
     // Reconsultar si la conexión de red se restablece o el usuario regresa a la pestaña
     const handleOnline = () => fetchSolicitudes(true, true)

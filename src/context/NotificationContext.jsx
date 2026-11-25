@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { getCachedSitiosAsignados, ASIGNACIONES_BASE } from '../services/sitiosService'
 import { DEFAULT_CUADRILLAS_CONFIG } from '../services/personalService'
 import { asegurarProgramacionSitio } from '../services/programacionService'
-import { registrarHistorialEstado, esRevisorGilat, esNombreGenerico } from '../services/auditoriaSyncService'
+import { registrarHistorialEstado, esRevisorGilat, esNombreGenerico, atribuirTecnicoYCuadrillaAObservacion } from '../services/auditoriaSyncService'
 import { resolveTecnicoAndCuadrilla, resolverNombreTecnico } from '../shared/reportesCore'
 import { formatPrimerNombrePrimerApellido } from '../utils/helpers'
 
@@ -827,6 +827,10 @@ export function NotificationProvider({ children }) {
               row.fecha_entrada_estado = hInfo.created_at
               row.fecha_subsanacion = hInfo.created_at
             }
+            if (!row.tecnico_ejecutor && cand && !esRevisorGilat(cand) && !esNombreGenerico(cand)) {
+              atribuirTecnicoYCuadrillaAObservacion(row.id_obs, cand, row.id_sitio)
+                .catch(err => console.warn('[AUTO-ATRIBUIR-POLL] Error:', err))
+            }
           })
 
           revRows.forEach(row => {
@@ -837,6 +841,11 @@ export function NotificationProvider({ children }) {
             }
             if (hInfo?.usuario_nombre && !row.revisor) {
               row.pasado_por = hInfo.usuario_nombre
+            }
+            const nomTec = solHistMap[row.id_obs]?.usuario_nombre || row.pasado_por
+            if (!row.tecnico_ejecutor && nomTec && !esRevisorGilat(nomTec) && !esNombreGenerico(nomTec)) {
+              atribuirTecnicoYCuadrillaAObservacion(row.id_obs, nomTec, row.id_sitio)
+                .catch(err => console.warn('[AUTO-ATRIBUIR-POLL-REV] Error:', err))
             }
           })
 
@@ -1172,6 +1181,10 @@ export function NotificationProvider({ children }) {
             const candRev = (newRow.revisor && !esRevisorGilat(newRow.revisor)) ? newRow.revisor : null
             const rawSol = newRow.tecnico_ejecutor || candRev || newRow.solicitante || newRow.usuario_nombre
             const solicitanteNombre = formatNombreSolicitante(rawSol, newRow.id_sitio)
+            if (newRow.id_obs && !newRow.tecnico_ejecutor && (rawSol || solicitanteNombre)) {
+              atribuirTecnicoYCuadrillaAObservacion(newRow.id_obs, rawSol || solicitanteNombre, newRow.id_sitio)
+                .catch(err => console.warn('[NOTIF-AUTO-ATRIBUIR-OBS] Error atribuyendo técnico:', err))
+            }
             const nowEntryIso = new Date().toISOString()
             const enrichedRow = {
               ...newRow,
@@ -1337,6 +1350,10 @@ export function NotificationProvider({ children }) {
 
           if (row && (row.estado_nuevo === 'Solicitando Revisión' || row.estado_nuevo === 'Solicitando Revision')) {
             const solicitanteNombre = formatNombreSolicitante(row.usuario_nombre, row.id_sitio)
+            if (row.id_obs && (row.usuario_nombre || solicitanteNombre)) {
+              atribuirTecnicoYCuadrillaAObservacion(row.id_obs, row.usuario_nombre || solicitanteNombre, row.id_sitio)
+                .catch(err => console.warn('[NOTIF-AUTO-ATRIBUIR-HIST] Error atribuyendo técnico:', err))
+            }
             const obsLike = {
               id_obs: row.id_obs,
               id_sitio: row.id_sitio,

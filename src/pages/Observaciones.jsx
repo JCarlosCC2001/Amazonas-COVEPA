@@ -33,8 +33,10 @@ import {
   resolveTecnicoAndCuadrilla,
   resolveCuadrillaDeSitio,
   resolverIdPersonalTecnico,
-  resolverNombreTecnico
+  resolverNombreTecnico,
+  ID_PERSONAL_POR_TECNICO
 } from '../shared/reportesCore'
+import { fetchPersonal } from '../services/personalService'
 import { getPersonalActivo } from '../services/programacionService'
 import { useAuth } from '../hooks/useAuth'
 import { useNotifications } from '../context/NotificationContext'
@@ -42,8 +44,19 @@ import { getCachedSitiosAsignados, ASIGNACIONES_BASE } from '../services/sitiosS
 import MetricCard, { MetricGrid } from '../components/shared/MetricCard'
 import ErpTable from '../components/shared/ErpTable'
 import ModalConfirmacionEstado, { esEstadoProtegido, esEstadoRequiereConfirmacion } from '../components/shared/ModalConfirmacionEstado'
-import ModalDesignarTecnico from '../components/shared/ModalDesignarTecnico'
 import { estadoCovepaBadge, hasMeaningfulText, getPeruDateStr, getPeruISOString, formatPrimerNombrePrimerApellido } from '../utils/helpers'
+
+// Fallback canónico con los 8 técnicos oficiales con cuadrilla designada
+const TECNICOS_CUADRILLA_BASE = [
+  { id: '554a3a58-bf04-480a-8795-d85e055ee4c6', nombre: 'Jhonatan Flores', cargo: 'TÉCNICO', cuadrilla: 'CUADRILLA 1' },
+  { id: '4f9d2cc7-3a88-42f9-b9ac-e97eec0277fe', nombre: 'Marco Chamba', cargo: 'TÉCNICO', cuadrilla: 'CUADRILLA 1' },
+  { id: '84444118-163f-4568-8040-e60e1824fd73', nombre: 'Juan Castro', cargo: 'TÉCNICO', cuadrilla: 'CUADRILLA 2' },
+  { id: '61d6e0fc-81ae-4e84-9841-1436795d27fd', nombre: 'Willy Fernández', cargo: 'TÉCNICO', cuadrilla: 'CUADRILLA 2' },
+  { id: '4b56f618-981f-4f2a-a901-4a4de4543899', nombre: 'Alfonso Curi', cargo: 'TÉCNICO', cuadrilla: 'CUADRILLA 3' },
+  { id: '19ff0cdf-7afc-4e50-94b2-f1a9998de148', nombre: 'William Avila', cargo: 'TÉCNICO', cuadrilla: 'CUADRILLA 3' },
+  { id: '98a85d5b-9514-43f6-ae29-6a8c2ef6d06c', nombre: 'Hugo Espinoza', cargo: 'TÉCNICO', cuadrilla: 'CUADRILLA 4' },
+  { id: '05db4c32-3c7a-42e4-a0aa-8ac33dd5c75f', nombre: 'Daniel Javier', cargo: 'TÉCNICO', cuadrilla: 'CUADRILLA 4' }
+]
 
 // ────────────────────────────────────────────────────────────
 // VENTANA EMERGENTE — Detalle Completo de Observación (Flujo Programación)
@@ -66,7 +79,15 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
   const [showHistorial, setShowHistorial] = useState(false)
   const [historialRefreshKey, setHistorialRefreshKey] = useState(0)
   const [confirmModalData, setConfirmModalData] = useState(null)
-  const [designarModalData, setDesignarModalData] = useState(null)
+  const [personalList, setPersonalList] = useState([])
+
+  useEffect(() => {
+    let mounted = true
+    fetchPersonal().then(list => {
+      if (mounted) setPersonalList(list || [])
+    }).catch(() => {})
+    return () => { mounted = false }
+  }, [])
   const isDirtyCommentRef = useRef(false)
   const commentValRef = useRef(commentVal)
   commentValRef.current = commentVal
@@ -393,6 +414,91 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     }
   }
 
+  // 4. Modificar Técnico Ejecutor directamente desde la lista desplegable
+  const handleUpdateTecnico = async (newTecId) => {
+    setUpdating(true)
+    try {
+      const val = newTecId || null
+      await updateObservacionCovepa(obsLocal.id_obs, { tecnico_ejecutor: val, id_sitio: obsLocal.id_sitio })
+      const updatedRow = { ...obsLocal, tecnico_ejecutor: val }
+      setObsLocal(updatedRow)
+      if (onSaved) onSaved(updatedRow)
+    } catch (err) {
+      alert('Error actualizando técnico ejecutor: ' + err.message)
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const tecnicoDisplayNombre = useMemo(() => {
+    if (!obsLocal?.tecnico_ejecutor) return ''
+    const nom = resolverNombreTecnico(obsLocal.tecnico_ejecutor) || obsLocal.tecnico_ejecutor
+    return formatPrimerNombrePrimerApellido(nom) || nom
+  }, [obsLocal?.tecnico_ejecutor])
+
+  const { conCuadrilla, sinCuadrilla } = useMemo(() => {
+    const list = (personalList.length > 0 ? personalList : TECNICOS_CUADRILLA_BASE).filter(p => p.activo !== false)
+    const seen = new Set()
+    const conC = []
+    const sinC = []
+
+    const merged = [...list]
+    TECNICOS_CUADRILLA_BASE.forEach(fb => {
+      if (!merged.some(p => (p.id && p.id === fb.id) || (p.nombre_completo && p.nombre_completo.toLowerCase() === fb.nombre.toLowerCase()))) {
+        merged.push({ id: fb.id, nombre_completo: fb.nombre, cargo: fb.cargo, cuadrilla: fb.cuadrilla })
+      }
+    })
+
+    merged.forEach(p => {
+      const key = (p.id || p.nombre_completo || p.nombre || '').toLowerCase().trim()
+      if (!key || seen.has(key)) return
+      seen.add(key)
+
+      const c = String(p.cuadrilla || p.cuadrilla_asignada || '').trim().toUpperCase()
+      const hasCuad = c.startsWith('CUADRILLA')
+      const formatted = formatPrimerNombrePrimerApellido(p.nombre_completo || p.nombre) || (p.nombre_completo || p.nombre)
+
+      const item = {
+        id: p.id || ID_PERSONAL_POR_TECNICO[formatted] || key,
+        nombre: formatted,
+        cargo: p.cargo || (hasCuad ? 'TÉCNICO' : 'PERSONAL'),
+        cuadrilla: hasCuad ? c : null
+      }
+
+      if (hasCuad) conC.push(item)
+      else sinC.push(item)
+    })
+
+    conC.sort((a, b) => {
+      const cComp = (a.cuadrilla || '').localeCompare(b.cuadrilla || '')
+      if (cComp !== 0) return cComp
+      return a.nombre.localeCompare(b.nombre)
+    })
+    sinC.sort((a, b) => a.nombre.localeCompare(b.nombre))
+
+    return { conCuadrilla: conC, sinCuadrilla: sinC }
+  }, [personalList])
+
+  const currentTecnicoValue = useMemo(() => {
+    if (!obsLocal?.tecnico_ejecutor) return ''
+    const raw = String(obsLocal.tecnico_ejecutor).trim()
+    const id = resolverIdPersonalTecnico(raw)
+    return id || raw
+  }, [obsLocal?.tecnico_ejecutor])
+
+  const allKnownTecnicoIds = useMemo(() => {
+    const s = new Set()
+    conCuadrilla.forEach(t => {
+      if (t.id) s.add(String(t.id).toLowerCase())
+      if (t.nombre) s.add(String(t.nombre).toLowerCase())
+    })
+    sinCuadrilla.forEach(t => {
+      if (t.id) s.add(String(t.id).toLowerCase())
+      if (t.nombre) s.add(String(t.nombre).toLowerCase())
+    })
+    return s
+  }, [conCuadrilla, sinCuadrilla])
+
   if (!obsLocal) return null
 
   return (
@@ -542,22 +648,48 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                     Técnico Ejecutor
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setDesignarModalData({ nuevoEstado: currentEstado })}
-                  className="prog-obs-audit-field-btn"
-                  style={{
-                    background: obsLocal.tecnico_ejecutor ? '#f0fdf4' : '#fffbeb',
-                    borderColor: obsLocal.tecnico_ejecutor ? '#86efac' : '#fde68a',
-                    color: obsLocal.tecnico_ejecutor ? '#166534' : '#92400e'
-                  }}
-                  title={obsLocal.tecnico_ejecutor ? `Técnico: ${formatPrimerNombrePrimerApellido(resolverNombreTecnico(obsLocal.tecnico_ejecutor))} (Cód: ${resolverIdPersonalTecnico(obsLocal.tecnico_ejecutor) || obsLocal.tecnico_ejecutor})` : 'Clic para designar o cambiar técnico ejecutor'}
-                >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {formatPrimerNombrePrimerApellido(resolverNombreTecnico(obsLocal.tecnico_ejecutor) || obsLocal.tecnico_ejecutor) || 'Sin Asignar (Clic)'}
-                  </span>
-                  <ChevronDown size={14} color="#64748b" style={{ flexShrink: 0, marginLeft: '4px' }} />
-                </button>
+                <div style={{ width: '100%' }}>
+                  <select
+                    value={currentTecnicoValue}
+                    disabled={updating || isReadOnly}
+                    onChange={(e) => handleUpdateTecnico(e.target.value)}
+                    className="audit-select"
+                    style={{
+                      width: '100%',
+                      height: '34px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      padding: '0 0.5rem',
+                      background: obsLocal.tecnico_ejecutor ? '#f0fdf4' : '#ffffff',
+                      color: obsLocal.tecnico_ejecutor ? '#166534' : '#003060',
+                      fontSize: 'var(--text-meta)',
+                      fontWeight: 'var(--fw-medium)',
+                      cursor: isReadOnly ? 'not-allowed' : 'pointer'
+                    }}
+                    title={obsLocal.tecnico_ejecutor ? `Técnico: ${tecnicoDisplayNombre || obsLocal.tecnico_ejecutor}` : 'Seleccionar técnico ejecutor'}
+                  >
+                    <option value="">-- Sin Asignar --</option>
+                    {currentTecnicoValue && !allKnownTecnicoIds.has(String(currentTecnicoValue).toLowerCase()) && (
+                      <option value={currentTecnicoValue}>
+                        {tecnicoDisplayNombre || currentTecnicoValue}
+                      </option>
+                    )}
+                    <optgroup label="CON CUADRILLA DESIGNADA">
+                      {conCuadrilla.map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.nombre} ({t.cuadrilla})
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="RESTO DEL PERSONAL">
+                      {sinCuadrilla.map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.nombre} {t.cargo && t.cargo !== 'PERSONAL' ? `(${t.cargo})` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
               </div>
 
               {/* Cuadro 4: Fecha de Actualización */}
@@ -890,19 +1022,6 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
           estadoAnterior={currentEstado}
           estadoNuevo={confirmModalData?.nuevoEstado}
           loading={updating}
-        />
-
-        {/* Modal de Designación de Técnico Responsable para Cambios Locales */}
-        <ModalDesignarTecnico
-          isOpen={Boolean(designarModalData)}
-          obs={obsLocal}
-          nuevoEstado={designarModalData?.nuevoEstado}
-          onConfirm={async (designacion) => {
-            const target = designarModalData?.nuevoEstado
-            setDesignarModalData(null)
-            if (target) await handleSetEstado(target, designacion)
-          }}
-          onClose={() => setDesignarModalData(null)}
         />
       </div>
     </div>

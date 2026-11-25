@@ -348,7 +348,7 @@ export async function fetchFiltrosObservaciones(forceRefresh = false) {
 // 4. Actualiza y sincroniza los campos de auditoría COVEPA
 // (Conectado con el puente de auditoría para la app de fotos de campo)
 // ────────────────────────────────────────────────────────────
-export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subsanacion, comentario_covepa, revisor, validado_por, id_sitio, idSitio } = {}, maybeSitio = null) {
+export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subsanacion, comentario_covepa, revisor, validado_por, tecnico_ejecutor, id_sitio, idSitio } = {}, maybeSitio = null) {
   const rev = revisor !== undefined ? revisor : validado_por
   const siteId = idSitio || id_sitio || maybeSitio
 
@@ -360,13 +360,14 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
       revisor: rev,
       comentarioTexto: comentario_covepa,
       fechaSubsanacion: fecha_subsanacion,
+      tecnicoDesignado: tecnico_ejecutor,
       idSitio: siteId
     })
     return res.data
   }
 
-  // Si sólo se actualiza el comentario sin alterar estado
-  if (comentario_covepa !== undefined && estado_covepa === undefined && fecha_subsanacion === undefined) {
+  // Si sólo se actualiza el comentario sin alterar estado ni otros campos
+  if (comentario_covepa !== undefined && estado_covepa === undefined && fecha_subsanacion === undefined && rev === undefined && tecnico_ejecutor === undefined) {
     const res = await sincronizarComentarioObservacion(idObs, comentario_covepa, siteId)
     return res.data
   }
@@ -376,6 +377,9 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
   if (comentario_covepa !== undefined) payload.comentario_covepa = comentario_covepa
   if (rev !== undefined) {
     payload.revisor = (rev && esRevisorGilat(rev)) ? String(rev).trim() : null
+  }
+  if (tecnico_ejecutor !== undefined) {
+    payload.tecnico_ejecutor = tecnico_ejecutor ? String(tecnico_ejecutor).trim() : null
   }
 
   let query = supabase
@@ -388,24 +392,29 @@ export async function updateObservacionCovepa(idObs, { estado_covepa, fecha_subs
   }
 
   const { data, error } = await query
-    .select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, comentario_covepa')
+    .select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, comentario_covepa, tecnico_ejecutor')
     .single()
 
   if (error) {
-    // Si la columna revisor aún no fue creada en Supabase (error PGRST204), probar con validado_por o sin ella
-    if (error.code === 'PGRST204' && payload.revisor !== undefined) {
-      delete payload.revisor
-      if (rev !== undefined) payload.validado_por = rev || null
+    // Si la columna revisor o tecnico_ejecutor aún no fue creada en Supabase (error PGRST204 o 42703), reintentar
+    if ((error.code === 'PGRST204' || error.code === '42703') && (payload.revisor !== undefined || payload.tecnico_ejecutor !== undefined)) {
+      if (payload.revisor !== undefined) {
+        delete payload.revisor
+        if (rev !== undefined) payload.validado_por = rev || null
+      }
+      if (payload.tecnico_ejecutor !== undefined) {
+        delete payload.tecnico_ejecutor
+      }
       let retryQuery = supabase.from('observaciones').update(payload).eq('id_obs', idObs)
       if (siteId) retryQuery = retryQuery.eq('id_sitio', siteId)
-      const retryVal = await retryQuery.select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, comentario_covepa').single()
+      const retryVal = await retryQuery.select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, comentario_covepa').single()
       if (!retryVal.error) return retryVal.data
 
       // Si tampoco existe validado_por, guardar sin ese campo
       delete payload.validado_por
       let retryClean = supabase.from('observaciones').update(payload).eq('id_obs', idObs)
       if (siteId) retryClean = retryClean.eq('id_sitio', siteId)
-      const retry = await retryClean.select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, revisor, comentario_covepa').single()
+      const retry = await retryClean.select('id_obs, id_sitio, estado_covepa, fecha_subsanacion, comentario_covepa').single()
       if (retry.error) throw new Error(retry.error.message)
       return retry.data
     }

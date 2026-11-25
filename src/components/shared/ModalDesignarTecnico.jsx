@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { UserCheck, X, Shield, MapPin, Check } from 'lucide-react'
-import { DEFAULT_CUADRILLAS_CONFIG } from '../../services/personalService.js'
-import { resolveCuadrillaOficial, ID_PERSONAL_POR_TECNICO } from '../../shared/reportesCore.js'
-import { formatPrimerNombrePrimerApellido } from '../../utils/helpers.js'
+import { UserCheck, UserX, X, Check } from 'lucide-react'
+import { resolveCuadrillaOficial, ID_PERSONAL_POR_TECNICO, resolverNombreTecnico, resolveTecnicoAndCuadrilla } from '../../shared/reportesCore.js'
 
 /**
  * Modal emergente interactivo para designar al técnico responsable de una observación
  * durante cambios locales manuales en la oficina/web, atribuyendo el avance del día
- * de forma precisa al técnico y cuadrilla correspondiente.
+ * de forma precisa al técnico y cuadrilla correspondiente, con la opción de dejar en blanco.
  */
 export default function ModalDesignarTecnico({
   isOpen,
@@ -52,14 +50,24 @@ export default function ModalDesignarTecnico({
     return resolveCuadrillaOficial(obs)
   }, [obs])
 
-  // Pre-seleccionar por defecto el primer técnico de la cuadrilla sugerida al abrir
+  // Pre-seleccionar al abrir: si ya tiene técnico, preseleccionarlo; si no, dejar en blanco
   useEffect(() => {
     if (isOpen) {
+      const currentTec = obs?.tecnico_ejecutor
+      if (currentTec) {
+        const tecNom = resolverNombreTecnico(currentTec) || currentTec
+        const resolved = resolveTecnicoAndCuadrilla(tecNom)
+        if (resolved) {
+          setSelectedCuadrilla(resolved.cuadrilla)
+          setSelectedTecnico(resolved.tecnico)
+          return
+        }
+      }
       const matchCuad = cuadrillasList.find(c => c.id === suggestedCuadrilla) || cuadrillasList[0]
       setSelectedCuadrilla(matchCuad.id)
-      setSelectedTecnico(matchCuad.tecnicos[0])
+      setSelectedTecnico(currentTec ? matchCuad.tecnicos[0] : null)
     }
-  }, [isOpen, suggestedCuadrilla, cuadrillasList])
+  }, [isOpen, obs, suggestedCuadrilla, cuadrillasList])
 
   // Cerrar con Escape
   useEffect(() => {
@@ -73,19 +81,30 @@ export default function ModalDesignarTecnico({
 
   if (!isOpen || !obs) return null
 
-  const handleSelect = (cuadrillaId, tecNombre) => {
+  const handleSelectTecnico = (cuadrillaId, tecNombre) => {
     setSelectedCuadrilla(cuadrillaId)
     setSelectedTecnico(tecNombre)
   }
 
+  const handleSelectEnBlanco = () => {
+    setSelectedTecnico(null)
+  }
+
   const handleConfirmAction = () => {
-    if (!selectedTecnico || !selectedCuadrilla) return
-    const idPersonal = ID_PERSONAL_POR_TECNICO[selectedTecnico] || selectedTecnico
-    onConfirm({
-      tecnico: idPersonal,
-      tecnicoNombre: selectedTecnico,
-      cuadrilla: selectedCuadrilla
-    })
+    if (selectedTecnico) {
+      const idPersonal = ID_PERSONAL_POR_TECNICO[selectedTecnico] || selectedTecnico
+      onConfirm({
+        tecnico: idPersonal,
+        tecnicoNombre: selectedTecnico,
+        cuadrilla: selectedCuadrilla || suggestedCuadrilla
+      })
+    } else {
+      onConfirm({
+        tecnico: null,
+        tecnicoNombre: null,
+        cuadrilla: selectedCuadrilla || suggestedCuadrilla
+      })
+    }
   }
 
   const modalContent = (
@@ -114,7 +133,7 @@ export default function ModalDesignarTecnico({
             </div>
             <div>
               <h3 className="t-title-section" style={{ margin: 0, color: '#003060' }}>
-                ¿A qué técnico se le designará?
+                Designar Técnico Ejecutor
               </h3>
               <p className="t-meta" style={{ margin: 0, color: 'var(--text-muted)' }}>
                 Observación: <strong style={{ color: '#003060' }}>{obs.id_obs}</strong>
@@ -137,9 +156,53 @@ export default function ModalDesignarTecnico({
         {/* Contenido / Selección de Técnicos */}
         <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '68vh', overflowY: 'auto' }}>
           <div className="t-body" style={{ color: 'var(--text-secondary)' }}>
-            Selecciona el técnico responsable para registrarlo en el avance diario y atribuir el conteo a su cuadrilla:
+            Selecciona el técnico responsable para registrarlo en el avance diario, o déjalo en blanco si no corresponde:
           </div>
 
+          {/* Opción destacada: Dejar en blanco */}
+          <div
+            onClick={handleSelectEnBlanco}
+            style={{
+              padding: '0.75rem 1rem',
+              borderRadius: '10px',
+              border: selectedTecnico === null ? '1.5px solid #003060' : '1px dashed var(--border)',
+              background: selectedTecnico === null ? 'rgba(0, 48, 96, 0.06)' : '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '8px',
+                  background: selectedTecnico === null ? '#003060' : 'rgba(100, 116, 139, 0.1)',
+                  color: selectedTecnico === null ? '#ffffff' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <UserX size={16} />
+              </div>
+              <div>
+                <span className="t-name" style={{ fontWeight: 'var(--fw-bold)', color: selectedTecnico === null ? '#003060' : 'var(--text-main)' }}>
+                  Dejar técnico en blanco (Sin asignar)
+                </span>
+                <p className="t-meta" style={{ margin: 0, color: 'var(--text-muted)' }}>
+                  La observación no tendrá ningún técnico ejecutor asignado
+                </p>
+              </div>
+            </div>
+            {selectedTecnico === null && <Check size={18} color="#003060" />}
+          </div>
+
+          {/* Grilla de Cuadrillas y Técnicos */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.75rem' }}>
             {cuadrillasList.map(c => {
               const isSuggested = c.id === suggestedCuadrilla
@@ -185,7 +248,7 @@ export default function ModalDesignarTecnico({
                         <button
                           key={tec}
                           type="button"
-                          onClick={() => handleSelect(c.id, tec)}
+                          onClick={() => handleSelectTecnico(c.id, tec)}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -236,20 +299,44 @@ export default function ModalDesignarTecnico({
           </button>
           <button
             type="button"
+            className="btn btn-secondary t-name"
+            onClick={() => {
+              onConfirm({
+                tecnico: null,
+                tecnicoNombre: null,
+                cuadrilla: selectedCuadrilla || suggestedCuadrilla
+              })
+            }}
+            style={{
+              padding: '0.5rem 1.25rem',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              color: '#b91c1c',
+              borderColor: '#fca5a5',
+              background: '#fff1f2',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem'
+            }}
+          >
+            <UserX size={14} />
+            Dejar en blanco
+          </button>
+          <button
+            type="button"
             className="btn btn-primary t-name"
             onClick={handleConfirmAction}
-            disabled={!selectedTecnico}
             style={{
               padding: '0.5rem 1.5rem',
               borderRadius: '8px',
               background: '#003060',
               color: '#ffffff',
               border: 'none',
-              cursor: selectedTecnico ? 'pointer' : 'not-allowed',
+              cursor: 'pointer',
               fontWeight: 'var(--fw-bold)'
             }}
           >
-            Confirmar Designación
+            {selectedTecnico ? 'Confirmar Designación' : 'Confirmar (En blanco)'}
           </button>
         </div>
       </div>

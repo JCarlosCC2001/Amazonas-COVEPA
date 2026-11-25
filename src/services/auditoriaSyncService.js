@@ -534,8 +534,19 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
       if (resolved) cuadEjecutora = resolved.cuadrilla
     }
 
-    if (tecEjecutor) updatePayload.tecnico_ejecutor = tecEjecutor
-    if (cuadEjecutora) updatePayload.cuadrilla_ejecutora = cuadEjecutora
+    if (estadoNorm !== 'Descartado') {
+      if ('tecnicoDesignado' in extraContext) {
+        updatePayload.tecnico_ejecutor = tecEjecutor ? (resolverIdPersonalTecnico(tecEjecutor) || tecEjecutor) : null
+      } else if (tecEjecutor) {
+        updatePayload.tecnico_ejecutor = resolverIdPersonalTecnico(tecEjecutor) || tecEjecutor
+      }
+
+      if ('cuadrillaDesignada' in extraContext) {
+        updatePayload.cuadrilla_ejecutora = cuadEjecutora || null
+      } else if (cuadEjecutora) {
+        updatePayload.cuadrilla_ejecutora = cuadEjecutora
+      }
+    }
 
     let qEstado = supabase
       .from('observaciones')

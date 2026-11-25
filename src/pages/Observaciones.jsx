@@ -349,9 +349,13 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
         ? 'CUADRILLA 4'
         : (sInfo.cuadrilla || sInfo.grupo || 'CUADRILLA 1')
 
-      let tecFinal = designacion?.tecnico || obsLocal.tecnico_ejecutor || null
+      let tecFinal = (designacion && 'tecnico' in designacion)
+        ? (designacion.tecnico || null)
+        : (obsLocal.tecnico_ejecutor || null)
       if (tecFinal) tecFinal = resolverIdPersonalTecnico(tecFinal) || tecFinal
-      let cuadFinal = designacion?.cuadrilla || obsLocal.cuadrilla_ejecutora || cuadDelSitio
+      let cuadFinal = (designacion && 'cuadrilla' in designacion)
+        ? (designacion.cuadrilla || null)
+        : (obsLocal.cuadrilla_ejecutora || cuadDelSitio)
 
       if (nuevoEstado === 'Descartado') {
         tecFinal = null

@@ -212,8 +212,12 @@ export default function ModalDetallesProgramacion({
         ? 'CUADRILLA 4'
         : (sInfo.cuadrilla || sInfo.grupo || 'CUADRILLA 1')
 
-      let tecFinal = designacion?.tecnico || obs.tecnico_ejecutor || null
-      let cuadFinal = designacion?.cuadrilla || obs.cuadrilla_ejecutora || cuadDelSitio
+      let tecFinal = (designacion && 'tecnico' in designacion)
+        ? (designacion.tecnico || null)
+        : (obs.tecnico_ejecutor || null)
+      let cuadFinal = (designacion && 'cuadrilla' in designacion)
+        ? (designacion.cuadrilla || null)
+        : (obs.cuadrilla_ejecutora || cuadDelSitio)
 
       if (nuevoEstado === 'Descartado') {
         tecFinal = null

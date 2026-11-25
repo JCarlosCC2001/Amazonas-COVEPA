@@ -46,6 +46,7 @@ import TablaExcelDetalle from '../components/informes/TablaExcelDetalle'
 import ModalVistaPreviaCorreo from '../components/informes/ModalVistaPreviaCorreo'
 import ModalSelectorPersonal from '../components/informes/ModalSelectorPersonal'
 import ModalHistorialEnvios from '../components/informes/ModalHistorialEnvios'
+import ReporteExcelOnlinePanel from '../components/reportes/ReporteExcelOnlinePanel'
 
 // Catálogo de Cuadrillas Operativas
 const CUADRILLAS_CATALOGO = [
@@ -577,6 +578,14 @@ export default function KMZ() {
       badgeColor: '#f59e0b',
       icon: Users,
       description: 'Observaciones filtradas individualmente por Cuadrilla (Pedro Ruiz y Bagua Grande).'
+    },
+    {
+      id: 'excel-online',
+      title: 'Reporte Excel en Línea',
+      badge: 'Manual / Google Sheets',
+      badgeColor: '#16a34a',
+      icon: FileSpreadsheet,
+      description: 'Sincronización y actualización manual de Cuadrilla, Técnico, Estado, Fecha y Revisor en Google Sheets.'
     }
   ], [configDiario, configDiarioAmpliacion, configInterno, configSemanal])
 
@@ -945,56 +954,58 @@ export default function KMZ() {
               </span>
             </div>
 
-            {/* CONMUTADOR TIPO PÍLDORA: RESUMEN / LISTA */}
-            <div style={{
-              display: 'flex',
-              background: '#f1f5f9',
-              padding: '3px',
-              borderRadius: '8px',
-              border: '1px solid #cbd5e1'
-            }}>
-              <button
-                type="button"
-                onClick={() => setVistaCara('frente')}
-                className="t-badge"
-                style={{
-                  padding: '0.4rem 0.95rem',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: vistaCara === 'frente' ? '#ffffff' : 'transparent',
-                  color: vistaCara === 'frente' ? '#003060' : '#64748b',
-                  fontWeight: vistaCara === 'frente' ? 'var(--fw-semibold)' : 'var(--fw-normal)',
-                  boxShadow: vistaCara === 'frente' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px'
-                }}
-              >
-                <span>Resumen</span>
-              </button>
+            {/* CONMUTADOR TIPO PÍLDORA: RESUMEN / LISTA (Solo reportes con doble cara) */}
+            {activeReport !== 'excel-online' && (
+              <div style={{
+                display: 'flex',
+                background: '#f1f5f9',
+                padding: '3px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setVistaCara('frente')}
+                  className="t-badge"
+                  style={{
+                    padding: '0.4rem 0.95rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: vistaCara === 'frente' ? '#ffffff' : 'transparent',
+                    color: vistaCara === 'frente' ? '#003060' : '#64748b',
+                    fontWeight: vistaCara === 'frente' ? 'var(--fw-semibold)' : 'var(--fw-normal)',
+                    boxShadow: vistaCara === 'frente' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}
+                >
+                  <span>Resumen</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setVistaCara('detras')}
-                className="t-badge"
-                style={{
-                  padding: '0.4rem 0.95rem',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: vistaCara === 'detras' ? '#ffffff' : 'transparent',
-                  color: vistaCara === 'detras' ? '#003060' : '#64748b',
-                  fontWeight: vistaCara === 'detras' ? 'var(--fw-semibold)' : 'var(--fw-normal)',
-                  boxShadow: vistaCara === 'detras' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px'
-                }}
-              >
-                <span>Lista</span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setVistaCara('detras')}
+                  className="t-badge"
+                  style={{
+                    padding: '0.4rem 0.95rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: vistaCara === 'detras' ? '#ffffff' : 'transparent',
+                    color: vistaCara === 'detras' ? '#003060' : '#64748b',
+                    fontWeight: vistaCara === 'detras' ? 'var(--fw-semibold)' : 'var(--fw-normal)',
+                    boxShadow: vistaCara === 'detras' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}
+                >
+                  <span>Lista</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* ======================================================== */}
@@ -1783,6 +1794,13 @@ export default function KMZ() {
                 })}
               </div>
             </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* CASO 7: REPORTE EXCEL EN LÍNEA (GOOGLE SHEETS)           */}
+          {/* ======================================================== */}
+          {activeReport === 'excel-online' && (
+            <ReporteExcelOnlinePanel />
           )}
 
         </div>

@@ -276,7 +276,7 @@ function formatearFechaDDMMYYYY(fechaStr) {
 export async function fetchDatosParaGoogleSheets() {
   const { data, error } = await supabase
     .from('observaciones')
-    .select('id_obs, id_sitio, cuadrilla_ejecutora, tecnico_ejecutor, estado_covepa, estado_gilat, fecha_subsanacion, revisor')
+    .select('id_obs, id_sitio, tecnico_ejecutor, estado_covepa, estado_gilat, fecha_subsanacion, revisor')
 
   if (error) {
     throw new Error(`Error consultando observaciones: ${error.message}`)
@@ -292,7 +292,7 @@ export async function fetchDatosParaGoogleSheets() {
     const item = {
       id_obs: obs.id_obs,
       id_sitio: obs.id_sitio,
-      cuadrilla: resolveCuadrillaDeSitio(obs.id_sitio, obs.id_obs) || obs.cuadrilla_ejecutora || '',
+      cuadrilla: resolveCuadrillaDeSitio(obs.id_sitio, obs.id_obs) || '',
       tecnico: tecVisible,
       estado: estadoFinal,
       fecha: formatearFechaDDMMYYYY(obs.fecha_subsanacion),

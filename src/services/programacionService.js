@@ -2,6 +2,7 @@ import { supabase, handleSupabaseAuthError } from '../lib/supabase.js'
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService.js'
 import { ASIGNACIONES_BASE } from './sitiosService.js'
 import { toLocalDateString } from '../utils/helpers.js'
+import { resolveCuadrillaDeSitio } from '../shared/reportesCore.js'
 
 // ────────────────────────────────────────────────────────────
 // 1. Obtener la lista de todo el personal activo (técnicos, conductores, supervisores)
@@ -554,16 +555,7 @@ export async function asegurarProgramacionSitio({ idSitio = null, idObs = null, 
     }
 
     if (!cuadrillaName && idObs) {
-      try {
-        const { data: oData } = await supabase
-          .from('observaciones')
-          .select('cuadrilla_ejecutora')
-          .eq('id_obs', idObs)
-          .maybeSingle()
-        if (oData?.cuadrilla_ejecutora) {
-          cuadrillaName = oData.cuadrilla_ejecutora.toUpperCase().trim().replace(/GRUPO/gi, 'CUADRILLA')
-        }
-      } catch {}
+      cuadrillaName = resolveCuadrillaDeSitio(siteId, idObs)
     }
 
     if (!cuadrillaName) {
@@ -768,7 +760,7 @@ export async function reconciliarProgramacionesConObservacionesModificadas(fecha
     // 1. Obtener observaciones modificadas en la fecha
     const { data: obsFecha } = await supabase
       .from('observaciones')
-      .select('id_obs, id_sitio, cuadrilla_ejecutora')
+      .select('id_obs, id_sitio')
       .gte('fecha_subsanacion', startIsoUtc)
       .lte('fecha_subsanacion', endIsoUtc)
 

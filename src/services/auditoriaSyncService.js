@@ -338,10 +338,8 @@ export async function atribuirTecnicoYCuadrillaAObservacion(idObs, nombreTecnico
   if (!resolved?.tecnico || !resolved?.cuadrilla) return null
 
   try {
-    const siteCuad = idSitio ? resolveCuadrillaDeSitio(idSitio, idObs) : resolved.cuadrilla
     const updatePayload = {
       tecnico_ejecutor: resolved.id_personal || resolved.tecnico,
-      cuadrilla_ejecutora: siteCuad,
       revisor: null
     }
 
@@ -505,11 +503,8 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
       updatePayload.revisor = (revisor && esRevisorGilat(revisor, extraContext.gilatOptions)) ? String(revisor).trim() : null
     }
 
-    // Regla de Negocio — Cuadrilla Ejecutora y Técnico Ejecutor:
-    // La cuadrilla ejecutora SIEMPRE es la cuadrilla oficial asignada al sitio.
-    const siteId = extraContext.idSitio || ''
-    const cuadEjecutora = resolveCuadrillaDeSitio(siteId, idObs, extraContext.sitiosMap)
-    updatePayload.cuadrilla_ejecutora = cuadEjecutora
+    // Regla de Negocio — Técnico Ejecutor:
+    // La cuadrilla se resuelve automáticamente a partir de la designación del sitio.
 
     let tecEjecutor = extraContext.tecnicoDesignado || null
 
@@ -543,11 +538,10 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
 
     let { data, error } = await qEstado
 
-    // Resiliencia: Si las columnas nuevas aún no existen en la base de datos, reintentar sin ellas
-    if (error && (error.code === '42703' || String(error.message).includes('cuadrilla_ejecutora') || String(error.message).includes('tecnico_ejecutor'))) {
-      console.warn('[AVISO-SCHEMA] Columnas ejecutoras no creadas aún. Ejecuta sql/migraciones/20261123_agregar_columnas_cuadrilla_tecnico_ejecutor.sql. Reintentando...')
+    // Resiliencia: Si la columna técnico ejecutor aún no existe en la base de datos, reintentar sin ella
+    if (error && (error.code === '42703' || String(error.message).includes('tecnico_ejecutor'))) {
+      console.warn('[AVISO-SCHEMA] Columna tecnico_ejecutor no disponible. Reintentando...')
       delete updatePayload.tecnico_ejecutor
-      delete updatePayload.cuadrilla_ejecutora
 
       let retryQ = supabase
         .from('observaciones')

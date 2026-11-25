@@ -107,15 +107,13 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
             if (resolved?.tecnico) {
               setObsLocal(prev => ({
                 ...prev,
-                tecnico_ejecutor: resolved.tecnico,
-                cuadrilla_ejecutora: resolved.cuadrilla || prev.cuadrilla_ejecutora
+                tecnico_ejecutor: resolved.tecnico
               }))
               atribuirTecnicoYCuadrillaAObservacion(obs.id_obs, author, obs.id_sitio)
               if (onSaved) {
                 onSaved({
                   ...obs,
-                  tecnico_ejecutor: resolved.tecnico,
-                  cuadrilla_ejecutora: resolved.cuadrilla || obs.cuadrilla_ejecutora
+                  tecnico_ejecutor: resolved.tecnico
                 })
               }
             }
@@ -312,7 +310,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
     // Condición: En 'Descartado', NUNCA solicitar técnico ni asignar técnico, solo asignar cuadrilla del sitio.
     const esDescartado = targetValue === 'Descartado'
     if (!esDescartado) {
-      const tieneEjecutor = Boolean(obsLocal.cuadrilla_ejecutora && obsLocal.tecnico_ejecutor)
+      const tieneEjecutor = Boolean(obsLocal.tecnico_ejecutor)
       if (!tieneEjecutor) {
         setDesignarModalData({
           nuevoEstado: targetValue
@@ -382,8 +380,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
         fecha_subsanacion: fechaIso,
         revisor: revisorGilatActual,
         comentario_covepa: comentarioActual,
-        tecnico_ejecutor: tecFinal,
-        cuadrilla_ejecutora: cuadFinal
+        tecnico_ejecutor: tecFinal
       }
 
       setObsLocal(updatedRow)
@@ -485,15 +482,13 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                       if (resolved?.tecnico) {
                         setObsLocal(prev => ({
                           ...prev,
-                          tecnico_ejecutor: resolved.tecnico,
-                          cuadrilla_ejecutora: resolved.cuadrilla || prev.cuadrilla_ejecutora
+                          tecnico_ejecutor: resolved.tecnico
                         }))
                         atribuirTecnicoYCuadrillaAObservacion(obsLocal.id_obs, latest.usuario_nombre, obsLocal.id_sitio)
                         if (onSaved) {
                           onSaved({
                             ...obsLocal,
-                            tecnico_ejecutor: resolved.tecnico,
-                            cuadrilla_ejecutora: resolved.cuadrilla || obsLocal.cuadrilla_ejecutora
+                            tecnico_ejecutor: resolved.tecnico
                           })
                         }
                       }
@@ -947,7 +942,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
             if (target) {
               const esDescartado = target === 'Descartado'
               if (!esDescartado) {
-                const tieneEjecutor = Boolean(obsLocal.cuadrilla_ejecutora && obsLocal.tecnico_ejecutor)
+                const tieneEjecutor = Boolean(obsLocal.tecnico_ejecutor)
                 if (!tieneEjecutor) {
                   setDesignarModalData({ nuevoEstado: target })
                   return
@@ -1658,8 +1653,8 @@ export default function Observaciones() {
         }
         case 'cuadrilla_ejecutora':
         case 'cuadrilla': {
-          const valA = a.cuadrilla_ejecutora || sInfoA.cuadrilla || ''
-          const valB = b.cuadrilla_ejecutora || sInfoB.cuadrilla || ''
+          const valA = resolveCuadrillaDeSitio(a.id_sitio, a.id_obs, sitiosMap) || sInfoA.cuadrilla || ''
+          const valB = resolveCuadrillaDeSitio(b.id_sitio, b.id_obs, sitiosMap) || sInfoB.cuadrilla || ''
           return dir * valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
         }
         case 'tecnico':

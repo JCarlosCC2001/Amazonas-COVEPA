@@ -223,7 +223,7 @@ export async function getAvancePorFecha(fechaStr, forceRefresh = false) {
     // 2. Obtener observaciones con fecha de revisión/modificación en ese día en hora Perú (UTC-5)
     const { data: rawObsFecha, error: obsErr } = await supabase
       .from('observaciones')
-      .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora, cuadrilla_ejecutora, tecnico_ejecutor')
+      .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora, tecnico_ejecutor')
       .gte('fecha_subsanacion', startIsoUtc)
       .lte('fecha_subsanacion', endIsoUtc)
       .order('fecha_subsanacion', { ascending: false })
@@ -261,7 +261,7 @@ export async function getAvancePorFecha(fechaStr, forceRefresh = false) {
       try {
         const { data: addData } = await supabase
           .from('observaciones')
-          .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora, cuadrilla_ejecutora, tecnico_ejecutor')
+          .select('id_obs, id_sitio, protocolo, subsistema, detalle, acuerdo_subsanacion, estado_covepa, fecha_subsanacion, revisor, justificacion_demora, tecnico_ejecutor')
           .in('id_obs', missingObsIds)
         additionalObs = addData || []
       } catch (addErr) {

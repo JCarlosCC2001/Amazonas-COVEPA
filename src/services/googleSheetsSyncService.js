@@ -18,7 +18,7 @@
  */
 
 import { supabase } from '../lib/supabase'
-import { esAmpliacionObs, resolverNombreTecnico } from '../shared/reportesCore'
+import { esAmpliacionObs, resolverNombreTecnico, resolveCuadrillaDeSitio } from '../shared/reportesCore'
 import { formatPrimerNombrePrimerApellido } from '../utils/helpers'
 
 const STORAGE_KEY_CONFIG = 'covepa_google_sheets_config'
@@ -292,7 +292,7 @@ export async function fetchDatosParaGoogleSheets() {
     const item = {
       id_obs: obs.id_obs,
       id_sitio: obs.id_sitio,
-      cuadrilla: obs.cuadrilla_ejecutora || '',
+      cuadrilla: resolveCuadrillaDeSitio(obs.id_sitio, obs.id_obs) || obs.cuadrilla_ejecutora || '',
       tecnico: tecVisible,
       estado: estadoFinal,
       fecha: formatearFechaDDMMYYYY(obs.fecha_subsanacion),

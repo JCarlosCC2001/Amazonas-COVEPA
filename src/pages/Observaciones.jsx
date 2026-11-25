@@ -31,6 +31,7 @@ import {
 } from '../services/auditoriaSyncService'
 import {
   resolveTecnicoAndCuadrilla,
+  resolveCuadrillaDeSitio,
   resolverIdPersonalTecnico,
   resolverNombreTecnico
 } from '../shared/reportesCore'
@@ -344,18 +345,13 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       let comentarioActual = commentValRef.current ?? obsLocal.comentario_covepa ?? null
       const fechaIso = getPeruISOString()
 
-      const sInfo = sitiosMap[obsLocal.id_sitio] || {}
-      const cuadDelSitio = (obsLocal.id_sitio?.startsWith('AMEX') || obsLocal.id_obs?.startsWith('AMEX'))
-        ? 'CUADRILLA 4'
-        : (sInfo.cuadrilla || sInfo.grupo || 'CUADRILLA 1')
+      const cuadDelSitio = resolveCuadrillaDeSitio(obsLocal.id_sitio, obsLocal.id_obs, sitiosMap)
 
       let tecFinal = (designacion && 'tecnico' in designacion)
         ? (designacion.tecnico || null)
         : (obsLocal.tecnico_ejecutor || null)
       if (tecFinal) tecFinal = resolverIdPersonalTecnico(tecFinal) || tecFinal
-      let cuadFinal = (designacion && 'cuadrilla' in designacion)
-        ? (designacion.cuadrilla || null)
-        : (obsLocal.cuadrilla_ejecutora || cuadDelSitio)
+      let cuadFinal = cuadDelSitio
 
       if (nuevoEstado === 'Descartado') {
         tecFinal = null
@@ -581,7 +577,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   title="Clic para cambiar cuadrilla o técnico ejecutor"
                 >
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {obsLocal.cuadrilla_ejecutora || sitioInfo?.cuadrilla || 'Sin Cuadrilla'}
+                    {resolveCuadrillaDeSitio(obsLocal.id_sitio, obsLocal.id_obs, sitiosMap)}
                   </span>
                   <ChevronDown size={14} color="#64748b" style={{ flexShrink: 0, marginLeft: '4px' }} />
                 </button>
@@ -1154,7 +1150,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                     const revisorNombre = o.revisor || o.validado_por || ''
                     const tecEjecutorCod = resolverIdPersonalTecnico(o.tecnico_ejecutor) || o.tecnico_ejecutor || ''
                     const tecEjecutorNombre = formatPrimerNombrePrimerApellido(resolverNombreTecnico(o.tecnico_ejecutor) || o.tecnico_ejecutor) || ''
-                    const cuadEjecutoraNombre = o.cuadrilla_ejecutora || sitioInfo?.cuadrilla || 'Sin Cuadrilla'
+                    const cuadEjecutoraNombre = resolveCuadrillaDeSitio(sitio, o.id_obs, sitiosMap)
                     return (
                       <tr
                         key={o.id_obs}
@@ -1631,7 +1627,7 @@ export default function Observaciones() {
       const header = cols.join(',')
       const rows = data.map(r => cols.map(c => {
         let v = r[c] ?? ''
-        if (c === 'cuadrilla') v = r.cuadrilla_ejecutora || sitiosMap[r.id_sitio]?.cuadrilla || ''
+        if (c === 'cuadrilla') v = resolveCuadrillaDeSitio(r.id_sitio, r.id_obs, sitiosMap)
         if (c === 'tecnico_asignado') v = formatPrimerNombrePrimerApellido(resolverNombreTecnico(r.tecnico_ejecutor) || r.tecnico_ejecutor || r.tecnico || '')
         if (c === 'localidad') v = sitiosMap[r.id_sitio]?.localidad || ''
         if (c === 'zona') v = sitiosMap[r.id_sitio]?.zona || ''
@@ -1766,8 +1762,7 @@ export default function Observaciones() {
       align: 'left',
       sortable: true,
       render: (o) => {
-        const sInfo = sitiosMap[o.id_sitio] || {}
-        const cuadVal = o.cuadrilla_ejecutora || sInfo.cuadrilla || 'Sin Cuadrilla'
+        const cuadVal = resolveCuadrillaDeSitio(o.id_sitio, o.id_obs, sitiosMap)
         return (
           <span
             style={{

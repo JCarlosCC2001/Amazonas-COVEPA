@@ -96,13 +96,13 @@ export default function ModalDesignarTecnico({
       onConfirm({
         tecnico: idPersonal,
         tecnicoNombre: selectedTecnico,
-        cuadrilla: selectedCuadrilla || suggestedCuadrilla
+        cuadrilla: suggestedCuadrilla
       })
     } else {
       onConfirm({
         tecnico: null,
         tecnicoNombre: null,
-        cuadrilla: selectedCuadrilla || suggestedCuadrilla
+        cuadrilla: suggestedCuadrilla
       })
     }
   }
@@ -304,7 +304,7 @@ export default function ModalDesignarTecnico({
               onConfirm({
                 tecnico: null,
                 tecnicoNombre: null,
-                cuadrilla: selectedCuadrilla || suggestedCuadrilla
+                cuadrilla: suggestedCuadrilla
               })
             }}
             style={{

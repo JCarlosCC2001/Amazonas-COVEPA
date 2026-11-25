@@ -22,7 +22,7 @@ import { supabase } from '../lib/supabase'
 import { asegurarProgramacionSitio } from './programacionService'
 import { ASIGNACIONES_BASE } from './sitiosService'
 import { getPeruISOString } from '../utils/helpers'
-import { resolveTecnicoAndCuadrilla } from '../shared/reportesCore.js'
+import { resolveTecnicoAndCuadrilla, resolveCuadrillaDeSitio } from '../shared/reportesCore.js'
 
 /**
  * Catálogo estricto de los estados oficiales permitidos por la integración
@@ -338,9 +338,10 @@ export async function atribuirTecnicoYCuadrillaAObservacion(idObs, nombreTecnico
   if (!resolved?.tecnico || !resolved?.cuadrilla) return null
 
   try {
+    const siteCuad = idSitio ? resolveCuadrillaDeSitio(idSitio, idObs) : resolved.cuadrilla
     const updatePayload = {
       tecnico_ejecutor: resolved.id_personal || resolved.tecnico,
-      cuadrilla_ejecutora: resolved.cuadrilla,
+      cuadrilla_ejecutora: siteCuad,
       revisor: null
     }
 
@@ -505,33 +506,22 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
     }
 
     // Regla de Negocio — Cuadrilla Ejecutora y Técnico Ejecutor:
-    // Al pedir validación o asignación, se asigna esa cuadrilla y técnico ejecutor.
-    // Se mantiene intacto hasta que otro técnico solicite validación y lo reemplace.
+    // La cuadrilla ejecutora SIEMPRE es la cuadrilla oficial asignada al sitio.
+    const siteId = extraContext.idSitio || ''
+    const cuadEjecutora = resolveCuadrillaDeSitio(siteId, idObs, extraContext.sitiosMap)
+    updatePayload.cuadrilla_ejecutora = cuadEjecutora
+
     let tecEjecutor = extraContext.tecnicoDesignado || null
-    let cuadEjecutora = extraContext.cuadrillaDesignada || null
 
     if (estadoNorm === 'Descartado') {
-      // Regla de Negocio: En estado 'Descartado', SIEMPRE asignar la cuadrilla oficial del sitio y NUNCA técnico.
+      // Regla de Negocio: En estado 'Descartado', NUNCA técnico.
       tecEjecutor = null
       updatePayload.tecnico_ejecutor = null
-
-      const siteId = extraContext.idSitio || ''
-      if (siteId.startsWith('AMEX') || idObs.startsWith('AMEX')) {
-        cuadEjecutora = 'CUADRILLA 4'
-      } else {
-        const asig = ASIGNACIONES_BASE.find(s => s.id_site === siteId)
-        cuadEjecutora = asig?.cuadrilla || asig?.grupo || extraContext.cuadrillaDesignada || 'CUADRILLA 1'
-      }
-      updatePayload.cuadrilla_ejecutora = cuadEjecutora
     } else if (estadoNorm === 'Solicitando Revisión' || estadoNorm === 'Solicitando Revision') {
       const resolved = resolveTecnicoAndCuadrilla(extraContext.usuarioNombre || extraContext.tecnicoDesignado)
       if (resolved) {
         tecEjecutor = resolved.tecnico
-        cuadEjecutora = resolved.cuadrilla
       }
-    } else if (tecEjecutor && !cuadEjecutora) {
-      const resolved = resolveTecnicoAndCuadrilla(tecEjecutor)
-      if (resolved) cuadEjecutora = resolved.cuadrilla
     }
 
     if (estadoNorm !== 'Descartado') {
@@ -539,12 +529,6 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
         updatePayload.tecnico_ejecutor = tecEjecutor ? (resolverIdPersonalTecnico(tecEjecutor) || tecEjecutor) : null
       } else if (tecEjecutor) {
         updatePayload.tecnico_ejecutor = resolverIdPersonalTecnico(tecEjecutor) || tecEjecutor
-      }
-
-      if ('cuadrillaDesignada' in extraContext) {
-        updatePayload.cuadrilla_ejecutora = cuadEjecutora || null
-      } else if (cuadEjecutora) {
-        updatePayload.cuadrilla_ejecutora = cuadEjecutora
       }
     }
 

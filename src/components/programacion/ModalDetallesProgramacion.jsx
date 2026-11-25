@@ -22,6 +22,7 @@ import { useAuth } from '../../hooks/useAuth'
 import ModalConfirmacionEstado, { esEstadoProtegido, esEstadoRequiereConfirmacion } from '../shared/ModalConfirmacionEstado'
 import ModalDesignarTecnico from '../shared/ModalDesignarTecnico'
 import { hasMeaningfulText, getPeruDateStr, getPeruISOString, getInitials, getCargoClass, formatPrimerNombrePrimerApellido } from '../../utils/helpers'
+import { resolveCuadrillaDeSitio } from '../../shared/reportesCore.js'
 import { supabase } from '../../lib/supabase'
 // SUBCOMPONENTE: Modal Detalle de Programación y Observaciones
 // Ventana emergente centrada con edición, eliminación, gestión de observaciones
@@ -208,16 +209,12 @@ export default function ModalDetallesProgramacion({
 
       // Sincronización oficial con Control Fotos + Historial de Estados
       const sInfo = siteInfo || sitiosMap[obs.id_sitio || currentSitioId] || {}
-      const cuadDelSitio = ((obs.id_sitio || currentSitioId)?.startsWith('AMEX') || obs.id_obs?.startsWith('AMEX'))
-        ? 'CUADRILLA 4'
-        : (sInfo.cuadrilla || sInfo.grupo || 'CUADRILLA 1')
+      const cuadDelSitio = resolveCuadrillaDeSitio(obs.id_sitio || currentSitioId, obs.id_obs, sitiosMap)
 
       let tecFinal = (designacion && 'tecnico' in designacion)
         ? (designacion.tecnico || null)
         : (obs.tecnico_ejecutor || null)
-      let cuadFinal = (designacion && 'cuadrilla' in designacion)
-        ? (designacion.cuadrilla || null)
-        : (obs.cuadrilla_ejecutora || cuadDelSitio)
+      let cuadFinal = cuadDelSitio
 
       if (nuevoEstado === 'Descartado') {
         tecFinal = null
@@ -1101,7 +1098,7 @@ export default function ModalDetallesProgramacion({
                         </span>
                       )}
                       <span className="meta-pill" style={{ background: 'rgba(0, 48, 96, 0.08)', color: '#003060', borderColor: 'rgba(0, 48, 96, 0.2)' }}>
-                        Cuadrilla: <strong>{obs.cuadrilla_ejecutora || siteInfo?.cuadrilla || 'Sin Cuadrilla'}</strong>
+                        Cuadrilla: <strong>{resolveCuadrillaDeSitio(obs.id_sitio || currentSitioId, obs.id_obs, sitiosMap)}</strong>
                       </span>
                       <span
                         className="meta-pill"

@@ -8,6 +8,50 @@
 // ============================================================================
 
 import { formatPrimerNombrePrimerApellido } from '../utils/helpers.js'
+import baseSitiosJson from '../../scripts/base_sitios_asignados.json'
+
+export const MAPA_SITIO_A_CUADRILLA = {}
+for (const [sId, info] of Object.entries(baseSitiosJson)) {
+  const cName = String(info.cuadrilla || info.grupo || 'CUADRILLA 1').replace(/GRUPO/gi, 'CUADRILLA').toUpperCase().trim()
+  MAPA_SITIO_A_CUADRILLA[sId.toUpperCase().trim()] = cName
+}
+
+/**
+ * Resuelve la cuadrilla oficial asignada a un sitio.
+ * Regla de Negocio: La cuadrilla ejecutora SIEMPRE es la cuadrilla asignada al sitio.
+ */
+export function resolveCuadrillaDeSitio(idSitio, idObs = '', sitiosMap = null) {
+  const siteClean = String(idSitio || '').trim().toUpperCase()
+  const obsClean = String(idObs || '').trim().toUpperCase()
+
+  // 1. Ampliación siempre pertenece a CUADRILLA 4
+  if (siteClean.startsWith('AMEX') || obsClean.startsWith('AMEX')) {
+    return 'CUADRILLA 4'
+  }
+
+  // 2. Si viene provisto en sitiosMap
+  if (sitiosMap && (sitiosMap[siteClean]?.cuadrilla || sitiosMap[siteClean]?.grupo)) {
+    const raw = sitiosMap[siteClean].cuadrilla || sitiosMap[siteClean].grupo
+    const c = String(raw).replace(/GRUPO/gi, 'CUADRILLA').toUpperCase().trim()
+    if (c.startsWith('CUADRILLA')) return c
+  }
+
+  // 3. Catálogo base oficial de asignación
+  if (MAPA_SITIO_A_CUADRILLA[siteClean]) {
+    return MAPA_SITIO_A_CUADRILLA[siteClean]
+  }
+
+  // 4. Búsqueda por prefijo (ej: AM-0038)
+  const parts = siteClean.split('-')
+  if (parts.length >= 2) {
+    const prefix = `${parts[0]}-${parts[1]}`
+    for (const [k, v] of Object.entries(MAPA_SITIO_A_CUADRILLA)) {
+      if (k.startsWith(prefix)) return v
+    }
+  }
+
+  return 'CUADRILLA 1'
+}
 
 export const ID_PERSONAL_POR_TECNICO = {
   'Jhonatan Flores': '554a3a58-bf04-480a-8795-d85e055ee4c6',
@@ -220,29 +264,6 @@ export function resolveCuadrillaOficial(obs, optionsOrSitiosMap = {}) {
     return 'CUADRILLA 4'
   }
 
-  // Normalizador auxiliar de cuadrilla a las 4 oficiales
-  const normalizeCuad = (raw) => {
-    if (!raw) return null
-    const cClean = String(raw).toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
-    if (cClean.includes('AMEX') || cClean.includes('AMPLIACI')) return 'CUADRILLA 4'
-    const match = cClean.match(/CUADRILLA\s*([1-7])/)
-    if (match) {
-      const num = parseInt(match[1], 10)
-      if (num === 1) return 'CUADRILLA 1'
-      if (num === 2 || num === 6) return 'CUADRILLA 2'
-      if (num === 3 || num === 5) return 'CUADRILLA 3'
-      if (num === 4 || num === 7) return 'CUADRILLA 4'
-      return `CUADRILLA ${num}`
-    }
-    return null
-  }
-
-  // 1. Prioridad: Cuadrilla ejecutora asignada directamente en la observación
-  if (obs?.cuadrilla_ejecutora) {
-    const norm = normalizeCuad(obs.cuadrilla_ejecutora)
-    if (norm) return norm
-  }
-
   const isOptionsObj = Boolean(
     optionsOrSitiosMap &&
     (optionsOrSitiosMap.sitiosMap || optionsOrSitiosMap.asignacionesMap || optionsOrSitiosMap.cuadrillaStaffMap || optionsOrSitiosMap.defaultCuadrillasConfig)
@@ -250,48 +271,14 @@ export function resolveCuadrillaOficial(obs, optionsOrSitiosMap = {}) {
 
   const asignacionesMap = isOptionsObj ? (optionsOrSitiosMap.asignacionesMap || {}) : {}
   const sitiosMap = isOptionsObj ? (optionsOrSitiosMap.sitiosMap || {}) : (optionsOrSitiosMap || {})
-  const cuadrillaStaffMap = isOptionsObj ? (optionsOrSitiosMap.cuadrillaStaffMap || {}) : {}
-  const defaultCuadrillasConfig = isOptionsObj ? (optionsOrSitiosMap.defaultCuadrillasConfig || {}) : {}
 
-  // 2. Prioridad: Resolución directa por técnico ejecutor o técnico de la observación
-  const tecNombre = obs?.tecnico_ejecutor || obs?.tecnico
-  if (tecNombre) {
-    const resolved = resolveTecnicoAndCuadrilla(tecNombre)
-    if (resolved?.cuadrilla) {
-      const norm = normalizeCuad(resolved.cuadrilla)
-      if (norm) return norm
-    }
+  // Regla Fundamental: La cuadrilla ejecutora SIEMPRE es la cuadrilla asignada al sitio
+  const cuadSitio = resolveCuadrillaDeSitio(siteId, obsId, { ...asignacionesMap, ...sitiosMap })
+  if (cuadSitio) return cuadSitio
 
-    const tClean = String(tecNombre).toUpperCase().trim()
-    for (const [cName, tecNom] of Object.entries(cuadrillaStaffMap)) {
-      if (tecNom && tClean.includes(String(tecNom).toUpperCase())) return cName
-    }
-    for (const [cName, cfg] of Object.entries(defaultCuadrillasConfig)) {
-      if (cfg?.tecnicoNombre && tClean.includes(String(cfg.tecnicoNombre).toUpperCase())) return cName
-      if (cfg?.tecnicoNombre2 && tClean.includes(String(cfg.tecnicoNombre2).toUpperCase())) return cName
-      if (Array.isArray(cfg?.tecnicosNombres)) {
-        for (const nom of cfg.tecnicosNombres) {
-          if (nom && tClean.includes(String(nom).toUpperCase())) return cName
-        }
-      }
-    }
-    if (tClean.includes('FLORES') || tClean.includes('JHONATAN') || tClean.includes('CHAMBA') || tClean.includes('MARCO') || tClean.includes('DENIS') || tClean.includes('TORRES')) return 'CUADRILLA 1'
-    if (tClean.includes('CASTRO') || tClean.includes('JUAN') || tClean.includes('WILLY') || tClean.includes('FERNANDEZ') || tClean.includes('FERNÁNDEZ')) return 'CUADRILLA 2'
-    if (tClean.includes('ALFONSO') || tClean.includes('CURI') || tClean.includes('WILL') || tClean.includes('AVILA') || tClean.includes('ÁVILA')) return 'CUADRILLA 3'
-    if (tClean.includes('HUGO') || tClean.includes('ESPINOZA') || tClean.includes('DANIEL') || tClean.includes('JAVIER') || tClean.includes('PERCY') || tClean.includes('ROJAS') || tClean.includes('ROGER') || tClean.includes('VALDIVIA')) return 'CUADRILLA 4'
-  }
-
-  // 3. Prioridad: Cuadrilla explícita en el registro de observación
-  if (obs?.cuadrilla) {
-    const norm = normalizeCuad(obs.cuadrilla)
-    if (norm) return norm
-  }
-
-  // 4. Prioridad: Catálogo maestro de asignaciones territoriales
-  const asig = asignacionesMap[siteId] || sitiosMap[obs?.id_sitio] || sitiosMap[siteId]
-  if (asig) {
-    const norm = normalizeCuad(asig.cuadrilla || asig.grupo)
-    if (norm) return norm
+  if (obs?.cuadrilla_ejecutora) {
+    const cClean = String(obs.cuadrilla_ejecutora).toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim()
+    if (cClean.startsWith('CUADRILLA')) return cClean
   }
 
   return 'CUADRILLA 1'

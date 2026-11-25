@@ -2,6 +2,7 @@
 import { supabase } from '../lib/supabase.js'
 import { fetchSitios, getZonaBySiteId } from './sitiosService.js'
 import { getPeruDateStr, formatPrimerNombrePrimerApellido } from '../utils/helpers.js'
+import { resolveCuadrillaDeSitio } from '../shared/reportesCore.js'
 import { getProgramaciones } from './programacionService.js'
 
 // Consulta completa de todas las columnas de la tabla 'observaciones'
@@ -204,7 +205,7 @@ async function generateStyledExcel({ observations, siteMap, sheetName, fileName 
     const site = siteMap.get(o.id_sitio) || {}
     const rawSt = o.estado_covepa || (o.fecha_subsanacion ? 'Validado' : 'Pendiente')
     const fechaSub = o.fecha_subsanacion ? getPeruDateStr(o.fecha_subsanacion) : ''
-    const cuad = (o.cuadrilla_ejecutora || site.cuadrilla || site.grupo || 'Sin Cuadrilla').replace(/GRUPO/gi, 'CUADRILLA')
+    const cuad = resolveCuadrillaDeSitio(o.id_sitio, o.id_obs) || (o.cuadrilla_ejecutora || site.cuadrilla || site.grupo || 'Sin Cuadrilla').replace(/GRUPO/gi, 'CUADRILLA')
     const tecRaw = o.tecnico_ejecutor || o.tecnico || ''
     const tecAsignado = tecRaw ? formatPrimerNombrePrimerApellido(tecRaw) : ''
 

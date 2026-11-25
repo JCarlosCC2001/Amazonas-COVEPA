@@ -96,31 +96,6 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       isDirtyTimeRef.current = false
       setShowDemoraBox(Boolean((obs.justificacion_demora && obs.justificacion_demora.trim()) || (obs.tiempo_ejecucion_real && obs.tiempo_ejecucion_real.trim()) || (obs.tiempo_ejecucion_demora && obs.tiempo_ejecucion_demora.trim())))
 
-      // Auto-asignación inmediata si la observación no tiene técnico ejecutor asignado:
-      // Si el técnico solicitó revisión o validación en el historial (ej. Willy Fernandez Aquino, Juan Castro, etc.),
-      // auto-asignar inmediatamente en la vista y en la base de datos para no mostrar "Sin Asignar (Clic)".
-      if (!obs.tecnico_ejecutor) {
-        fetchUltimoCambioObservacion(obs.id_obs).then(res => {
-          const author = res?.latest?.usuario_nombre
-          if (author && !esNombreGenerico(author)) {
-            const resolved = resolveTecnicoAndCuadrilla(author)
-            if (resolved?.tecnico) {
-              setObsLocal(prev => ({
-                ...prev,
-                tecnico_ejecutor: resolved.tecnico
-              }))
-              atribuirTecnicoYCuadrillaAObservacion(obs.id_obs, author, obs.id_sitio)
-              if (onSaved) {
-                onSaved({
-                  ...obs,
-                  tecnico_ejecutor: resolved.tecnico
-                })
-              }
-            }
-          }
-        }).catch(err => console.warn('[AUTO-TEC-OBS] Advertencia auto-resolviendo técnico:', err))
-      }
-
       // Carga bajo demanda de textos pesados (evita descargarlos en la lista general para ahorrar egress)
       if (obs.comentario_final === undefined || obs.comentario_pronatel === undefined || obs.comentario_inicial === undefined) {
         supabase
@@ -306,20 +281,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
       return
     }
 
-    // 4. Ventana emergente: Si NO tiene cuadrilla y técnico asignado, solicitarlo
-    // Condición: En 'Descartado', NUNCA solicitar técnico ni asignar técnico, solo asignar cuadrilla del sitio.
-    const esDescartado = targetValue === 'Descartado'
-    if (!esDescartado) {
-      const tieneEjecutor = Boolean(obsLocal.tecnico_ejecutor)
-      if (!tieneEjecutor) {
-        setDesignarModalData({
-          nuevoEstado: targetValue
-        })
-        return
-      }
-    }
-
-    // Si ya tiene ejecutor asignado o es Descartado, proceder directamente
+    // Proceder directamente con el cambio de estado
     handleSetEstado(targetValue)
   }
 
@@ -476,24 +438,6 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   idObs={obsLocal.id_obs}
                   refreshKey={historialRefreshKey}
                   initialOpen={showHistorial}
-                  onLatestResolved={(latest) => {
-                    if (!obsLocal.tecnico_ejecutor && latest?.usuario_nombre && !esNombreGenerico(latest.usuario_nombre)) {
-                      const resolved = resolveTecnicoAndCuadrilla(latest.usuario_nombre)
-                      if (resolved?.tecnico) {
-                        setObsLocal(prev => ({
-                          ...prev,
-                          tecnico_ejecutor: resolved.tecnico
-                        }))
-                        atribuirTecnicoYCuadrillaAObservacion(obsLocal.id_obs, latest.usuario_nombre, obsLocal.id_sitio)
-                        if (onSaved) {
-                          onSaved({
-                            ...obsLocal,
-                            tecnico_ejecutor: resolved.tecnico
-                          })
-                        }
-                      }
-                    }
-                  }}
                 />
               </div>
             )}
@@ -937,14 +881,6 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
             const target = confirmModalData?.nuevoEstado
             setConfirmModalData(null)
             if (target) {
-              const esDescartado = target === 'Descartado'
-              if (!esDescartado) {
-                const tieneEjecutor = Boolean(obsLocal.tecnico_ejecutor)
-                if (!tieneEjecutor) {
-                  setDesignarModalData({ nuevoEstado: target })
-                  return
-                }
-              }
               await handleSetEstado(target)
             }
           }}

@@ -504,27 +504,14 @@ export async function sincronizarEstadoConControlFotos(idObs, estado, revisor, c
     }
 
     // Regla de Negocio — Técnico Ejecutor:
-    // La cuadrilla se resuelve automáticamente a partir de la designación del sitio.
-
-    let tecEjecutor = extraContext.tecnicoDesignado || null
-
+    // El técnico ejecutor proviene directamente del aplicativo de fotos/campo en la BD.
+    // Solo se actualiza si el usuario lo designó explícitamente o si el estado es Descartado.
     if (estadoNorm === 'Descartado') {
-      // Regla de Negocio: En estado 'Descartado', NUNCA técnico.
-      tecEjecutor = null
       updatePayload.tecnico_ejecutor = null
-    } else if (estadoNorm === 'Solicitando Revisión' || estadoNorm === 'Solicitando Revision') {
-      const resolved = resolveTecnicoAndCuadrilla(extraContext.usuarioNombre || extraContext.tecnicoDesignado)
-      if (resolved) {
-        tecEjecutor = resolved.tecnico
-      }
-    }
-
-    if (estadoNorm !== 'Descartado') {
-      if ('tecnicoDesignado' in extraContext) {
-        updatePayload.tecnico_ejecutor = tecEjecutor ? (resolverIdPersonalTecnico(tecEjecutor) || tecEjecutor) : null
-      } else if (tecEjecutor) {
-        updatePayload.tecnico_ejecutor = resolverIdPersonalTecnico(tecEjecutor) || tecEjecutor
-      }
+    } else if ('tecnicoDesignado' in extraContext) {
+      updatePayload.tecnico_ejecutor = extraContext.tecnicoDesignado
+        ? (resolverIdPersonalTecnico(extraContext.tecnicoDesignado) || extraContext.tecnicoDesignado)
+        : null
     }
 
     let qEstado = supabase

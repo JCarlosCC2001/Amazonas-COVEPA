@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase'
 import { supabaseExt } from '../lib/supabase'
 import { ASIGNACIONES_BASE, getZonaBySiteId } from './sitiosService'
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService.js'
-import { normalizarEstadoObservacion, resolveTecnicoAndCuadrilla, resolveCuadrillaDeSitio } from '../shared/reportesCore.js'
+import { normalizarEstadoObservacion, resolveTecnicoAndCuadrilla, resolveCuadrillaDeSitio, resolverNombreTecnico } from '../shared/reportesCore.js'
 import { formatPrimerNombrePrimerApellido } from '../utils/helpers.js'
 
 // Cache en memoria de catálogo de sitios para no saturar la BD externa
@@ -327,61 +327,14 @@ export async function getAvancePorFecha(fechaStr, forceRefresh = false) {
       const siteInfo = sitiosMap[siteId] || {}
       const localidad = siteInfo.localidad || siteInfo.nombre_nodo || ''
 
-      // Técnico asignado: Atribuir automáticamente según quién solicitó la validación o designación local en la jornada
-      const events = histEventsByObs.get(o.id_obs) || []
-
-      // 1. Prioridad: Quién solicitó la revisión en la jornada ('Solicitando Revisión') - buscando del más reciente al más antiguo
-      let resolvedTech = null
-      for (let i = events.length - 1; i >= 0; i--) {
-        const ev = events[i]
-        const stN = (ev.estado_nuevo || '').trim().toLowerCase()
-        if (stN === 'solicitando revisión' || stN === 'solicitando revision') {
-          if (ev.usuario_nombre && !ev.usuario_nombre.includes('Técnico de Campo (App Fotos)')) {
-            const byUser = resolveTecnicoAndCuadrilla(ev.usuario_nombre)
-            if (byUser) {
-              resolvedTech = byUser
-              break
-            }
-          }
-        }
-      }
-
-      // 2. Prioridad: Etiqueta explícita de designación [Técnico: ...] en comentario
-      if (!resolvedTech) {
-        for (let i = events.length - 1; i >= 0; i--) {
-          const ev = events[i]
-          if (ev.comentario && ev.comentario.includes('[Técnico:')) {
-            resolvedTech = resolveTecnicoAndCuadrilla(ev.comentario)
-            if (resolvedTech) break
-          }
-        }
-      }
-
-      // 3. Prioridad: Técnico ejecutor guardado directamente en la base de datos
-      if (!resolvedTech && o.tecnico_ejecutor) {
-        resolvedTech = resolveTecnicoAndCuadrilla(o.tecnico_ejecutor)
-      }
-
-      // 4. Prioridad: Cualquier acción registrada en el historial ejecutada por un técnico de cuadrilla
-      if (!resolvedTech) {
-        for (let i = events.length - 1; i >= 0; i--) {
-          const ev = events[i]
-          if (ev.usuario_nombre && !ev.usuario_nombre.includes('Técnico de Campo (App Fotos)')) {
-            const byUser = resolveTecnicoAndCuadrilla(ev.usuario_nombre)
-            if (byUser) {
-              resolvedTech = byUser
-              break
-            }
-          }
-        }
-      }
-
       const officialCuadrilla = resolveCuadrillaDeSitio(siteId, o.id_obs)
-      let nombreTecnico = ''
-      let cuadrillaTecnico = officialCuadrilla
+      const cuadrillaTecnico = officialCuadrilla
 
-      if (resolvedTech) {
-        nombreTecnico = formatPrimerNombrePrimerApellido(resolvedTech.tecnico)
+      // Técnico ejecutor: Proviene directamente de la base de datos (completado por el aplicativo de fotos de campo)
+      let nombreTecnico = ''
+      if (o.tecnico_ejecutor) {
+        const nom = resolverNombreTecnico(o.tecnico_ejecutor) || o.tecnico_ejecutor
+        nombreTecnico = formatPrimerNombrePrimerApellido(nom)
       } else {
         // Fallback a programación del sitio o catálogo territorial oficial
         let techInfo = siteTechMap[siteId]

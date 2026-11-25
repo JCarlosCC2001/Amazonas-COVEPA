@@ -8,7 +8,8 @@ import {
 import {
   useNotifications,
   copyObservacionesList,
-  copyPlainCodesList
+  copyPlainCodesList,
+  formatNombreSolicitante
 } from '../../context/NotificationContext'
 
 /**
@@ -369,7 +370,7 @@ export default function NotificationToastContainer() {
                         <User size={11} color={obs.isDocumentacion ? '#9333ea' : '#0284c7'} />
                         <span className="t-meta">
                           {obs.isDocumentacion ? 'Enviado por: ' : 'Solicitado por: '}
-                          <strong>{obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor}</strong>
+                          <strong>{formatNombreSolicitante(obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor, obs.id_sitio)}</strong>
                         </span>
                       </div>
                     )}

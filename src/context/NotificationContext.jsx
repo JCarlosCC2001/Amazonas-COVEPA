@@ -5,7 +5,8 @@ import { getCachedSitiosAsignados, ASIGNACIONES_BASE } from '../services/sitiosS
 import { DEFAULT_CUADRILLAS_CONFIG } from '../services/personalService'
 import { asegurarProgramacionSitio } from '../services/programacionService'
 import { registrarHistorialEstado, esRevisorGilat, atribuirTecnicoYCuadrillaAObservacion, esNombreGenerico } from '../services/auditoriaSyncService'
-import { resolveTecnicoAndCuadrilla } from '../shared/reportesCore'
+import { resolveTecnicoAndCuadrilla, resolverNombreTecnico } from '../shared/reportesCore'
+import { formatPrimerNombrePrimerApellido } from '../utils/helpers'
 
 const NotificationContext = createContext(null)
 
@@ -31,6 +32,23 @@ export function resolverTecnicoDeSitio(idSitio) {
   if (!idSitio) return ''
   const clean = idSitio.trim().toUpperCase()
   return SITE_TECNICO_MAP[clean] || ''
+}
+
+/**
+ * Resuelve y formatea siempre el nombre legible del solicitante / técnico (Primer Nombre y Primer Apellido).
+ * Si recibe un id_personal / UUID, lo traduce a su nombre oficial.
+ */
+export function formatNombreSolicitante(valor, fallbackSitio = null) {
+  if (!valor || esNombreGenerico(valor)) {
+    if (fallbackSitio) {
+      const tecSitio = resolverTecnicoDeSitio(fallbackSitio)
+      if (tecSitio) return formatPrimerNombrePrimerApellido(tecSitio)
+    }
+    return 'Técnico de Campo'
+  }
+  const nombre = resolverNombreTecnico(valor) || valor
+  const formatted = formatPrimerNombrePrimerApellido(nombre)
+  return formatted || nombre || 'Técnico de Campo'
 }
 
 /**
@@ -559,7 +577,7 @@ export function NotificationProvider({ children }) {
   const dispararNotificacionEscritorio = useCallback(async (obs, localidad) => {
     const locText = localidad ? ` · ${localidad}` : ''
     const candRev = (obs.revisor && !esRevisorGilat(obs.revisor)) ? obs.revisor : null
-    const personaSolicitante = obs.solicitante || obs.usuario_nombre || obs.tecnico || candRev || resolverTecnicoDeSitio(obs.id_sitio) || ''
+    const personaSolicitante = formatNombreSolicitante(obs.solicitante || obs.usuario_nombre || obs.tecnico_ejecutor || obs.tecnico || candRev, obs.id_sitio)
 
     if (obs.isDocumentacion) {
       const solicitanteText = personaSolicitante ? `👤 Enviado a Documentación por: ${personaSolicitante}` : '👤 Enviado a Documentación desde campo'
@@ -601,7 +619,7 @@ export function NotificationProvider({ children }) {
   const dispararToast = useCallback((obs, localidad) => {
     const toastId = `toast-${obs.id_obs}-${Date.now()}`
     const candRev = (obs.revisor && !esRevisorGilat(obs.revisor)) ? obs.revisor : null
-    const personaSolicitante = obs.solicitante || obs.usuario_nombre || obs.tecnico || candRev || resolverTecnicoDeSitio(obs.id_sitio) || ''
+    const personaSolicitante = formatNombreSolicitante(obs.solicitante || obs.usuario_nombre || obs.tecnico_ejecutor || obs.tecnico || candRev, obs.id_sitio)
     const nuevoToast = {
       id: toastId,
       obs: {
@@ -800,7 +818,8 @@ export function NotificationProvider({ children }) {
 
           solRows.forEach(row => {
             const hInfo = solHistMap[row.id_obs]
-            const nombreSolicitante = hInfo?.usuario_nombre || (row.revisor && !esRevisorGilat(row.revisor) ? row.revisor : '') || resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
+            const cand = hInfo?.usuario_nombre || (row.revisor && !esRevisorGilat(row.revisor) ? row.revisor : '') || row.tecnico_ejecutor || row.tecnico
+            const nombreSolicitante = formatNombreSolicitante(cand, row.id_sitio)
             row.solicitante = nombreSolicitante
             row.usuario_nombre = nombreSolicitante
             row.revisor = nombreSolicitante
@@ -823,7 +842,8 @@ export function NotificationProvider({ children }) {
 
           docRows.forEach(row => {
             const hInfo = docHistMap[row.id_obs]
-            const nombreSolicitante = hInfo?.usuario_nombre || resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
+            const cand = hInfo?.usuario_nombre || row.tecnico_ejecutor || row.tecnico
+            const nombreSolicitante = formatNombreSolicitante(cand, row.id_sitio)
             row.solicitante = nombreSolicitante
             row.usuario_nombre = nombreSolicitante
             row.revisor = null
@@ -1150,7 +1170,8 @@ export function NotificationProvider({ children }) {
           if (newRow && (newRow.estado_covepa === 'Solicitando Revisión' || newRow.estado_covepa === 'Solicitando Revision')) {
             const loc = sitiosMapRef.current[newRow.id_sitio] || ''
             const candRev = (newRow.revisor && !esRevisorGilat(newRow.revisor)) ? newRow.revisor : null
-            const solicitanteNombre = newRow.tecnico_ejecutor || candRev || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
+            const rawSol = newRow.tecnico_ejecutor || candRev || newRow.solicitante || newRow.usuario_nombre
+            const solicitanteNombre = formatNombreSolicitante(rawSol, newRow.id_sitio)
             const nowEntryIso = new Date().toISOString()
             const enrichedRow = {
               ...newRow,
@@ -1204,7 +1225,8 @@ export function NotificationProvider({ children }) {
             // Pasó a En Revisión: actualizar estado en memoria (0 consultas HTTP a Supabase)
             const loc = sitiosMapRef.current[newRow.id_sitio] || ''
             const candRev = (newRow.revisor && !esRevisorGilat(newRow.revisor)) ? newRow.revisor : null
-            const solicitanteNombre = newRow.tecnico_ejecutor || candRev || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
+            const rawSol = newRow.tecnico_ejecutor || candRev || newRow.solicitante || newRow.usuario_nombre
+            const solicitanteNombre = formatNombreSolicitante(rawSol, newRow.id_sitio)
             const nowEntryIso = new Date().toISOString()
             const enrichedRow = {
               ...newRow,
@@ -1223,7 +1245,8 @@ export function NotificationProvider({ children }) {
             // Pasó a Documentación: actualizar estado en memoria
             const loc = sitiosMapRef.current[newRow.id_sitio] || ''
             const candRev = (newRow.revisor && !esRevisorGilat(newRow.revisor)) ? newRow.revisor : null
-            const solicitanteNombre = newRow.tecnico_ejecutor || candRev || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
+            const rawSol = newRow.tecnico_ejecutor || candRev || newRow.solicitante || newRow.usuario_nombre
+            const solicitanteNombre = formatNombreSolicitante(rawSol, newRow.id_sitio)
             const com = (newRow.comentario_covepa || '').toLowerCase()
             const esDeCampo = com.includes('documentación técnica') || com.includes('documentacion tecnica')
             const nowEntryIso = new Date().toISOString()
@@ -1298,7 +1321,7 @@ export function NotificationProvider({ children }) {
                 idSitio: newRow.id_sitio,
                 estadoAnterior: oldRow.estado_covepa || null,
                 estadoNuevo: newRow.estado_covepa || 'Pendiente',
-                usuarioNombre: newRow.tecnico_ejecutor || candRev || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo (App Fotos)',
+                usuarioNombre: formatNombreSolicitante(newRow.tecnico_ejecutor || candRev, newRow.id_sitio),
                 usuarioEmail: null,
                 usuarioId: null,
                 comentario: partes.join(' · '),
@@ -1330,7 +1353,7 @@ export function NotificationProvider({ children }) {
           }
 
           if (row && (row.estado_nuevo === 'Solicitando Revisión' || row.estado_nuevo === 'Solicitando Revision')) {
-            const solicitanteNombre = row.usuario_nombre || resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
+            const solicitanteNombre = formatNombreSolicitante(row.usuario_nombre, row.id_sitio)
             const obsLike = {
               id_obs: row.id_obs,
               id_sitio: row.id_sitio,
@@ -1375,7 +1398,7 @@ export function NotificationProvider({ children }) {
               com.includes('documentación técnica') ||
               com.includes('documentacion tecnica')
 
-            const solicitanteNombre = row.usuario_nombre || resolverTecnicoDeSitio(row.id_sitio) || 'Técnico de Campo'
+            const solicitanteNombre = formatNombreSolicitante(row.usuario_nombre, row.id_sitio)
             const obsLike = {
               id_obs: row.id_obs,
               id_sitio: row.id_sitio,
@@ -1676,7 +1699,7 @@ export function NotificationProvider({ children }) {
       id_sitio: item.id_sitio,
       localidad: sitiosMapRef.current[item.id_sitio] || item.localidad || '',
       revisor: item.revisor || 'Auditoría Gilat',
-      solicitante: item.solicitante || item.usuario_nombre || item.revisor || 'Auditoría Gilat',
+      solicitante: formatNombreSolicitante(item.solicitante || item.usuario_nombre || item.revisor, item.id_sitio),
       fecha_subsanacion: item.fecha_subsanacion,
       waitMins: item.waitMins || calcWaitMins(item.fecha_subsanacion)
     }))

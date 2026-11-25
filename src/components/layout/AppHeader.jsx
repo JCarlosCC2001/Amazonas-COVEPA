@@ -12,7 +12,8 @@ import {
   useNotifications,
   formatTiempoRelativo,
   copyObservacionesList,
-  copyPlainCodesList
+  copyPlainCodesList,
+  formatNombreSolicitante
 } from '../../context/NotificationContext'
 
 const PAGE_META = {
@@ -463,7 +464,7 @@ export default function AppHeader() {
                           {(obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor) && (
                             <div className="notif-requester-line">
                               <User size={11} color={isDoc ? '#9333ea' : '#0284c7'} />
-                              <span>{isDoc ? 'Enviado por: ' : 'Solicita: '}<strong>{obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor}</strong></span>
+                              <span>{isDoc ? 'Enviado por: ' : 'Solicita: '}<strong>{formatNombreSolicitante(obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor, obs.id_sitio)}</strong></span>
                             </div>
                           )}
 

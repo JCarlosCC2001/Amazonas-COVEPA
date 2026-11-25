@@ -10,7 +10,8 @@ import {
   formatWaitTime,
   getWaitTierInfo,
   formatTiempoRelativo,
-  copyPlainCodesList
+  copyPlainCodesList,
+  formatNombreSolicitante
 } from '../../context/NotificationContext'
 
 export default function ModalListaEsperaRevision({
@@ -325,7 +326,7 @@ export default function ModalListaEsperaRevision({
                 </thead>
                 <tbody>
                   {itemsFiltrados.map((item) => {
-                    const revisorNombre = item.revisor || item.solicitante || item.usuario_nombre || 'Auditoría Gilat'
+                    const revisorNombre = formatNombreSolicitante(item.revisor || item.solicitante || item.usuario_nombre, item.id_sitio)
                     const isVeryOld = item.waitMins >= 120
                     const isOld = item.waitMins >= 60 && item.waitMins < 120
 

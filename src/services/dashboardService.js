@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase'
 import { supabaseExt } from '../lib/supabase'
 import { ASIGNACIONES_BASE, getZonaBySiteId } from './sitiosService'
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService.js'
-import { normalizarEstadoObservacion, resolveTecnicoAndCuadrilla } from '../shared/reportesCore.js'
+import { normalizarEstadoObservacion, resolveTecnicoAndCuadrilla, resolveCuadrillaDeSitio } from '../shared/reportesCore.js'
 import { formatPrimerNombrePrimerApellido } from '../utils/helpers.js'
 
 // Cache en memoria de catálogo de sitios para no saturar la BD externa
@@ -376,18 +376,15 @@ export async function getAvancePorFecha(fechaStr, forceRefresh = false) {
         }
       }
 
+      const officialCuadrilla = resolveCuadrillaDeSitio(siteId, o.id_obs)
       let nombreTecnico = ''
-      let cuadrillaTecnico = null
+      let cuadrillaTecnico = officialCuadrilla
 
       if (resolvedTech) {
         nombreTecnico = formatPrimerNombrePrimerApellido(resolvedTech.tecnico)
-        cuadrillaTecnico = resolvedTech.cuadrilla
       } else {
         // Fallback a programación del sitio o catálogo territorial oficial
         let techInfo = siteTechMap[siteId]
-        const baseAsig = ASIGNACIONES_BASE.find(s => s.id_site === siteId)
-        const officialCuadrilla = baseAsig?.grupo ? baseAsig.grupo.toUpperCase().replace(/GRUPO/gi, 'CUADRILLA').trim() : null
-
         if (officialCuadrilla && (!techInfo?.cuadrilla || officialCuadrilla !== techInfo.cuadrilla.toUpperCase().trim())) {
           const defaultCfg = DEFAULT_CUADRILLAS_CONFIG[officialCuadrilla]
           techInfo = {
@@ -398,7 +395,6 @@ export async function getAvancePorFecha(fechaStr, forceRefresh = false) {
         }
 
         nombreTecnico = formatPrimerNombrePrimerApellido(techInfo ? techInfo.nombre : (o.revisor || 'Técnico de Cuadrilla'))
-        cuadrillaTecnico = techInfo?.cuadrilla || officialCuadrilla || null
       }
 
       // Para la jornada de hoy (isToday), el estado prioritario es el estado vivo actual en la BD (o.estado_covepa).
@@ -662,9 +658,8 @@ export async function getDashboardProjectOverview(forceRefresh = false) {
         else s.pendientes++
       }
 
-      // Por cuadrilla
-      const a = siteMap.get(row.id_sitio)
-      const gName = a ? (a.cuadrilla || a.grupo || '').replace(/GRUPO/gi, 'CUADRILLA') : null
+      // Por cuadrilla (resuelta canónicamente por sitio asignado)
+      const gName = resolveCuadrillaDeSitio(row.id_sitio, row.id_obs)
       if (gName && perGroup[gName]) {
         const g = perGroup[gName]
         g.total++

@@ -498,7 +498,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
               </div>
             )}
 
-            {/* Los 3 Cuadros de Auditoría COVEPA uniformes como campos editables */}
+            {/* Los 4 Cuadros de Auditoría COVEPA uniformes: Estado, Revisado por, Técnico Ejecutor y Fecha de Actualización */}
             <div className="prog-obs-audit-fields-grid">
               {/* Cuadro 1: Auditoría COVEPA / Estado */}
               <div className="prog-obs-audit-field-card">
@@ -552,27 +552,41 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                 </div>
               </div>
 
-              {/* Cuadro 2: Cuadrilla Designada */}
+              {/* Cuadro 2: Revisado por (GILAT) */}
               <div className="prog-obs-audit-field-card">
                 <div className="prog-obs-audit-field-header">
                   <span className="prog-obs-audit-field-label">
                     <Users size={12} color="#0284c7" />
-                    Cuadrilla Designada
+                    Revisado por
                   </span>
                 </div>
-                <div
-                  className="prog-obs-audit-field-btn"
-                  style={{
-                    background: 'rgba(0, 48, 96, 0.04)',
-                    borderColor: '#cbd5e1',
-                    color: '#003060',
-                    cursor: 'default'
-                  }}
-                  title="Cuadrilla designada al sitio oficial"
-                >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {resolveCuadrillaDeSitio(obsLocal.id_sitio, obsLocal.id_obs, sitiosMap)}
-                  </span>
+                <div style={{ width: '100%' }}>
+                  <select
+                    value={esRevisorGilat(currentRevisor, gilatOptions) ? currentRevisor : ''}
+                    disabled={updating || isReadOnly || !showRevisorYFecha}
+                    onChange={(e) => handleUpdateRevisor(e.target.value)}
+                    className="audit-select"
+                    style={{
+                      width: '100%',
+                      height: '34px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      padding: '0 0.5rem',
+                      background: !showRevisorYFecha ? 'rgba(0, 48, 96, 0.04)' : '#ffffff',
+                      color: !showRevisorYFecha ? '#94a3b8' : '#003060',
+                      fontSize: 'var(--text-meta)',
+                      fontWeight: 'var(--fw-medium)',
+                      cursor: (!showRevisorYFecha || isReadOnly) ? 'not-allowed' : 'pointer'
+                    }}
+                    title={!showRevisorYFecha ? 'No aplica revisor en estado En Revisión o Pendiente' : 'Persona de GILAT que revisó esta observación'}
+                  >
+                    <option value="">{!showRevisorYFecha ? '-- No Aplica --' : '-- Seleccionar Revisor (GILAT) --'}</option>
+                    {gilatOptions.map(p => (
+                      <option key={p.id || p.nombre_completo} value={p.nombre_completo}>
+                        {p.nombre_completo} {p.cargo && p.cargo !== 'Empresa' ? `(${p.cargo})` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -601,56 +615,39 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                   <ChevronDown size={14} color="#64748b" style={{ flexShrink: 0, marginLeft: '4px' }} />
                 </button>
               </div>
-            </div>
 
-            {/* Barra de Auditoría: Revisor GILAT y Fecha */}
-            {showRevisorYFecha && (
-              <div className="prog-obs-audit-bar" style={{ marginBottom: '0.75rem' }}>
-                <div className="audit-col">
-                  <label className="audit-label">
-                    <Users size={12} color="#0284c7" />
-                    <span>Revisado por:</span>
-                  </label>
-                  <select
-                    value={esRevisorGilat(currentRevisor, gilatOptions) ? currentRevisor : ''}
-                    disabled={updating || isReadOnly}
-                    onChange={(e) => handleUpdateRevisor(e.target.value)}
-                    className="audit-select"
-                    title="Persona de GILAT que revisó esta observación"
-                    style={isReadOnly ? { cursor: 'not-allowed' } : undefined}
-                  >
-                    <option value="">-- Seleccionar Revisor (GILAT) --</option>
-                    {gilatOptions.map(p => (
-                      <option key={p.id || p.nombre_completo} value={p.nombre_completo}>
-                        {p.nombre_completo} {p.cargo && p.cargo !== 'Empresa' ? `(${p.cargo})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="audit-col">
-                  <label className="audit-label">
+              {/* Cuadro 4: Fecha de Actualización */}
+              <div className="prog-obs-audit-field-card">
+                <div className="prog-obs-audit-field-header">
+                  <span className="prog-obs-audit-field-label">
                     <Clock size={12} color="#0284c7" />
-                    <span>
-                      {currentEstado === 'Validado' ? 'F. Validación:' :
-                       currentEstado === 'Pre-validado' ? 'F. Pre-validación:' :
-                       currentEstado === 'Descartado' ? 'F. Descarte:' :
-                       currentEstado === 'Rechazado' ? 'F. Rechazo:' :
-                       currentEstado === 'Enviado' ? 'F. Envío:' : 'Fecha:'}
-                    </span>
-                  </label>
+                    Fecha de Actualización
+                  </span>
+                </div>
+                <div style={{ width: '100%' }}>
                   <input
                     type="date"
                     value={currentFecha ? getPeruDateStr(currentFecha) : ''}
-                    disabled={updating || isReadOnly}
+                    disabled={updating || isReadOnly || !showRevisorYFecha}
                     onChange={(e) => handleUpdateFecha(e.target.value)}
                     className="audit-date-input"
-                    title="Modificar fecha de subsanación/revisión"
-                    style={isReadOnly ? { cursor: 'not-allowed' } : undefined}
+                    style={{
+                      width: '100%',
+                      height: '34px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      padding: '0 0.5rem',
+                      background: !showRevisorYFecha ? 'rgba(0, 48, 96, 0.04)' : '#ffffff',
+                      color: !showRevisorYFecha ? '#94a3b8' : '#003060',
+                      fontSize: 'var(--text-meta)',
+                      fontWeight: 'var(--fw-medium)',
+                      cursor: (!showRevisorYFecha || isReadOnly) ? 'not-allowed' : 'pointer'
+                    }}
+                    title={!showRevisorYFecha ? 'No aplica fecha en estado En Revisión o Pendiente' : 'Modificar fecha de actualización'}
                   />
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Caja de Comentario COVEPA con autoguardado */}
             <div className="obs-content-box box-covepa" style={{ margin: 0 }}>

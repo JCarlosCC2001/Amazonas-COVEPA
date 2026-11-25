@@ -166,7 +166,9 @@ export const MAPA_CODIGO_PERSONAL_A_NOMBRE = {
   '243a62bf-1424-4aad-ac99-4ceae9db421c': 'Denis Torres',
   'ef2433d5-67e5-4c81-80a6-ae0c808e3224': 'Jhonatan Rios',
   '0469c1c5-8900-462e-9712-2ca4c0a0ad0b': 'Elio Chavez',
-  '9ba60440-e8bf-45a4-b936-b4adb6b67632': 'Ciro Fernandez'
+  '9ba60440-e8bf-45a4-b936-b4adb6b67632': 'Ciro Fernandez',
+  'aab1e7bf-6ed7-4d23-8871-b86b7eb3095a': 'Percy Rojas',
+  '8359c281-33ce-423e-9823-0e9e09663889': 'Carlos Condor'
 };
 
 /**

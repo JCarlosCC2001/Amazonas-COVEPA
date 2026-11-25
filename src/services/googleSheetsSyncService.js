@@ -18,7 +18,8 @@
  */
 
 import { supabase } from '../lib/supabase'
-import { esAmpliacionObs, resolverIdPersonalTecnico } from '../shared/reportesCore'
+import { esAmpliacionObs, resolverNombreTecnico } from '../shared/reportesCore'
+import { formatPrimerNombrePrimerApellido } from '../utils/helpers'
 
 const STORAGE_KEY_CONFIG = 'covepa_google_sheets_config'
 const STORAGE_KEY_ULTIMO_SYNC = 'covepa_google_sheets_ultimo_sync'
@@ -287,12 +288,12 @@ export async function fetchDatosParaGoogleSheets() {
   for (const obs of (data || [])) {
     const esAmex = esAmpliacionObs(obs.id_sitio, obs.id_obs)
     const estadoFinal = obs.estado_covepa || obs.estado_gilat || 'Pendiente'
-    const idPersonalTec = resolverIdPersonalTecnico(obs.tecnico_ejecutor) || obs.tecnico_ejecutor || ''
+    const tecVisible = formatPrimerNombrePrimerApellido(resolverNombreTecnico(obs.tecnico_ejecutor) || obs.tecnico_ejecutor) || ''
     const item = {
       id_obs: obs.id_obs,
       id_sitio: obs.id_sitio,
       cuadrilla: obs.cuadrilla_ejecutora || '',
-      tecnico: idPersonalTec,
+      tecnico: tecVisible,
       estado: estadoFinal,
       fecha: formatearFechaDDMMYYYY(obs.fecha_subsanacion),
       revisor: obs.revisor || ''

@@ -600,10 +600,10 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                     borderColor: obsLocal.tecnico_ejecutor ? '#86efac' : '#fde68a',
                     color: obsLocal.tecnico_ejecutor ? '#166534' : '#92400e'
                   }}
-                  title={resolverNombreTecnico(obsLocal.tecnico_ejecutor) || 'Clic para designar o cambiar técnico ejecutor'}
+                  title={obsLocal.tecnico_ejecutor ? `Técnico: ${formatPrimerNombrePrimerApellido(resolverNombreTecnico(obsLocal.tecnico_ejecutor))} (Cód: ${resolverIdPersonalTecnico(obsLocal.tecnico_ejecutor) || obsLocal.tecnico_ejecutor})` : 'Clic para designar o cambiar técnico ejecutor'}
                 >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                    {resolverIdPersonalTecnico(obsLocal.tecnico_ejecutor) || obsLocal.tecnico_ejecutor || 'Sin Asignar (Clic)'}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {formatPrimerNombrePrimerApellido(resolverNombreTecnico(obsLocal.tecnico_ejecutor) || obsLocal.tecnico_ejecutor) || 'Sin Asignar (Clic)'}
                   </span>
                   <ChevronDown size={14} color="#64748b" style={{ flexShrink: 0, marginLeft: '4px' }} />
                 </button>
@@ -1149,7 +1149,7 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                   {(obsData || []).map(o => {
                     const revisorNombre = o.revisor || o.validado_por || ''
                     const tecEjecutorCod = resolverIdPersonalTecnico(o.tecnico_ejecutor) || o.tecnico_ejecutor || ''
-                    const tecEjecutorNombre = resolverNombreTecnico(o.tecnico_ejecutor) || ''
+                    const tecEjecutorNombre = formatPrimerNombrePrimerApellido(resolverNombreTecnico(o.tecnico_ejecutor) || o.tecnico_ejecutor) || ''
                     const cuadEjecutoraNombre = o.cuadrilla_ejecutora || sitioInfo?.cuadrilla || 'Sin Cuadrilla'
                     return (
                       <tr
@@ -1176,11 +1176,11 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                           </span>
                         </td>
                         <td className="col-obs-tecnico">
-                          {tecEjecutorCod ? (
-                            <span className="obs-revisor-pill" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', fontVariantNumeric: 'tabular-nums' }} title={tecEjecutorNombre || tecEjecutorCod}>
+                          {tecEjecutorNombre ? (
+                            <span className="obs-revisor-pill" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }} title={tecEjecutorCod ? `${tecEjecutorNombre} (Cód: ${tecEjecutorCod})` : tecEjecutorNombre}>
                               <User size={12} color="#16a34a" style={{ flexShrink: 0 }} />
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {tecEjecutorCod}
+                                {tecEjecutorNombre}
                               </span>
                             </span>
                           ) : (
@@ -1628,7 +1628,7 @@ export default function Observaciones() {
       const rows = data.map(r => cols.map(c => {
         let v = r[c] ?? ''
         if (c === 'cuadrilla') v = r.cuadrilla_ejecutora || sitiosMap[r.id_sitio]?.cuadrilla || ''
-        if (c === 'tecnico_asignado') v = r.tecnico_ejecutor || r.tecnico || ''
+        if (c === 'tecnico_asignado') v = formatPrimerNombrePrimerApellido(resolverNombreTecnico(r.tecnico_ejecutor) || r.tecnico_ejecutor || r.tecnico || '')
         if (c === 'localidad') v = sitiosMap[r.id_sitio]?.localidad || ''
         if (c === 'zona') v = sitiosMap[r.id_sitio]?.zona || ''
         if (c === 'revisor') {
@@ -1686,8 +1686,8 @@ export default function Observaciones() {
         }
         case 'tecnico':
         case 'tecnico_ejecutor': {
-          const valA = a.tecnico_ejecutor || ''
-          const valB = b.tecnico_ejecutor || ''
+          const valA = formatPrimerNombrePrimerApellido(resolverNombreTecnico(a.tecnico_ejecutor) || a.tecnico_ejecutor) || ''
+          const valB = formatPrimerNombrePrimerApellido(resolverNombreTecnico(b.tecnico_ejecutor) || b.tecnico_ejecutor) || ''
           return dir * valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
         }
         case 'sitio': {
@@ -1797,12 +1797,12 @@ export default function Observaciones() {
       sortable: true,
       render: (o) => {
         const tecCod = resolverIdPersonalTecnico(o.tecnico_ejecutor) || o.tecnico_ejecutor
-        const tecNom = resolverNombreTecnico(o.tecnico_ejecutor) || ''
-        return tecCod ? (
-          <span className="obs-revisor-pill" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', fontVariantNumeric: 'tabular-nums' }} title={tecNom || tecCod}>
+        const tecNom = formatPrimerNombrePrimerApellido(resolverNombreTecnico(o.tecnico_ejecutor) || o.tecnico_ejecutor) || ''
+        return tecNom ? (
+          <span className="obs-revisor-pill" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }} title={tecCod ? `${tecNom} (Cód: ${tecCod})` : tecNom}>
             <User size={12} color="#16a34a" style={{ flexShrink: 0 }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {tecCod}
+              {tecNom}
             </span>
           </span>
         ) : (

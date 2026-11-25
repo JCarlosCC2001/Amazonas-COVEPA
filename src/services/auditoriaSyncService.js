@@ -22,7 +22,7 @@ import { supabase } from '../lib/supabase'
 import { asegurarProgramacionSitio } from './programacionService'
 import { ASIGNACIONES_BASE } from './sitiosService'
 import { getPeruISOString } from '../utils/helpers'
-import { resolveTecnicoAndCuadrilla, resolveCuadrillaDeSitio } from '../shared/reportesCore.js'
+import { resolveTecnicoAndCuadrilla, resolveCuadrillaDeSitio, resolverIdPersonalTecnico } from '../shared/reportesCore.js'
 
 /**
  * Catálogo estricto de los estados oficiales permitidos por la integración

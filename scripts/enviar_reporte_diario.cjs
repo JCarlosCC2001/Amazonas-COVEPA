@@ -100,6 +100,36 @@ function formatNombrePersona(str) {
     .join(' ')
 }
 
+function formatPrimerNombrePrimerApellido(str) {
+  if (!str) return ''
+  const trimmed = String(str).trim()
+  if (!trimmed || trimmed === '—' || trimmed === '-') return ''
+
+  if (trimmed.includes('·')) {
+    return trimmed.split('·').map(part => formatPrimerNombrePrimerApellido(part.trim())).filter(Boolean).join(' · ')
+  }
+  if (trimmed.includes('/')) {
+    return trimmed.split('/').map(part => formatPrimerNombrePrimerApellido(part.trim())).filter(Boolean).join(' · ')
+  }
+
+  const cleaned = formatNombrePersona(trimmed)
+  const upper = cleaned.toUpperCase()
+
+  if (upper.includes('JHONATAN') && upper.includes('FLORES')) return 'Jhonatan Flores'
+  if (upper.includes('MARCO') && upper.includes('CHAMBA')) return 'Marco Chamba'
+  if (upper.includes('JUAN') && upper.includes('CASTRO')) return 'Juan Castro'
+  if (upper.includes('WILLY') && (upper.includes('FERNANDEZ') || upper.includes('FERNÁNDEZ'))) return 'Willy Fernández'
+  if (upper.includes('ALFONSO') && upper.includes('CURI')) return 'Alfonso Curi'
+  if (upper.includes('WILLIAM') && (upper.includes('AVILA') || upper.includes('ÁVILA'))) return 'William Avila'
+  if (upper.includes('HUGO') && upper.includes('ESPINOZA')) return 'Hugo Espinoza'
+  if (upper.includes('DANIEL') && upper.includes('JAVIER')) return 'Daniel Javier'
+  if (upper.includes('ROGER') && upper.includes('VALDIVIA')) return 'Roger Valdivia'
+
+  const parts = cleaned.split(/\s+/).filter(Boolean)
+  if (parts.length <= 2) return cleaned
+  return `${parts[0]} ${parts[parts.length - 2] || parts[1]}`
+}
+
 const AUDITORES_GILAT_OFICIALES = [
   'AMILCAR HANDER',
   'HELIO CAMAC',
@@ -1344,24 +1374,55 @@ async function enviarReporteDiarioInterno() {
       }
     })
 
-  // Técnicos titulares oficiales por cuadrilla
-  const cuadrillaTecnicos = {
-    'CUADRILLA 1': 'Jhonatan Flores',
-    'CUADRILLA 2': 'Marco Chamba',
-    'CUADRILLA 3': 'Daniel Javier',
-    'CUADRILLA 4': 'Alfonso Curi',
-    'CUADRILLA 5': 'William Avila',
-    'CUADRILLA 6': 'Juan Castro',
-    'CUADRILLA 7': 'Roger Valdivia'
+  // Técnicos titulares oficiales por cuadrilla (duplas oficiales de las 4 cuadrillas)
+  const defaultCuadrillasMap = {
+    'CUADRILLA 1': ['Jhonatan Flores', 'Marco Chamba'],
+    'CUADRILLA 2': ['Juan Castro', 'Willy Fernández'],
+    'CUADRILLA 3': ['Alfonso Curi', 'William Avila'],
+    'CUADRILLA 4': ['Hugo Espinoza', 'Daniel Javier']
   }
-    ; (personalCuadRes?.data || []).forEach(p => {
-      const c = (p.cuadrilla || p.cuadrilla_asignada || '').trim().toUpperCase()
-      const cargo = (p.cargo || '').trim().toUpperCase()
-      if (c && c.startsWith('CUADRILLA') && (cargo.includes('TÉCNICO') || cargo.includes('TECNICO') || cargo.includes('SUPERVISOR'))) {
-        const nom = (extPersonalById[String(p.id_personal)] || p.nombre_completo || '').trim()
-        if (nom) cuadrillaTecnicos[c] = formatNombrePersona(nom)
+
+  const cuadrillaStaffLists = {
+    'CUADRILLA 1': [],
+    'CUADRILLA 2': [],
+    'CUADRILLA 3': [],
+    'CUADRILLA 4': []
+  }
+
+  ;(personalCuadRes?.data || []).forEach(p => {
+    const c = (p.cuadrilla || p.cuadrilla_asignada || '').trim().toUpperCase()
+    const cargo = (p.cargo || '').trim().toUpperCase()
+    if (c && c.startsWith('CUADRILLA') && (cargo.includes('TÉCNICO') || cargo.includes('TECNICO') || cargo.includes('SUPERVISOR'))) {
+      const rawNom = (extPersonalById[String(p.id_personal)] || p.nombre_completo || '').trim()
+      if (rawNom) {
+        const nom = formatPrimerNombrePrimerApellido(rawNom) || formatNombrePersona(rawNom)
+        if (cuadrillaStaffLists[c] && !cuadrillaStaffLists[c].includes(nom)) {
+          cuadrillaStaffLists[c].push(nom)
+        }
       }
-    })
+    }
+  })
+
+  ;(extPersonalRes?.data || []).forEach(p => {
+    const c = (p.cuadrilla || p.cuadrilla_asignada || '').trim().toUpperCase()
+    const cargo = (p.cargo || '').trim().toUpperCase()
+    if (c && c.startsWith('CUADRILLA') && (!cargo || cargo.includes('TÉCNICO') || cargo.includes('TECNICO') || cargo.includes('SUPERVISOR'))) {
+      const rawNom = (p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim()
+      if (rawNom) {
+        const nom = formatPrimerNombrePrimerApellido(rawNom) || formatNombrePersona(rawNom)
+        if (cuadrillaStaffLists[c] && !cuadrillaStaffLists[c].includes(nom)) {
+          cuadrillaStaffLists[c].push(nom)
+        }
+      }
+    }
+  })
+
+  const cuadrillaTecnicos = {}
+  for (const [cName, list] of Object.entries(cuadrillaStaffLists)) {
+    const defs = defaultCuadrillasMap[cName] || []
+    const merged = [...new Set([...list, ...defs])]
+    cuadrillaTecnicos[cName] = merged.slice(0, 2).join(' · ')
+  }
 
   // 4. Observaciones de la jornada (incluyendo Documentación)
   const startIsoUtc = new Date(`${targetFechaIso}T00:00:00-05:00`).toISOString()

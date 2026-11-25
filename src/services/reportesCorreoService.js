@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { getAvancePorFecha } from './dashboardService'
 import { getCachedSitiosAsignados, getZonaBySiteId } from './sitiosService'
-import { toLocalDateString, getPeruDateStr, getAyerPeruStr, formatNombrePersona } from '../utils/helpers'
+import { toLocalDateString, getPeruDateStr, getAyerPeruStr, formatNombrePersona, formatPrimerNombrePrimerApellido } from '../utils/helpers'
 import { esRevisorGilat, esRegistroSoloComentario } from './auditoriaSyncService'
 import { fetchPersonal, DEFAULT_CUADRILLAS_CONFIG } from './personalService'
 import { resolveCuadrillaOficial, resolveEquipoPorCuadrilla, construirMatricesEjecutivas, esAmpliacionObs } from '../shared/reportesCore'
@@ -560,12 +560,12 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
     sitios.forEach(s => { sitiosMap[s.id_site] = s })
   }
 
-  // Mapa de técnicos por cuadrilla (titulares oficiales de las 4 cuadrillas)
-  const cuadrillaStaffMap = {
-    'CUADRILLA 1': 'Jhonatan Flores · Marco Chamba',
-    'CUADRILLA 2': 'Juan Castro · Willy Fernández',
-    'CUADRILLA 3': 'Alfonso Curi · William Avila',
-    'CUADRILLA 4': 'Hugo Espinoza · Daniel Javier · Roger Valdivia'
+  // Mapa de técnicos por cuadrilla (titulares oficiales de las 4 cuadrillas en duplas)
+  const cuadrillaStaffLists = {
+    'CUADRILLA 1': [],
+    'CUADRILLA 2': [],
+    'CUADRILLA 3': [],
+    'CUADRILLA 4': []
   }
   if (Array.isArray(personal)) {
     personal.forEach(p => {
@@ -573,9 +573,21 @@ export async function fetchDatosReporteDiarioInterno(fechaFiltro = null, periodo
       const cargo = (p.cargo || '').trim().toUpperCase()
       if (cAsig && cAsig.startsWith('CUADRILLA') && (cargo.includes('TÉCNICO') || cargo.includes('TECNICO') || cargo.includes('SUPERVISOR'))) {
         const nom = (p.nombre_completo || [p.nombre, p.apellido].filter(Boolean).join(' ') || '').trim()
-        if (nom) cuadrillaStaffMap[cAsig] = formatNombrePersona(nom)
+        if (nom) {
+          const formatted = formatPrimerNombrePrimerApellido(nom) || formatNombrePersona(nom)
+          if (cuadrillaStaffLists[cAsig] && !cuadrillaStaffLists[cAsig].includes(formatted)) {
+            cuadrillaStaffLists[cAsig].push(formatted)
+          }
+        }
       }
     })
+  }
+
+  const cuadrillaStaffMap = {}
+  for (const [cName, list] of Object.entries(cuadrillaStaffLists)) {
+    const defaults = DEFAULT_CUADRILLAS_CONFIG[cName]?.tecnicosNombres || []
+    const merged = [...new Set([...list, ...defaults])]
+    cuadrillaStaffMap[cName] = merged.slice(0, 2).join(' · ')
   }
 
   const getCuadrillaTecnico = (cName) => {

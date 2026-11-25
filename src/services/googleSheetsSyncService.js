@@ -25,7 +25,7 @@ const STORAGE_KEY_ULTIMO_SYNC = 'covepa_google_sheets_ultimo_sync'
 
 export const DEFAULT_SHEETS_CONFIG = {
   urlHoja: 'https://docs.google.com/spreadsheets/d/1vC1e2q3w4e5r6t7y8u9i0/edit',
-  webhookUrl: '',
+  webhookUrl: 'https://script.google.com/macros/s/AKfycbykqyocf2riK4Cp0Q1onBDh9MJc2DANHLdKsVBQOQ_2WSZRw65WpWd8d4lK3EFYnOrN/exec',
   pestañaOriginal: 'Amazonas Original',
   pestañaAmpliacion: 'Amazonas Ampliación',
   activo: true

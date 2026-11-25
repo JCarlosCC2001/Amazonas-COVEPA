@@ -267,8 +267,12 @@ export function deduplicarHistorialEventos(eventos) {
       const diffMs = Math.abs(new Date(cur.created_at) - new Date(prev.created_at))
       // Si ocurrieron con menos de 30 minutos de diferencia (ráfaga o sincronización duplicada)
       if (isNaN(diffMs) || diffMs <= 30 * 60 * 1000) {
-        const prevEsGen = esNombreGenerico(prev.usuario_nombre)
-        const curEsGen = esNombreGenerico(cur.usuario_nombre)
+        const esSolRev = normalizarEstadoOficial(cur.estado_nuevo) === 'Solicitando Revisión'
+        const prevEsGilat = esSolRev && esRevisorGilat(prev.usuario_nombre)
+        const curEsGilat = esSolRev && esRevisorGilat(cur.usuario_nombre)
+
+        const prevEsGen = esNombreGenerico(prev.usuario_nombre) || prevEsGilat
+        const curEsGen = esNombreGenerico(cur.usuario_nombre) || curEsGilat
 
         if (prevEsGen && !curEsGen) {
           // Reemplazar prev por cur porque cur tiene el nombre real del técnico
@@ -286,8 +290,13 @@ export function deduplicarHistorialEventos(eventos) {
             }
           }
         } else {
-          // Ambos genéricos o ambos con nombre: conservar el de mayor detalle o fecha inicial
-          if (!prev.comentario && cur.comentario) {
+          // Ambos genéricos o ambos con nombre: si prev es auditor Gilat en Solicitando Revisión, priorizar cur
+          if (prevEsGilat && !curEsGilat) {
+            resultado[resultado.length - 1] = {
+              ...cur,
+              comentario: cur.comentario || prev.comentario || null
+            }
+          } else if (!prev.comentario && cur.comentario) {
             resultado[resultado.length - 1] = {
               ...prev,
               comentario: cur.comentario
@@ -301,7 +310,17 @@ export function deduplicarHistorialEventos(eventos) {
     resultado.push(cur)
   }
 
-  return resultado
+  // Sanitizar cualquier evento de 'Solicitando Revisión' que haya quedado con nombre de auditor Gilat
+  // (Un auditor de Gilat nunca solicita revisión técnica desde campo)
+  return resultado.map(ev => {
+    if (normalizarEstadoOficial(ev.estado_nuevo) === 'Solicitando Revisión' && esRevisorGilat(ev.usuario_nombre)) {
+      return {
+        ...ev,
+        usuario_nombre: 'Técnico de Campo (App Fotos)'
+      }
+    }
+    return ev
+  })
 }
 
 /**

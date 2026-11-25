@@ -558,7 +558,8 @@ export function NotificationProvider({ children }) {
   // Despachar notificación nativa de Sistema (Android, iOS PWA, Windows, Mac)
   const dispararNotificacionEscritorio = useCallback(async (obs, localidad) => {
     const locText = localidad ? ` · ${localidad}` : ''
-    const personaSolicitante = obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor || resolverTecnicoDeSitio(obs.id_sitio) || ''
+    const candRev = (obs.revisor && !esRevisorGilat(obs.revisor)) ? obs.revisor : null
+    const personaSolicitante = obs.solicitante || obs.usuario_nombre || obs.tecnico || candRev || resolverTecnicoDeSitio(obs.id_sitio) || ''
 
     if (obs.isDocumentacion) {
       const solicitanteText = personaSolicitante ? `👤 Enviado a Documentación por: ${personaSolicitante}` : '👤 Enviado a Documentación desde campo'
@@ -599,14 +600,15 @@ export function NotificationProvider({ children }) {
   // Despachar Toast flotante interactivo
   const dispararToast = useCallback((obs, localidad) => {
     const toastId = `toast-${obs.id_obs}-${Date.now()}`
-    const personaSolicitante = obs.solicitante || obs.usuario_nombre || obs.tecnico || obs.revisor || resolverTecnicoDeSitio(obs.id_sitio) || ''
+    const candRev = (obs.revisor && !esRevisorGilat(obs.revisor)) ? obs.revisor : null
+    const personaSolicitante = obs.solicitante || obs.usuario_nombre || obs.tecnico || candRev || resolverTecnicoDeSitio(obs.id_sitio) || ''
     const nuevoToast = {
       id: toastId,
       obs: {
         ...obs,
         solicitante: personaSolicitante,
         usuario_nombre: personaSolicitante,
-        revisor: personaSolicitante || obs.revisor,
+        revisor: candRev,
         localidad: localidad || sitiosMapRef.current[obs.id_sitio] || ''
       },
       createdAt: Date.now()
@@ -1147,7 +1149,8 @@ export function NotificationProvider({ children }) {
 
           if (newRow && (newRow.estado_covepa === 'Solicitando Revisión' || newRow.estado_covepa === 'Solicitando Revision')) {
             const loc = sitiosMapRef.current[newRow.id_sitio] || ''
-            const solicitanteNombre = newRow.revisor || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
+            const candRev = (newRow.revisor && !esRevisorGilat(newRow.revisor)) ? newRow.revisor : null
+            const solicitanteNombre = newRow.tecnico_ejecutor || candRev || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
             const nowEntryIso = new Date().toISOString()
             const enrichedRow = {
               ...newRow,
@@ -1155,7 +1158,7 @@ export function NotificationProvider({ children }) {
               fecha_subsanacion: nowEntryIso,
               solicitante: solicitanteNombre,
               usuario_nombre: solicitanteNombre,
-              revisor: solicitanteNombre
+              revisor: candRev || solicitanteNombre
             }
             dispararToast(enrichedRow, loc)
             dispararNotificacionEscritorio(enrichedRow, loc)
@@ -1200,7 +1203,8 @@ export function NotificationProvider({ children }) {
           } else if (newRow && (newRow.estado_covepa === 'En Revisión' || newRow.estado_covepa === 'En Revision')) {
             // Pasó a En Revisión: actualizar estado en memoria (0 consultas HTTP a Supabase)
             const loc = sitiosMapRef.current[newRow.id_sitio] || ''
-            const solicitanteNombre = newRow.revisor || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
+            const candRev = (newRow.revisor && !esRevisorGilat(newRow.revisor)) ? newRow.revisor : null
+            const solicitanteNombre = newRow.tecnico_ejecutor || candRev || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
             const nowEntryIso = new Date().toISOString()
             const enrichedRow = {
               ...newRow,
@@ -1208,7 +1212,7 @@ export function NotificationProvider({ children }) {
               fecha_subsanacion: nowEntryIso,
               solicitante: solicitanteNombre,
               usuario_nombre: solicitanteNombre,
-              revisor: solicitanteNombre
+              revisor: candRev || solicitanteNombre
             }
             setSolicitudes(prev => prev.filter(r => r.id_obs !== newRow.id_obs))
             setEnRevision(prev => {
@@ -1218,7 +1222,8 @@ export function NotificationProvider({ children }) {
           } else if (newRow && (newRow.estado_covepa === 'Documentación' || newRow.estado_covepa === 'Documentacion')) {
             // Pasó a Documentación: actualizar estado en memoria
             const loc = sitiosMapRef.current[newRow.id_sitio] || ''
-            const solicitanteNombre = newRow.revisor || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
+            const candRev = (newRow.revisor && !esRevisorGilat(newRow.revisor)) ? newRow.revisor : null
+            const solicitanteNombre = newRow.tecnico_ejecutor || candRev || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo'
             const com = (newRow.comentario_covepa || '').toLowerCase()
             const esDeCampo = com.includes('documentación técnica') || com.includes('documentacion tecnica')
             const nowEntryIso = new Date().toISOString()
@@ -1287,12 +1292,13 @@ export function NotificationProvider({ children }) {
             }
 
             if (partes.length > 0) {
+              const candRev = (newRow.revisor && !esRevisorGilat(newRow.revisor)) ? newRow.revisor : null
               registrarHistorialEstado({
                 idObs: newRow.id_obs,
                 idSitio: newRow.id_sitio,
                 estadoAnterior: oldRow.estado_covepa || null,
                 estadoNuevo: newRow.estado_covepa || 'Pendiente',
-                usuarioNombre: newRow.revisor || 'Técnico de Campo (App Fotos)',
+                usuarioNombre: newRow.tecnico_ejecutor || candRev || resolverTecnicoDeSitio(newRow.id_sitio) || 'Técnico de Campo (App Fotos)',
                 usuarioEmail: null,
                 usuarioId: null,
                 comentario: partes.join(' · '),

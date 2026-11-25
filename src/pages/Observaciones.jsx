@@ -557,30 +557,28 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                 </div>
               </div>
 
-              {/* Cuadro 2: Cuadrilla Ejecutora */}
+              {/* Cuadro 2: Cuadrilla Designada */}
               <div className="prog-obs-audit-field-card">
                 <div className="prog-obs-audit-field-header">
                   <span className="prog-obs-audit-field-label">
                     <Users size={12} color="#0284c7" />
-                    Cuadrilla Ejecutora
+                    Cuadrilla Designada
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setDesignarModalData({ nuevoEstado: currentEstado })}
+                <div
                   className="prog-obs-audit-field-btn"
                   style={{
                     background: 'rgba(0, 48, 96, 0.04)',
                     borderColor: '#cbd5e1',
-                    color: '#003060'
+                    color: '#003060',
+                    cursor: 'default'
                   }}
-                  title="Clic para cambiar cuadrilla o técnico ejecutor"
+                  title="Cuadrilla designada al sitio oficial"
                 >
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {resolveCuadrillaDeSitio(obsLocal.id_sitio, obsLocal.id_obs, sitiosMap)}
                   </span>
-                  <ChevronDown size={14} color="#64748b" style={{ flexShrink: 0, marginLeft: '4px' }} />
-                </button>
+                </div>
               </div>
 
               {/* Cuadro 3: Técnico Ejecutor */}
@@ -1116,7 +1114,6 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
               <table className="sitios-table" style={{ margin: 0, width: '100%' }}>
                 <colgroup>
                   <col className="col-obs-cod" />
-                  <col className="col-obs-cuadrilla" />
                   <col className="col-obs-tecnico" />
                   <col className="col-obs-sitio" />
                   <col className="col-obs-localidad" />
@@ -1127,7 +1124,6 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                 <thead>
                   <tr>
                     <th className="col-obs-cod">Código</th>
-                    <th className="col-obs-cuadrilla">Cuadrilla Ejecutora</th>
                     <th className="col-obs-tecnico">Técnico Ejecutor</th>
                     <th className="col-obs-sitio">
                       <span className="col-header-full">Código de Sitio</span>
@@ -1150,7 +1146,6 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                     const revisorNombre = o.revisor || o.validado_por || ''
                     const tecEjecutorCod = resolverIdPersonalTecnico(o.tecnico_ejecutor) || o.tecnico_ejecutor || ''
                     const tecEjecutorNombre = formatPrimerNombrePrimerApellido(resolverNombreTecnico(o.tecnico_ejecutor) || o.tecnico_ejecutor) || ''
-                    const cuadEjecutoraNombre = resolveCuadrillaDeSitio(sitio, o.id_obs, sitiosMap)
                     return (
                       <tr
                         key={o.id_obs}
@@ -1158,23 +1153,6 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                         onClick={() => onSelectObs({ ...o, id_sitio: sitio })}
                       >
                         <td className="col-obs-cod"><span className="site-code-badge">{o.id_obs}</span></td>
-                        <td className="col-obs-cuadrilla">
-                          <span
-                            style={{
-                              display: 'inline-block',
-                              padding: '0.22rem 0.55rem',
-                              borderRadius: '6px',
-                              fontSize: 'var(--text-xs)',
-                              fontWeight: 'var(--fw-bold)',
-                              background: 'rgba(0, 48, 96, 0.08)',
-                              border: '1px solid rgba(0, 48, 96, 0.18)',
-                              color: '#003060',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            {cuadEjecutoraNombre}
-                          </span>
-                        </td>
                         <td className="col-obs-tecnico">
                           {tecEjecutorNombre ? (
                             <span className="obs-revisor-pill" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }} title={tecEjecutorCod ? `${tecEjecutorNombre} (Cód: ${tecEjecutorCod})` : tecEjecutorNombre}>
@@ -1748,39 +1726,6 @@ export default function Observaciones() {
       align: 'left',
       sortable: true,
       render: (o) => <span className="site-code-badge">{o.id_obs}</span>
-    },
-    {
-      key: 'cuadrilla_ejecutora',
-      label: (
-        <>
-          <span className="col-header-full">Cuadrilla Ejecutora</span>
-          <span className="col-header-short">Cuadrilla</span>
-        </>
-      ),
-      title: 'Cuadrilla Ejecutora',
-      className: 'col-obs-cuadrilla',
-      align: 'left',
-      sortable: true,
-      render: (o) => {
-        const cuadVal = resolveCuadrillaDeSitio(o.id_sitio, o.id_obs, sitiosMap)
-        return (
-          <span
-            style={{
-              display: 'inline-block',
-              padding: '0.22rem 0.55rem',
-              borderRadius: '6px',
-              fontWeight: 'var(--fw-bold)',
-              background: 'rgba(0, 48, 96, 0.08)',
-              border: '1px solid rgba(0, 48, 96, 0.18)',
-              color: '#003060',
-              whiteSpace: 'nowrap'
-            }}
-            className="t-meta"
-          >
-            {cuadVal}
-          </span>
-        )
-      }
     },
     {
       key: 'tecnico_ejecutor',

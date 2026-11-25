@@ -26,7 +26,6 @@ import {
   sincronizarTiemposEjecucion,
   resolverNombreAuditor,
   fetchUltimoCambioObservacion,
-  atribuirTecnicoYCuadrillaAObservacion,
   esNombreGenerico
 } from '../services/auditoriaSyncService'
 import {

@@ -11,8 +11,7 @@ import {
   fetchHistorialObservacion,
   fetchUltimoCambioObservacion,
   registrarHistorialEstado,
-  esRevisorGilat,
-  atribuirTecnicoYCuadrillaAObservacion
+  esRevisorGilat
 } from './auditoriaSyncService'
 import { asegurarProgramacionSitio } from './programacionService'
 import { ASIGNACIONES_BASE } from './sitiosService'
@@ -609,11 +608,6 @@ export async function pasarTodasSolicitudesAEnRevision(usuarioInfo = {}) {
 
   // 4. Registrar trazabilidad en historial_estados_observaciones (no bloqueante)
   rows.forEach(r => {
-    // Si la observación no tenía técnico ejecutor asignado y revisor traía el nombre del técnico, asignarlo
-    if (r.revisor && !esRevisorGilat(r.revisor)) {
-      atribuirTecnicoYCuadrillaAObservacion(r.id_obs, r.revisor, r.id_sitio).catch(() => {})
-    }
-
     // Registrar el pase a En Revisión por parte del usuario de oficina (con su nombre completo oficial)
     const solicitanteInfo = (r.revisor && !esRevisorGilat(r.revisor)) ? ` (Solicitado por: ${r.revisor})` : ''
     registrarHistorialEstado({

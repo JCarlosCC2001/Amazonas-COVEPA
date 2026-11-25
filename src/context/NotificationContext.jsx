@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { getCachedSitiosAsignados, ASIGNACIONES_BASE } from '../services/sitiosService'
 import { DEFAULT_CUADRILLAS_CONFIG } from '../services/personalService'
 import { asegurarProgramacionSitio } from '../services/programacionService'
-import { registrarHistorialEstado, esRevisorGilat, atribuirTecnicoYCuadrillaAObservacion, esNombreGenerico } from '../services/auditoriaSyncService'
+import { registrarHistorialEstado, esRevisorGilat, esNombreGenerico } from '../services/auditoriaSyncService'
 import { resolveTecnicoAndCuadrilla, resolverNombreTecnico } from '../shared/reportesCore'
 import { formatPrimerNombrePrimerApellido } from '../utils/helpers'
 
@@ -1204,23 +1204,6 @@ export function NotificationProvider({ children }) {
               return [enrichedRow, ...filtered]
             })
             setEnRevision(prev => prev.filter(r => r.id_obs !== newRow.id_obs))
-
-            // ── ATRIBUCIÓN AUTOMÁTICA DEL TÉCNICO Y CUADRILLA AL SOLICITAR REVISIÓN ──
-            if (!isDupe && esAdminOCoord) {
-              const candTec = (newRow.revisor && !esRevisorGilat(newRow.revisor))
-                ? newRow.revisor
-                : resolverTecnicoDeSitio(newRow.id_sitio)
-
-              if (candTec && (!newRow.tecnico_ejecutor || (newRow.revisor && !esRevisorGilat(newRow.revisor)))) {
-                atribuirTecnicoYCuadrillaAObservacion(newRow.id_obs, candTec, newRow.id_sitio)
-                  .then(res => {
-                    if (res?.tecnico) {
-                      console.log(`[NOTIF-SYNC] Observación ${newRow.id_obs} auto-asignada a ${res.tecnico} (${res.cuadrilla})`)
-                    }
-                  })
-                  .catch(err => console.warn('[NOTIF-SYNC] Error asignando técnico ejecutor:', err))
-              }
-            }
           } else if (newRow && (newRow.estado_covepa === 'En Revisión' || newRow.estado_covepa === 'En Revision')) {
             // Pasó a En Revisión: actualizar estado en memoria (0 consultas HTTP a Supabase)
             const loc = sitiosMapRef.current[newRow.id_sitio] || ''
@@ -1380,17 +1363,6 @@ export function NotificationProvider({ children }) {
               const filtered = prev.filter(r => r.id_obs !== row.id_obs)
               return [obsLike, ...filtered]
             })
-
-            // Asignar automáticamente técnico y cuadrilla a la observación según el técnico que solicitó la revisión
-            if (row.usuario_nombre && !esNombreGenerico(row.usuario_nombre)) {
-              atribuirTecnicoYCuadrillaAObservacion(row.id_obs, row.usuario_nombre, row.id_sitio)
-                .then(res => {
-                  if (res?.tecnico) {
-                    console.log(`[NOTIF-SYNC] Observación ${row.id_obs} auto-asignada a ${res.tecnico} (${res.cuadrilla})`)
-                  }
-                })
-                .catch(err => console.warn('[NOTIF-SYNC] Error auto-asignando técnico de historial:', err))
-            }
           } else if (row && (row.estado_nuevo === 'Documentación' || row.estado_nuevo === 'Documentacion')) {
             // Opción 2: Solo alertar si proviene de campo (app_fotos o solicitud técnica de elaboración)
             const com = (row.comentario || '').toLowerCase()

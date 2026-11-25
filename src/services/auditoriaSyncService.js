@@ -175,10 +175,6 @@ export async function registrarHistorialEstado({
             .update({ usuario_nombre: usuarioNombre })
             .eq('id', exist[0].id)
         }
-        // Atribuir técnico ejecutor a la observación si no estaba
-        if (!esNombreGenerico(usuarioNombre)) {
-          atribuirTecnicoYCuadrillaAObservacion(idObs, usuarioNombre, idSitio).catch(() => {})
-        }
         return null // Omitir inserción redundante
       }
     } catch (checkErr) {
@@ -207,11 +203,6 @@ export async function registrarHistorialEstado({
     if (error) {
       console.warn('[HISTORIAL-SYNC] Advertencia al registrar historial:', error.message)
       return null
-    }
-
-    // Si es Solicitando Revisión, auto-asignar el técnico ejecutor y cuadrilla a la observación
-    if (estNuevoNorm === 'Solicitando Revisión' && !esNombreGenerico(usuarioNombre)) {
-      atribuirTecnicoYCuadrillaAObservacion(idObs, usuarioNombre, idSitio).catch(() => {})
     }
 
     return data

@@ -29,7 +29,11 @@ import {
   atribuirTecnicoYCuadrillaAObservacion,
   esNombreGenerico
 } from '../services/auditoriaSyncService'
-import { resolveTecnicoAndCuadrilla } from '../shared/reportesCore'
+import {
+  resolveTecnicoAndCuadrilla,
+  resolverIdPersonalTecnico,
+  resolverNombreTecnico
+} from '../shared/reportesCore'
 import { getPersonalActivo } from '../services/programacionService'
 import { useAuth } from '../hooks/useAuth'
 import { useNotifications } from '../context/NotificationContext'
@@ -346,6 +350,7 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
         : (sInfo.cuadrilla || sInfo.grupo || 'CUADRILLA 1')
 
       let tecFinal = designacion?.tecnico || obsLocal.tecnico_ejecutor || null
+      if (tecFinal) tecFinal = resolverIdPersonalTecnico(tecFinal) || tecFinal
       let cuadFinal = designacion?.cuadrilla || obsLocal.cuadrilla_ejecutora || cuadDelSitio
 
       if (nuevoEstado === 'Descartado') {
@@ -595,10 +600,10 @@ function ModalDetalleObservacion({ obs, sitiosMap = {}, gilatOptions = [], onClo
                     borderColor: obsLocal.tecnico_ejecutor ? '#86efac' : '#fde68a',
                     color: obsLocal.tecnico_ejecutor ? '#166534' : '#92400e'
                   }}
-                  title="Clic para designar o cambiar técnico ejecutor"
+                  title={resolverNombreTecnico(obsLocal.tecnico_ejecutor) || 'Clic para designar o cambiar técnico ejecutor'}
                 >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {formatPrimerNombrePrimerApellido(obsLocal.tecnico_ejecutor) || 'Sin Asignar (Clic)'}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                    {resolverIdPersonalTecnico(obsLocal.tecnico_ejecutor) || obsLocal.tecnico_ejecutor || 'Sin Asignar (Clic)'}
                   </span>
                   <ChevronDown size={14} color="#64748b" style={{ flexShrink: 0, marginLeft: '4px' }} />
                 </button>
@@ -1143,7 +1148,8 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                 <tbody>
                   {(obsData || []).map(o => {
                     const revisorNombre = o.revisor || o.validado_por || ''
-                    const tecEjecutorNombre = formatPrimerNombrePrimerApellido(o.tecnico_ejecutor)
+                    const tecEjecutorCod = resolverIdPersonalTecnico(o.tecnico_ejecutor) || o.tecnico_ejecutor || ''
+                    const tecEjecutorNombre = resolverNombreTecnico(o.tecnico_ejecutor) || ''
                     const cuadEjecutoraNombre = o.cuadrilla_ejecutora || sitioInfo?.cuadrilla || 'Sin Cuadrilla'
                     return (
                       <tr
@@ -1170,15 +1176,15 @@ function SitioAcordeon({ sitio, stats, filtros, sitioInfo, onSelectObs, gilatOpt
                           </span>
                         </td>
                         <td className="col-obs-tecnico">
-                          {tecEjecutorNombre ? (
-                            <span className="obs-revisor-pill" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }} title={tecEjecutorNombre}>
+                          {tecEjecutorCod ? (
+                            <span className="obs-revisor-pill" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', fontVariantNumeric: 'tabular-nums' }} title={tecEjecutorNombre || tecEjecutorCod}>
                               <User size={12} color="#16a34a" style={{ flexShrink: 0 }} />
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {tecEjecutorNombre}
+                                {tecEjecutorCod}
                               </span>
                             </span>
                           ) : (
-                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>—</span>
+                            <span className="t-meta" style={{ color: 'var(--text-muted)' }}>—</span>
                           )}
                         </td>
                         <td className="col-obs-sitio">
@@ -1790,12 +1796,13 @@ export default function Observaciones() {
       align: 'left',
       sortable: true,
       render: (o) => {
-        const tecVal = formatPrimerNombrePrimerApellido(o.tecnico_ejecutor)
-        return tecVal ? (
-          <span className="obs-revisor-pill" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }} title={tecVal}>
+        const tecCod = resolverIdPersonalTecnico(o.tecnico_ejecutor) || o.tecnico_ejecutor
+        const tecNom = resolverNombreTecnico(o.tecnico_ejecutor) || ''
+        return tecCod ? (
+          <span className="obs-revisor-pill" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', fontVariantNumeric: 'tabular-nums' }} title={tecNom || tecCod}>
             <User size={12} color="#16a34a" style={{ flexShrink: 0 }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {tecVal}
+              {tecCod}
             </span>
           </span>
         ) : (

@@ -147,6 +147,28 @@ export function isHoyPeru(isoString) {
   }
 }
 
+export const MAPA_CODIGO_PERSONAL_A_NOMBRE = {
+  '4b56f618-981f-4f2a-a901-4a4de4543899': 'Alfonso Curi',
+  '554a3a58-bf04-480a-8795-d85e055ee4c6': 'Jhonatan Flores',
+  '4f9d2cc7-3a88-42f9-b9ac-e97eec0277fe': 'Marco Chamba',
+  '84444118-163f-4568-8040-e60e1824fd73': 'Juan Castro',
+  '61d6e0fc-81ae-4e84-9841-1436795d27fd': 'Willy Fernández',
+  '19ff0cdf-7afc-4e50-94b2-f1a9998de148': 'William Avila',
+  '98a85d5b-9514-43f6-ae29-6a8c2ef6d06c': 'Hugo Espinoza',
+  '05db4c32-3c7a-42e4-a0aa-8ac33dd5c75f': 'Daniel Javier',
+  '58bf102a-514f-4829-806b-1037856cadb1': 'Gabriel Farro',
+  'eebf3b9e-4923-47ce-9eee-8e9af86c9fea': 'Cristian Isla',
+  'a4295a11-646e-44ca-a855-abeac12cfaaa': 'Rolan Rojas',
+  'f3b135e9-0446-4f88-8bbd-bdae257c1f15': 'Milton Alamo',
+  '45cc3a1b-75f9-447f-af68-efec878d0abf': 'Jhon Miler',
+  'dbaa3159-e4fc-4e85-8295-8bdff568ab1e': 'Roger Valdivia',
+  '06aef94f-cf84-438f-b6c5-f60658e70ba3': 'Ronal Ninamaque',
+  '243a62bf-1424-4aad-ac99-4ceae9db421c': 'Denis Torres',
+  'ef2433d5-67e5-4c81-80a6-ae0c808e3224': 'Jhonatan Rios',
+  '0469c1c5-8900-462e-9712-2ca4c0a0ad0b': 'Elio Chavez',
+  '9ba60440-e8bf-45a4-b936-b4adb6b67632': 'Ciro Fernandez'
+};
+
 /**
  * Extrae y formatea solo el primer nombre y primer apellido de una persona.
  * Si recibe una dupla unida por "·" o "/", formatea ambas personas:
@@ -159,6 +181,10 @@ export function formatPrimerNombrePrimerApellido(str) {
   if (!str) return ''
   const trimmed = String(str).trim()
   if (!trimmed || trimmed === '—' || trimmed === '-') return ''
+
+  if (MAPA_CODIGO_PERSONAL_A_NOMBRE[trimmed.toLowerCase()]) {
+    return MAPA_CODIGO_PERSONAL_A_NOMBRE[trimmed.toLowerCase()];
+  }
 
   if (trimmed.includes('·')) {
     return trimmed.split('·').map(part => formatPrimerNombrePrimerApellido(part.trim())).filter(Boolean).join(' · ')

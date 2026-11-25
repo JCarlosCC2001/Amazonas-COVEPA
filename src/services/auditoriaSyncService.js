@@ -339,7 +339,7 @@ export async function atribuirTecnicoYCuadrillaAObservacion(idObs, nombreTecnico
 
   try {
     const updatePayload = {
-      tecnico_ejecutor: resolved.tecnico,
+      tecnico_ejecutor: resolved.id_personal || resolved.tecnico,
       cuadrilla_ejecutora: resolved.cuadrilla,
       revisor: null
     }

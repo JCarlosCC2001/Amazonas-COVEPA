@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { UserCheck, X, Shield, MapPin, Check } from 'lucide-react'
 import { DEFAULT_CUADRILLAS_CONFIG } from '../../services/personalService.js'
-import { resolveCuadrillaOficial } from '../../shared/reportesCore.js'
+import { resolveCuadrillaOficial, ID_PERSONAL_POR_TECNICO } from '../../shared/reportesCore.js'
 import { formatPrimerNombrePrimerApellido } from '../../utils/helpers.js'
 
 /**
@@ -80,8 +80,10 @@ export default function ModalDesignarTecnico({
 
   const handleConfirmAction = () => {
     if (!selectedTecnico || !selectedCuadrilla) return
+    const idPersonal = ID_PERSONAL_POR_TECNICO[selectedTecnico] || selectedTecnico
     onConfirm({
-      tecnico: selectedTecnico,
+      tecnico: idPersonal,
+      tecnicoNombre: selectedTecnico,
       cuadrilla: selectedCuadrilla
     })
   }

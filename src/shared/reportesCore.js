@@ -9,6 +9,69 @@
 
 import { formatPrimerNombrePrimerApellido } from '../utils/helpers.js'
 
+export const ID_PERSONAL_POR_TECNICO = {
+  'Jhonatan Flores': '554a3a58-bf04-480a-8795-d85e055ee4c6',
+  'Jhonatan Flores Rojas': '554a3a58-bf04-480a-8795-d85e055ee4c6',
+  'Marco Chamba': '4f9d2cc7-3a88-42f9-b9ac-e97eec0277fe',
+  'Marco Antonio Chamba Contreras': '4f9d2cc7-3a88-42f9-b9ac-e97eec0277fe',
+  'Juan Castro': '84444118-163f-4568-8040-e60e1824fd73',
+  'Willy Fernández': '61d6e0fc-81ae-4e84-9841-1436795d27fd',
+  'Willy Fernandez': '61d6e0fc-81ae-4e84-9841-1436795d27fd',
+  'Willy Fernández Aquino': '61d6e0fc-81ae-4e84-9841-1436795d27fd',
+  'Alfonso Curi': '4b56f618-981f-4f2a-a901-4a4de4543899',
+  'Alfonso Curi Lopez': '4b56f618-981f-4f2a-a901-4a4de4543899',
+  'William Avila': '19ff0cdf-7afc-4e50-94b2-f1a9998de148',
+  'William Avila Cotrina': '19ff0cdf-7afc-4e50-94b2-f1a9998de148',
+  'Hugo Espinoza': '98a85d5b-9514-43f6-ae29-6a8c2ef6d06c',
+  'Hugo Espinoza Pezo': '98a85d5b-9514-43f6-ae29-6a8c2ef6d06c',
+  'Daniel Javier': '05db4c32-3c7a-42e4-a0aa-8ac33dd5c75f',
+  'Denis Torres': '243a62bf-1424-4aad-ac99-4ceae9db421c',
+  'Dennis Torres': '243a62bf-1424-4aad-ac99-4ceae9db421c',
+  'Dennis Eduardo Torres Paz': '243a62bf-1424-4aad-ac99-4ceae9db421c',
+  'Roger Valdivia': 'dbaa3159-e4fc-4e85-8295-8bdff568ab1e',
+  'Roger Valdivia Rodriguez': 'dbaa3159-e4fc-4e85-8295-8bdff568ab1e',
+  'Percy Rojas': 'aab1e7bf-6ed7-4d23-8871-b86b7eb3095a',
+  'Gabriel Farro': '58bf102a-514f-4829-806b-1037856cadb1',
+  'Cristian Isla': 'eebf3b9e-4923-47ce-9eee-8e9af86c9fea',
+  'Carlos Condor': '8359c281-33ce-423e-9823-0e9e09663889',
+  'Jhon Miler Herrera': '45cc3a1b-75f9-447f-af68-efec878d0abf',
+  'Milton Alamo': 'f3b135e9-0446-4f88-8bbd-bdae257c1f15'
+}
+
+export const TECNICO_POR_ID_PERSONAL = {
+  '554a3a58-bf04-480a-8795-d85e055ee4c6': 'Jhonatan Flores',
+  '4f9d2cc7-3a88-42f9-b9ac-e97eec0277fe': 'Marco Chamba',
+  '84444118-163f-4568-8040-e60e1824fd73': 'Juan Castro',
+  '61d6e0fc-81ae-4e84-9841-1436795d27fd': 'Willy Fernández',
+  '4b56f618-981f-4f2a-a901-4a4de4543899': 'Alfonso Curi',
+  '19ff0cdf-7afc-4e50-94b2-f1a9998de148': 'William Avila',
+  '98a85d5b-9514-43f6-ae29-6a8c2ef6d06c': 'Hugo Espinoza',
+  '05db4c32-3c7a-42e4-a0aa-8ac33dd5c75f': 'Daniel Javier',
+  '243a62bf-1424-4aad-ac99-4ceae9db421c': 'Denis Torres',
+  'dbaa3159-e4fc-4e85-8295-8bdff568ab1e': 'Roger Valdivia',
+  'aab1e7bf-6ed7-4d23-8871-b86b7eb3095a': 'Percy Rojas',
+  '58bf102a-514f-4829-806b-1037856cadb1': 'Gabriel Farro',
+  'eebf3b9e-4923-47ce-9eee-8e9af86c9fea': 'Cristian Isla',
+  '8359c281-33ce-423e-9823-0e9e09663889': 'Carlos Condor',
+  '45cc3a1b-75f9-447f-af68-efec878d0abf': 'Jhon Miler Herrera',
+  'f3b135e9-0446-4f88-8bbd-bdae257c1f15': 'Milton Alamo'
+}
+
+export function resolverIdPersonalTecnico(valor) {
+  if (!valor) return null
+  const s = String(valor).trim()
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) {
+    return s.toLowerCase()
+  }
+  return ID_PERSONAL_POR_TECNICO[s] || null
+}
+
+export function resolverNombreTecnico(valor) {
+  if (!valor) return null
+  const s = String(valor).trim().toLowerCase()
+  return TECNICO_POR_ID_PERSONAL[s] || valor
+}
+
 /**
  * Resuelve la cuadrilla (CUADRILLA 1 a 4) y el técnico oficial
  * a partir de un nombre de usuario, mención o comentario con etiqueta [Técnico: ...].
@@ -17,6 +80,17 @@ export function resolveTecnicoAndCuadrilla(str) {
   if (!str) return null
   const s = String(str).trim()
   if (!s || s === '—' || s === '-') return null
+
+  // Si ya es un UUID / id_personal
+  const sLower = s.toLowerCase()
+  if (TECNICO_POR_ID_PERSONAL[sLower]) {
+    const tecName = TECNICO_POR_ID_PERSONAL[sLower]
+    let cuad = 'CUADRILLA 1'
+    if (['Juan Castro', 'Willy Fernández', 'Cristian Isla'].includes(tecName)) cuad = 'CUADRILLA 2'
+    else if (['Alfonso Curi', 'William Avila'].includes(tecName)) cuad = 'CUADRILLA 3'
+    else if (['Hugo Espinoza', 'Daniel Javier', 'Roger Valdivia'].includes(tecName)) cuad = 'CUADRILLA 4'
+    return { cuadrilla: cuad, tecnico: tecName, id_personal: sLower }
+  }
 
   // Si incluye etiqueta de designación tipo "[Técnico: Juan Castro]"
   const tagMatch = s.match(/\[Técnico:\s*([^\]]+)\]/i)
@@ -28,6 +102,8 @@ export function resolveTecnicoAndCuadrilla(str) {
     return null
   }
 
+  let res = null
+
   // Cuadrilla 1: Jhonatan Flores, Marco Chamba
   if (
     (upper.includes('JHONATAN') && upper.includes('FLORES')) ||
@@ -36,11 +112,8 @@ export function resolveTecnicoAndCuadrilla(str) {
     upper.includes('FLORES ROJAS')
   ) {
     const tec = (upper.includes('CHAMBA')) ? 'Marco Chamba' : 'Jhonatan Flores'
-    return { cuadrilla: 'CUADRILLA 1', tecnico: tec }
-  }
-
-  // Cuadrilla 2: Juan Castro, Willy Fernández, Cristian Isla
-  if (
+    res = { cuadrilla: 'CUADRILLA 1', tecnico: tec }
+  } else if (
     (upper.includes('JUAN') && upper.includes('CASTRO')) ||
     upper.includes('CASTRO TORRES') ||
     (upper.includes('CASTRO') && !upper.includes('CONDOR')) ||
@@ -49,14 +122,12 @@ export function resolveTecnicoAndCuadrilla(str) {
     upper.includes('FERNÁNDEZ AQUINO') ||
     upper.includes('CRISTIAN ISLA')
   ) {
+    // Cuadrilla 2: Juan Castro, Willy Fernández, Cristian Isla
     let tec = 'Juan Castro'
     if (upper.includes('WILLY') || upper.includes('FERNANDEZ') || upper.includes('FERNÁNDEZ')) tec = 'Willy Fernández'
     else if (upper.includes('ISLA')) tec = 'Cristian Isla'
-    return { cuadrilla: 'CUADRILLA 2', tecnico: tec }
-  }
-
-  // Cuadrilla 3: Alfonso Curi, William Avila
-  if (
+    res = { cuadrilla: 'CUADRILLA 2', tecnico: tec }
+  } else if (
     (upper.includes('ALFONSO') && upper.includes('CURI')) ||
     upper.includes('CURI LOPEZ') ||
     upper.includes('CURI LÓPEZ') ||
@@ -64,14 +135,12 @@ export function resolveTecnicoAndCuadrilla(str) {
     upper.includes('AVILA COTRINA') ||
     upper.includes('ÁVILA COTRINA')
   ) {
+    // Cuadrilla 3: Alfonso Curi, William Avila
     const tec = (upper.includes('AVILA') || upper.includes('ÁVILA') || upper.includes('COTRINA') || upper.includes('WILLIAM') || upper.includes('WILL'))
       ? 'William Avila'
       : 'Alfonso Curi'
-    return { cuadrilla: 'CUADRILLA 3', tecnico: tec }
-  }
-
-  // Cuadrilla 4: Hugo Espinoza, Daniel Javier, Roger Valdivia
-  if (
+    res = { cuadrilla: 'CUADRILLA 3', tecnico: tec }
+  } else if (
     (upper.includes('HUGO') && upper.includes('ESPINOZA')) ||
     upper.includes('ESPINOZA PEZO') ||
     (upper.includes('DANIEL') && upper.includes('JAVIER')) ||
@@ -80,16 +149,23 @@ export function resolveTecnicoAndCuadrilla(str) {
     upper.includes('VALDIVIA RODRIGUEZ') ||
     upper.includes('VALDIVIA RODRÍGUEZ')
   ) {
+    // Cuadrilla 4: Hugo Espinoza, Daniel Javier, Roger Valdivia
     let tec = 'Hugo Espinoza'
     if (upper.includes('JAVIER')) tec = 'Daniel Javier'
     else if (upper.includes('VALDIVIA')) tec = 'Roger Valdivia'
-    return { cuadrilla: 'CUADRILLA 4', tecnico: tec }
+    res = { cuadrilla: 'CUADRILLA 4', tecnico: tec }
+  } else if (upper.includes('CHAMBA')) {
+    res = { cuadrilla: 'CUADRILLA 1', tecnico: 'Marco Chamba' }
+  } else if (upper.includes('CURI')) {
+    res = { cuadrilla: 'CUADRILLA 3', tecnico: 'Alfonso Curi' }
+  } else if (upper.includes('CASTRO') && !upper.includes('CONDOR')) {
+    res = { cuadrilla: 'CUADRILLA 2', tecnico: 'Juan Castro' }
   }
 
-  // Coincidencias por apellido o nombre individual
-  if (upper.includes('CHAMBA')) return { cuadrilla: 'CUADRILLA 1', tecnico: 'Marco Chamba' }
-  if (upper.includes('CURI')) return { cuadrilla: 'CUADRILLA 3', tecnico: 'Alfonso Curi' }
-  if (upper.includes('CASTRO') && !upper.includes('CONDOR')) return { cuadrilla: 'CUADRILLA 2', tecnico: 'Juan Castro' }
+  if (res) {
+    const idPersonal = ID_PERSONAL_POR_TECNICO[res.tecnico] || null
+    return { ...res, id_personal: idPersonal }
+  }
 
   return null
 }

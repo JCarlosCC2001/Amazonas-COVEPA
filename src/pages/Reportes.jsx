@@ -17,6 +17,8 @@ import {
   DEFAULT_CONFIG_SEMANAL
 } from '../services/reportesCorreoService'
 import { fetchPersonal, updatePersonal } from '../services/personalService'
+import ReporteExcelOnlineView from '../components/reportes/ReporteExcelOnlineView'
+import { getStoredSheetsConfig } from '../services/googleSheetsSyncService'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -37,6 +39,7 @@ export default function Reportes() {
   // Configuraciones separadas e independientes
   const [configDiario, setConfigDiario] = useState(DEFAULT_CONFIG_DIARIO)
   const [configSemanal, setConfigSemanal] = useState(DEFAULT_CONFIG_SEMANAL)
+  const [sheetsConfig, setSheetsConfig] = useState(getStoredSheetsConfig)
 
   // Datos en vivo para las vistas previas
   const [datosReporteDiario, setDatosReporteDiario] = useState(null)
@@ -829,8 +832,76 @@ export default function Reportes() {
                 <span>→</span>
               </button>
             </div>
+
+            {/* Tarjeta 3: Reporte Excel en Línea (Google Sheets) */}
+            <div className="reporte-hub-card" onClick={() => { setSheetsConfig(getStoredSheetsConfig()); setTipoVista('EXCEL_ONLINE'); }}>
+              <div className="reporte-hub-card-top">
+                <div className="reporte-hub-icon-wrap" style={{ background: '#166534', color: '#ffffff', borderColor: '#14532d' }}>
+                  <span>📗</span>
+                </div>
+                <span
+                  className="t-badge"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.25rem 0.65rem',
+                    borderRadius: '12px',
+                    background: sheetsConfig?.webhookUrl ? '#dcfce7' : '#fef3c7',
+                    color: sheetsConfig?.webhookUrl ? '#15803d' : '#92400e',
+                    border: `1px solid ${sheetsConfig?.webhookUrl ? '#86efac' : '#fde68a'}`
+                  }}
+                >
+                  <span className="t-caption" style={{ lineHeight: 1 }}>●</span>
+                  {sheetsConfig?.webhookUrl ? 'En Línea Activo' : 'Pendiente Conexión'}
+                </span>
+              </div>
+              <div className="reporte-hub-card-content">
+                <h2 className="reporte-hub-card-title t-title-section">Reporte Excel en Línea</h2>
+                <p className="reporte-hub-card-desc t-body">
+                  Sincronización directa y actualización en tiempo real de cuadrilla ejecutora, técnico asignado, estado, fecha de actualización y revisor en tu Google Sheet (Amazonas Original y Amazonas Ampliación).
+                </p>
+              </div>
+              <div className="reporte-hub-card-meta">
+                <div className="reporte-hub-meta-item">
+                  <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>Destino:</span>
+                  <span className="t-meta" style={{ fontWeight: 'var(--fw-semibold)', color: '#003060' }}>
+                    Google Drive · Levantamiento de Obs.
+                  </span>
+                </div>
+                <div className="reporte-hub-meta-item">
+                  <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>Pestañas:</span>
+                  <span className="t-meta" style={{ fontWeight: 'var(--fw-semibold)', color: '#003060' }}>
+                    Amazonas Original · Amazonas Ampliación
+                  </span>
+                </div>
+                <div className="reporte-hub-meta-item">
+                  <span className="t-meta" style={{ color: 'var(--text-secondary)' }}>Columnas:</span>
+                  <span className="t-meta" style={{ fontWeight: 'var(--fw-semibold)', color: '#0369a1' }}>
+                    Cuadrilla, Técnico, Estado, Fecha, Revisor
+                  </span>
+                </div>
+              </div>
+              <button type="button" className="btn-reporte-hub-action">
+                <span>Configurar y Sincronizar en Línea</span>
+                <span>→</span>
+              </button>
+            </div>
           </div>
         </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+         VISTA 4: REPORTE EXCEL EN LÍNEA (GOOGLE SHEETS)
+         ══════════════════════════════════════════════════════════ */}
+      {tipoVista === 'EXCEL_ONLINE' && (
+        <ReporteExcelOnlineView
+          onVolver={() => {
+            setSheetsConfig(getStoredSheetsConfig())
+            setTipoVista('HUB')
+          }}
+          showNotification={showNotification}
+        />
       )}
 
       {/* ══════════════════════════════════════════════════════════

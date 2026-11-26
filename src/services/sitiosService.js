@@ -1,7 +1,7 @@
 // Servicio para gestionar sitios combinando la BD propia (asignaciones) y la BD externa (georreferenciación y catálogo)
 import { supabase } from '../lib/supabase.js'
 import { supabaseExt } from '../lib/supabase.js'
-import baseSitiosJson from '../../scripts/base_sitios_asignados.json'
+import baseSitiosJson from '../../scripts/base_sitios_asignados.json' with { type: 'json' }
 
 // Fuente única de verdad para los 183 sitios asignados (156 Original + 27 Ampliación)
 export const ASIGNACIONES_BASE = Object.entries(baseSitiosJson).map(([id_site, info]) => {

@@ -8,7 +8,7 @@
 // ============================================================================
 
 import { formatPrimerNombrePrimerApellido } from '../utils/helpers.js'
-import baseSitiosJson from '../../scripts/base_sitios_asignados.json'
+import baseSitiosJson from '../../scripts/base_sitios_asignados.json' with { type: 'json' }
 
 export const MAPA_SITIO_A_CUADRILLA = {}
 for (const [sId, info] of Object.entries(baseSitiosJson)) {

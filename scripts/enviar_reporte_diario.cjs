@@ -1282,13 +1282,13 @@ async function enviarReporteDiarioInterno() {
     const curTotalMins = (curH || 0) * 60 + (curM || 0)
     const diffMins = Math.abs(curTotalMins - cfgTotalMins)
 
-    // Tolerancia de ±30 minutos para absorber diferencias de inicio o ejecución horaria
-    if (diffMins > 30) {
+    // Tolerancia de ±30 minutos para absorber diferencias de inicio o ejecución horaria (si no es forzado)
+    if (!forzarEnvio && diffMins > 30) {
       console.log(`[REPORTE-INTERNO] ⏳ Hora programada: ${config.hora_envio} | Hora actual: ${horaMinuto} (Diferencia: ${diffMins} min). Fuera de horario. Omitiendo.`)
       return
     }
 
-    if (config.ultimo_envio_at) {
+    if (!forzarEnvio && config.ultimo_envio_at) {
       const ultimoEnvioPeruDate = getPeruDateString(config.ultimo_envio_at)
       const configUpdateTime = config.updated_at ? new Date(config.updated_at).getTime() : 0
       const ultimoEnvioTime = new Date(config.ultimo_envio_at).getTime()
